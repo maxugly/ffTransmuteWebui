@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+env/
+*.egg
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Runtime / cache
+*.log
+.cache/
+*.tmp
+tmp/
+
+# Local media / test outputs (keep fixtures intentionally tracked if small)
+mtapi-project/test*.mp4
+mtapi-project/test*.m4v
+mtapi-project/test*.m2v
+mtapi-project/test*.json
+
+# Zip dumps / scratch
+*.zip
+asdg
+respones001.txt
+
+# Optional: user may want screenshots tracked — leave example*.png in for now
+# Uncomment to ignore large screenshots:
+# example*.png
+# compare_*.png
+# mtapi_ui.png
+# sorry2bugYa.png

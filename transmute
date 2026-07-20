@@ -1,0 +1,405 @@
+#!/usr/bin/env bash
+# transmute - change the substance of your video
+# Rule: never scale, never lose pixels except intentional crop
+# Except -x, -j stretch/crop, -g stretch/crop which intentionally scale
+
+set -euo pipefail
+
+usage() {
+  cat <<EOF
+transmute: change the substance of your video
+
+Usage: $(basename "$0") INPUT [OPTIONS] [OUTPUT]
+       INPUT can be a file, folder, or comma-separated list for -j / -g
+       If folder and not -j/-g, OUTPUT (if given) must be a folder.
+       If OUTPUT omitted, auto-names based on operation.
+
+Options:
+  -f Extract FIRST frame only -> <name>_f:00001.png
+  -l [N] Extract LAST frame only -> <name>_l:<frame>.jpg. N=seconds from end, default 0.1
+  -a Extract AUDIO only -> <name>_a.m4a
+  -c CROP to 16:9 center -> <name>_16x9c.ext
+  -b LETTERBOX to 16:9 -> <name>_16x9b.ext
+  -s CROP to 1:1 SQUARE center (min side, no scale) -> <name>_1x1s.ext
+  -S LETTERBOX to 1:1 SQUARE (max side, pad, no scale) -> <name>_1x1b.ext
+  -z WxH CROP to exact resolution (center, no scale) -> <name>_<WxH>z.ext
+  -x WxH STRETCH to exact resolution (scale, may distort) -> <name>_<WxH>x.ext
+  -j [MODE] JOIN/STITCH clips end-to-end. MODE=pad|crop|stretch (default: pad)
+           INPUT can be: "a.mp4,b.mp4,c.mp4" or a folder
+           Final res = max(W) x max(H) across inputs
+  -g [MODE] GRID 2x2 panel of 4 videos. MODE=pad|crop|stretch (default: pad)
+           INPUT must be 4 videos: "a,b,c,d" or folder with 4 videos
+           Final res = max(W)*2 x max(H)*2
+  -r REVERSE video -> <name>_rev.ext
+  -q QUALITY JPEG quality for -f/-l. 2-31, default 2. Lower=better
+  -d DRY RUN. Print command but don't execute
+  -h HELP. Show this message and exit
+
+Examples:
+  transmute input.mp4 -s
+  transmute input.mp4 -z 1080x1080
+  transmute a.mp4,b.mp4,c.mp4 -j pad
+  transmute tl.mp4,tr.mp4,bl.mp4,br.mp4 -g crop
+  transmute./clips -g -o grid.mp4
+EOF
+}
+
+[[ $# -eq 0 ]] && { usage; exit 0; }
+[[ "$1" == "-h" ]] && { usage; exit 0; }
+
+FIRST=false
+LAST=false
+LAST_SEEK=0.1
+AUDIO=false
+CROP=false
+LETTERBOX=false
+SQUARE_CROP=false
+SQUARE_PAD=false
+CROP_RES=""
+STRETCH_RES=""
+JOIN=false
+JOIN_MODE="pad"
+GRID=false
+GRID_MODE="pad"
+REVERSE=false
+DRYRUN=false
+QUALITY=2
+
+INPUT="$1"; shift
+OUTPUT=""
+
+parse_res() {
+  local res="$1"
+  if [[ ! "$res" =~ ^[0-9]+x[0-9]+$ ]]; then
+    echo "Error: Resolution must be WxH, e.g. 1080x1080, got '$res'" >&2
+    exit 1
+  fi
+  echo "$res"
+}
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -f) FIRST=true; shift ;;
+    -l) LAST=true;
+        if [[ ${2:-} =~ ^[0-9.]+$ ]]; then LAST_SEEK="$2"; shift; fi
+        shift ;;
+    -a) AUDIO=true; shift ;;
+    -c) CROP=true; shift ;;
+    -b) LETTERBOX=true; shift ;;
+    -s) SQUARE_CROP=true; shift ;;
+    -S) SQUARE_PAD=true; shift ;;
+    -z) [[ -n "${2:-}" ]] || { echo "Error: -z requires WxH" >&2; exit 1; }
+        CROP_RES="$(parse_res "$2")"; shift 2 ;;
+    -x) [[ -n "${2:-}" ]] || { echo "Error: -x requires WxH" >&2; exit 1; }
+        STRETCH_RES="$(parse_res "$2")"; shift 2 ;;
+    -j) JOIN=true;
+        if [[ -n "${2:-}" && "$2" =~ ^(pad|crop|stretch)$ ]]; then
+          JOIN_MODE="$2"; shift 2
+        else
+          JOIN_MODE="pad"; shift
+        fi
+        ;;
+    -g) GRID=true;
+        if [[ -n "${2:-}" && "$2" =~ ^(pad|crop|stretch)$ ]]; then
+          GRID_MODE="$2"; shift 2
+        else
+          GRID_MODE="pad"; shift
+        fi
+        ;;
+    -r) REVERSE=true; shift ;;
+    -q) if [[ ${2:-} =~ ^[0-9]+$ ]]; then QUALITY="$2"; shift 2; else echo "Error: -q requires a numeric value (2-31)"; usage; exit 1; fi ;;
+    -d) DRYRUN=true; shift ;;
+    -h) usage; exit 0 ;;
+    -*) echo "Unknown option: $1"; usage; exit 1 ;;
+    *) OUTPUT="$1"; shift ;;
+  esac
+done
+
+# --- safety checks ---
+[[ -e "$INPUT" || "$INPUT" == *","* ]] || { echo "Error: Input not found: $INPUT" >&2; exit 1; }
+
+GEOM_COUNT=0
+$SQUARE_CROP && GEOM_COUNT=$((GEOM_COUNT+1))
+$SQUARE_PAD && GEOM_COUNT=$((GEOM_COUNT+1))
+$CROP && GEOM_COUNT=$((GEOM_COUNT+1))
+$LETTERBOX && GEOM_COUNT=$((GEOM_COUNT+1))
+[[ -n "$CROP_RES" ]] && GEOM_COUNT=$((GEOM_COUNT+1))
+[[ -n "$STRETCH_RES" ]] && GEOM_COUNT=$((GEOM_COUNT+1))
+$JOIN && GEOM_COUNT=$((GEOM_COUNT+1))
+$GRID && GEOM_COUNT=$((GEOM_COUNT+1))
+if [[ $GEOM_COUNT -gt 1 ]]; then
+  echo "Error: -c, -b, -s, -S, -z, -x, -j, -g are mutually exclusive (pick one geometry)" >&2
+  exit 1
+fi
+
+is_video_file() {
+  local lc="${1,,}"
+  [[ "$lc" =~ \.(mp4|mov|mkv|m4v|avi|webm|flv|wmv|mpg|mpeg|3gp)$ ]]
+}
+
+collect_inputs() {
+  local src="$1"
+  local -n arr_ref=$2
+  arr_ref=()
+  if [[ "$src" == *","* ]]; then
+    IFS=',' read -ra arr_ref <<< "$src"
+  elif [[ -d "$src" ]]; then
+    for f in "$src"/*; do
+      [[ -f "$f" ]] || continue
+      is_video_file "$f" || continue
+      arr_ref+=("$f")
+    done
+    # sort for determinism
+    IFS=$'\n' arr_ref=($(sort <<<"${arr_ref[*]}"))
+    unset IFS
+  else
+    arr_ref+=("$src")
+  fi
+}
+
+build_output_name() {
+  local in_file="$1"
+  local filename; filename="$(basename -- "$in_file")"
+  local basename="${filename%.*}"
+  local ext=""
+  if [[ "$filename" == *.* ]]; then ext="${filename##*.}"; else ext="mp4"; fi
+  [[ -z "$basename" ]] && basename="$filename"
+  if $FIRST; then echo "${basename}_f:00001.png"; return; fi
+  if $LAST; then echo "${basename}_l:${LAST_SEEK}s.jpg"; return; fi
+  if $AUDIO; then echo "${basename}_a.m4a"; return; fi
+  local suffix=""
+  $SQUARE_CROP && suffix="${suffix}_1x1s"
+  $SQUARE_PAD && suffix="${suffix}_1x1b"
+  $CROP && suffix="${suffix}_16x9c"
+  $LETTERBOX && suffix="${suffix}_16x9b"
+  [[ -n "$CROP_RES" ]] && suffix="${suffix}_${CROP_RES}z"
+  [[ -n "$STRETCH_RES" ]] && suffix="${suffix}_${STRETCH_RES}x"
+  $REVERSE && suffix="${suffix}_rev"
+  [[ -z "$suffix" ]] && suffix="_copy"
+  echo "${basename}${suffix}.${ext}"
+}
+
+# --- GRID MODE ---
+if $GRID; then
+  declare -a INPUTS=()
+  collect_inputs "$INPUT" INPUTS
+  if [[ ${#INPUTS[@]} -ne 4 ]]; then
+    echo "Error: -g needs exactly 4 videos (got ${#INPUTS[@]})" >&2
+    echo " Got: ${INPUTS[*]:-none}" >&2
+    exit 1
+  fi
+
+  echo "Probing 4 clips for max tile resolution..."
+  MAX_W=0; MAX_H=0
+  for f in "${INPUTS[@]}"; do
+    [[ -f "$f" ]] || { echo "Error: file not found: $f" >&2; exit 1; }
+    IFS='x' read -r W H < <(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "$f")
+    [[ -n "$W" && -n "$H" ]] || { echo "Error: could not probe $f" >&2; exit 1; }
+    (( W > MAX_W )) && MAX_W=$W
+    (( H > MAX_H )) && MAX_H=$H
+    echo " $f -> ${W}x${H}"
+  done
+  TILE_W=$MAX_W; TILE_H=$MAX_H
+  FINAL_W=$((MAX_W*2)); FINAL_H=$((MAX_H*2))
+  echo "Tile: ${TILE_W}x${TILE_H}, Final: ${FINAL_W}x${FINAL_H} (mode: $GRID_MODE)"
+
+  if [[ -z "$OUTPUT" ]]; then
+    OUTPUT="grid-${GRID_MODE}_${FINAL_W}x${FINAL_H}.mp4"
+  fi
+
+  # Build filter_complex for tiles
+  FILTER=""
+  for i in 0 1 2 3; do
+    case "$GRID_MODE" in
+      pad)
+        FILTER+="[${i}:v]pad=${TILE_W}:${TILE_H}:(ow-iw)/2:(oh-ih)/2:color=black:eval=frame,setsar=1,setpts=PTS-STARTPTS[v${i}];"
+        ;;
+      stretch)
+        FILTER+="[${i}:v]scale=${TILE_W}:${TILE_H}:flags=lanczos,setsar=1,setpts=PTS-STARTPTS[v${i}];"
+        ;;
+      crop)
+        FILTER+="[${i}:v]scale=${TILE_W}:${TILE_H}:force_original_aspect_ratio=increase:flags=lanczos,setsar=1,crop=${TILE_W}:${TILE_H}:(iw-ow)/2:(ih-oh)/2,setpts=PTS-STARTPTS[v${i}];"
+        ;;
+    esac
+  done
+  FILTER+="[v0][v1][v2][v3]xstack=inputs=4:layout=0_0|w0_0|0_h0|w0_h0:fill=black:shortest=1[v]"
+
+  CMD=(ffmpeg -hide_banner -y)
+  for f in "${INPUTS[@]}"; do CMD+=(-i "$f"); done
+  CMD+=(-filter_complex "$FILTER" -map "[v]")
+
+  HAS_AUDIO=true
+  for f in "${INPUTS[@]}"; do
+    if ! ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "$f" | grep -q .; then
+      HAS_AUDIO=false; break
+    fi
+  done
+
+  if $HAS_AUDIO; then
+    # Rebuild with audio mixing
+    FILTER=""; AFILTER=""
+    for i in 0 1 2 3; do
+      case "$GRID_MODE" in
+        pad) FILTER+="[${i}:v]pad=${TILE_W}:${TILE_H}:(ow-iw)/2:(oh-ih)/2:color=black:eval=frame,setsar=1,setpts=PTS-STARTPTS[v${i}];" ;;
+        stretch) FILTER+="[${i}:v]scale=${TILE_W}:${TILE_H}:flags=lanczos,setsar=1,setpts=PTS-STARTPTS[v${i}];" ;;
+        crop) FILTER+="[${i}:v]scale=${TILE_W}:${TILE_H}:force_original_aspect_ratio=increase:flags=lanczos,setsar=1,crop=${TILE_W}:${TILE_H}:(iw-ow)/2:(ih-oh)/2,setpts=PTS-STARTPTS[v${i}];" ;;
+      esac
+      AFILTER+="[${i}:a]aformat=sample_fmts=fltp:channel_layouts=stereo,aresample=async=1[a${i}];"
+    done
+    FILTER+="${AFILTER}[v0][v1][v2][v3]xstack=inputs=4:layout=0_0|w0_0|0_h0|w0_h0:fill=black:shortest=1[v];[a0][a1][a2][a3]amix=inputs=4:duration=longest:dropout_transition=0:normalize=0[a]"
+    CMD=(); CMD=(ffmpeg -hide_banner -y)
+    for f in "${INPUTS[@]}"; do CMD+=(-i "$f"); done
+    CMD+=(-filter_complex "$FILTER" -map "[v]" -map "[a]" -c:v libx264 -crf 18 -preset medium -c:a aac -b:a 192k "$OUTPUT")
+  else
+    CMD+=(-c:v libx264 -crf 18 -preset medium -an "$OUTPUT")
+  fi
+
+  echo "Output: $OUTPUT"
+  echo "Command: ${CMD[*]}"
+  if ! $DRYRUN; then "${CMD[@]}"; fi
+  exit 0
+fi
+
+# --- JOIN MODE ---
+if $JOIN; then
+  declare -a INPUTS=()
+  collect_inputs "$INPUT" INPUTS
+  if [[ ${#INPUTS[@]} -lt 2 ]]; then echo "Error: -j needs at least 2 videos" >&2; exit 1; fi
+
+  echo "Probing ${#INPUTS[@]} clips for max resolution..."
+  MAX_W=0; MAX_H=0
+  for f in "${INPUTS[@]}"; do
+    IFS='x' read -r W H < <(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "$f")
+    (( W > MAX_W )) && MAX_W=$W; (( H > MAX_H )) && MAX_H=$H
+    echo " $f -> ${W}x${H}"
+  done
+  echo "Final resolution: ${MAX_W}x${MAX_H} (mode: $JOIN_MODE)"
+  [[ -z "$OUTPUT" ]] && OUTPUT="join-${JOIN_MODE}_${MAX_W}x${MAX_H}.mp4"
+
+  CMD=(ffmpeg -hide_banner -y)
+  for f in "${INPUTS[@]}"; do CMD+=(-i "$f"); done
+
+  FILTER=""
+  for i in "${!INPUTS[@]}"; do
+    case "$JOIN_MODE" in
+      pad) FILTER+="[${i}:v]pad=${MAX_W}:${MAX_H}:(ow-iw)/2:(oh-ih)/2:color=black:eval=frame,setsar=1,setpts=PTS-STARTPTS[v${i}];" ;;
+      stretch) FILTER+="[${i}:v]scale=${MAX_W}:${MAX_H}:flags=lanczos,setsar=1,setpts=PTS-STARTPTS[v${i}];" ;;
+      crop) FILTER+="[${i}:v]scale=${MAX_W}:${MAX_H}:force_original_aspect_ratio=increase:flags=lanczos,setsar=1,crop=${MAX_W}:${MAX_H}:(iw-ow)/2:(ih-oh)/2,setpts=PTS-STARTPTS[v${i}];" ;;
+    esac
+  done
+  for i in "${!INPUTS[@]}"; do FILTER+="[v${i}]"; done
+  FILTER+="concat=n=${#INPUTS[@]}:v=1:a=0[v]"
+
+  HAS_A=true
+  for f in "${INPUTS[@]}"; do ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "$f" | grep -q . || { HAS_A=false; break; }; done
+
+  if $HAS_A; then
+    FILTER=""; AFILTER=""
+    for i in "${!INPUTS[@]}"; do
+      case "$JOIN_MODE" in
+        pad) FILTER+="[${i}:v]pad=${MAX_W}:${MAX_H}:(ow-iw)/2:(oh-ih)/2:color=black:eval=frame,setsar=1,setpts=PTS-STARTPTS[v${i}];" ;;
+        stretch) FILTER+="[${i}:v]scale=${MAX_W}:${MAX_H}:flags=lanczos,setsar=1,setpts=PTS-STARTPTS[v${i}];" ;;
+        crop) FILTER+="[${i}:v]scale=${MAX_W}:${MAX_H}:force_original_aspect_ratio=increase:flags=lanczos,setsar=1,crop=${MAX_W}:${MAX_H}:(iw-ow)/2:(ih-oh)/2,setpts=PTS-STARTPTS[v${i}];" ;;
+      esac
+      FILTER+="[${i}:a]aformat=sample_fmts=fltp:channel_layouts=stereo[a${i}];"
+    done
+    for i in "${!INPUTS[@]}"; do FILTER+="[v${i}][a${i}]"; done
+    FILTER+="concat=n=${#INPUTS[@]}:v=1:a=1[v][a]"
+    CMD=(); CMD=(ffmpeg -hide_banner -y); for f in "${INPUTS[@]}"; do CMD+=(-i "$f"); done
+    CMD+=(-filter_complex "$FILTER" -map "[v]" -map "[a]" -c:v libx264 -crf 18 -preset medium -c:a aac -b:a 192k "$OUTPUT")
+  else
+    CMD+=(-filter_complex "$FILTER" -map "[v]" -c:v libx264 -crf 18 -preset medium -an "$OUTPUT")
+  fi
+  echo "Output: $OUTPUT"; echo "Command: ${CMD[*]}"; if ! $DRYRUN; then "${CMD[@]}"; fi
+  exit 0
+fi
+
+# --- build_output_name and process_file for single ops ---
+build_output_name() {
+  local in_file="$1"
+  local filename; filename="$(basename -- "$in_file")"
+  local basename="${filename%.*}"
+  local ext=""
+  if [[ "$filename" == *.* ]]; then ext="${filename##*.}"; else ext="mp4"; fi
+  [[ -z "$basename" ]] && basename="$filename"
+  if $FIRST; then echo "${basename}_f:00001.png"; return; fi
+  if $LAST; then echo "${basename}_l:${LAST_SEEK}s.jpg"; return; fi
+  if $AUDIO; then echo "${basename}_a.m4a"; return; fi
+  local suffix=""
+  $SQUARE_CROP && suffix="${suffix}_1x1s"
+  $SQUARE_PAD && suffix="${suffix}_1x1b"
+  $CROP && suffix="${suffix}_16x9c"
+  $LETTERBOX && suffix="${suffix}_16x9b"
+  [[ -n "$CROP_RES" ]] && suffix="${suffix}_${CROP_RES}z"
+  [[ -n "$STRETCH_RES" ]] && suffix="${suffix}_${STRETCH_RES}x"
+  $REVERSE && suffix="${suffix}_rev"
+  [[ -z "$suffix" ]] && suffix="_copy"
+  echo "${basename}${suffix}.${ext}"
+}
+
+process_file() {
+  local in_file="$1"
+  local out_file="$2"
+  if [[ -e "$in_file" && -e "$out_file" ]] && [[ "$in_file" -ef "$out_file" ]]; then
+    echo "Error: Refusing to overwrite input: $out_file" >&2; return 1
+  fi
+  local VF=() AF=() CMD=(ffmpeg -hide_banner -y)
+  if [[ -n "$CROP_RES" ]]; then
+    local cw="${CROP_RES%x*}"; local ch="${CROP_RES#*x}"
+    VF+=("crop=${cw}:${ch}")
+  elif [[ -n "$STRETCH_RES" ]]; then
+    local sw="${STRETCH_RES%x*}"; local sh="${STRETCH_RES#*x}"
+    VF+=("scale=${sw}:${sh}:flags=lanczos")
+  else
+    $SQUARE_CROP && VF+=("crop=min(iw\,ih):min(iw\,ih)")
+    $SQUARE_PAD && VF+=("pad=max(iw\,ih):max(iw\,ih):(ow-iw)/2:(oh-ih)/2:color=black")
+    $CROP && VF+=("crop='if(gt(a,16/9),ih*16/9,iw)':'if(gt(a,16/9),ih,iw*9/16)'")
+    $LETTERBOX && VF+=("pad='if(gt(a,16/9),iw,ih*16/9)':'if(gt(a,16/9),iw*9/16,ih)':(ow-iw)/2:(oh-ih)/2")
+  fi
+  $REVERSE && { VF+=("reverse"); AF+=("areverse"); }
+  if $FIRST; then
+    CMD+=(-ss 0 -i "$in_file")
+    [[ ${#VF[@]} -gt 0 ]] && CMD+=(-vf "$(IFS=,; echo "${VF[*]}")")
+    CMD+=(-vframes 1 -q:v "$QUALITY" "$out_file")
+  elif $LAST; then
+    CMD+=(-sseof -"$LAST_SEEK" -i "$in_file")
+    [[ ${#VF[@]} -gt 0 ]] && CMD+=(-vf "$(IFS=,; echo "${VF[*]}")")
+    CMD+=(-update 1 -vframes 1 -q:v "$QUALITY" "$out_file")
+  elif $AUDIO; then
+    CMD+=(-i "$in_file" -vn -acodec copy "$out_file")
+  else
+    CMD+=(-i "$in_file")
+    [[ ${#VF[@]} -gt 0 ]] && CMD+=(-vf "$(IFS=,; echo "${VF[*]}")")
+    [[ ${#AF[@]} -gt 0 ]] && CMD+=(-af "$(IFS=,; echo "${AF[*]}")")
+    $REVERSE || CMD+=(-c:a copy)
+    CMD+=("$out_file")
+  fi
+  echo "Output: $out_file"
+  echo "Command: ${CMD[*]}"
+  if ! $DRYRUN; then "${CMD[@]}"; fi
+  echo ""
+}
+
+if [[ -d "$INPUT" ]]; then
+  if [[ -n "$OUTPUT" && -f "$OUTPUT" ]]; then echo "Error: When INPUT is a folder, OUTPUT must be a folder or omitted" >&2; exit 1; fi
+  if [[ -z "$OUTPUT" ]]; then
+    if $SQUARE_CROP; then OUTPUT="${INPUT%/}-square-crop"
+    elif $SQUARE_PAD; then OUTPUT="${INPUT%/}-square-pad"
+    elif [[ -n "$CROP_RES" ]]; then OUTPUT="${INPUT%/}-${CROP_RES}z"
+    elif [[ -n "$STRETCH_RES" ]]; then OUTPUT="${INPUT%/}-${STRETCH_RES}x"
+    else OUTPUT="${INPUT%/}-transmute"
+    fi
+  fi
+  mkdir -p "$OUTPUT"
+  echo "Batch mode: $INPUT -> $OUTPUT"
+  count=0
+  for f in "$INPUT"/*; do [[ -f "$f" ]] || continue; is_video_file "$f" || continue; out_name="$(build_output_name "$f")"; process_file "$f" "$OUTPUT/$out_name"; count=$((count+1)); done
+  [[ $count -eq 0 ]] && echo "No video files found in $INPUT"
+  exit 0
+fi
+
+if [[ ! -f "$INPUT" ]]; then echo "Error: Input '$INPUT' not found" >&2; exit 1; fi
+if [[ -z "$OUTPUT" ]]; then OUTPUT="$(build_output_name "$INPUT")"
+elif [[ -d "$OUTPUT" ]]; then OUTPUT="$OUTPUT/$(build_output_name "$INPUT")"
+fi
+process_file "$INPUT" "$OUTPUT"
