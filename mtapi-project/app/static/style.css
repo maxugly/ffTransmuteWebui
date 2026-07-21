@@ -1822,6 +1822,20 @@ input:checked + .slider:before {
   cursor: grabbing;
 }
 
+/* Time-stretch: duration text is the beat-sync cue (color set inline) */
+.seq-token.time-stretched.selected {
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.55);
+}
+.seq-token-dur {
+  font-variant-numeric: tabular-nums;
+  font-family: 'Fira Code', monospace;
+  color: var(--text-muted);
+}
+.seq-token-dur.timed {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
 .seq-token-idx {
   display: inline-flex;
   align-items: center;
@@ -2918,4 +2932,33 @@ body.pool-resizing video {
   font-size: 0.68rem;
   color: var(--text-muted);
   font-family: 'Fira Code', monospace;
+}
+
+/* Project file controls */
+.pool-project-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+  padding-right: 10px;
+  border-right: 1px solid var(--panel-border);
+}
+
+.pool-project-group .btn {
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  height: auto;
+  min-height: 28px;
+}
+
+.pool-project-name {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-left: 4px;
 }

@@ -15,13 +15,20 @@ let state = {
   multiClips: [],
   selectedMoshMode: 'melt', // 'melt' or 'classic'
   moshVideoFrames: 100,
+  // Named project file (.ffproject.json)
+  project: {
+    path: null,
+    name: null,
+    dirty: false,
+  },
   pool: {
     items: [], // { path, name, size?, meta?, hash? }
     selectedPath: null, // sticky selection (click) — syncs library ↔ sequence
+    selectedSeqId: null, // precise sequence entry id when a token is selected
     hoverPath: null,    // temporary hover only (does not change selection)
     loading: false,
     // Sequence composer: ordered clips to stitch
-    sequence: [], // { id, path, name }
+    sequence: [], // { id, path, name, targetDuration? }
     focusPath: null, // deprecated alias; display uses hoverPath || selectedPath
     seqDragId: null,
     reconcile: 'pad',
@@ -1443,6 +1450,14 @@ function renderPoolForm() {
       <div class="pool-top">
         <div class="pool-toolbar">
           <div class="pool-toolbar-actions">
+            <div class="pool-project-group">
+              <button type="button" class="btn" id="btnProjectNew" title="New empty project">New</button>
+              <button type="button" class="btn" id="btnProjectOpen" title="Open .ffproject.json">Open…</button>
+              <button type="button" class="btn btn-primary" id="btnProjectSave" title="Save project">Save</button>
+              <button type="button" class="btn" id="btnProjectSaveAs" title="Save project as…">Save As…</button>
+              <span class="pool-project-name" id="poolProjectName" title="${escapeHtml(state.project.path || '')}">${escapeHtml(projectLabel())}</span>
+            </div>
+
             <button class="btn btn-primary" id="btnPoolImportFiles" type="button">+ Files</button>
             <button class="btn" id="btnPoolImportFolder" type="button">+ Folder</button>
             <button class="btn" id="btnPoolClear" type="button" ${count === 0 ? 'disabled' : ''}>Clear Pool</button>
@@ -1624,6 +1639,11 @@ function renderPoolForm() {
   elements.actionPanel.innerHTML = html;
   elements.actionPanel.classList.add('pool-active');
 
+  document.getElementById('btnProjectNew')?.addEventListener('click', projectNew);
+  document.getElementById('btnProjectOpen')?.addEventListener('click', projectOpen);
+  document.getElementById('btnProjectSave')?.addEventListener('click', () => projectSave(false));
+  document.getElementById('btnProjectSaveAs')?.addEventListener('click', () => projectSave(true));
+
   document.getElementById('btnPoolImportFiles')?.addEventListener('click', importPoolFiles);
   document.getElementById('btnPoolImportFolder')?.addEventListener('click', importPoolFolder);
   document.getElementById('btnPoolClear')?.addEventListener('click', clearPool);
@@ -1701,9 +1721,51 @@ function renderPoolForm() {
     moveSelectedInSequence('end');
   });
 
-  document.getElementById('seqClipDuration')?.addEventListener('change', onSeqClipDurationChange);
-  document.getElementById('seqClipDuration')?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') onSeqClipDurationChange();
+  const durInput = document.getElementById('seqClipDuration');
+  durInput?.addEventListener('change', onSeqClipDurationChange);
+  durInput?.addEventListener('blur', onSeqClipDurationChange);
+  let _durInputSaveTimer = null;
+  durInput?.addEventListener('input', () => {
+    // live preview of color/label without waiting for blur — don't rewrite the input
+    const idx = findSelectedSeqIndex();
+    if (idx < 0) return;
+    const raw = durInput.value.trim();
+    if (!raw) {
+      state.pool.sequence[idx].targetDuration = null;
+    } else {
+      const v = parseFloat(raw);
+      if (Number.isFinite(v) && v > 0) {
+        state.pool.sequence[idx].targetDuration = v;
+        state.pool.selectedSeqId = state.pool.sequence[idx].id;
+      }
+    }
+    // Update only duration text colors on tokens (avoid full rebind / focus loss)
+    applySeqTokenTimeStyles();
+    // update hint only
+    const hint = document.getElementById('seqClipDurHint');
+    const entry = state.pool.sequence[idx];
+    const meta = findPoolItem(entry.path)?.meta;
+    const native = meta?.duration;
+    if (hint) {
+      if (entry.targetDuration != null && entry.targetDuration > 0 && native > 0) {
+        const factor = entry.targetDuration / native;
+        const pct = Math.round((native / entry.targetDuration) * 100);
+        hint.textContent = `native ${formatDurationExact(native)} → ${formatDurationExact(entry.targetDuration)} (${pct}% speed ${factor >= 1 ? 'slower' : 'faster'})`;
+      } else if (native > 0) {
+        hint.textContent = `native ${formatDurationExact(native)} (no stretch)`;
+      } else {
+        hint.textContent = 'set target length to stretch in time';
+      }
+    }
+    if (_durInputSaveTimer) clearTimeout(_durInputSaveTimer);
+    _durInputSaveTimer = setTimeout(() => scheduleSavePoolState(), 300);
+  });
+  durInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onSeqClipDurationChange();
+      durInput.blur();
+    }
   });
   document.getElementById('btnSeqClipDurClear')?.addEventListener('click', () => {
     const idx = findSelectedSeqIndex();
@@ -1712,6 +1774,7 @@ function renderPoolForm() {
     const inp = document.getElementById('seqClipDuration');
     if (inp) inp.value = '';
     updateSeqClipSettings();
+    renderSequenceBox();
     scheduleSavePoolState();
     logConsole(`[SEQ]: Cleared time stretch for ${state.pool.sequence[idx].name}`);
   });
@@ -2312,28 +2375,40 @@ function renderSequenceBox() {
     const isPlaying = state.pool.playback.playing && playIdx === idx;
     const isSelected = state.pool.selectedPath === entry.path;
     const isHovered = state.pool.hoverPath === entry.path;
-    tok.className = `seq-token${isSelected ? ' selected' : ''}${isHovered ? ' hovered' : ''}${isSelected && !isHovered ? ' focused' : ''}${isPlaying ? ' playing' : ''}`;
+    const speedInfo = seqClipSpeedInfo(entry);
+    tok.className = `seq-token${isSelected ? ' selected' : ''}${isHovered ? ' hovered' : ''}${isSelected && !isHovered ? ' focused' : ''}${isPlaying ? ' playing' : ''}${speedInfo.stretched ? ' time-stretched' : ''}`;
     tok.draggable = true;
     tok.dataset.id = String(entry.id);
     tok.dataset.path = entry.path;
     tok.dataset.idx = String(idx);
-    tok.title = entry.path;
-
-    const dur = findPoolItem(entry.path)?.meta?.duration;
-    const durLabel = dur != null ? ` ${formatDurationExact(dur)}` : '';
+    tok.title = seqClipTokenTitle(entry, speedInfo);
 
     tok.innerHTML = `
       <span class="seq-token-idx">${idx + 1}</span>
       <span class="seq-token-name">${escapeHtml(entry.name)}</span>
-      <span class="seq-token-dur">${durLabel}</span>
+      <span class="seq-token-dur${speedInfo.stretched ? ' timed' : ''}">${speedInfo.durLabel}</span>
       <button type="button" class="seq-token-x" title="Remove">✕</button>
     `;
+
+    // Color the TIME text for beat-sync at a glance (not just token chrome)
+    const durEl = tok.querySelector('.seq-token-dur');
+    if (durEl && speedInfo.stretched && speedInfo.textColor) {
+      durEl.style.color = speedInfo.textColor;
+      durEl.style.fontWeight = '700';
+      durEl.style.textShadow = speedInfo.textShadow || 'none';
+      if (speedInfo.bgCss) {
+        tok.style.background = speedInfo.bgCss;
+        tok.style.borderColor = speedInfo.borderCss;
+      }
+    }
 
     tok.addEventListener('click', (e) => {
       if (e.target.closest('.seq-token-x')) return;
       state.pool.playback.index = idx;
+      state.pool.selectedSeqId = entry.id;
       selectPoolItem(entry.path); // also selects matching library tile
       updateSeqTransportUI();
+      updateSeqClipSettings();
     });
     tok.addEventListener('mouseenter', () => {
       if (!state.pool.playback.playing) setPoolHover(entry.path);
@@ -2433,11 +2508,16 @@ function updateSeqTransportUI() {
   });
 }
 
-/** Index of the selected clip in the sequence (uses playback index when it matches path). */
+/** Index of the selected clip in the sequence (prefers entry id, then playback index, then path). */
 function findSelectedSeqIndex() {
   const seq = state.pool.sequence;
+  if (!seq.length) return -1;
+  if (state.pool.selectedSeqId != null) {
+    const byId = seq.findIndex(s => s.id === state.pool.selectedSeqId);
+    if (byId >= 0) return byId;
+  }
   const path = state.pool.selectedPath;
-  if (!path || !seq.length) return -1;
+  if (!path) return -1;
   const pi = state.pool.playback.index;
   if (Number.isInteger(pi) && pi >= 0 && pi < seq.length && seq[pi].path === path) {
     return pi;
@@ -2516,7 +2596,10 @@ function updateSeqClipSettings() {
 
 function onSeqClipDurationChange() {
   const idx = findSelectedSeqIndex();
-  if (idx < 0) return;
+  if (idx < 0) {
+    logConsole('[SEQ]: No sequence clip selected — click a token first', 'error');
+    return;
+  }
   const inp = document.getElementById('seqClipDuration');
   const raw = inp?.value?.trim();
   if (!raw) {
@@ -2529,10 +2612,139 @@ function onSeqClipDurationChange() {
       return;
     }
     state.pool.sequence[idx].targetDuration = v;
+    state.pool.selectedSeqId = state.pool.sequence[idx].id;
     logConsole(`[SEQ]: ${state.pool.sequence[idx].name} target time = ${v}s`);
   }
   updateSeqClipSettings();
-  scheduleSavePoolState();
+  renderSequenceBox(); // refresh token duration labels + speed colors
+  // Persist immediately (don't wait for debounce — times are easy to lose)
+  savePoolStateNow();
+}
+
+/** Update duration labels/colors on existing sequence tokens without full rebind. */
+function applySeqTokenTimeStyles() {
+  document.querySelectorAll('.seq-token').forEach(tok => {
+    const idx = parseInt(tok.dataset.idx, 10);
+    const entry = state.pool.sequence[idx];
+    if (!entry) return;
+    const speedInfo = seqClipSpeedInfo(entry);
+    const durEl = tok.querySelector('.seq-token-dur');
+    if (durEl) {
+      durEl.textContent = speedInfo.durLabel;
+      durEl.classList.toggle('timed', !!speedInfo.stretched);
+      if (speedInfo.stretched && speedInfo.textColor) {
+        durEl.style.color = speedInfo.textColor;
+        durEl.style.fontWeight = '700';
+        durEl.style.textShadow = speedInfo.textShadow || 'none';
+      } else {
+        durEl.style.color = '';
+        durEl.style.fontWeight = '';
+        durEl.style.textShadow = '';
+      }
+    }
+    if (speedInfo.stretched && speedInfo.bgCss) {
+      tok.classList.add('time-stretched');
+      tok.style.background = speedInfo.bgCss;
+      tok.style.borderColor = speedInfo.borderCss;
+    } else {
+      tok.classList.remove('time-stretched');
+      tok.style.background = '';
+      tok.style.borderColor = '';
+    }
+    tok.title = seqClipTokenTitle(entry, speedInfo);
+  });
+}
+
+/**
+ * Effective duration + speed color for a sequence entry.
+ * speed = native/target (>1 faster → green, <1 slower → red).
+ * Full green/red at 3× / ⅓ playback rate (±300% of native).
+ */
+function seqClipSpeedInfo(entry) {
+  const native = findPoolItem(entry.path)?.meta?.duration;
+  const target = entry.targetDuration != null ? Number(entry.targetDuration) : null;
+  const hasTarget = target != null && Number.isFinite(target) && target > 0;
+
+  // Always show target time when set (even before native meta loads)
+  if (hasTarget) {
+    const durLabel = ` ${formatDurationExact(target)}`;
+    if (!(native > 0) || Math.abs(target - native) <= 0.001) {
+      // target set but equal to native, or native unknown — still show target
+      if (native > 0 && Math.abs(target - native) <= 0.001) {
+        return { stretched: false, durLabel: ` ${formatDurationExact(native)}`, speed: 1, tint: 0 };
+      }
+      // unknown native: show target, mild amber until we can score
+      if (!(native > 0)) {
+        return {
+          stretched: true,
+          durLabel,
+          speed: 1,
+          tint: 0,
+          textColor: '#fbbf24',
+          textShadow: '0 0 6px rgba(251,191,36,0.45)',
+          bgCss: 'rgba(251, 191, 36, 0.12)',
+          borderCss: 'rgba(251, 191, 36, 0.4)',
+        };
+      }
+    }
+
+    const speed = native / target; // >1 faster
+    let t = Math.log(speed) / Math.log(3); // -1 @ ⅓, 0 @ 1, +1 @ 3×
+    t = Math.max(-1, Math.min(1, t));
+    const abs = Math.abs(t);
+
+    // High-contrast text colors for the duration digits
+    let textColor, textShadow;
+    if (t >= 0) {
+      // faster → green #34d399 → #6ee7b7
+      const g = Math.round(180 + 50 * abs);
+      textColor = `rgb(${Math.round(52 * (1 - abs))}, ${g}, ${Math.round(120 + 60 * abs)})`;
+      textShadow = `0 0 ${4 + 6 * abs}px rgba(16, 185, 129, ${0.35 + 0.45 * abs})`;
+    } else {
+      // slower → red #f87171 → #fca5a5
+      textColor = `rgb(${Math.round(200 + 55 * abs)}, ${Math.round(80 * (1 - abs * 0.5))}, ${Math.round(80 * (1 - abs * 0.5))})`;
+      textShadow = `0 0 ${4 + 6 * abs}px rgba(239, 68, 68, ${0.35 + 0.45 * abs})`;
+    }
+
+    const alpha = 0.1 + 0.35 * abs;
+    const borderA = 0.3 + 0.5 * abs;
+    let r, g, b;
+    if (t >= 0) {
+      r = Math.round(16 + (16 - 40) * 0 + 40 * (1 - abs)); r = Math.round(40 + (16 - 40) * abs);
+      g = Math.round(44 + (185 - 44) * abs);
+      b = Math.round(52 + (129 - 52) * abs);
+    } else {
+      r = Math.round(40 + (239 - 40) * abs);
+      g = Math.round(44 + (68 - 44) * abs);
+      b = Math.round(52 + (68 - 52) * abs);
+    }
+
+    return {
+      stretched: true,
+      durLabel,
+      speed,
+      tint: t,
+      textColor,
+      textShadow,
+      bgCss: `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`,
+      borderCss: `rgba(${r}, ${g}, ${b}, ${borderA.toFixed(3)})`,
+    };
+  }
+
+  const durLabel = native != null && native > 0 ? ` ${formatDurationExact(native)}` : '';
+  return { stretched: false, durLabel, speed: 1, tint: 0 };
+}
+
+function seqClipTokenTitle(entry, speedInfo) {
+  const native = findPoolItem(entry.path)?.meta?.duration;
+  let t = entry.path;
+  if (speedInfo.stretched && native != null) {
+    const pct = Math.round(speedInfo.speed * 100);
+    t += `\nnative ${formatDurationExact(native)} → ${formatDurationExact(entry.targetDuration)} (${pct}% speed)`;
+  } else if (native != null) {
+    t += `\nnative ${formatDurationExact(native)}`;
+  }
+  return t;
 }
 
 function _detachPlaybackVideo() {
@@ -2710,6 +2922,7 @@ function seqNext() {
 
 function scheduleSavePoolState() {
   if (!_poolPersistReady) return;
+  markProjectDirty();
   if (_poolSaveTimer) clearTimeout(_poolSaveTimer);
   _poolSaveTimer = setTimeout(() => {
     _poolSaveTimer = null;
@@ -2725,11 +2938,17 @@ function buildPoolStatePayload() {
       hash: i.hash || null,
       size: i.size ?? null,
     })),
-    sequence: state.pool.sequence.map(s => ({
-      path: s.path,
-      name: s.name || basename(s.path),
-      target_duration: s.targetDuration != null ? s.targetDuration : null,
-    })),
+    sequence: state.pool.sequence.map(s => {
+      const td = s.targetDuration;
+      const n = (td != null && td !== '' && Number.isFinite(Number(td)) && Number(td) > 0)
+        ? Number(td)
+        : null;
+      return {
+        path: s.path,
+        name: s.name || basename(s.path),
+        target_duration: n,
+      };
+    }),
     selected_path: state.pool.selectedPath,
     reconcile: state.pool.reconcile || 'pad',
     aspect: state.pool.aspect || 'auto',
@@ -2738,7 +2957,240 @@ function buildPoolStatePayload() {
     tile_zoom: state.pool.tileZoom || POOL_ZOOM.reset,
     tile_info: ensureTileInfo(),
     layout: ensurePoolLayout(),
+    project_name: state.project.name || null,
+    project_path: state.project.path || null,
   };
+}
+
+function projectLabel() {
+  if (state.project.name) {
+    return (state.project.dirty ? '• ' : '') + state.project.name;
+  }
+  return state.project.dirty ? '• Untitled project' : 'Untitled project';
+}
+
+function markProjectDirty() {
+  if (!_poolPersistReady) return;
+  if (!state.project.dirty) {
+    state.project.dirty = true;
+    updateProjectNameUI();
+  } else {
+    state.project.dirty = true;
+  }
+}
+
+function updateProjectNameUI() {
+  const el = document.getElementById('poolProjectName');
+  if (el) {
+    el.textContent = projectLabel();
+    el.title = state.project.path || '';
+  }
+}
+
+/** Apply loaded project/session JSON into live pool state and re-render. */
+function applyPoolData(data, { asProject = false, projectPath = null, projectName = null } = {}) {
+  const items = data.items || [];
+  const sequence = data.sequence || [];
+
+  state.pool.items = items.map(it => ({
+    path: it.path,
+    name: it.name || basename(it.path),
+    hash: it.hash || null,
+    size: it.size ?? null,
+    meta: null,
+  }));
+  state.pool.sequence = sequence.map(s => {
+    let td = s.target_duration ?? s.targetDuration ?? null;
+    if (td != null) {
+      td = Number(td);
+      if (!Number.isFinite(td) || td <= 0) td = null;
+    }
+    return {
+      id: _poolSeqId++,
+      path: s.path,
+      name: s.name || basename(s.path),
+      targetDuration: td,
+    };
+  });
+  state.pool.selectedPath = data.selected_path || null;
+  state.pool.focusPath = data.selected_path || null;
+  state.pool.hoverPath = null;
+  state.pool.selectedSeqId = null;
+  state.pool.reconcile = data.reconcile || 'pad';
+  state.pool.aspect = data.aspect || 'auto';
+  state.pool.aspectCustom = data.aspect_custom || '';
+  state.pool.outputPath = data.output_path || '';
+
+  if (typeof data.tile_zoom === 'number' && !isNaN(data.tile_zoom)) {
+    state.pool.tileZoom = Math.max(POOL_ZOOM.min, Math.min(POOL_ZOOM.max, data.tile_zoom));
+  } else {
+    state.pool.tileZoom = POOL_ZOOM.reset;
+  }
+  if (data.tile_info && typeof data.tile_info === 'object') {
+    state.pool.tileInfo = { ...defaultTileInfo(), ...data.tile_info };
+  } else {
+    state.pool.tileInfo = defaultTileInfo();
+  }
+  if (data.layout && typeof data.layout === 'object') {
+    const base = { ...POOL_LAYOUT_DEFAULTS, collapsed: { ...POOL_LAYOUT_DEFAULTS.collapsed } };
+    state.pool.layout = {
+      ...base,
+      ...data.layout,
+      collapsed: { ...base.collapsed, ...(data.layout.collapsed || {}) },
+    };
+    const sh = state.pool.layout.selectionHeight;
+    if (sh === 120 || sh === 140 || sh === undefined || sh === null) {
+      state.pool.layout.selectionHeight = 0;
+    }
+  } else {
+    state.pool.layout = { ...POOL_LAYOUT_DEFAULTS, collapsed: { ...POOL_LAYOUT_DEFAULTS.collapsed } };
+  }
+
+  if (asProject) {
+    state.project.path = projectPath || data.path || null;
+    state.project.name = projectName || data.name || (state.project.path ? basename(state.project.path).replace(/\.ffproject\.json$/i, '') : null);
+    state.project.dirty = false;
+  }
+
+  const missing = data.missing || [];
+  if (missing.length) {
+    logConsole(`[PROJECT]: ${missing.length} missing path(s) skipped:\n${missing.slice(0, 8).join('\n')}`);
+  }
+
+  // Warm meta
+  state.pool.items.forEach((item, idx) => {
+    loadPoolItemMeta(item, idx);
+  });
+}
+
+async function projectNew() {
+  if (state.project.dirty || state.pool.items.length || state.pool.sequence.length) {
+    if (!confirm('Start a new project? Unsaved changes will be lost (session autosave still has last autosave).')) {
+      return;
+    }
+  }
+  seqStop();
+  state.pool.items = [];
+  state.pool.sequence = [];
+  state.pool.selectedPath = null;
+  state.pool.selectedSeqId = null;
+  state.pool.hoverPath = null;
+  state.pool.focusPath = null;
+  state.pool.matchResults = null;
+  state.pool.outputPath = '';
+  state.project = { path: null, name: null, dirty: false };
+  logConsole('[PROJECT]: New untitled project');
+  if (state.activeTab === 'pool') renderPoolForm();
+  await savePoolStateNow();
+}
+
+async function projectOpen() {
+  if (state.project.dirty) {
+    if (!confirm('Open another project? Unsaved changes in the current project may be lost.')) {
+      return;
+    }
+  }
+  elements.statusDot.className = 'status-dot loading';
+  elements.statusText.textContent = 'Open project…';
+  try {
+    const start = state.project.path
+      ? state.project.path.substring(0, state.project.path.lastIndexOf('/'))
+      : '';
+    const pickRes = await fetch(
+      `/api/picker?mode=file&filter=project&start_path=${encodeURIComponent(start || '')}`
+    );
+    if (!pickRes.ok) throw new Error(await pickRes.text());
+    const pick = await pickRes.json();
+    if (!pick.path) {
+      logConsole('[PROJECT]: Open cancelled');
+      await checkHealth();
+      return;
+    }
+    const res = await fetch(`/api/project/load?path=${encodeURIComponent(pick.path)}`);
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'load failed');
+
+    applyPoolData(data, {
+      asProject: true,
+      projectPath: data.path,
+      projectName: data.name,
+    });
+    logConsole(
+      `[PROJECT]: Opened ${data.name || data.path} — ${data.item_count} clips, ${data.sequence_count} in sequence`
+    );
+    if (state.activeTab === 'pool') renderPoolForm();
+    else switchTab('pool');
+  } catch (err) {
+    logConsole(`[PROJECT OPEN]: ${err.message}`, 'error');
+    alert(`Could not open project: ${err.message}`);
+  } finally {
+    await checkHealth();
+  }
+}
+
+async function projectSave(saveAs = false) {
+  let path = state.project.path;
+  if (saveAs || !path) {
+    const suggested = path
+      || `${(state.pool.sequence[0]?.path || state.pool.items[0]?.path || '/home/m/snc/cod/ffTransmuteWebui/untitled').replace(/\/[^/]+$/, '')}/untitled.ffproject.json`;
+    try {
+      const pickRes = await fetch(
+        `/api/picker?mode=save&filter=project&start_path=${encodeURIComponent(suggested)}`
+      );
+      if (!pickRes.ok) throw new Error(await pickRes.text());
+      const pick = await pickRes.json();
+      if (!pick.path) {
+        logConsole('[PROJECT]: Save cancelled');
+        return;
+      }
+      path = pick.path;
+      if (!/\.ffproject\.json$/i.test(path) && !/\.ffproj$/i.test(path)) {
+        if (/\.json$/i.test(path)) path = path.replace(/\.json$/i, '.ffproject.json');
+        else path = path + '.ffproject.json';
+      }
+    } catch (err) {
+      logConsole(`[PROJECT SAVE]: Picker failed — ${err.message}`, 'error');
+      alert(`Save dialog failed: ${err.message}`);
+      return;
+    }
+  }
+
+  const name = state.project.name
+    || basename(path).replace(/\.ffproject\.json$/i, '').replace(/\.ffproj$/i, '');
+
+  elements.statusDot.className = 'status-dot loading';
+  elements.statusText.textContent = 'Saving project…';
+  try {
+    const body = {
+      ...buildPoolStatePayload(),
+      path,
+      name,
+    };
+    const res = await fetch('/api/project/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'save failed');
+
+    state.project.path = data.path;
+    state.project.name = data.name || name;
+    state.project.dirty = false;
+    updateProjectNameUI();
+    logConsole(`[PROJECT]: Saved ${state.project.name} → ${data.path}`);
+    elements.statusDot.className = 'status-dot';
+    elements.statusText.textContent = 'Project saved';
+  } catch (err) {
+    logConsole(`[PROJECT SAVE]: ${err.message}`, 'error');
+    elements.statusDot.className = 'status-dot error';
+    elements.statusText.textContent = 'Save failed';
+    alert(`Could not save project: ${err.message}`);
+  } finally {
+    await checkHealth();
+  }
 }
 
 async function savePoolStateNow() {
@@ -2758,83 +3210,58 @@ async function savePoolStateNow() {
 
 async function restorePoolState() {
   try {
+    // Prefer last named project if present; else session autosave
+    let data = null;
+    try {
+      const lastRes = await fetch('/api/project/last');
+      if (lastRes.ok) {
+        const last = await lastRes.json();
+        if (last.path) {
+          const pr = await fetch(`/api/project/load?path=${encodeURIComponent(last.path)}`);
+          if (pr.ok) {
+            data = await pr.json();
+            if (data.ok) {
+              applyPoolData(data, {
+                asProject: true,
+                projectPath: data.path,
+                projectName: data.name,
+              });
+              const timed = state.pool.sequence.filter(s => s.targetDuration != null).length;
+              logConsole(
+                `[PROJECT]: Restored ${data.name || data.path} — ${state.pool.items.length} clips, ${state.pool.sequence.length} in sequence`
+                + (timed ? `, ${timed} timed` : '')
+              );
+              _poolPersistReady = true;
+              return;
+            }
+          }
+        }
+      }
+    } catch (_) { /* fall through to session */ }
+
     const res = await fetch('/api/pool/state');
     if (!res.ok) throw new Error(await res.text());
-    const data = await res.json();
+    data = await res.json();
     if (!data.ok) {
       logConsole(`[POOL]: No saved state (${data.error || 'empty'})`);
       _poolPersistReady = true;
       return;
     }
 
-    const items = data.items || [];
-    const sequence = data.sequence || [];
-
-    state.pool.items = items.map(it => ({
-      path: it.path,
-      name: it.name || basename(it.path),
-      hash: it.hash || null,
-      size: it.size ?? null,
-      meta: null,
-    }));
-    state.pool.sequence = sequence.map(s => ({
-      id: _poolSeqId++,
-      path: s.path,
-      name: s.name || basename(s.path),
-      targetDuration: (s.target_duration != null && s.target_duration > 0) ? s.target_duration : null,
-    }));
-    state.pool.selectedPath = data.selected_path || null;
-    state.pool.focusPath = data.selected_path || null;
-    state.pool.hoverPath = null;
-    state.pool.reconcile = data.reconcile || 'pad';
-    state.pool.aspect = data.aspect || 'auto';
-    state.pool.aspectCustom = data.aspect_custom || '';
-    state.pool.outputPath = data.output_path || '';
-
-    if (typeof data.tile_zoom === 'number' && !isNaN(data.tile_zoom)) {
-      state.pool.tileZoom = Math.max(POOL_ZOOM.min, Math.min(POOL_ZOOM.max, data.tile_zoom));
-    } else {
-      state.pool.tileZoom = POOL_ZOOM.reset;
+    applyPoolData(data, { asProject: false });
+    // session restore — keep untitled unless payload had project_path
+    if (data.project_path) {
+      state.project.path = data.project_path;
+      state.project.name = data.project_name || basename(data.project_path).replace(/\.ffproject\.json$/i, '');
+      state.project.dirty = false;
     }
-    if (data.tile_info && typeof data.tile_info === 'object') {
-      state.pool.tileInfo = { ...defaultTileInfo(), ...data.tile_info };
-    } else {
-      state.pool.tileInfo = defaultTileInfo();
-    }
-
-    if (data.layout && typeof data.layout === 'object') {
-      const base = { ...POOL_LAYOUT_DEFAULTS, collapsed: { ...POOL_LAYOUT_DEFAULTS.collapsed } };
-      state.pool.layout = {
-        ...base,
-        ...data.layout,
-        collapsed: { ...base.collapsed, ...(data.layout.collapsed || {}) },
-      };
-      // Migrate old default fixed heights that left dead space under dual frames
-      const sh = state.pool.layout.selectionHeight;
-      if (sh === 120 || sh === 140 || sh === undefined || sh === null) {
-        state.pool.layout.selectionHeight = 0;
-      }
-    } else {
-      state.pool.layout = { ...POOL_LAYOUT_DEFAULTS, collapsed: { ...POOL_LAYOUT_DEFAULTS.collapsed } };
-    }
-
-    const missing = data.missing || [];
-    if (items.length || sequence.length) {
-      logConsole(
-        `[POOL]: Restored ${items.length} clip(s), ${sequence.length} in sequence`
-        + (missing.length ? ` (${missing.length} missing on disk skipped)` : '')
-      );
-    }
-    if (missing.length) {
-      logConsole(`[POOL]: Missing paths dropped:\n${missing.slice(0, 8).join('\n')}`);
-    }
-
+    const timed = state.pool.sequence.filter(s => s.targetDuration != null).length;
+    logConsole(
+      `[POOL]: Restored session — ${state.pool.items.length} clips, ${state.pool.sequence.length} in sequence`
+      + (timed ? `, ${timed} timed` : '')
+      + ((data.missing || []).length ? ` (${data.missing.length} missing skipped)` : '')
+    );
     _poolPersistReady = true;
-
-    // Warm meta/thumbs in background (hash cache makes this fast)
-    state.pool.items.forEach((item, idx) => {
-      loadPoolItemMeta(item, idx);
-    });
   } catch (err) {
     logConsole(`[POOL RESTORE]: ${err.message}`, 'error');
     _poolPersistReady = true;
@@ -3405,9 +3832,10 @@ async function loadPoolItemMeta(item, idx) {
     }
   }
 
-  // Refresh sequence token durations / focus frame if this path is involved
+  // Refresh sequence token durations / colors once native duration is known
   if (state.pool.sequence.some(s => s.path === item.path)) {
-    renderSequenceBox();
+    applySeqTokenTimeStyles();
+    updateSeqClipSettings();
   }
   if (displayFocusPath() === item.path) {
     updatePoolFocusFrame(item.path);
@@ -3421,6 +3849,17 @@ function selectPoolItem(path) {
   state.pool.selectedPath = path;
   state.pool.hoverPath = null; // sticky wins; clear temporary hover
   state.pool.focusPath = path;
+  // Keep selectedSeqId aligned with this path when possible
+  if (state.pool.selectedSeqId != null) {
+    const cur = state.pool.sequence.find(s => s.id === state.pool.selectedSeqId);
+    if (!cur || cur.path !== path) {
+      const first = state.pool.sequence.find(s => s.path === path);
+      state.pool.selectedSeqId = first ? first.id : null;
+    }
+  } else {
+    const first = state.pool.sequence.find(s => s.path === path);
+    state.pool.selectedSeqId = first ? first.id : null;
+  }
 
   // Don't clobber sequence player with silent preview if mid-play
   if (!state.pool.playback.playing) {

@@ -384,6 +384,37 @@ async def put_pool_state(body: dict):
     return await media_store.save_pool_state(body or {})
 
 
+@app.post("/api/project/save", tags=["meta"])
+async def project_save(body: dict):
+    """Save a named project file (.ffproject.json).
+
+    Body: { path, name?, ...pool fields (items, sequence, layout, …) }
+    """
+    path = (body or {}).get("path")
+    if not path:
+        raise HTTPException(status_code=400, detail="path is required")
+    name = (body or {}).get("name")
+    return await media_store.save_project_file(path, body or {}, name=name)
+
+
+@app.get("/api/project/load", tags=["meta"])
+async def project_load(path: str):
+    """Load a .ffproject.json (or bare pool-state JSON) from disk."""
+    result = media_store.load_project_file(path)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error") or "load failed")
+    # Mirror into session autosave
+    await media_store.save_pool_state(result)
+    return result
+
+
+@app.get("/api/project/last", tags=["meta"])
+async def project_last():
+    """Return path of last opened/saved project, if any."""
+    p = media_store.get_last_project_path()
+    return {"ok": True, "path": p}
+
+
 @app.get("/api/pool/match", tags=["meta"])
 async def pool_match(
     path: str,
@@ -457,9 +488,14 @@ async def pool_scan(path: str, recursive: bool = False):
 
 
 @app.get("/api/picker", tags=["meta"])
-async def open_native_picker(mode: str = "file", start_path: str = ""):
+async def open_native_picker(
+    mode: str = "file",
+    start_path: str = "",
+    filter: str = "video",
+):
     """Native file dialog. modes: file | files | dir | save.
     `files` returns {paths: [...], path: first} for multi-select.
+    filter: video (default) | project | all — file-type filter for open/save.
     """
     kdialog_path = shutil.which("kdialog")
     zenity_path = shutil.which("zenity")
@@ -467,9 +503,32 @@ async def open_native_picker(mode: str = "file", start_path: str = ""):
     if not start_path:
         start_path = WORKSPACE_PATH
 
-    video_filter = (
-        "Video Files (*.mp4 *.mkv *.avi *.mov *.m4v *.webm *.mpg *.mpeg);;All Files (*)"
-    )
+    filter_key = (filter or "video").lower()
+    if filter_key == "project":
+        kdialog_filter = (
+            "ffTransmute Project (*.ffproject.json *.ffproj);;"
+            "JSON (*.json);;All Files (*)"
+        )
+        # zenity / tk use simpler patterns
+        filetypes = [
+            ("ffTransmute Project", "*.ffproject.json *.ffproj"),
+            ("JSON", "*.json"),
+            ("All files", "*.*"),
+        ]
+        zenity_pattern = "*.ffproject.json *.ffproj *.json"
+    elif filter_key == "all":
+        kdialog_filter = "All Files (*)"
+        filetypes = [("All files", "*.*")]
+        zenity_pattern = "*"
+    else:
+        kdialog_filter = (
+            "Video Files (*.mp4 *.mkv *.avi *.mov *.m4v *.webm *.mpg *.mpeg);;All Files (*)"
+        )
+        filetypes = [
+            ("Video files", "*.mp4 *.mkv *.avi *.mov *.m4v *.webm *.mpg *.mpeg"),
+            ("All files", "*.*"),
+        ]
+        zenity_pattern = "*.mp4 *.mkv *.avi *.mov *.m4v *.webm *.mpg *.mpeg"
 
     def _result_from_paths(paths: list[str]) -> dict:
         paths = [p for p in paths if p]
@@ -485,22 +544,25 @@ async def open_native_picker(mode: str = "file", start_path: str = ""):
         if mode == "dir":
             cmd = [kdialog_path, "--getexistingdirectory", start_path]
         elif mode == "save":
-            cmd = [kdialog_path, "--getsavefilename", start_path]
+            cmd = [kdialog_path, "--getsavefilename", start_path, kdialog_filter]
         elif multi:
             cmd = [
                 kdialog_path, "--multiple", "--separate-output",
-                "--getopenfilename", start_path, video_filter,
+                "--getopenfilename", start_path, kdialog_filter,
             ]
         else:
-            cmd = [kdialog_path, "--getopenfilename", start_path, video_filter]
+            cmd = [kdialog_path, "--getopenfilename", start_path, kdialog_filter]
     elif zenity_path:
         if mode == "dir":
             cmd = [zenity_path, "--file-selection", "--directory", f"--filename={start_path}/"]
         elif mode == "save":
             cmd = [
                 zenity_path, "--file-selection", "--save", "--confirm-overwrite",
-                f"--filename={start_path}/",
+                f"--filename={start_path}",
             ]
+            if filter_key == "project":
+                cmd.extend(["--file-filter=ffTransmute Project | *.ffproject.json *.ffproj",
+                            "--file-filter=All files | *"])
         elif multi:
             cmd = [
                 zenity_path, "--file-selection", "--multiple", "--separator=\n",
@@ -508,6 +570,9 @@ async def open_native_picker(mode: str = "file", start_path: str = ""):
             ]
         else:
             cmd = [zenity_path, "--file-selection", f"--filename={start_path}/"]
+            if filter_key == "project":
+                cmd.extend(["--file-filter=ffTransmute Project | *.ffproject.json *.ffproj",
+                            "--file-filter=All files | *"])
     else:
         try:
             import tkinter as tk
@@ -521,14 +586,23 @@ async def open_native_picker(mode: str = "file", start_path: str = ""):
                 root.destroy()
                 return _result_from_paths([path] if path else [])
             if mode == "save":
-                path = filedialog.asksaveasfilename(initialdir=start_path)
+                path = filedialog.asksaveasfilename(
+                    initialdir=str(Path(start_path).parent) if start_path else None,
+                    initialfile=Path(start_path).name if start_path else None,
+                    defaultextension=".ffproject.json" if filter_key == "project" else "",
+                    filetypes=filetypes,
+                )
                 root.destroy()
                 return _result_from_paths([path] if path else [])
             if multi:
-                paths = list(filedialog.askopenfilenames(initialdir=start_path))
+                paths = list(filedialog.askopenfilenames(
+                    initialdir=start_path, filetypes=filetypes,
+                ))
                 root.destroy()
                 return _result_from_paths(paths)
-            path = filedialog.askopenfilename(initialdir=start_path)
+            path = filedialog.askopenfilename(
+                initialdir=start_path, filetypes=filetypes,
+            )
             root.destroy()
             return _result_from_paths([path] if path else [])
         except Exception:
