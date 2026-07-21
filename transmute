@@ -26,10 +26,19 @@ Options:
   -x WxH STRETCH to exact resolution (scale, may distort) -> <name>_<WxH>x.ext
   -j [MODE] JOIN/STITCH clips end-to-end. MODE=pad|crop|stretch (default: pad)
            INPUT can be: "a.mp4,b.mp4,c.mp4" or a folder
-           Final res = max(W) x max(H) across inputs
+           Canvas = max content size snapped to target AR (see -A).
+           pad:     scale UP to fit inside canvas (keep AR), letter/pillar-box if AR differs
+           crop:    scale UP to cover canvas (keep AR), center-crop if AR differs
+           stretch: scale/warp to canvas (may distort AR)
+           Same-AR clips (e.g. 720² + 2048²) → largest size; smaller is scaled up, not padded.
+  -A AR   Target aspect for -j/-g. auto|1:1|16:9|3:2|2:3|9:16|W:H|WxH (default: auto)
+           auto = shared AR if all match, else AR of the largest clip (by pixels)
+  -T DURS Per-clip target duration (seconds) for -j, comma-separated, same order as inputs.
+           Empty field = keep native length. E.g. -T 3.0,,5.5 stretches clip0 to 3s, clip2 to 5.5s.
+           Video uses setpts; audio uses atempo (chained for large factors).
   -g [MODE] GRID 2x2 panel of 4 videos. MODE=pad|crop|stretch (default: pad)
            INPUT must be 4 videos: "a,b,c,d" or folder with 4 videos
-           Final res = max(W)*2 x max(H)*2
+           Tile size from -A + max dims; final = tile*2 x tile*2
   -r REVERSE video -> <name>_rev.ext
   -q QUALITY JPEG quality for -f/-l. 2-31, default 2. Lower=better
   -d DRY RUN. Print command but don't execute
@@ -39,6 +48,7 @@ Examples:
   transmute input.mp4 -s
   transmute input.mp4 -z 1080x1080
   transmute a.mp4,b.mp4,c.mp4 -j pad
+  transmute a.mp4,b.mp4 -j pad -A 1:1
   transmute tl.mp4,tr.mp4,bl.mp4,br.mp4 -g crop
   transmute./clips -g -o grid.mp4
 EOF
@@ -61,6 +71,8 @@ JOIN=false
 JOIN_MODE="pad"
 GRID=false
 GRID_MODE="pad"
+ASPECT="auto"   # auto|1:1|16:9|3:2|2:3|9:16|W:H|WxH
+TIME_DURS=""    # comma-separated target seconds for -j (empty slot = native)
 REVERSE=false
 DRYRUN=false
 QUALITY=2
@@ -75,6 +87,131 @@ parse_res() {
     exit 1
   fi
   echo "$res"
+}
+
+# Resolve -A into rw rh (integers ratio), given max dims + per-clip lists for auto.
+# Sets globals TARGET_RW TARGET_RH (ratio numerators/denominators reduced).
+resolve_aspect_ratio() {
+  local spec="$1"
+  local max_w="$2" max_h="$3"
+  shift 3
+  # remaining: w1 h1 w2 h2 ... optional for auto
+  local rw rh
+  case "$spec" in
+    auto)
+      # If all clips share AR (within ~0.5%), use it; else AR of largest by area
+      local all_same=1
+      local best_area=0 best_w=0 best_h=0
+      local first_w="" first_h=""
+      while [[ $# -ge 2 ]]; do
+        local w="$1" h="$2"; shift 2
+        local area=$((w * h))
+        if (( area > best_area )); then best_area=$area; best_w=$w; best_h=$h; fi
+        if [[ -z "$first_w" ]]; then
+          first_w=$w; first_h=$h
+        else
+          # cross-multiply compare w/h vs first_w/first_h
+          if ! awk -v w="$w" -v h="$h" -v fw="$first_w" -v fh="$first_h" \
+              'BEGIN{ d=(w*fh - h*fw); if (d<0) d=-d; thr=0.005*w*fh; exit !(d<=thr) }'; then
+            all_same=0
+          fi
+        fi
+      done
+      if (( all_same )); then rw=$first_w; rh=$first_h
+      else rw=$best_w; rh=$best_h
+      fi
+      ;;
+    1:1|square) rw=1; rh=1 ;;
+    16:9) rw=16; rh=9 ;;
+    9:16) rw=9; rh=16 ;;
+    3:2) rw=3; rh=2 ;;
+    2:3) rw=2; rh=3 ;;
+    4:3) rw=4; rh=3 ;;
+    3:4) rw=3; rh=4 ;;
+    *:*)
+      rw="${spec%%:*}"; rh="${spec##*:}"
+      [[ "$rw" =~ ^[0-9]+$ && "$rh" =~ ^[0-9]+$ && "$rw" -gt 0 && "$rh" -gt 0 ]] \
+        || { echo "Error: bad -A ratio '$spec' (use W:H)" >&2; exit 1; }
+      ;;
+    *x*)
+      rw="${spec%%x*}"; rh="${spec##*x}"
+      [[ "$rw" =~ ^[0-9]+$ && "$rh" =~ ^[0-9]+$ && "$rw" -gt 0 && "$rh" -gt 0 ]] \
+        || { echo "Error: bad -A size '$spec' (use WxH)" >&2; exit 1; }
+      ;;
+    *)
+      echo "Error: unknown -A aspect '$spec'" >&2
+      exit 1
+      ;;
+  esac
+  # reduce
+  local a=$rw b=$rh t
+  while (( b )); do t=$b; b=$((a % b)); a=$t; done
+  TARGET_RW=$((rw / a))
+  TARGET_RH=$((rh / a))
+}
+
+# Smallest even WxH with W>=max_w, H>=max_h and W/H ≈ rw/rh. Always grows, never shrinks content box.
+snap_canvas_to_ar() {
+  local max_w="$1" max_h="$2" rw="$3" rh="$4"
+  local W=$max_w
+  local H
+  H=$(awk -v W="$W" -v rw="$rw" -v rh="$rh" 'BEGIN{printf "%d", int((W*rh)/rw + 0.999)}')
+  if (( H < max_h )); then
+    H=$max_h
+    W=$(awk -v H="$H" -v rw="$rw" -v rh="$rh" 'BEGIN{printf "%d", int((H*rw)/rh + 0.999)}')
+  fi
+  # even for yuv420
+  (( W % 2 )) && W=$((W + 1))
+  (( H % 2 )) && H=$((H + 1))
+  # re-check mins after even bump
+  (( W < max_w )) && W=$((max_w + (max_w % 2)))
+  (( H < max_h )) && H=$((max_h + (max_h % 2)))
+  TARGET_W=$W
+  TARGET_H=$H
+}
+
+# Build atempo chain for speed in (0,inf); each atempo must be in [0.5, 2.0]
+atempo_chain() {
+  local speed
+  speed=$(awk -v s="$1" 'BEGIN{ if (s<=0) s=1; printf "%.10f", s }')
+  local parts=()
+  # speed up: > 2
+  while awk -v s="$speed" 'BEGIN{exit !(s>2.0)}'; do
+    parts+=("atempo=2.0")
+    speed=$(awk -v s="$speed" 'BEGIN{printf "%.10f", s/2.0}')
+  done
+  # slow down: < 0.5
+  while awk -v s="$speed" 'BEGIN{exit !(s<0.5 && s>0)}'; do
+    parts+=("atempo=0.5")
+    speed=$(awk -v s="$speed" 'BEGIN{printf "%.10f", s/0.5}')
+  done
+  parts+=("atempo=${speed}")
+  local IFS=,
+  echo "${parts[*]}"
+}
+
+# Build per-stream video filter fragment for join/grid reconciliation
+# Optional 5th arg: time factor (target_dur/source_dur); 1 = no stretch
+join_vf_for_mode() {
+  local mode="$1" i="$2" W="$3" H="$4" factor="${5:-1}"
+  local pts
+  if awk -v f="$factor" 'BEGIN{exit !(f==1 || f==0)}'; then
+    pts="setpts=PTS-STARTPTS"
+  else
+    pts="setpts=(PTS-STARTPTS)*${factor}"
+  fi
+  case "$mode" in
+    pad)
+      # scale UP/DOWN to fit inside, keep AR, pad remainder (same-AR → pure upscale, no bars)
+      echo "[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=decrease:flags=lanczos,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,${pts}[v${i}];"
+      ;;
+    crop)
+      echo "[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=increase:flags=lanczos,crop=${W}:${H}:(iw-ow)/2:(ih-oh)/2,setsar=1,${pts}[v${i}];"
+      ;;
+    stretch)
+      echo "[${i}:v]scale=${W}:${H}:flags=lanczos,setsar=1,${pts}[v${i}];"
+      ;;
+  esac
 }
 
 while [[ $# -gt 0 ]]; do
@@ -99,6 +236,10 @@ while [[ $# -gt 0 ]]; do
           JOIN_MODE="pad"; shift
         fi
         ;;
+    -A) [[ -n "${2:-}" ]] || { echo "Error: -A requires aspect (auto|1:1|16:9|…)" >&2; exit 1; }
+        ASPECT="$2"; shift 2 ;;
+    -T) [[ -n "${2:-}" ]] || { echo "Error: -T requires comma-separated durations" >&2; exit 1; }
+        TIME_DURS="$2"; shift 2 ;;
     -g) GRID=true;
         if [[ -n "${2:-}" && "$2" =~ ^(pad|crop|stretch)$ ]]; then
           GRID_MODE="$2"; shift 2
@@ -189,38 +330,37 @@ if $GRID; then
     exit 1
   fi
 
-  echo "Probing 4 clips for max tile resolution..."
+  echo "Probing 4 clips for tile canvas..."
   MAX_W=0; MAX_H=0
+  dims_args=()
   for f in "${INPUTS[@]}"; do
     [[ -f "$f" ]] || { echo "Error: file not found: $f" >&2; exit 1; }
     IFS='x' read -r W H < <(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "$f")
     [[ -n "$W" && -n "$H" ]] || { echo "Error: could not probe $f" >&2; exit 1; }
+    dims_args+=("$W" "$H")
     (( W > MAX_W )) && MAX_W=$W
     (( H > MAX_H )) && MAX_H=$H
     echo " $f -> ${W}x${H}"
   done
-  TILE_W=$MAX_W; TILE_H=$MAX_H
-  FINAL_W=$((MAX_W*2)); FINAL_H=$((MAX_H*2))
-  echo "Tile: ${TILE_W}x${TILE_H}, Final: ${FINAL_W}x${FINAL_H} (mode: $GRID_MODE)"
+  TARGET_RW=1; TARGET_RH=1
+  resolve_aspect_ratio "$ASPECT" "$MAX_W" "$MAX_H" "${dims_args[@]}"
+  TARGET_W=0; TARGET_H=0
+  snap_canvas_to_ar "$MAX_W" "$MAX_H" "$TARGET_RW" "$TARGET_RH"
+  TILE_W=$TARGET_W; TILE_H=$TARGET_H
+  FINAL_W=$((TILE_W*2)); FINAL_H=$((TILE_H*2))
+  echo "Tile: ${TILE_W}x${TILE_H} (AR ${TARGET_RW}:${TARGET_RH}), Final: ${FINAL_W}x${FINAL_H} (mode: $GRID_MODE)"
 
   if [[ -z "$OUTPUT" ]]; then
     OUTPUT="grid-${GRID_MODE}_${FINAL_W}x${FINAL_H}.mp4"
   fi
+  case "${OUTPUT,,}" in
+    *.mp4|*.m4v|*.mov|*.mkv|*.webm|*.avi) ;;
+    *) OUTPUT="${OUTPUT}.mp4" ;;
+  esac
 
-  # Build filter_complex for tiles
   FILTER=""
   for i in 0 1 2 3; do
-    case "$GRID_MODE" in
-      pad)
-        FILTER+="[${i}:v]pad=${TILE_W}:${TILE_H}:(ow-iw)/2:(oh-ih)/2:color=black:eval=frame,setsar=1,setpts=PTS-STARTPTS[v${i}];"
-        ;;
-      stretch)
-        FILTER+="[${i}:v]scale=${TILE_W}:${TILE_H}:flags=lanczos,setsar=1,setpts=PTS-STARTPTS[v${i}];"
-        ;;
-      crop)
-        FILTER+="[${i}:v]scale=${TILE_W}:${TILE_H}:force_original_aspect_ratio=increase:flags=lanczos,setsar=1,crop=${TILE_W}:${TILE_H}:(iw-ow)/2:(ih-oh)/2,setpts=PTS-STARTPTS[v${i}];"
-        ;;
-    esac
+    FILTER+="$(join_vf_for_mode "$GRID_MODE" "$i" "$TILE_W" "$TILE_H")"
   done
   FILTER+="[v0][v1][v2][v3]xstack=inputs=4:layout=0_0|w0_0|0_h0|w0_h0:fill=black:shortest=1[v]"
 
@@ -236,18 +376,13 @@ if $GRID; then
   done
 
   if $HAS_AUDIO; then
-    # Rebuild with audio mixing
     FILTER=""; AFILTER=""
     for i in 0 1 2 3; do
-      case "$GRID_MODE" in
-        pad) FILTER+="[${i}:v]pad=${TILE_W}:${TILE_H}:(ow-iw)/2:(oh-ih)/2:color=black:eval=frame,setsar=1,setpts=PTS-STARTPTS[v${i}];" ;;
-        stretch) FILTER+="[${i}:v]scale=${TILE_W}:${TILE_H}:flags=lanczos,setsar=1,setpts=PTS-STARTPTS[v${i}];" ;;
-        crop) FILTER+="[${i}:v]scale=${TILE_W}:${TILE_H}:force_original_aspect_ratio=increase:flags=lanczos,setsar=1,crop=${TILE_W}:${TILE_H}:(iw-ow)/2:(ih-oh)/2,setpts=PTS-STARTPTS[v${i}];" ;;
-      esac
+      FILTER+="$(join_vf_for_mode "$GRID_MODE" "$i" "$TILE_W" "$TILE_H")"
       AFILTER+="[${i}:a]aformat=sample_fmts=fltp:channel_layouts=stereo,aresample=async=1[a${i}];"
     done
     FILTER+="${AFILTER}[v0][v1][v2][v3]xstack=inputs=4:layout=0_0|w0_0|0_h0|w0_h0:fill=black:shortest=1[v];[a0][a1][a2][a3]amix=inputs=4:duration=longest:dropout_transition=0:normalize=0[a]"
-    CMD=(); CMD=(ffmpeg -hide_banner -y)
+    CMD=(ffmpeg -hide_banner -y)
     for f in "${INPUTS[@]}"; do CMD+=(-i "$f"); done
     CMD+=(-filter_complex "$FILTER" -map "[v]" -map "[a]" -c:v libx264 -crf 18 -preset medium -c:a aac -b:a 192k "$OUTPUT")
   else
@@ -266,26 +401,57 @@ if $JOIN; then
   collect_inputs "$INPUT" INPUTS
   if [[ ${#INPUTS[@]} -lt 2 ]]; then echo "Error: -j needs at least 2 videos" >&2; exit 1; fi
 
-  echo "Probing ${#INPUTS[@]} clips for max resolution..."
+  echo "Probing ${#INPUTS[@]} clips..."
   MAX_W=0; MAX_H=0
+  declare -a CLIP_W=() CLIP_H=() CLIP_DUR=() TIME_FACTOR=()
+  dims_args=()
+  # Parse -T durations into array (may be shorter than inputs)
+  IFS=',' read -r -a T_ARR <<< "${TIME_DURS}"
   for f in "${INPUTS[@]}"; do
     IFS='x' read -r W H < <(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "$f")
-    (( W > MAX_W )) && MAX_W=$W; (( H > MAX_H )) && MAX_H=$H
-    echo " $f -> ${W}x${H}"
+    DUR=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$f" 2>/dev/null || echo 0)
+    CLIP_W+=("$W"); CLIP_H+=("$H"); CLIP_DUR+=("$DUR")
+    dims_args+=("$W" "$H")
+    (( W > MAX_W )) && MAX_W=$W
+    (( H > MAX_H )) && MAX_H=$H
+    echo " $f -> ${W}x${H}  dur=${DUR}s"
   done
-  echo "Final resolution: ${MAX_W}x${MAX_H} (mode: $JOIN_MODE)"
-  [[ -z "$OUTPUT" ]] && OUTPUT="join-${JOIN_MODE}_${MAX_W}x${MAX_H}.mp4"
+
+  # Per-clip time factors (target/source); 1 = unchanged
+  for i in "${!INPUTS[@]}"; do
+    local_t="${T_ARR[$i]:-}"
+    src_d="${CLIP_DUR[$i]}"
+    if [[ -n "$local_t" && "$local_t" =~ ^[0-9]*\.?[0-9]+$ && -n "$src_d" ]]; then
+      fac=$(awk -v t="$local_t" -v d="$src_d" 'BEGIN{
+        if (d<=0.001) { print 1; exit }
+        printf "%.8f", t/d
+      }')
+      TIME_FACTOR+=("$fac")
+      echo "  clip[$i] time target ${local_t}s (factor ${fac})"
+    else
+      TIME_FACTOR+=("1")
+    fi
+  done
+
+  TARGET_RW=1; TARGET_RH=1
+  resolve_aspect_ratio "$ASPECT" "$MAX_W" "$MAX_H" "${dims_args[@]}"
+  TARGET_W=0; TARGET_H=0
+  snap_canvas_to_ar "$MAX_W" "$MAX_H" "$TARGET_RW" "$TARGET_RH"
+
+  echo "Target AR: ${TARGET_RW}:${TARGET_RH} (from -A ${ASPECT})"
+  echo "Final canvas: ${TARGET_W}x${TARGET_H} (mode: $JOIN_MODE) — scale up keep-AR; pad only if AR differs"
+  [[ -z "$OUTPUT" ]] && OUTPUT="join-${JOIN_MODE}_${TARGET_W}x${TARGET_H}.mp4"
+  case "${OUTPUT,,}" in
+    *.mp4|*.m4v|*.mov|*.mkv|*.webm|*.avi) ;;
+    *) OUTPUT="${OUTPUT}.mp4" ;;
+  esac
 
   CMD=(ffmpeg -hide_banner -y)
   for f in "${INPUTS[@]}"; do CMD+=(-i "$f"); done
 
   FILTER=""
   for i in "${!INPUTS[@]}"; do
-    case "$JOIN_MODE" in
-      pad) FILTER+="[${i}:v]pad=${MAX_W}:${MAX_H}:(ow-iw)/2:(oh-ih)/2:color=black:eval=frame,setsar=1,setpts=PTS-STARTPTS[v${i}];" ;;
-      stretch) FILTER+="[${i}:v]scale=${MAX_W}:${MAX_H}:flags=lanczos,setsar=1,setpts=PTS-STARTPTS[v${i}];" ;;
-      crop) FILTER+="[${i}:v]scale=${MAX_W}:${MAX_H}:force_original_aspect_ratio=increase:flags=lanczos,setsar=1,crop=${MAX_W}:${MAX_H}:(iw-ow)/2:(ih-oh)/2,setpts=PTS-STARTPTS[v${i}];" ;;
-    esac
+    FILTER+="$(join_vf_for_mode "$JOIN_MODE" "$i" "$TARGET_W" "$TARGET_H" "${TIME_FACTOR[$i]}")"
   done
   for i in "${!INPUTS[@]}"; do FILTER+="[v${i}]"; done
   FILTER+="concat=n=${#INPUTS[@]}:v=1:a=0[v]"
@@ -294,18 +460,23 @@ if $JOIN; then
   for f in "${INPUTS[@]}"; do ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "$f" | grep -q . || { HAS_A=false; break; }; done
 
   if $HAS_A; then
-    FILTER=""; AFILTER=""
+    FILTER=""
     for i in "${!INPUTS[@]}"; do
-      case "$JOIN_MODE" in
-        pad) FILTER+="[${i}:v]pad=${MAX_W}:${MAX_H}:(ow-iw)/2:(oh-ih)/2:color=black:eval=frame,setsar=1,setpts=PTS-STARTPTS[v${i}];" ;;
-        stretch) FILTER+="[${i}:v]scale=${MAX_W}:${MAX_H}:flags=lanczos,setsar=1,setpts=PTS-STARTPTS[v${i}];" ;;
-        crop) FILTER+="[${i}:v]scale=${MAX_W}:${MAX_H}:force_original_aspect_ratio=increase:flags=lanczos,setsar=1,crop=${MAX_W}:${MAX_H}:(iw-ow)/2:(ih-oh)/2,setpts=PTS-STARTPTS[v${i}];" ;;
-      esac
-      FILTER+="[${i}:a]aformat=sample_fmts=fltp:channel_layouts=stereo[a${i}];"
+      FILTER+="$(join_vf_for_mode "$JOIN_MODE" "$i" "$TARGET_W" "$TARGET_H" "${TIME_FACTOR[$i]}")"
+      fac="${TIME_FACTOR[$i]}"
+      # audio speed = 1/video_factor (longer video → slower audio)
+      if awk -v f="$fac" 'BEGIN{exit !(f==1 || f==0)}'; then
+        FILTER+="[${i}:a]aformat=sample_fmts=fltp:channel_layouts=stereo[a${i}];"
+      else
+        aspeed=$(awk -v f="$fac" 'BEGIN{ if (f<=0) f=1; printf "%.10f", 1.0/f }')
+        achain=$(atempo_chain "$aspeed")
+        FILTER+="[${i}:a]aformat=sample_fmts=fltp:channel_layouts=stereo,${achain}[a${i}];"
+      fi
     done
     for i in "${!INPUTS[@]}"; do FILTER+="[v${i}][a${i}]"; done
     FILTER+="concat=n=${#INPUTS[@]}:v=1:a=1[v][a]"
-    CMD=(); CMD=(ffmpeg -hide_banner -y); for f in "${INPUTS[@]}"; do CMD+=(-i "$f"); done
+    CMD=(ffmpeg -hide_banner -y)
+    for f in "${INPUTS[@]}"; do CMD+=(-i "$f"); done
     CMD+=(-filter_complex "$FILTER" -map "[v]" -map "[a]" -c:v libx264 -crf 18 -preset medium -c:a aac -b:a 192k "$OUTPUT")
   else
     CMD+=(-filter_complex "$FILTER" -map "[v]" -c:v libx264 -crf 18 -preset medium -an "$OUTPUT")

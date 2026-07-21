@@ -17,13 +17,16 @@ let state = {
   moshVideoFrames: 100,
   pool: {
     items: [], // { path, name, size?, meta?, hash? }
-    selectedPath: null,
+    selectedPath: null, // sticky selection (click) — syncs library ↔ sequence
+    hoverPath: null,    // temporary hover only (does not change selection)
     loading: false,
     // Sequence composer: ordered clips to stitch
     sequence: [], // { id, path, name }
-    focusPath: null, // hover/click target for stationary selection frame
+    focusPath: null, // deprecated alias; display uses hoverPath || selectedPath
     seqDragId: null,
     reconcile: 'pad',
+    aspect: 'auto',       // auto|1:1|16:9|…|custom
+    aspectCustom: '',     // when aspect === 'custom': W:H or WxH
     outputPath: '',
     // Sequence preview playback
     playback: {
@@ -241,7 +244,8 @@ function switchTab(tab) {
   if (tab === 'transmute') title = 'Single-Clip Transmutations';
   if (tab === 'multi') title = 'Layout Templates (Join / Grid)';
   if (tab === 'advanced') title = 'Advanced (Raw CLI)';
-  if (tab === 'pool') title = 'Media Pool';
+  // Pool tab: drop the big header title (sidebar already shows active item)
+  if (tab === 'pool') title = '';
   elements.tabTitle.textContent = title;
 
   // Hide Run on library tab (pool has its own Stitch control)
@@ -1437,11 +1441,6 @@ function renderPoolForm() {
   const html = `
     <div class="pool-workspace-inner">
       <div class="pool-top">
-        <div class="panel-title-desc pool-title-compact">
-          <h3>Media Pool</h3>
-          <p>Drag clips into the sequence below. Content-hashed thumbs stick after first open. Drag edges to resize · click ▾ headers to collapse.</p>
-        </div>
-
         <div class="pool-toolbar">
           <div class="pool-toolbar-actions">
             <button class="btn btn-primary" id="btnPoolImportFiles" type="button">+ Files</button>
@@ -1510,21 +1509,52 @@ function renderPoolForm() {
               <button type="button" class="btn seq-ctrl" id="btnSeqNext" title="Next clip" ${seqCount === 0 ? 'disabled' : ''}>⏭</button>
               <button type="button" class="btn seq-ctrl ${state.pool.playback.loop ? 'active' : ''}" id="btnSeqLoop" title="Loop sequence" ${seqCount === 0 ? 'disabled' : ''}>🔁</button>
               <span class="seq-play-status" id="seqPlayStatus">—</span>
+              <span class="seq-reorder-sep" aria-hidden="true"></span>
+              <button type="button" class="btn seq-ctrl seq-reorder" id="btnSeqMoveFirst" title="Move selected to start" disabled>&lt;&lt;</button>
+              <button type="button" class="btn seq-ctrl seq-reorder" id="btnSeqMoveLeft" title="Move selected earlier" disabled>&lt;</button>
+              <button type="button" class="btn seq-ctrl seq-reorder" id="btnSeqMoveRight" title="Move selected later" disabled>&gt;</button>
+              <button type="button" class="btn seq-ctrl seq-reorder" id="btnSeqMoveLast" title="Move selected to end" disabled>&gt;&gt;</button>
             </div>
           </div>
           <div class="pool-section-body" data-section="sequence">
             <div class="pool-sequence-box" id="poolSequenceBox" tabindex="0"></div>
+            <div class="seq-clip-settings" id="seqClipSettings" hidden>
+              <span class="seq-clip-settings-label">Selected clip</span>
+              <span class="seq-clip-settings-name" id="seqClipName">—</span>
+              <label class="pool-opt-label" title="Stretch or compress this clip to a target length in the stitch">Time (s)
+                <input type="number" id="seqClipDuration" min="0.05" step="0.05" placeholder="native" class="seq-clip-dur-input">
+              </label>
+              <button type="button" class="btn pool-info-mini" id="btnSeqClipDurClear" title="Use original duration">Native</button>
+              <span class="seq-clip-settings-hint" id="seqClipDurHint"></span>
+            </div>
             <div class="pool-sequence-bar">
               <div class="pool-sequence-opts">
-                <label class="pool-opt-label">Fit
+                <label class="pool-opt-label" title="How clips are scaled onto the canvas">Fit
                   <select id="poolReconcile">
-                    <option value="pad" ${rec === 'pad' ? 'selected' : ''}>Pad</option>
-                    <option value="crop" ${rec === 'crop' ? 'selected' : ''}>Crop</option>
-                    <option value="stretch" ${rec === 'stretch' ? 'selected' : ''}>Stretch</option>
+                    <option value="pad" ${rec === 'pad' ? 'selected' : ''}>Pad (scale up, letterbox if AR differs)</option>
+                    <option value="crop" ${rec === 'crop' ? 'selected' : ''}>Crop (scale up, center-crop if AR differs)</option>
+                    <option value="stretch" ${rec === 'stretch' ? 'selected' : ''}>Stretch (warp AR)</option>
                   </select>
                 </label>
+                <label class="pool-opt-label" title="Target canvas aspect ratio">AR
+                  <select id="poolAspect">
+                    <option value="auto" ${(state.pool.aspect || 'auto') === 'auto' ? 'selected' : ''}>Auto</option>
+                    <option value="1:1" ${state.pool.aspect === '1:1' ? 'selected' : ''}>1:1</option>
+                    <option value="16:9" ${state.pool.aspect === '16:9' ? 'selected' : ''}>16:9</option>
+                    <option value="9:16" ${state.pool.aspect === '9:16' ? 'selected' : ''}>9:16</option>
+                    <option value="3:2" ${state.pool.aspect === '3:2' ? 'selected' : ''}>3:2</option>
+                    <option value="2:3" ${state.pool.aspect === '2:3' ? 'selected' : ''}>2:3</option>
+                    <option value="4:3" ${state.pool.aspect === '4:3' ? 'selected' : ''}>4:3</option>
+                    <option value="3:4" ${state.pool.aspect === '3:4' ? 'selected' : ''}>3:4</option>
+                    <option value="custom" ${state.pool.aspect === 'custom' ? 'selected' : ''}>Custom…</option>
+                  </select>
+                </label>
+                <input type="text" id="poolAspectCustom" class="pool-aspect-custom"
+                  placeholder="W:H or WxH" title="Custom aspect e.g. 5:4 or 1080x1920"
+                  value="${escapeHtml(state.pool.aspectCustom || '')}"
+                  style="display:${state.pool.aspect === 'custom' ? 'inline-block' : 'none'}; width: 100px;">
                 <div class="input-row pool-out-row">
-                  <input type="text" id="poolOutput" placeholder="Output path (blank = auto)" value="${escapeHtml(outVal)}">
+                  <input type="text" id="poolOutput" placeholder="Output path (blank = auto .mp4)" value="${escapeHtml(outVal)}">
                   <button class="btn" type="button" id="btnPoolOutBrowse">Save As</button>
                 </div>
               </div>
@@ -1607,6 +1637,16 @@ function renderPoolForm() {
     state.pool.reconcile = e.target.value;
     scheduleSavePoolState();
   });
+  document.getElementById('poolAspect')?.addEventListener('change', (e) => {
+    state.pool.aspect = e.target.value;
+    const custom = document.getElementById('poolAspectCustom');
+    if (custom) custom.style.display = state.pool.aspect === 'custom' ? 'inline-block' : 'none';
+    scheduleSavePoolState();
+  });
+  document.getElementById('poolAspectCustom')?.addEventListener('input', (e) => {
+    state.pool.aspectCustom = e.target.value.trim();
+    scheduleSavePoolState();
+  });
   document.getElementById('poolOutput')?.addEventListener('input', (e) => {
     state.pool.outputPath = e.target.value;
     scheduleSavePoolState();
@@ -1644,13 +1684,46 @@ function renderPoolForm() {
     document.getElementById('btnSeqLoop')?.classList.toggle('active', state.pool.playback.loop);
     updateSeqTransportUI();
   });
+  document.getElementById('btnSeqMoveFirst')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    moveSelectedInSequence('start');
+  });
+  document.getElementById('btnSeqMoveLeft')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    moveSelectedInSequence(-1);
+  });
+  document.getElementById('btnSeqMoveRight')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    moveSelectedInSequence(1);
+  });
+  document.getElementById('btnSeqMoveLast')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    moveSelectedInSequence('end');
+  });
+
+  document.getElementById('seqClipDuration')?.addEventListener('change', onSeqClipDurationChange);
+  document.getElementById('seqClipDuration')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') onSeqClipDurationChange();
+  });
+  document.getElementById('btnSeqClipDurClear')?.addEventListener('click', () => {
+    const idx = findSelectedSeqIndex();
+    if (idx < 0) return;
+    state.pool.sequence[idx].targetDuration = null;
+    const inp = document.getElementById('seqClipDuration');
+    if (inp) inp.value = '';
+    updateSeqClipSettings();
+    scheduleSavePoolState();
+    logConsole(`[SEQ]: Cleared time stretch for ${state.pool.sequence[idx].name}`);
+  });
 
   setupSequenceDropZone();
+  updateSeqClipSettings();
   setupPoolLayoutChrome();
   applyPoolZoom();
   renderPoolGrid();
   renderSequenceBox();
-  updatePoolFocusFrame(state.pool.focusPath || state.pool.selectedPath);
+  updatePoolFocusFrame(displayFocusPath());
+  updateSelectionHighlights();
   updateSeqTransportUI();
   // Re-show last match results if any
   if (state.pool.matchResults) {
@@ -1854,8 +1927,8 @@ function renderPoolGrid() {
   state.pool.items.forEach((item, idx) => {
     const card = document.createElement('article');
     const isSelected = state.pool.selectedPath === item.path;
-    const isFocused = state.pool.focusPath === item.path;
-    card.className = `pool-card${isSelected ? ' selected' : ''}${isFocused ? ' focused' : ''}`;
+    const isHovered = state.pool.hoverPath === item.path;
+    card.className = `pool-card${isSelected ? ' selected' : ''}${isHovered ? ' hovered' : ''}`;
     card.dataset.path = item.path;
     card.dataset.idx = String(idx);
     card.draggable = true;
@@ -1913,10 +1986,15 @@ function renderPoolGrid() {
     card.addEventListener('click', (e) => {
       if (e.target.closest('.pool-card-remove, .pool-send-wrap')) return;
       selectPoolItem(item.path);
-      setPoolFocus(item.path);
     });
 
-    card.addEventListener('mouseenter', () => setPoolFocus(item.path, { soft: true }));
+    card.addEventListener('mouseenter', () => setPoolHover(item.path));
+    card.addEventListener('mouseleave', (e) => {
+      // Leaving for another card/token keeps hover via that element's enter
+      const to = e.relatedTarget;
+      if (to && (to.closest?.('.pool-card') || to.closest?.('.seq-token'))) return;
+      clearPoolHover();
+    });
 
     card.addEventListener('dragstart', (e) => {
       if (e.target.closest('.pool-send-wrap, .pool-card-remove')) {
@@ -1994,17 +2072,56 @@ function findPoolItem(path) {
   return state.pool.items.find(i => i.path === path) || null;
 }
 
-function setPoolFocus(path, opts = {}) {
-  if (!path) return;
-  // soft hover shouldn't fight a hard click selection for focus stickiness?
-  // User asked: "whatever video we are hovering or clicking" — hover always updates frame
-  state.pool.focusPath = path;
+/** Path shown in the Selection frame: temporary hover, else sticky selection. */
+function displayFocusPath() {
+  return state.pool.hoverPath || state.pool.selectedPath || null;
+}
+
+/** Temporary hover — updates Selection preview only; does not change selection. */
+function setPoolHover(path) {
+  if (!path) {
+    clearPoolHover();
+    return;
+  }
+  state.pool.hoverPath = path;
+  state.pool.focusPath = path; // keep legacy field in sync for any remaining callers
   updatePoolFocusFrame(path);
+  updateSelectionHighlights();
+}
+
+function clearPoolHover() {
+  if (!state.pool.hoverPath) return;
+  state.pool.hoverPath = null;
+  state.pool.focusPath = state.pool.selectedPath;
+  updatePoolFocusFrame(state.pool.selectedPath);
+  updateSelectionHighlights();
+}
+
+/** Sticky click selection — library and sequence stay in sync by path. */
+function setPoolFocus(path, opts = {}) {
+  // Back-compat: hard focus = select; soft = hover only
+  if (opts.soft) {
+    setPoolHover(path);
+    return;
+  }
+  if (path) selectPoolItem(path);
+}
+
+/** Sync .selected / .hovered classes across pool cards and sequence tokens. */
+function updateSelectionHighlights() {
+  const sel = state.pool.selectedPath;
+  const hov = state.pool.hoverPath;
   document.querySelectorAll('.pool-card').forEach(el => {
-    el.classList.toggle('focused', el.dataset.path === path);
+    const p = el.dataset.path;
+    el.classList.toggle('selected', !!sel && p === sel);
+    el.classList.toggle('hovered', !!hov && p === hov);
+    el.classList.toggle('focused', !!hov && p === hov); // alias for existing CSS
   });
   document.querySelectorAll('.seq-token').forEach(el => {
-    el.classList.toggle('focused', el.dataset.path === path);
+    const p = el.dataset.path;
+    el.classList.toggle('selected', !!sel && p === sel);
+    el.classList.toggle('hovered', !!hov && p === hov);
+    el.classList.toggle('focused', (!!hov && p === hov) || (!!sel && p === sel && !hov));
   });
 }
 
@@ -2060,7 +2177,7 @@ function updatePoolFocusFrame(path) {
   if (poolItem && !poolItem.meta && !poolItem.metaError) {
     const idx = state.pool.items.indexOf(poolItem);
     loadPoolItemMeta(poolItem, idx).then(() => {
-      if (state.pool.focusPath === path) updatePoolFocusFrame(path);
+      if (displayFocusPath() === path) updatePoolFocusFrame(path);
       renderSequenceBox(); // refresh duration labels on tokens
     });
   }
@@ -2112,7 +2229,7 @@ function setupSequenceDropZone() {
       if (insertAt > from) insertAt -= 1;
       state.pool.sequence.splice(insertAt, 0, item);
       renderSequenceBox();
-      setPoolFocus(item.path);
+      selectPoolItem(item.path);
       scheduleSavePoolState();
       return;
     }
@@ -2131,6 +2248,7 @@ function addPathToSequence(path, insertAt = null) {
     id: _poolSeqId++,
     path,
     name,
+    targetDuration: null, // seconds; null = native length
   };
   if (insertAt == null || insertAt < 0 || insertAt > state.pool.sequence.length) {
     state.pool.sequence.push(entry);
@@ -2139,7 +2257,7 @@ function addPathToSequence(path, insertAt = null) {
   }
   logConsole(`[SEQ]: + ${name}`);
   renderSequenceBox();
-  setPoolFocus(path);
+  selectPoolItem(path); // select in library + sequence together
   // Refresh stitch button / counts without full re-render if possible
   refreshPoolToolbarCounts();
   updateSeqTransportUI();
@@ -2192,7 +2310,9 @@ function renderSequenceBox() {
   state.pool.sequence.forEach((entry, idx) => {
     const tok = document.createElement('span');
     const isPlaying = state.pool.playback.playing && playIdx === idx;
-    tok.className = `seq-token${state.pool.focusPath === entry.path ? ' focused' : ''}${isPlaying ? ' playing' : ''}`;
+    const isSelected = state.pool.selectedPath === entry.path;
+    const isHovered = state.pool.hoverPath === entry.path;
+    tok.className = `seq-token${isSelected ? ' selected' : ''}${isHovered ? ' hovered' : ''}${isSelected && !isHovered ? ' focused' : ''}${isPlaying ? ' playing' : ''}`;
     tok.draggable = true;
     tok.dataset.id = String(entry.id);
     tok.dataset.path = entry.path;
@@ -2211,13 +2331,17 @@ function renderSequenceBox() {
 
     tok.addEventListener('click', (e) => {
       if (e.target.closest('.seq-token-x')) return;
-      selectPoolItem(entry.path);
-      setPoolFocus(entry.path);
       state.pool.playback.index = idx;
+      selectPoolItem(entry.path); // also selects matching library tile
       updateSeqTransportUI();
     });
     tok.addEventListener('mouseenter', () => {
-      if (!state.pool.playback.playing) setPoolFocus(entry.path);
+      if (!state.pool.playback.playing) setPoolHover(entry.path);
+    });
+    tok.addEventListener('mouseleave', (e) => {
+      const to = e.relatedTarget;
+      if (to && (to.closest?.('.pool-card') || to.closest?.('.seq-token'))) return;
+      clearPoolHover();
     });
 
     tok.querySelector('.seq-token-x')?.addEventListener('click', (e) => {
@@ -2264,6 +2388,10 @@ function updateSeqTransportUI() {
   const nextBtn = document.getElementById('btnSeqNext');
   const loopBtn = document.getElementById('btnSeqLoop');
   const status = document.getElementById('seqPlayStatus');
+  const moveFirst = document.getElementById('btnSeqMoveFirst');
+  const moveLeft = document.getElementById('btnSeqMoveLeft');
+  const moveRight = document.getElementById('btnSeqMoveRight');
+  const moveLast = document.getElementById('btnSeqMoveLast');
 
   if (playBtn) playBtn.disabled = n === 0;
   if (prevBtn) prevBtn.disabled = n === 0;
@@ -2275,6 +2403,14 @@ function updateSeqTransportUI() {
   if (pauseBtn) pauseBtn.disabled = !pb.playing;
   if (stopBtn) stopBtn.disabled = !pb.playing && !pb.video;
 
+  // Reorder: need a selected clip that appears in the sequence
+  const selIdx = findSelectedSeqIndex();
+  const canReorder = n >= 2 && selIdx >= 0;
+  if (moveFirst) moveFirst.disabled = !canReorder || selIdx === 0;
+  if (moveLeft) moveLeft.disabled = !canReorder || selIdx === 0;
+  if (moveRight) moveRight.disabled = !canReorder || selIdx >= n - 1;
+  if (moveLast) moveLast.disabled = !canReorder || selIdx >= n - 1;
+
   if (status) {
     if (n === 0) {
       status.textContent = '—';
@@ -2283,8 +2419,10 @@ function updateSeqTransportUI() {
       status.textContent = `▶ ${pb.index + 1}/${n} ${name}`;
     } else if (pb.video && pb.video.paused) {
       status.textContent = `⏸ ${pb.index + 1}/${n}`;
+    } else if (selIdx >= 0) {
+      status.textContent = `sel ${selIdx + 1}/${n}`;
     } else {
-      status.textContent = `${Math.min(pb.index + 1, n)}/${n}`;
+      status.textContent = `${Math.min((pb.index || 0) + 1, n)}/${n}`;
     }
   }
 
@@ -2293,6 +2431,108 @@ function updateSeqTransportUI() {
     const idx = parseInt(el.dataset.idx, 10);
     el.classList.toggle('playing', pb.playing && idx === pb.index);
   });
+}
+
+/** Index of the selected clip in the sequence (uses playback index when it matches path). */
+function findSelectedSeqIndex() {
+  const seq = state.pool.sequence;
+  const path = state.pool.selectedPath;
+  if (!path || !seq.length) return -1;
+  const pi = state.pool.playback.index;
+  if (Number.isInteger(pi) && pi >= 0 && pi < seq.length && seq[pi].path === path) {
+    return pi;
+  }
+  return seq.findIndex(s => s.path === path);
+}
+
+/**
+ * Move the selected sequence entry.
+ * @param {-1|1|'start'|'end'} action
+ */
+function moveSelectedInSequence(action) {
+  const seq = state.pool.sequence;
+  const from = findSelectedSeqIndex();
+  if (from < 0 || seq.length < 2) return;
+
+  let to;
+  if (action === 'start') to = 0;
+  else if (action === 'end') to = seq.length - 1;
+  else if (action === -1 || action === 1) to = from + action;
+  else return;
+
+  to = Math.max(0, Math.min(seq.length - 1, to));
+  if (to === from) return;
+
+  const [item] = seq.splice(from, 1);
+  seq.splice(to, 0, item);
+
+  // Keep selection + playback index on the moved entry
+  state.pool.selectedPath = item.path;
+  state.pool.focusPath = item.path;
+  state.pool.playback.index = to;
+
+  logConsole(`[SEQ]: Moved ${item.name} ${from + 1} → ${to + 1}`);
+  renderSequenceBox();
+  updateSelectionHighlights();
+  updateSeqTransportUI();
+  updateSeqClipSettings();
+  scheduleSavePoolState();
+}
+
+/** Panel: per-clip time stretch when a sequence entry is selected. */
+function updateSeqClipSettings() {
+  const panel = document.getElementById('seqClipSettings');
+  if (!panel) return;
+  const idx = findSelectedSeqIndex();
+  if (idx < 0) {
+    panel.hidden = true;
+    return;
+  }
+  panel.hidden = false;
+  const entry = state.pool.sequence[idx];
+  const nameEl = document.getElementById('seqClipName');
+  const inp = document.getElementById('seqClipDuration');
+  const hint = document.getElementById('seqClipDurHint');
+  if (nameEl) nameEl.textContent = `${idx + 1}. ${entry.name}`;
+  if (inp) {
+    inp.value = entry.targetDuration != null && entry.targetDuration > 0
+      ? String(entry.targetDuration)
+      : '';
+  }
+  const meta = findPoolItem(entry.path)?.meta;
+  const native = meta?.duration;
+  if (hint) {
+    if (entry.targetDuration != null && entry.targetDuration > 0 && native > 0) {
+      const factor = entry.targetDuration / native;
+      const pct = Math.round(factor * 100);
+      hint.textContent = `native ${formatDurationExact(native)} → ${formatDurationExact(entry.targetDuration)} (${pct}% speed ${factor >= 1 ? 'slower' : 'faster'})`;
+    } else if (native > 0) {
+      hint.textContent = `native ${formatDurationExact(native)} (no stretch)`;
+    } else {
+      hint.textContent = 'set target length to stretch in time';
+    }
+  }
+}
+
+function onSeqClipDurationChange() {
+  const idx = findSelectedSeqIndex();
+  if (idx < 0) return;
+  const inp = document.getElementById('seqClipDuration');
+  const raw = inp?.value?.trim();
+  if (!raw) {
+    state.pool.sequence[idx].targetDuration = null;
+  } else {
+    const v = parseFloat(raw);
+    if (!Number.isFinite(v) || v <= 0) {
+      alert('Duration must be a positive number of seconds.');
+      updateSeqClipSettings();
+      return;
+    }
+    state.pool.sequence[idx].targetDuration = v;
+    logConsole(`[SEQ]: ${state.pool.sequence[idx].name} target time = ${v}s`);
+  }
+  updateSeqClipSettings();
+  scheduleSavePoolState();
 }
 
 function _detachPlaybackVideo() {
@@ -2315,8 +2555,9 @@ function seqLoadClip(index, { autoplay = true } = {}) {
   const entry = seq[index];
   if (!entry) return null;
 
-  setPoolFocus(entry.path);
-  state.pool.selectedPath = entry.path;
+  // Select this clip in library + sequence (sticky), then play
+  state.pool.playback.index = index;
+  selectPoolItem(entry.path);
 
   // Build player in the main media viewer
   const filePath = entry.path;
@@ -2487,9 +2728,12 @@ function buildPoolStatePayload() {
     sequence: state.pool.sequence.map(s => ({
       path: s.path,
       name: s.name || basename(s.path),
+      target_duration: s.targetDuration != null ? s.targetDuration : null,
     })),
     selected_path: state.pool.selectedPath,
     reconcile: state.pool.reconcile || 'pad',
+    aspect: state.pool.aspect || 'auto',
+    aspect_custom: state.pool.aspectCustom || '',
     output_path: state.pool.outputPath || '',
     tile_zoom: state.pool.tileZoom || POOL_ZOOM.reset,
     tile_info: ensureTileInfo(),
@@ -2537,10 +2781,14 @@ async function restorePoolState() {
       id: _poolSeqId++,
       path: s.path,
       name: s.name || basename(s.path),
+      targetDuration: (s.target_duration != null && s.target_duration > 0) ? s.target_duration : null,
     }));
     state.pool.selectedPath = data.selected_path || null;
     state.pool.focusPath = data.selected_path || null;
+    state.pool.hoverPath = null;
     state.pool.reconcile = data.reconcile || 'pad';
+    state.pool.aspect = data.aspect || 'auto';
+    state.pool.aspectCustom = data.aspect_custom || '';
     state.pool.outputPath = data.output_path || '';
 
     if (typeof data.tile_zoom === 'number' && !isNaN(data.tile_zoom)) {
@@ -2604,6 +2852,21 @@ function refreshPoolToolbarCounts() {
   if (seqClear) seqClear.disabled = state.pool.sequence.length === 0;
 }
 
+/** Ensure a path has a video container extension ffmpeg can mux. */
+function ensureVideoOutputPath(path) {
+  if (!path) return path;
+  const p = String(path).trim();
+  if (!p) return p;
+  const VIDEO_OUT_EXTS = ['.mp4', '.m4v', '.mov', '.mkv', '.webm', '.avi'];
+  const lower = p.toLowerCase();
+  if (VIDEO_OUT_EXTS.some(ext => lower.endsWith(ext))) return p;
+  // Bare name or wrong/missing extension → force .mp4
+  if (/\.[a-z0-9]{1,5}$/i.test(p)) {
+    return p.replace(/\.[a-z0-9]{1,5}$/i, '.mp4');
+  }
+  return `${p}.mp4`;
+}
+
 async function stitchPoolSequence() {
   const paths = state.pool.sequence.map(s => s.path);
   if (paths.length < 2) {
@@ -2612,12 +2875,35 @@ async function stitchPoolSequence() {
   }
 
   const mode = document.getElementById('poolReconcile')?.value || state.pool.reconcile || 'pad';
-  const outputRaw = document.getElementById('poolOutput')?.value?.trim() || state.pool.outputPath || '';
-  const output_path = outputRaw || null;
+  let aspect = document.getElementById('poolAspect')?.value || state.pool.aspect || 'auto';
+  if (aspect === 'custom') {
+    aspect = (document.getElementById('poolAspectCustom')?.value || state.pool.aspectCustom || '').trim();
+    if (!aspect || !/^(\d+:\d+|\d+x\d+)$/i.test(aspect)) {
+      alert('Custom AR needs W:H (e.g. 5:4) or WxH (e.g. 1080x1920).');
+      return;
+    }
+  }
+  let outputRaw = document.getElementById('poolOutput')?.value?.trim() || state.pool.outputPath || '';
+  // ffmpeg needs a real container extension (e.g. .mp4). A path like ".../1" fails muxer init.
+  let output_path = outputRaw ? ensureVideoOutputPath(outputRaw) : null;
+  if (output_path && output_path !== outputRaw) {
+    logConsole(`[STITCH]: Output had no video extension — using ${output_path}`);
+    const outInput = document.getElementById('poolOutput');
+    if (outInput) outInput.value = output_path;
+    state.pool.outputPath = output_path;
+  }
+
+  // Per-clip target durations (null = native)
+  const durations = state.pool.sequence.map(s =>
+    (s.targetDuration != null && s.targetDuration > 0) ? s.targetDuration : null
+  );
+  const anyTimed = durations.some(d => d != null);
 
   const body = {
     input_paths: paths,
     mode,
+    aspect,
+    durations: anyTimed ? durations : null,
     output_path,
     dry_run: false,
   };
@@ -3123,7 +3409,7 @@ async function loadPoolItemMeta(item, idx) {
   if (state.pool.sequence.some(s => s.path === item.path)) {
     renderSequenceBox();
   }
-  if (state.pool.focusPath === item.path) {
+  if (displayFocusPath() === item.path) {
     updatePoolFocusFrame(item.path);
   }
   // Persist hash once known
@@ -3131,23 +3417,26 @@ async function loadPoolItemMeta(item, idx) {
 }
 
 function selectPoolItem(path) {
+  if (!path) return;
   state.pool.selectedPath = path;
+  state.pool.hoverPath = null; // sticky wins; clear temporary hover
   state.pool.focusPath = path;
+
   // Don't clobber sequence player with silent preview if mid-play
   if (!state.pool.playback.playing) {
     showPreview(path);
   }
   updatePoolFocusFrame(path);
+  updateSelectionHighlights(); // library cards + sequence tokens share selection
+  updateSeqTransportUI(); // enable/disable << < > >>
+  updateSeqClipSettings();
   scheduleSavePoolState();
 
-  // Update selected card styling without full re-render (keeps thumbs/meta stable)
-  document.querySelectorAll('.pool-card').forEach(el => {
-    el.classList.toggle('selected', el.dataset.path === path);
-    el.classList.toggle('focused', el.dataset.path === path);
-  });
-  document.querySelectorAll('.seq-token').forEach(el => {
-    el.classList.toggle('focused', el.dataset.path === path);
-  });
+  // Scroll selected pool card / sequence token into view if present
+  const card = Array.from(document.querySelectorAll('.pool-card')).find(c => c.dataset.path === path);
+  if (card?.scrollIntoView) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  const tok = Array.from(document.querySelectorAll('.seq-token')).find(t => t.dataset.path === path);
+  if (tok?.scrollIntoView) tok.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
 
   // Enable find-matches when something is selected
   const findBtn = document.getElementById('btnFindNext');
@@ -3181,6 +3470,10 @@ function removePoolItem(idx) {
   state.pool.items.splice(idx, 1);
   if (state.pool.selectedPath === removed.path) {
     state.pool.selectedPath = null;
+    state.pool.focusPath = null;
+  }
+  if (state.pool.hoverPath === removed.path) {
+    state.pool.hoverPath = null;
   }
   logConsole(`[POOL]: Removed ${removed.name || removed.path}`);
   scheduleSavePoolState();

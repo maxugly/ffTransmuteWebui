@@ -38,6 +38,26 @@ def _cwd_for(input_arg: str) -> str | None:
     return d if os.path.isdir(d) else None
 
 
+_VIDEO_OUT_EXTS = (".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi")
+
+
+def _ensure_video_output_path(output_path: str | None) -> str | None:
+    """ffmpeg cannot guess a muxer for extensionless paths like '.../1'."""
+    if not output_path:
+        return output_path
+    p = output_path.strip()
+    if not p:
+        return None
+    lower = p.lower()
+    if any(lower.endswith(ext) for ext in _VIDEO_OUT_EXTS):
+        return p
+    # Replace unknown short extension, or append .mp4
+    base, ext = os.path.splitext(p)
+    if ext and len(ext) <= 6 and ext[1:].isalnum():
+        return base + ".mp4"
+    return p + ".mp4"
+
+
 async def _run_transmute(
     operation: str,
     input_arg: str,
@@ -45,6 +65,7 @@ async def _run_transmute(
     output_path: str | None,
     dry_run: bool,
 ) -> OperationResult:
+    output_path = _ensure_video_output_path(output_path)
     argv = [TRANSMUTE, input_arg, *flags]
     if dry_run:
         argv.append("-d")
@@ -207,19 +228,57 @@ register(OperationSpec(
 
 class JoinParams(BaseModel):
     input_paths: list[str] = Field(..., min_length=2, description="Clips to join end-to-end, in order")
-    mode: JoinGridMode = Field("pad", description="How to reconcile differing resolutions before joining")
+    mode: JoinGridMode = Field(
+        "pad",
+        description=(
+            "pad=scale-up keep AR + letterbox only if AR differs; "
+            "crop=scale-up keep AR + center crop; "
+            "stretch=warp to canvas"
+        ),
+    )
+    aspect: str = Field(
+        "auto",
+        description=(
+            "Target canvas AR: auto|1:1|16:9|3:2|2:3|9:16|W:H|WxH. "
+            "auto = shared AR if all match, else largest clip's AR. "
+            "Canvas always grows to fit max content size (never downscale content)."
+        ),
+    )
+    durations: list[float | None] | None = Field(
+        None,
+        description=(
+            "Optional per-clip target duration in seconds (same order as input_paths). "
+            "null/omit entry = keep native length. Applies temporal stretch via setpts/atempo."
+        ),
+    )
     output_path: str | None = Field(None, description="Output path; auto-named (join-<mode>_<W>x<H>.mp4) if omitted")
     dry_run: bool = False
 
 
 async def join(p: JoinParams) -> OperationResult:
-    return await _run_transmute("join", ",".join(p.input_paths), ["-j", p.mode], p.output_path, p.dry_run)
+    flags = ["-j", p.mode, "-A", p.aspect or "auto"]
+    if p.durations and any(d is not None for d in p.durations):
+        # -T 3.0,,5.5  (empty = native)
+        parts: list[str] = []
+        for d in p.durations:
+            if d is None:
+                parts.append("")
+            else:
+                parts.append(str(float(d)))
+        # pad length to match inputs
+        while len(parts) < len(p.input_paths):
+            parts.append("")
+        flags.extend(["-T", ",".join(parts[: len(p.input_paths)])])
+    return await _run_transmute("join", ",".join(p.input_paths), flags, p.output_path, p.dry_run)
 
 
 register(OperationSpec(
     id="join",
     summary="Stitch clips end-to-end",
-    description="Wraps `transmute -j MODE`. All clips normalized to max(W) x max(H) first.",
+    description=(
+        "Wraps `transmute -j MODE -A ASPECT`. Canvas = max content size snapped to "
+        "target AR. pad/crop keep aspect (scale up); stretch warps."
+    ),
     params_model=JoinParams,
     handler=join,
     tags=["transmute", "multi-clip"],
@@ -229,12 +288,14 @@ register(OperationSpec(
 class GridParams(BaseModel):
     input_paths: list[str] = Field(..., min_length=4, max_length=4, description="Exactly 4 clips: top-left, top-right, bottom-left, bottom-right")
     mode: JoinGridMode = Field("pad", description="How to reconcile differing resolutions before tiling")
+    aspect: str = Field("auto", description="Tile AR: auto|1:1|16:9|… (same as join -A)")
     output_path: str | None = Field(None, description="Output path; auto-named (grid-<mode>_<W>x<H>.mp4) if omitted")
     dry_run: bool = False
 
 
 async def grid(p: GridParams) -> OperationResult:
-    return await _run_transmute("grid", ",".join(p.input_paths), ["-g", p.mode], p.output_path, p.dry_run)
+    flags = ["-g", p.mode, "-A", p.aspect or "auto"]
+    return await _run_transmute("grid", ",".join(p.input_paths), flags, p.output_path, p.dry_run)
 
 
 register(OperationSpec(

@@ -871,6 +871,8 @@ def _default_pool_state() -> dict[str, Any]:
         "sequence": [],    # [{path, name?}] ordered
         "selected_path": None,
         "reconcile": "pad",
+        "aspect": "auto",
+        "aspect_custom": "",
         "output_path": "",
         "tile_zoom": 200,
         "tile_info": None,  # optional dict of field → bool
@@ -957,6 +959,8 @@ def load_pool_state() -> dict[str, Any]:
         "sequence": sequence_out,
         "selected_path": selected,
         "reconcile": raw.get("reconcile") or "pad",
+        "aspect": raw.get("aspect") or "auto",
+        "aspect_custom": raw.get("aspect_custom") or "",
         "output_path": raw.get("output_path") or "",
         "tile_zoom": tile_zoom,
         "tile_info": raw.get("tile_info") if isinstance(raw.get("tile_info"), dict) else None,
@@ -989,6 +993,8 @@ async def save_pool_state(payload: dict[str, Any]) -> dict[str, Any]:
             "sequence": payload.get("sequence") or [],
             "selected_path": payload.get("selected_path"),
             "reconcile": payload.get("reconcile") or "pad",
+            "aspect": payload.get("aspect") or "auto",
+            "aspect_custom": payload.get("aspect_custom") or "",
             "output_path": payload.get("output_path") or "",
             "tile_zoom": tile_zoom,
             "tile_info": tile_info,
