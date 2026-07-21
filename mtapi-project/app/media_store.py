@@ -936,10 +936,18 @@ def load_pool_state() -> dict[str, Any]:
         if not path.is_file():
             missing.append(p)
             continue
-        sequence_out.append({
+        entry = {
             "path": str(path.resolve()),
             "name": name or path.name,
-        })
+        }
+        if isinstance(it, dict) and it.get("target_duration") is not None:
+            try:
+                td = float(it["target_duration"])
+                if td > 0:
+                    entry["target_duration"] = td
+            except (TypeError, ValueError):
+                pass
+        sequence_out.append(entry)
 
     selected = raw.get("selected_path")
     if selected and not Path(selected).is_file():
