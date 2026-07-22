@@ -26,6 +26,7 @@ env/
 .cache/
 *.tmp
 tmp/
+mtapi-project/data/
 
 # Local media / test outputs (keep fixtures intentionally tracked if small)
 mtapi-project/test*.mp4

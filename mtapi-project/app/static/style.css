@@ -3337,3 +3337,65 @@ body.pool-resizing video {
   white-space: nowrap;
   margin-left: 4px;
 }
+
+/* Folder Watcher tab */
+.watcher-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: rgba(0, 0, 0, 0.3);
+  font-size: 0.85rem;
+  margin-bottom: 6px;
+}
+
+.watcher-status-pill .watcher-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #666;
+}
+
+.watcher-status-pill.status-ok .watcher-status-dot {
+  background: #4ade80;
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.6);
+}
+
+.watcher-status-pill.status-warn .watcher-status-dot {
+  background: #fbbf24;
+}
+
+.watcher-status-pill.status-off .watcher-status-dot {
+  background: #6b7280;
+}
+
+.watcher-log {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: rgba(0, 0, 0, 0.35);
+  font-family: 'Fira Code', ui-monospace, monospace;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.watcher-log-line {
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.watcher-log-line.dim {
+  opacity: 0.55;
+  font-style: italic;
+}
+
+.watcher-error {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  word-break: break-word;
+}

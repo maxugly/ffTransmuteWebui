@@ -18,13 +18,32 @@ from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
+from pydantic import BaseModel, Field
+
 from .contract import REGISTRY, OperationResult
 from .shell import check_tools
 from . import media_store
 from . import job_control
+from . import watcher as folder_watcher
 from . import operations  # noqa: F401  (side effect: populates REGISTRY)
 
 log = logging.getLogger("mtapi")
+
+
+def _read_project_version() -> str:
+    """Humble AAA.BBB.CCC.DD from repo root VERSION (see VERSIONING.md)."""
+    for candidate in (
+        Path(__file__).resolve().parents[2] / "VERSION",
+        Path(__file__).resolve().parents[1] / "VERSION",
+    ):
+        try:
+            v = candidate.read_text(encoding="utf-8").strip().splitlines()[0].strip()
+            if v:
+                return v
+        except Exception:
+            continue
+    return "000.000.0.00"
+
 
 app = FastAPI(
     title="multitool API",
@@ -36,7 +55,7 @@ app = FastAPI(
         "out to ffmpeg-wrapping scripts with whatever privileges this process has. "
         "Don't expose it past localhost/your LAN without adding auth and path checks."
     ),
-    version="0.1.0",
+    version=_read_project_version(),
 )
 
 # Allow CORS for ease of local testing
@@ -749,6 +768,39 @@ for _spec in REGISTRY.values():
     )
 
 
+class WatcherConfigBody(BaseModel):
+    """Folder watcher control. enabled defaults off; paths must be absolute."""
+    enabled: bool | None = Field(None, description="True = watch; False = stop. Omit to leave as-is.")
+    in_dir: str | None = Field(None, description="Absolute path to input folder")
+    out_dir: str | None = Field(None, description="Absolute path to output folder")
+    target_width: int | None = Field(None, ge=2, description="AR reference width (default 1920)")
+    target_height: int | None = Field(None, ge=2, description="AR reference height (default 1080)")
+    resize_mode: str | None = Field(None, description="letterbox or crop")
+
+
+@app.get("/api/watcher", tags=["meta"], summary="Folder watcher status")
+async def watcher_status():
+    """Ingest watcher: polls in_dir for videos → DNxHR .mov in out_dir. Off by default."""
+    return {"ok": True, **folder_watcher.get_status()}
+
+
+@app.post("/api/watcher", tags=["meta"], summary="Configure / start / stop folder watcher")
+async def watcher_configure(body: WatcherConfigBody):
+    st = folder_watcher.apply_config(
+        enabled=body.enabled,
+        in_dir=body.in_dir,
+        out_dir=body.out_dir,
+        target_width=body.target_width,
+        target_height=body.target_height,
+        resize_mode=body.resize_mode,
+    )
+    ok = not st.get("last_error") or not st.get("enabled")
+    # if user asked to enable and we still have last_error and not enabled → fail soft
+    if body.enabled is True and not st.get("enabled"):
+        return {"ok": False, "error": st.get("last_error") or "could not enable watcher", **st}
+    return {"ok": True, **st}
+
+
 @app.post("/api/cancel", tags=["meta"], summary="Request stop of a running job")
 async def cancel_job(body: dict):
     """Cooperative cancel. Body: { \"token\": \"<X-Job-Token>\" }.
@@ -815,7 +867,12 @@ async def list_ops() -> dict:
 @app.get("/health", tags=["meta"], summary="Liveness + missing-dependency check")
 async def health() -> dict:
     warnings = check_tools()
-    return {"ok": True, "operations_registered": len(REGISTRY), "warnings": warnings}
+    return {
+        "ok": True,
+        "version": app.version,
+        "operations_registered": len(REGISTRY),
+        "warnings": warnings,
+    }
 
 
 @app.on_event("startup")
