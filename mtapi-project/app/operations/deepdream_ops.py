@@ -191,15 +191,25 @@ async def deepdream(p: DeepDreamParams) -> OperationResult:
     if p.ouroboros:
         kind = "video"
 
-    from ..pathutil import unique_output_path
+    from ..pathutil import finalize_output_path
 
-    out = (
-        Path(p.output_path).expanduser().resolve()
-        if p.output_path
-        else _default_output(input_path, kind, ouroboros=p.ouroboros)
+    if p.ouroboros:
+        default_suffix, default_ext = "_ouroboros", ".mp4"
+        allowed = set(eng.VIDEO_EXTS)
+    elif kind == "video":
+        default_suffix, default_ext = "_dream", ".mp4"
+        allowed = set(eng.VIDEO_EXTS)
+    else:
+        default_suffix, default_ext = "_dream", ".png"
+        allowed = set(eng.IMAGE_EXTS)
+
+    out = finalize_output_path(
+        p.output_path,
+        source=input_path,
+        default_suffix=default_suffix,
+        default_ext=default_ext,
+        allowed_exts=allowed,
     )
-    out = _ensure_ext(out, kind)
-    out = unique_output_path(out)
 
     layer_weights = eng.resolve_layer_weights(
         p.layer_preset,

@@ -541,20 +541,22 @@ async def open_native_picker(
             "All files | *",
         ]
     elif filter_key == "image":
+        # PNG first so Save As for frame export defaults to image, not video
         kdialog_filter = (
+            "PNG image (*.png);;"
             "Images (*.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff *.ppm *.pgm);;"
-            "PNG (*.png);;JPEG (*.jpg *.jpeg);;All Files (*)"
+            "JPEG (*.jpg *.jpeg);;All Files (*)"
         )
         filetypes = [
+            ("PNG image", "*.png"),
             ("Images", "*.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff"),
-            ("PNG", "*.png"),
             ("JPEG", "*.jpg *.jpeg"),
             ("All files", "*.*"),
         ]
         zenity_pattern = "*.png *.jpg *.jpeg *.webp *.bmp *.gif"
         zenity_filters = [
+            "PNG image | *.png",
             "Images | *.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff",
-            "PNG | *.png",
             "JPEG | *.jpg *.jpeg",
             "All files | *",
         ]

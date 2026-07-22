@@ -7,6 +7,10 @@ Examples:
   photo_dream_0002.png
 
 Related siblings (cutout + mask + bg) share the same sequence so they stay grouped.
+
+Rule of thumb for ops:
+  dest = default_next_to_source(src, suffix="_styled", ext=".png")
+  dest = finalize_output_path(dest)   # ext + unique + mkdir parent
 """
 from __future__ import annotations
 
@@ -22,6 +26,124 @@ def strip_seq_suffix(stem: str) -> str:
     return m.group("base") if m else stem
 
 
+def default_next_to_source(
+    source: str | Path,
+    *,
+    suffix: str = "",
+    ext: str = ".png",
+    output_dir: str | Path | None = None,
+) -> Path:
+    """
+    Build the preferred output path next to `source` (or under output_dir).
+
+    Does **not** allocate a free name — call finalize_output_path / unique_output_path after.
+    """
+    src = Path(source).expanduser()
+    parent = Path(output_dir).expanduser() if output_dir else src.parent
+    # If caller passed a file as "output_dir", use its parent
+    if parent.is_file():
+        parent = parent.parent
+    if not ext.startswith("."):
+        ext = f".{ext}"
+    return parent / f"{src.stem}{suffix}{ext}"
+
+
+def finalize_output_path(
+    path: str | Path | None,
+    *,
+    source: str | Path | None = None,
+    default_suffix: str = "",
+    default_ext: str = ".png",
+    output_dir: str | Path | None = None,
+    allowed_exts: set[str] | frozenset[str] | None = None,
+    digits: int = 4,
+) -> Path:
+    """
+    Resolve a never-overwrite output path.
+
+    - If `path` is missing/blank → `{source_dir or output_dir}/{stem}{suffix}{ext}`.
+    - If `path` is a directory (exists or ends with `/`) → name file inside it from source.
+    - Missing/wrong extension → `default_ext` (or allowed set).
+    - Always returns a path that does **not** exist yet (`_0001`, `_0002`, …).
+    - Creates the parent directory.
+    """
+    if default_ext and not str(default_ext).startswith("."):
+        default_ext = f".{default_ext}"
+    src = Path(source).expanduser() if source else None
+    od = Path(output_dir).expanduser() if output_dir else None
+    if od is not None and od.is_file():
+        od = od.parent
+
+    raw = (str(path).strip() if path is not None else "") or ""
+
+    if not raw:
+        if src is None:
+            raise ValueError("finalize_output_path needs source when path is omitted")
+        p = default_next_to_source(
+            src, suffix=default_suffix, ext=default_ext, output_dir=od
+        )
+    else:
+        p = Path(raw).expanduser()
+        is_dir_target = p.is_dir() or raw.endswith(("/", "\\"))
+        if is_dir_target:
+            if src is None:
+                raise ValueError("directory output needs a source file to name against")
+            p = default_next_to_source(
+                src, suffix=default_suffix, ext=default_ext, output_dir=p
+            )
+        elif od is not None and not p.is_absolute():
+            p = od / p.name
+
+    # Normalize extension
+    ext = p.suffix.lower()
+    if allowed_exts is None:
+        allowed = {default_ext.lower()} if default_ext else set()
+    else:
+        allowed = {
+            (e if e.startswith(".") else f".{e}").lower() for e in allowed_exts
+        }
+    if not ext or (allowed and ext not in allowed):
+        p = p.with_suffix(default_ext if default_ext else ".png")
+
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return unique_output_path(p, digits=digits)
+
+
+def _highest_seq_for_base(parent: Path, base: str, suffix: str) -> int:
+    """
+    Highest far-right version number used by siblings of `{base}{suffix}` /
+    `{base}_NNNN…`. Returns 0 if only the unnumbered base exists (or nothing
+    numbered yet); -1 if the parent is missing / empty of matches.
+    """
+    if not parent.is_dir():
+        return -1
+    prefix = f"{base}_"
+    highest = -1
+    base_file = parent / f"{base}{suffix}"
+    if base_file.exists():
+        highest = 0
+    try:
+        for child in parent.iterdir():
+            if not child.is_file():
+                continue
+            # Same extension family only (png vs png); empty suffix = any
+            if suffix and child.suffix.lower() != suffix.lower():
+                continue
+            cs = child.stem
+            if cs == base:
+                highest = max(highest, 0)
+                continue
+            if cs.startswith(prefix):
+                rest = cs[len(prefix) :]
+                # far-right version: leading digits only (allow "0001-mask")
+                m = re.match(r"^(\d+)", rest)
+                if m:
+                    highest = max(highest, int(m.group(1)))
+    except OSError:
+        pass
+    return highest
+
+
 def unique_output_path(
     path: str | Path,
     *,
@@ -31,49 +153,33 @@ def unique_output_path(
     """
     Return a path that does not already exist on disk.
 
-    If `path` is free and prefer_unnumbered, return it.
-    Otherwise return `{stem}_{NNNN}{suffix}` with the smallest free N ≥ 1.
-    Scans existing `{stem}_*` siblings so numbering keeps ascending.
+    - If the exact `path` is free → return it.
+    - On collision → always bump the **far-right** ``_NNNN`` sequence on the
+      stem base (strip one trailing ``_digits`` group first), e.g.::
+
+        clip_last.png        → clip_last_0001.png
+        clip_last_0001.png   → clip_last_0002.png   (never jumps back to free unnumbered)
+
+    `prefer_unnumbered` is kept for API compat; collisions never fall back to a
+    free unnumbered name when a numbered sibling already exists or the exact
+    path is taken.
     """
     p = Path(path).expanduser()
-    # Don't resolve() yet — parent may not exist; only normalize later for checks
     parent = p.parent
     stem = p.stem
     suffix = p.suffix
     base = strip_seq_suffix(stem)
 
-    if prefer_unnumbered:
-        candidate = parent / f"{base}{suffix}"
-        if not candidate.exists():
-            return candidate
+    # Exact path free → use it (first export, or explicit free Save As name)
+    if not p.exists():
+        return p
 
-    n = 1
-    # Jump past highest existing sequence for this base
-    if parent.is_dir():
-        prefix = f"{base}_"
-        highest = 0
-        try:
-            for child in parent.iterdir():
-                if not child.is_file():
-                    continue
-                if child.suffix.lower() != suffix.lower():
-                    # still count same stem family even if ext differs? skip
-                    pass
-                cs = child.stem
-                if cs == base:
-                    highest = max(highest, 0)
-                    continue
-                if cs.startswith(prefix):
-                    rest = cs[len(prefix) :]
-                    # allow rest like "0001" or "0001-mask" → take leading digits
-                    m = re.match(r"^(\d+)", rest)
-                    if m:
-                        highest = max(highest, int(m.group(1)))
-        except OSError:
-            pass
-        n = max(1, highest + 1) if highest or (parent / f"{base}{suffix}").exists() else 1
+    # Collision: next far-right version only
+    highest = _highest_seq_for_base(parent, base, suffix)
+    n = 1 if highest < 0 else highest + 1
+    if n < 1:
+        n = 1
 
-    # Find first free from n
     while True:
         candidate = parent / f"{base}_{n:0{digits}d}{suffix}"
         if not candidate.exists():

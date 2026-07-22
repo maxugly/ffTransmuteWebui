@@ -103,12 +103,11 @@ def stylize_pair(
     style_size: style encoder input (256 is the model default).
     """
     from .. import job_control
-
-    from ..pathutil import unique_output_path
+    from ..pathutil import finalize_output_path
 
     content_path = Path(content_path).expanduser().resolve()
     style_path = Path(style_path).expanduser().resolve()
-    output_path = unique_output_path(Path(output_path).expanduser())
+    # Defer uniqueness until after extension normalize (below)
 
     if not content_path.is_file():
         return {"ok": False, "error": f"content not found: {content_path}"}
@@ -166,10 +165,15 @@ def stylize_pair(
     # Keep working resolution output (cleaner than bilinear up); user can
     # set max_side=0 for full-res. Documented in params.
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    # Extension + never-overwrite (after any suffix fixes so we don't unique then rewrite ext)
+    output_path = finalize_output_path(
+        output_path,
+        source=content_path,
+        default_suffix="_styled",
+        default_ext=".png",
+        allowed_exts=IMAGE_EXTS,
+    )
     ext = output_path.suffix.lower()
-    if ext not in IMAGE_EXTS:
-        output_path = output_path.with_suffix(".png")
     if ext in (".jpg", ".jpeg"):
         result.save(output_path, quality=95)
     else:
@@ -233,17 +237,23 @@ def stylize_batch(
     ok_n = 0
     primary = None
 
+    from ..pathutil import finalize_output_path
+
     for i, src in enumerate(contents):
         job_control.check_cancelled()
         src_p = Path(src)
-        from ..pathutil import unique_output_path
-
-        dest_dir = out_dir or src_p.parent
-        dest = unique_output_path(dest_dir / f"{src_p.stem}{suffix}.png")
+        dest = finalize_output_path(
+            None,
+            source=src_p,
+            default_suffix=suffix,
+            default_ext=".png",
+            output_dir=out_dir,
+            allowed_exts=IMAGE_EXTS,
+        )
 
         if progress_cb:
             progress_cb(
-                f"image {i + 1}/{total}: {src_p.name}",
+                f"image {i + 1}/{total}: {src_p.name} → {dest.name}",
                 phase="styletransfer",
                 current=i + 1,
                 total=total,

@@ -655,12 +655,45 @@ function setupContinuousKnob(opts) {
     updateUI(val);
   }
 
+  function snapVal(v) {
+    let newVal = Math.min(maxVal, Math.max(minVal, v));
+    if (opts.step && opts.step > 0) {
+      newVal = Math.round(newVal / opts.step) * opts.step;
+      newVal = Math.min(maxVal, Math.max(minVal, newVal));
+    }
+    return newVal;
+  }
+
+  function onWheel(e) {
+    // Scroll up → increase (same feel as drag-up); Shift = finer steps
+    e.preventDefault();
+    e.stopPropagation();
+    const dir = e.deltaY < 0 ? 1 : e.deltaY > 0 ? -1 : 0;
+    if (!dir) return;
+    let step;
+    if (opts.step && opts.step > 0) {
+      const coarseMul = Math.max(1, Math.round(rangeVal / (opts.step * 40)) || 1);
+      step = opts.step * (e.shiftKey ? 1 : coarseMul);
+    } else if (decimals <= 0) {
+      step = e.shiftKey ? 1 : Math.max(1, Math.round(rangeVal / 50) || 1);
+    } else {
+      step = rangeVal / (e.shiftKey ? 200 : 50);
+    }
+    updateUI(snapVal(currentVal + dir * step));
+  }
+
   knob.addEventListener('mousedown', onMouseDown);
+  knob.addEventListener('wheel', onWheel, { passive: false });
+  // Wheel over the numeric readout also adjusts the knob
+  valueDisplay.addEventListener('wheel', onWheel, { passive: false });
   valueDisplay.addEventListener('change', onTextSubmit);
   valueDisplay.addEventListener('blur', onTextSubmit);
   valueDisplay.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { valueDisplay.blur(); e.preventDefault(); }
   });
+  if (!knob.getAttribute('title') || knob.getAttribute('title') === 'Drag up/down') {
+    knob.title = 'Drag up/down · scroll wheel · Shift+scroll for fine';
+  }
   updateUI(currentVal);
 }
 
@@ -735,7 +768,21 @@ function setupBinaryKnob(opts) {
     }
   }
 
+  function onWheel(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const wantRight = e.deltaY < 0; // scroll up → right/On
+    const next = wantRight ? rightVal : leftVal;
+    if (String(hiddenInput.value) === String(next)) return;
+    updateUI(next);
+    hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
   knob.addEventListener('mousedown', onMouseDown);
+  knob.addEventListener('wheel', onWheel, { passive: false });
+  if (!knob.getAttribute('title') || /click to toggle/i.test(knob.getAttribute('title') || '')) {
+    knob.title = 'Click to toggle · scroll wheel';
+  }
   // initial
   const init = opts.initial != null ? opts.initial : hiddenInput.value;
   updateUI(init);
@@ -746,7 +793,7 @@ function knobUnitHtml({ id, label, value, binary = false, leftCap = '', rightCap
     return `
       <div class="knob-unit">
         <span class="knob-unit-label">${label}</span>
-        <div class="daw-knob binary-knob" id="${id}Knob" title="Click to toggle">
+        <div class="daw-knob binary-knob" id="${id}Knob" title="Click to toggle · scroll wheel">
           <div class="daw-knob-dial"></div>
           <div class="daw-knob-indicator" id="${id}KnobInd"></div>
         </div>
@@ -760,7 +807,7 @@ function knobUnitHtml({ id, label, value, binary = false, leftCap = '', rightCap
   return `
     <div class="knob-unit">
       <span class="knob-unit-label">${label}</span>
-      <div class="daw-knob" id="${id}Knob" title="Drag up/down">
+      <div class="daw-knob" id="${id}Knob" title="Drag up/down · scroll wheel · Shift+scroll for fine">
         <div class="daw-knob-dial"></div>
         <div class="daw-knob-indicator" id="${id}KnobInd"></div>
       </div>
@@ -798,8 +845,10 @@ function renderStyleTransferForm() {
       <div class="fm-list" id="stContentList">${listHtml}</div>
       <div class="input-row" style="margin-top:8px; flex-wrap:wrap;">
         <button type="button" class="btn btn-primary" id="btnStAddContent">+ Content</button>
+        <button type="button" class="btn" id="btnStAddFolder">+ Folder</button>
         <button type="button" class="btn" id="btnStClearContent" ${contents.length ? '' : 'disabled'}>Clear</button>
       </div>
+      <span class="field-desc">Blank output → each result is written next to its content as <code>*_styled.png</code> (never overwrites; uses <code>_0001</code>, …).</span>
     </div>
 
     <div class="form-group">
@@ -815,13 +864,13 @@ function renderStyleTransferForm() {
     </div>
 
     <div class="form-group">
-      <label>Output (blank = next to content as <code>*_styled.png</code>)</label>
+      <label>Output (optional — leave blank to write next to each content)</label>
       <div class="input-row">
-        <input type="text" id="stOutput" placeholder="single file or leave blank for batch auto-names">
+        <input type="text" id="stOutput" placeholder="optional single-file Save As (still never overwrites)">
         <button type="button" class="btn" id="btnStOutBrowse">Save As</button>
       </div>
       <div class="input-row" style="margin-top:6px;">
-        <input type="text" id="stOutputDir" placeholder="batch output folder (optional)">
+        <input type="text" id="stOutputDir" placeholder="optional shared output folder for the whole batch">
         <button type="button" class="btn" id="btnStOutDirBrowse">Folder</button>
       </div>
     </div>
@@ -874,6 +923,21 @@ function renderStyleTransferForm() {
       alert(`Picker failed: ${err.message}`);
     }
   });
+  document.getElementById('btnStAddFolder')?.addEventListener('click', async () => {
+    try {
+      // Pass folder path through; backend expands images in the directory
+      const res = await fetch(`/api/picker?mode=dir&filter=all&start_path=`);
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      const p = data.path || (data.paths && data.paths[0]);
+      if (!p) return;
+      if (state.styleTransfer.contents.some((x) => x.path === p)) return;
+      state.styleTransfer.contents.push({ path: p, name: basename(p) + '/' });
+      renderStyleTransferForm();
+    } catch (err) {
+      alert(`Picker failed: ${err.message}`);
+    }
+  });
   document.getElementById('btnStClearContent')?.addEventListener('click', () => {
     state.styleTransfer.contents = [];
     renderStyleTransferForm();
@@ -909,10 +973,10 @@ function renderStyleTransferForm() {
 }
 
 function collectStyleTransferBody() {
-  const contents = (state.styleTransfer.contents || []).map((x) => x.path);
+  const contents = (state.styleTransfer.contents || []).map((x) => x.path).filter(Boolean);
   const style_path = (document.getElementById('stStylePath')?.value || state.styleTransfer.stylePath || '').trim();
   if (!contents.length) {
-    alert('Add at least one content image.');
+    alert('Add at least one content image or folder.');
     return null;
   }
   if (!style_path) {
@@ -922,12 +986,13 @@ function collectStyleTransferBody() {
   state.styleTransfer.stylePath = style_path;
   const output = document.getElementById('stOutput')?.value?.trim() || null;
   const output_dir = document.getElementById('stOutputDir')?.value?.trim() || null;
-  const single = contents.length === 1;
+  // Always send content_paths so folders expand server-side the same as multi-select
   return {
-    content_path: single ? contents[0] : null,
-    content_paths: single ? null : contents,
+    content_path: null,
+    content_paths: contents,
     style_path,
-    output_path: single ? output : null,
+    // Save As only applies as a file target when one content file (not a folder)
+    output_path: output || null,
     output_dir: output_dir || null,
     strength: parseFloat(document.getElementById('stStrength')?.value || '1'),
     max_side: parseInt(document.getElementById('stMaxSide')?.value || '1280', 10),
@@ -5933,22 +5998,27 @@ async function savePoolFramePng(videoPath, which) {
   which = which === 'last' ? 'last' : 'first';
   const stem = basename(videoPath).replace(/\.[^.]+$/, '');
   const dir = videoPath.substring(0, videoPath.lastIndexOf('/')) || '';
+  // Always suggest a PNG next to the source clip (never a video type)
   const suggested = `${dir}/${stem}_${which}.png`;
 
   elements.statusDot.className = 'status-dot loading';
-  elements.statusText.textContent = `Saving ${which} frame…`;
+  elements.statusText.textContent = `Saving ${which} frame PNG…`;
 
   let outputPath = null;
   try {
-    // Native save dialog
-    const pickUrl = `/api/picker?mode=save&start_path=${encodeURIComponent(suggested)}`;
+    // Native save dialog — image/PNG filter (not video)
+    const pickUrl =
+      `/api/picker?mode=save&filter=image` +
+      `&start_path=${encodeURIComponent(suggested)}`;
     const pickRes = await fetch(pickUrl);
     if (pickRes.ok) {
       const pick = await pickRes.json();
       if (pick.path) {
         outputPath = pick.path;
-        if (!outputPath.toLowerCase().endsWith('.png')) {
+        // Force PNG even if the dialog returns a bare name or wrong ext
+        if (!/\.png$/i.test(outputPath)) {
           outputPath = outputPath.replace(/\.[^.]+$/, '') + '.png';
+          if (!/\.png$/i.test(outputPath)) outputPath = `${outputPath}.png`;
         }
       } else {
         // User cancelled picker — abort (don't write silently)
@@ -5978,16 +6048,16 @@ async function savePoolFramePng(videoPath, which) {
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || 'export failed');
 
-    logConsole(`[EXPORT]: ${which} frame → ${data.output_path} (${formatBytes(data.size || 0)})`);
+    logConsole(`[EXPORT]: ${which} frame PNG → ${data.output_path} (${formatBytes(data.size || 0)})`);
     elements.statusDot.className = 'status-dot';
-    elements.statusText.textContent = 'Frame saved';
+    elements.statusText.textContent = 'Frame PNG saved';
     // Preview the PNG
     showPreview(data.output_path);
   } catch (err) {
     logConsole(`[EXPORT ERROR]: ${err.message}`, 'error');
     elements.statusDot.className = 'status-dot error';
     elements.statusText.textContent = 'Export failed';
-    alert(`Could not save ${which} frame: ${err.message}`);
+    alert(`Could not save ${which} frame PNG: ${err.message}`);
   } finally {
     await checkHealth();
   }

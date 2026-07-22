@@ -790,24 +790,22 @@ async def export_frame_png(
     which: str = "first",
     output_path: Path | None = None,
 ) -> dict[str, Any]:
-    """Extract full-resolution first/last frame as PNG to disk."""
+    """Extract full-resolution first/last frame as PNG to disk (never overwrites)."""
     which = which if which in ("first", "last") else "first"
     source_path = source_path.resolve()
     if not source_path.is_file():
         return {"ok": False, "error": "Source file not found"}
 
-    from .pathutil import unique_output_path
+    from .pathutil import finalize_output_path
 
-    if output_path is None:
-        stem = source_path.stem
-        output_path = source_path.parent / f"{stem}_{which}.png"
-    else:
-        output_path = Path(output_path).expanduser()
-        if output_path.suffix.lower() != ".png":
-            output_path = output_path.with_suffix(".png")
-
-    output_path = unique_output_path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    # Always PNG next to source unless a path is given; bump far-right _NNNN on clash
+    output_path = finalize_output_path(
+        output_path,
+        source=source_path,
+        default_suffix=f"_{which}",
+        default_ext=".png",
+        allowed_exts={".png"},
+    )
 
     async def _run(cmd: list[str]) -> tuple[bool, str]:
         proc = await asyncio.create_subprocess_exec(

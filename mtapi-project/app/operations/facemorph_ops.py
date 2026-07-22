@@ -97,16 +97,17 @@ async def facemorph(p: FaceMorphParams) -> OperationResult:
             dry_run=p.dry_run,
         )
 
-    from ..pathutil import unique_output_path
+    from ..pathutil import finalize_output_path
 
-    out = (
-        Path(p.output_path).expanduser().resolve()
-        if p.output_path
-        else _default_output(images, p.dream_mode)
+    # Preserve classic naming: first_stem_chain_morph.mp4 / _chain_morph_dream.mp4
+    default_path = _default_output(images, p.dream_mode)
+    out = finalize_output_path(
+        p.output_path or str(default_path),
+        source=images[0],
+        default_suffix="_chain_morph",
+        default_ext=".mp4",
+        allowed_exts={".mp4", ".mkv", ".mov", ".webm"},
     )
-    if out.suffix.lower() not in (".mp4", ".mkv", ".mov", ".webm"):
-        out = out.with_suffix(".mp4")
-    out = unique_output_path(out)
 
     summary = (
         f"facemorph n={len(images)} duration={p.duration}s fps={p.fps} crf={p.crf} "
