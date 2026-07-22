@@ -3,3 +3,16 @@ uvicorn>=0.30
 pydantic>=2.7
 Pillow>=10
 ImageHash>=4.3
+# DeepDream (optional at runtime but required for /ops/deepdream)
+tensorflow>=2.15
+numpy>=1.24
+opencv-python-headless>=4.8
+# Face morph (dlib build needs cmake; Python < 3.13)
+dlib>=19.24
+imutils>=0.5.4
+scikit-image>=0.19
+pyyaml>=6.0
+# Background removal (local open weights or Cloud API)
+withoutbg>=1.0.6
+# Arbitrary neural style transfer (Magenta TF-Hub; TF already used by DeepDream)
+tensorflow-hub>=0.16

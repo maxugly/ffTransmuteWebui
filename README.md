@@ -1,16 +1,17 @@
 # ffTransmuteWebui
 
-A high-performance, non-destructive video manipulation suite and WebUI engine combining core Bash CLI utilities (`transmute`, `datamosh.sh`) with a typed FastAPI server (`mtapi-project`) and interactive single-page WebUI.
+A local one-stop video/image workshop: lossless geometry (`transmute`), datamosh, media pool/projects, plus neural tools (DeepDream, face morph, withoutBG, style transfer) behind a typed FastAPI server and dark-mode WebUI.
 
 ---
 
-## 🌟 Overview
+## Overview
 
-`ffTransmuteWebui` is built around lossless geometry transformation and frame-accurate video datamoshing without scaling artifacts.
+Two layers:
 
-It consists of two primary layers:
-1. **Core CLI Tools (`/transmute`, `/datamosh.sh`)**: Dependency-minimal Bash scripts wrapping `ffmpeg`, `ffprobe`, `ffgac`, `ffedit`, and `ffglitch`.
-2. **REST API & WebUI (`/mtapi-project`)**: A Python FastAPI backend providing typed endpoints for video operations, persistent BLAKE2b media tracking, media preview probing, and a zero-dependency HTML5/JS Web application.
+1. **Core CLI** (`transmute`, `datamosh.sh`, ffglitch JS) — ffmpeg-centric, minimal deps  
+2. **mtapi + WebUI** (`mtapi-project/`) — typed `POST /ops/*`, media pool, job cancel/progress, sequential output names so re-runs never overwrite
+
+**WebUI tabs include:** Datamosh, DeepDream, Face Morph, withoutBG, Style Transfer, single-clip transmute, join/grid, Quick Transmute (`fit`), Media Pool, raw CLI.
 
 ---
 
@@ -56,13 +57,27 @@ Run `transmute` directly for rapid geometry processing:
 ### 3. Launching the Web Server & UI
 ```bash
 cd mtapi-project
+python -m venv .venv          # once
+source .venv/bin/activate     # or: .venv/bin/python …
 pip install -r requirements.txt
 python run.py
 ```
-Then navigate to:
-- **Interactive WebUI**: `http://localhost:24590/`
-- **Interactive OpenAPI Docs**: `http://localhost:24590/docs`
-- **Machine-Readable API Schema**: `http://localhost:24590/openapi.json`
+Then open:
+- **WebUI**: `http://localhost:24590/`
+- **OpenAPI**: `http://localhost:24590/docs`
+- **Schema**: `http://localhost:24590/openapi.json`
+
+Stop the server with Ctrl+C (or free the port: `fuser -k 24590/tcp`).
+
+Optional extras (installed via requirements; some download models on first use):
+| Feature | Notes |
+|---------|--------|
+| DeepDream | TensorFlow + ImageNet nets |
+| Face Morph | dlib + `FACEMORPH_ROOT` (default `~/snc/cod/facemorph`) + YuNet ONNX |
+| withoutBG | `withoutbg` package; local ~455 MB weights or Cloud API key |
+| Style Transfer | Magenta TF-Hub ~90 MB under `~/.cache/tfhub_modules` |
+
+Outputs auto-sequence (`file.png`, `file_0001.png`, …) so repeated runs do not clobber prior results.
 
 ---
 

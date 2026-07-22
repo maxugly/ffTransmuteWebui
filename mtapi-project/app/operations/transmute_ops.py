@@ -65,7 +65,12 @@ async def _run_transmute(
     output_path: str | None,
     dry_run: bool,
 ) -> OperationResult:
+    from ..pathutil import unique_output_path
+
     output_path = _ensure_video_output_path(output_path)
+    if output_path:
+        # Avoid clobbering prior runs when the UI/user reuses a path
+        output_path = str(unique_output_path(output_path))
     argv = [TRANSMUTE, input_arg, *flags]
     if dry_run:
         argv.append("-d")
@@ -282,6 +287,42 @@ register(OperationSpec(
     params_model=JoinParams,
     handler=join,
     tags=["transmute", "multi-clip"],
+))
+
+
+class FitParams(BaseModel):
+    input_path: str = Field(..., description="Single source video to reformat")
+    mode: JoinGridMode = Field(
+        "pad",
+        description="pad=letterbox keep AR; crop=center-crop keep AR; stretch=warp",
+    )
+    aspect: str = Field(
+        "auto",
+        description="Target canvas AR: auto|1:1|16:9|…|W:H|WxH (same as join -A)",
+    )
+    output_path: str | None = Field(
+        None,
+        description="Output path; auto-named next to source if omitted",
+    )
+    dry_run: bool = False
+
+
+async def fit(p: FitParams) -> OperationResult:
+    """Single-clip canvas fit — same pad/crop/stretch + -A as join, no concat."""
+    flags = ["-j", p.mode, "-A", p.aspect or "auto"]
+    return await _run_transmute("fit", p.input_path, flags, p.output_path, p.dry_run)
+
+
+register(OperationSpec(
+    id="fit",
+    summary="Fit one clip to a canvas (pad / crop / stretch + AR)",
+    description=(
+        "Wraps single-file `transmute -j MODE -A ASPECT`. Used by Quick Transmute: "
+        "auto-names next to the source, same geometry rules as sequence stitch."
+    ),
+    params_model=FitParams,
+    handler=fit,
+    tags=["transmute", "geometry", "quick"],
 ))
 
 

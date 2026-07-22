@@ -15,14 +15,16 @@
 
 ```
 mtapi-project/
-├── run.py                 # Server startup entrypoint (wraps uvicorn.run)
-├── requirements.txt       # Python dependencies (fastapi, uvicorn, pydantic)
-├── README.md              # Technical overview and API usage documentation
-├── AGENTS.md              # Agent directives for mtapi-project (this file)
-├── app/                   # Python application package (FastAPI routes, core logic)
-│   ├── operations/        # Operation specs & handlers (transmute, datamosh)
-│   └── static/            # WebUI static assets (HTML/CSS/JS)
-└── bin/                   # Local binary dependencies (transmute, datamosh.sh, js scripts)
+├── run.py                 # Server startup (uvicorn :24590; sets TFHUB_CACHE_DIR)
+├── requirements.txt       # fastapi, TF, dlib, withoutbg, tensorflow-hub, …
+├── README.md              # API overview
+├── AGENTS.md              # This file
+├── app/
+│   ├── job_control.py     # Cancel + progress for long ops
+│   ├── pathutil.py        # Sequential never-overwrite output paths
+│   ├── operations/        # transmute, datamosh, deepdream, facemorph, withoutbg, styletransfer
+│   └── static/            # WebUI
+└── bin/                   # transmute, datamosh.sh, ffglitch JS
 ```
 
 ---
@@ -44,15 +46,21 @@ mtapi-project/
 
 ### A. Running the Server
 ```bash
-# Standalone execution
-python run.py
+# Prefer venv
+.venv/bin/python run.py
 
 # Live-reloading development mode
-uvicorn app.main:app --reload --port 24590
+.venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 24590
 ```
 
 ### B. Checking System Health & Tool Availability
-Call `GET /health` to verify that required system dependencies (`ffmpeg`, `ffprobe`, `ffgac`, `ffedit`) and local binaries are detected on `PATH` or in `bin/`.
+Call `GET /health` for ffmpeg/ffglitch binaries. Neural ops also need packages in
+`requirements.txt` (and first-run model downloads for withoutbg / TF-Hub style).
+
+### C. New neural / image ops
+Follow `operations/README.md`: engine + ops + `__init__.py` import + optional UI tab.
+Always resolve final write paths with `pathutil.unique_output_path` (or
+`unique_related_paths` for multi-file outputs).
 
 ---
 

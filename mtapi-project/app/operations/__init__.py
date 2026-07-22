@@ -7,4 +7,11 @@ two, following the pattern in transmute_ops.py, then add one import line
 below. Nothing else needs to change — main.py builds routes from
 whatever's in the registry.
 """
-from . import transmute_ops, datamosh_ops  # noqa: F401
+from . import (  # noqa: F401
+    transmute_ops,
+    datamosh_ops,
+    deepdream_ops,
+    facemorph_ops,
+    withoutbg_ops,
+    styletransfer_ops,
+)

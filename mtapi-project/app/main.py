@@ -14,13 +14,14 @@ import os
 import shutil
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from .contract import REGISTRY, OperationResult
 from .shell import check_tools
 from . import media_store
+from . import job_control
 from . import operations  # noqa: F401  (side effect: populates REGISTRY)
 
 log = logging.getLogger("mtapi")
@@ -495,7 +496,7 @@ async def open_native_picker(
 ):
     """Native file dialog. modes: file | files | dir | save.
     `files` returns {paths: [...], path: first} for multi-select.
-    filter: video (default) | project | all — file-type filter for open/save.
+    filter: video (default) | image | project | all — file-type filter for open/save.
     """
     kdialog_path = shutil.which("kdialog")
     zenity_path = shutil.which("zenity")
@@ -516,10 +517,33 @@ async def open_native_picker(
             ("All files", "*.*"),
         ]
         zenity_pattern = "*.ffproject.json *.ffproj *.json"
+        zenity_filters = [
+            "ffTransmute Project | *.ffproject.json *.ffproj",
+            "All files | *",
+        ]
+    elif filter_key == "image":
+        kdialog_filter = (
+            "Images (*.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff *.ppm *.pgm);;"
+            "PNG (*.png);;JPEG (*.jpg *.jpeg);;All Files (*)"
+        )
+        filetypes = [
+            ("Images", "*.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff"),
+            ("PNG", "*.png"),
+            ("JPEG", "*.jpg *.jpeg"),
+            ("All files", "*.*"),
+        ]
+        zenity_pattern = "*.png *.jpg *.jpeg *.webp *.bmp *.gif"
+        zenity_filters = [
+            "Images | *.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff",
+            "PNG | *.png",
+            "JPEG | *.jpg *.jpeg",
+            "All files | *",
+        ]
     elif filter_key == "all":
         kdialog_filter = "All Files (*)"
         filetypes = [("All files", "*.*")]
         zenity_pattern = "*"
+        zenity_filters = []
     else:
         kdialog_filter = (
             "Video Files (*.mp4 *.mkv *.avi *.mov *.m4v *.webm *.mpg *.mpeg);;All Files (*)"
@@ -529,6 +553,10 @@ async def open_native_picker(
             ("All files", "*.*"),
         ]
         zenity_pattern = "*.mp4 *.mkv *.avi *.mov *.m4v *.webm *.mpg *.mpeg"
+        zenity_filters = [
+            "Video files | *.mp4 *.mkv *.avi *.mov *.m4v *.webm *.mpg *.mpeg",
+            "All files | *",
+        ]
 
     def _result_from_paths(paths: list[str]) -> dict:
         paths = [p for p in paths if p]
@@ -560,19 +588,19 @@ async def open_native_picker(
                 zenity_path, "--file-selection", "--save", "--confirm-overwrite",
                 f"--filename={start_path}",
             ]
-            if filter_key == "project":
-                cmd.extend(["--file-filter=ffTransmute Project | *.ffproject.json *.ffproj",
-                            "--file-filter=All files | *"])
+            for zf in zenity_filters:
+                cmd.append(f"--file-filter={zf}")
         elif multi:
             cmd = [
                 zenity_path, "--file-selection", "--multiple", "--separator=\n",
                 f"--filename={start_path}/",
             ]
+            for zf in zenity_filters:
+                cmd.append(f"--file-filter={zf}")
         else:
             cmd = [zenity_path, "--file-selection", f"--filename={start_path}/"]
-            if filter_key == "project":
-                cmd.extend(["--file-filter=ffTransmute Project | *.ffproject.json *.ffproj",
-                            "--file-filter=All files | *"])
+            for zf in zenity_filters:
+                cmd.append(f"--file-filter={zf}")
     else:
         try:
             import tkinter as tk
@@ -586,10 +614,15 @@ async def open_native_picker(
                 root.destroy()
                 return _result_from_paths([path] if path else [])
             if mode == "save":
+                def_ext = ""
+                if filter_key == "project":
+                    def_ext = ".ffproject.json"
+                elif filter_key == "image":
+                    def_ext = ".png"
                 path = filedialog.asksaveasfilename(
                     initialdir=str(Path(start_path).parent) if start_path else None,
                     initialfile=Path(start_path).name if start_path else None,
-                    defaultextension=".ffproject.json" if filter_key == "project" else "",
+                    defaultextension=def_ext,
                     filetypes=filetypes,
                 )
                 root.destroy()
@@ -635,8 +668,58 @@ async def open_native_picker(
 
 
 def _make_endpoint(spec):
-    async def endpoint(params: spec.params_model) -> OperationResult:  # type: ignore[name-defined]
-        result = await spec.handler(params)
+    async def endpoint(
+        params: spec.params_model,  # type: ignore[name-defined]
+        request: Request,
+        x_job_token: str | None = Header(None, alias="X-Job-Token"),
+    ) -> OperationResult:
+        token = (x_job_token or "").strip() or job_control.new_token()
+        job_control.register(token, operation=spec.id)
+        job_control.bind(token)
+        job_control.report_progress(
+            f"running {spec.id}",
+            phase="start",
+            current=0,
+            total=0,
+            token=token,
+        )
+        try:
+            # Cooperative cancel: handlers/threads call job_control.check_cancelled()
+            result = await spec.handler(params)
+            if result and not result.ok and result.error == "Cancelled by user":
+                job_control.finish(token, status="cancelled", message="Cancelled by user")
+            elif result and result.ok:
+                job_control.finish(token, status="done", message="complete")
+            else:
+                job_control.finish(
+                    token,
+                    status="error",
+                    message=(result.error if result else "failed") or "failed",
+                )
+        except job_control.JobCancelled:
+            log.info("op %s cancelled (token=%s…)", spec.id, token[:8])
+            job_control.finish(token, status="cancelled", message="Cancelled by user")
+            return OperationResult(
+                ok=False,
+                operation=spec.id,
+                error="Cancelled by user",
+                dry_run=False,
+            )
+        except Exception as e:
+            # deepdream_ops may wrap cancel as generic Exception with message
+            if "Cancelled by user" in str(e):
+                job_control.finish(token, status="cancelled", message="Cancelled by user")
+                return OperationResult(
+                    ok=False,
+                    operation=spec.id,
+                    error="Cancelled by user",
+                    dry_run=False,
+                )
+            job_control.finish(token, status="error", message=str(e)[:200])
+            raise
+        finally:
+            job_control.unregister(token)
+
         # Track what we've done against each content-hash identity
         try:
             await media_store.record_operation(
@@ -664,6 +747,61 @@ for _spec in REGISTRY.values():
         description=_spec.description,
         tags=_spec.tags or ["operations"],
     )
+
+
+@app.post("/api/cancel", tags=["meta"], summary="Request stop of a running job")
+async def cancel_job(body: dict):
+    """Cooperative cancel. Body: { \"token\": \"<X-Job-Token>\" }.
+
+    DeepDream and other loops that call check_cancelled() will exit soon.
+    Shell/ffmpeg steps may still finish the current subprocess.
+    """
+    token = (body or {}).get("token") or (body or {}).get("job_token")
+    if not token:
+        raise HTTPException(status_code=400, detail="token is required")
+    found = job_control.request_cancel(str(token))
+    return {
+        "ok": True,
+        "found": found,
+        "token": str(token),
+        "message": "Cancel requested" if found else "No active job with that token (may have already finished)",
+    }
+
+
+@app.get("/api/facemorph/list", tags=["meta"], summary="List image files in a folder for Face Morph")
+async def facemorph_list_images(path: str):
+    """Return sorted face-candidate image paths in a directory."""
+    from .operations import facemorph_engine as fme
+    p = Path(path).expanduser().resolve()
+    if not p.is_dir():
+        raise HTTPException(status_code=400, detail=f"Not a directory: {p}")
+    files = fme.get_image_files(p)
+    return {"ok": True, "path": str(p), "files": files, "count": len(files)}
+
+
+@app.get("/api/job/{token}", tags=["meta"], summary="Live progress for a running job")
+async def job_progress(token: str):
+    """Poll while POST /ops/* is in flight. Returns counts, elapsed, ETA, message."""
+    snap = job_control.get_progress(token)
+    if not snap:
+        return {
+            "ok": False,
+            "found": False,
+            "token": token,
+            "status": "unknown",
+            "message": "No progress for this token (job finished or never started)",
+        }
+    # human-friendly fields for the console
+    elapsed = snap.get("elapsed_s")
+    eta = snap.get("eta_s")
+    snap_out = {
+        "ok": True,
+        "found": True,
+        **snap,
+        "elapsed_h": job_control.format_duration(elapsed),
+        "eta_h": job_control.format_duration(eta) if eta is not None else "—",
+    }
+    return snap_out
 
 
 @app.get("/ops", tags=["meta"], summary="List every registered operation")

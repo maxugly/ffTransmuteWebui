@@ -63,14 +63,30 @@ which of the required binaries it could actually find on `PATH`.
 **transmute** — one op per flag: `first_frame`, `last_frame`,
 `extract_audio`, `crop_16x9`, `letterbox_16x9`, `square_crop`,
 `square_letterbox`, `crop_exact`, `stretch_exact`, `join`, `grid`,
-`reverse`. Plus `transmute_raw`, an escape hatch that takes any flag list
-— transmute itself lets you combine flags (`-f -s` = square-cropped first
-frame), which doesn't map cleanly onto "one typed node, one job," so the
-named ops are each exactly one transformation and `transmute_raw` is
-where the combinations live.
+`fit` (single-clip pad/crop/stretch — Quick Transmute), `reverse`.
+Plus `transmute_raw` for arbitrary flag combinations.
 
-**datamosh** — `datamosh_melt`, `datamosh_classic`, wrapping the two
-modes of `datamosh.sh` from the earlier build.
+**datamosh** — `datamosh_melt`, `datamosh_classic`, plus hijack / residual /
+motion-vector variants (Python + ffglitch JS in `bin/`).
+
+**deepdream** — multi-model (InceptionV3 / VGG16 / ResNet50), layer presets,
+video optical flow, guided dream, ouroboros feedback video. Cancel + progress.
+
+**facemorph** — dlib landmark morph chain from a folder/list of faces;
+optional DeepDream before or after. Needs `~/snc/cod/facemorph` (or
+`FACEMORPH_ROOT`) and the 68-point shape predictor.
+
+**withoutbg** — background removal (local open weights or Cloud API).
+Knobs: save cutout (RGBA), mask, leftover background.
+
+**styletransfer** — Magenta arbitrary neural style transfer (content + any
+style image). Strength and max_side knobs.
+
+**Outputs** never overwrite: `app/pathutil.py` appends `_0001`, `_0002`, …
+when the target path already exists (related withoutBG files share one number).
+
+**Jobs** — send `X-Job-Token` on long `POST /ops/*`; poll
+`GET /api/job/{token}`; stop with `POST /api/cancel`.
 
 Every response is the same shape:
 ```json

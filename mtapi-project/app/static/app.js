@@ -21,6 +21,27 @@ let state = {
     name: null,
     dirty: false,
   },
+  // Face morph chain
+  faceMorph: {
+    images: [], // {path, name}[]
+    folder: null,
+  },
+  // withoutBG batch
+  withoutbg: {
+    images: [], // {path, name}[]
+    folder: null,
+  },
+  // Neural style transfer (content list + one style image)
+  styleTransfer: {
+    contents: [], // {path, name}[]
+    stylePath: null,
+  },
+  // Quick Transmute: one-click right-click reformat (same Fit/AR as sequence)
+  quick: {
+    reconcile: 'pad',   // pad | crop | stretch
+    aspect: 'auto',     // auto|1:1|16:9|…|custom
+    aspectCustom: '',
+  },
   pool: {
     items: [], // { path, name, size?, meta?, hash? }
     selectedPath: null, // sticky selection (click) — syncs library ↔ sequence
@@ -138,6 +159,7 @@ const elements = {
   statusText: document.getElementById('statusText'),
   tabTitle: document.getElementById('tabTitle'),
   btnRun: document.getElementById('btnRun'),
+  btnStop: document.getElementById('btnStop'),
   actionPanel: document.getElementById('actionPanel'),
   mediaViewer: document.getElementById('mediaViewer'),
   mediaInfo: document.getElementById('mediaInfo'),
@@ -160,6 +182,7 @@ const elements = {
 
 // Initialize
 async function init() {
+  loadQuickSettings();
   setupEventListeners();
   setupPreviewConsoleResize();
   await checkHealth();
@@ -182,6 +205,7 @@ function setupEventListeners() {
 
   // Action Buttons
   elements.btnRun.addEventListener('click', runActiveOperation);
+  elements.btnStop?.addEventListener('click', stopActiveOperation);
   elements.btnClearConsole.addEventListener('click', () => {
     elements.consoleBody.innerHTML = '~ terminal cleared';
   });
@@ -248,16 +272,21 @@ function switchTab(tab) {
   // Update Page Title
   let title = 'Operations';
   if (tab === 'mosh') title = 'Datamosh Smear';
+  if (tab === 'deepdream') title = 'Google DeepDream';
+  if (tab === 'facemorph') title = 'Face Morph';
+  if (tab === 'withoutbg') title = 'withoutBG · Remove Background';
+  if (tab === 'styletransfer') title = 'Style Transfer · Magenta';
   if (tab === 'transmute') title = 'Single-Clip Transmutations';
   if (tab === 'multi') title = 'Layout Templates (Join / Grid)';
+  if (tab === 'quick') title = 'Quick Transmute';
   if (tab === 'advanced') title = 'Advanced (Raw CLI)';
   // Pool tab: drop the big header title (sidebar already shows active item)
   if (tab === 'pool') title = '';
   elements.tabTitle.textContent = title;
 
-  // Hide Run on library tab (pool has its own Stitch control)
+  // Hide Run on library / settings-only tabs
   if (elements.btnRun) {
-    elements.btnRun.style.display = tab === 'pool' ? 'none' : '';
+    elements.btnRun.style.display = (tab === 'pool' || tab === 'quick') ? 'none' : '';
   }
 
   // Pool takes most of the workspace
@@ -277,14 +306,1508 @@ function renderTabForm(tab) {
 
   if (tab === 'mosh') {
     renderMoshForm();
+  } else if (tab === 'deepdream') {
+    renderDeepDreamForm();
+  } else if (tab === 'facemorph') {
+    renderFaceMorphForm();
+  } else if (tab === 'withoutbg') {
+    renderWithoutBgForm();
+  } else if (tab === 'styletransfer') {
+    renderStyleTransferForm();
   } else if (tab === 'transmute') {
     renderTransmuteForm();
   } else if (tab === 'multi') {
     renderMultiForm();
+  } else if (tab === 'quick') {
+    renderQuickTransmuteForm();
   } else if (tab === 'advanced') {
     renderAdvancedForm();
   } else if (tab === 'pool') {
     renderPoolForm();
+  }
+}
+
+// ── Generic DAW knobs ─────────────────────────────────────────────────────
+
+/**
+ * Continuous rotary knob bound to a hidden input.
+ * opts: { knobId, indicatorId, valueId, hiddenId, min, max, step?, decimals?, format?, sensitivity? }
+ * format(val) -> display string; default uses decimals.
+ */
+function setupContinuousKnob(opts) {
+  const knob = document.getElementById(opts.knobId);
+  const indicator = document.getElementById(opts.indicatorId);
+  const valueDisplay = document.getElementById(opts.valueId);
+  const hiddenInput = document.getElementById(opts.hiddenId);
+  if (!knob || !indicator || !valueDisplay || !hiddenInput) return;
+
+  const minAngle = -135;
+  const maxAngle = 135;
+  const rangeAngle = maxAngle - minAngle;
+  const minVal = opts.min;
+  const maxVal = opts.max;
+  const rangeVal = maxVal - minVal;
+  const decimals = opts.decimals != null ? opts.decimals : 2;
+  const sensitivity = opts.sensitivity || 140;
+  const format = opts.format || ((v) => {
+    if (decimals <= 0) return String(Math.round(v));
+    return v.toFixed(decimals);
+  });
+
+  let currentVal = parseFloat(hiddenInput.value);
+  if (isNaN(currentVal)) currentVal = minVal;
+  currentVal = Math.min(maxVal, Math.max(minVal, currentVal));
+
+  let startY = 0;
+  let startVal = currentVal;
+
+  function updateUI(val) {
+    currentVal = val;
+    const percent = rangeVal === 0 ? 0 : (val - minVal) / rangeVal;
+    const angle = minAngle + percent * rangeAngle;
+    indicator.style.transform = `translate(-50%, -100%) rotate(${angle}deg)`;
+    if (document.activeElement !== valueDisplay) {
+      valueDisplay.value = format(val);
+    }
+    // store raw number (preserve decimals for backend)
+    if (decimals <= 0) hiddenInput.value = String(Math.round(val));
+    else hiddenInput.value = String(Number(val.toFixed(Math.max(decimals, 4))));
+  }
+
+  function onMouseDown(e) {
+    knob.classList.add('active');
+    startY = e.clientY;
+    startVal = currentVal;
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    e.preventDefault();
+  }
+  function onMouseMove(e) {
+    const deltaY = startY - e.clientY;
+    let newVal = startVal + (deltaY / sensitivity) * rangeVal;
+    newVal = Math.min(maxVal, Math.max(minVal, newVal));
+    if (opts.step && opts.step > 0) {
+      newVal = Math.round(newVal / opts.step) * opts.step;
+      newVal = Math.min(maxVal, Math.max(minVal, newVal));
+    }
+    updateUI(newVal);
+  }
+  function onMouseUp() {
+    knob.classList.remove('active');
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+  }
+  function onTextSubmit() {
+    let raw = valueDisplay.value.replace(/[^0-9.+\-eE]/g, '').trim();
+    let val = parseFloat(raw);
+    if (isNaN(val)) val = currentVal;
+    val = Math.min(maxVal, Math.max(minVal, val));
+    if (opts.step && opts.step > 0) {
+      val = Math.round(val / opts.step) * opts.step;
+    }
+    updateUI(val);
+  }
+
+  knob.addEventListener('mousedown', onMouseDown);
+  valueDisplay.addEventListener('change', onTextSubmit);
+  valueDisplay.addEventListener('blur', onTextSubmit);
+  valueDisplay.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { valueDisplay.blur(); e.preventDefault(); }
+  });
+  updateUI(currentVal);
+}
+
+/**
+ * Two-position snap knob. Click toggles; drag snaps to nearer side.
+ * opts: { knobId, indicatorId, hiddenId, leftLabel, rightLabel,
+ *         leftValue, rightValue, initial? }
+ * leftValue/rightValue are the stored hidden values (string or bool-ish).
+ */
+function setupBinaryKnob(opts) {
+  const knob = document.getElementById(opts.knobId);
+  const indicator = document.getElementById(opts.indicatorId);
+  const hiddenInput = document.getElementById(opts.hiddenId);
+  if (!knob || !indicator || !hiddenInput) return;
+
+  const leftVal = String(opts.leftValue);
+  const rightVal = String(opts.rightValue);
+  const leftAngle = -110;
+  const rightAngle = 110;
+
+  function isRight(v) {
+    return String(v) === rightVal;
+  }
+
+  function updateUI(v) {
+    const right = isRight(v);
+    hiddenInput.value = right ? rightVal : leftVal;
+    indicator.style.transform = `translate(-50%, -100%) rotate(${right ? rightAngle : leftAngle}deg)`;
+    knob.classList.toggle('is-right', right);
+    const leftCap = knob.parentElement?.querySelector('.cap-left');
+    const rightCap = knob.parentElement?.querySelector('.cap-right');
+    if (leftCap) leftCap.classList.toggle('cap-on', !right);
+    if (rightCap) rightCap.classList.toggle('cap-on', right);
+  }
+
+  function toggle() {
+    updateUI(isRight(hiddenInput.value) ? leftVal : rightVal);
+    hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  let startX = 0;
+  let startRight = false;
+  let dragged = false;
+
+  function onMouseDown(e) {
+    knob.classList.add('active');
+    startX = e.clientX;
+    startRight = isRight(hiddenInput.value);
+    dragged = false;
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    e.preventDefault();
+  }
+  function onMouseMove(e) {
+    const dx = e.clientX - startX;
+    if (Math.abs(dx) > 6) dragged = true;
+    // live preview toward nearer side
+    if (dx > 12) updateUI(rightVal);
+    else if (dx < -12) updateUI(leftVal);
+  }
+  function onMouseUp(e) {
+    knob.classList.remove('active');
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+    if (!dragged) {
+      toggle();
+    } else {
+      // snap to nearest based on final X delta
+      const dx = e.clientX - startX;
+      updateUI(dx >= 0 ? rightVal : leftVal);
+      hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
+  knob.addEventListener('mousedown', onMouseDown);
+  // initial
+  const init = opts.initial != null ? opts.initial : hiddenInput.value;
+  updateUI(init);
+}
+
+function knobUnitHtml({ id, label, value, binary = false, leftCap = '', rightCap = '' }) {
+  if (binary) {
+    return `
+      <div class="knob-unit">
+        <span class="knob-unit-label">${label}</span>
+        <div class="daw-knob binary-knob" id="${id}Knob" title="Click to toggle">
+          <div class="daw-knob-dial"></div>
+          <div class="daw-knob-indicator" id="${id}KnobInd"></div>
+        </div>
+        <div class="binary-knob-caption">
+          <span class="cap-left">${leftCap}</span>
+          <span class="cap-right">${rightCap}</span>
+        </div>
+        <input type="hidden" id="${id}" value="${value}">
+      </div>`;
+  }
+  return `
+    <div class="knob-unit">
+      <span class="knob-unit-label">${label}</span>
+      <div class="daw-knob" id="${id}Knob" title="Drag up/down">
+        <div class="daw-knob-dial"></div>
+        <div class="daw-knob-indicator" id="${id}KnobInd"></div>
+      </div>
+      <input type="text" class="daw-knob-value-input" id="${id}Val" value="${value}">
+      <input type="hidden" id="${id}" value="${value}">
+    </div>`;
+}
+
+// ── Style Transfer tab (Magenta arbitrary stylization) ───────────────────
+
+function renderStyleTransferForm() {
+  const contents = state.styleTransfer.contents || [];
+  const stylePath = state.styleTransfer.stylePath;
+  const listHtml = contents.length
+    ? contents.map((it, i) => `
+        <div class="fm-item" data-idx="${i}">
+          <span class="fm-ord">${String(i + 1).padStart(2, '0')}</span>
+          <span class="fm-name" title="${escapeHtml(it.path)}">${escapeHtml(it.name || basename(it.path))}</span>
+          <button type="button" class="btn fm-rm" data-idx="${i}" data-st="1">✕</button>
+        </div>`).join('')
+    : `<div class="fm-empty">Add content photo(s). One style image paints them all.</div>`;
+
+  const html = `
+    <div class="panel-title-desc">
+      <h3>Neural style transfer</h3>
+      <p class="dream-hint">
+        Magenta <strong>arbitrary stylization</strong> (TF-Hub) — one ~90&nbsp;MB model,
+        unlimited styles via a reference image (painting, glass, texture…).
+        Not DeepDream: no ImageNet dog faces.
+      </p>
+    </div>
+
+    <div class="form-group">
+      <label>Content images (${contents.length})</label>
+      <div class="fm-list" id="stContentList">${listHtml}</div>
+      <div class="input-row" style="margin-top:8px; flex-wrap:wrap;">
+        <button type="button" class="btn btn-primary" id="btnStAddContent">+ Content</button>
+        <button type="button" class="btn" id="btnStClearContent" ${contents.length ? '' : 'disabled'}>Clear</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Style image (required)</label>
+      <div class="input-row">
+        <input type="text" id="stStylePath" placeholder="~/art/stained_glass.jpg"
+          value="${stylePath ? escapeHtml(stylePath) : ''}">
+        <button type="button" class="btn" id="btnStStyleBrowse">Browse</button>
+      </div>
+      <p class="dream-hint" style="margin-top:4px">
+        Any RGB image: Van Gogh crop, brush texture, mosaic photo, UI mockup…
+      </p>
+    </div>
+
+    <div class="form-group">
+      <label>Output (blank = next to content as <code>*_styled.png</code>)</label>
+      <div class="input-row">
+        <input type="text" id="stOutput" placeholder="single file or leave blank for batch auto-names">
+        <button type="button" class="btn" id="btnStOutBrowse">Save As</button>
+      </div>
+      <div class="input-row" style="margin-top:6px;">
+        <input type="text" id="stOutputDir" placeholder="batch output folder (optional)">
+        <button type="button" class="btn" id="btnStOutDirBrowse">Folder</button>
+      </div>
+    </div>
+
+    <div class="dream-section-title">Knobs</div>
+    <div class="knob-bank">
+      ${knobUnitHtml({ id: 'stStrength', label: 'Strength', value: '1.0' })}
+      ${knobUnitHtml({ id: 'stMaxSide', label: 'Max side', value: '1280' })}
+      ${knobUnitHtml({ id: 'stDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+    </div>
+    <p class="dream-hint">
+      Strength blends stylized with original (1 = full style).
+      Max side caps content resolution for RAM/speed — 0 = full size.
+      Model cache ~90&nbsp;MB; peak RAM usually ~1&nbsp;GB with TF.
+    </p>
+  `;
+  elements.actionPanel.innerHTML = html;
+
+  setupContinuousKnob({
+    knobId: 'stStrengthKnob', indicatorId: 'stStrengthKnobInd', valueId: 'stStrengthVal', hiddenId: 'stStrength',
+    min: 0, max: 1, step: 0.05, decimals: 2,
+  });
+  setupContinuousKnob({
+    knobId: 'stMaxSideKnob', indicatorId: 'stMaxSideKnobInd', valueId: 'stMaxSideVal', hiddenId: 'stMaxSide',
+    min: 0, max: 2048, step: 64, decimals: 0,
+    format: (v) => (v <= 0 ? 'full' : String(Math.round(v))),
+  });
+  setupBinaryKnob({
+    knobId: 'stDryRunKnob', indicatorId: 'stDryRunKnobInd', hiddenId: 'stDryRun',
+    leftValue: '0', rightValue: '1', initial: '0',
+  });
+
+  document.getElementById('stStylePath')?.addEventListener('change', (e) => {
+    state.styleTransfer.stylePath = e.target.value.trim() || null;
+  });
+
+  document.getElementById('btnStAddContent')?.addEventListener('click', async () => {
+    try {
+      const res = await fetch(`/api/picker?mode=files&filter=image&start_path=`);
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      const paths = data.paths || (data.path ? [data.path] : []);
+      paths.forEach((p) => {
+        if (!p) return;
+        if (state.styleTransfer.contents.some((x) => x.path === p)) return;
+        state.styleTransfer.contents.push({ path: p, name: basename(p) });
+      });
+      renderStyleTransferForm();
+    } catch (err) {
+      alert(`Picker failed: ${err.message}`);
+    }
+  });
+  document.getElementById('btnStClearContent')?.addEventListener('click', () => {
+    state.styleTransfer.contents = [];
+    renderStyleTransferForm();
+  });
+  document.getElementById('btnStStyleBrowse')?.addEventListener('click', async () => {
+    try {
+      const res = await fetch(`/api/picker?mode=files&filter=image&start_path=`);
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      const p = (data.paths && data.paths[0]) || data.path;
+      if (p) {
+        state.styleTransfer.stylePath = p;
+        const el = document.getElementById('stStylePath');
+        if (el) el.value = p;
+      }
+    } catch (err) {
+      alert(`Picker failed: ${err.message}`);
+    }
+  });
+  document.getElementById('btnStOutBrowse')?.addEventListener('click', () => {
+    openFileBrowser('stOutput', false, 'file_save', 'all');
+  });
+  document.getElementById('btnStOutDirBrowse')?.addEventListener('click', () => {
+    openFileBrowser('stOutputDir', true, 'dir', 'all');
+  });
+  document.querySelectorAll('.fm-rm[data-st]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.idx, 10);
+      state.styleTransfer.contents.splice(i, 1);
+      renderStyleTransferForm();
+    });
+  });
+}
+
+function collectStyleTransferBody() {
+  const contents = (state.styleTransfer.contents || []).map((x) => x.path);
+  const style_path = (document.getElementById('stStylePath')?.value || state.styleTransfer.stylePath || '').trim();
+  if (!contents.length) {
+    alert('Add at least one content image.');
+    return null;
+  }
+  if (!style_path) {
+    alert('Pick a style image (painting / texture / etc.).');
+    return null;
+  }
+  state.styleTransfer.stylePath = style_path;
+  const output = document.getElementById('stOutput')?.value?.trim() || null;
+  const output_dir = document.getElementById('stOutputDir')?.value?.trim() || null;
+  const single = contents.length === 1;
+  return {
+    content_path: single ? contents[0] : null,
+    content_paths: single ? null : contents,
+    style_path,
+    output_path: single ? output : null,
+    output_dir: output_dir || null,
+    strength: parseFloat(document.getElementById('stStrength')?.value || '1'),
+    max_side: parseInt(document.getElementById('stMaxSide')?.value || '1280', 10),
+    style_size: 256,
+    suffix: '_styled',
+    dry_run: document.getElementById('stDryRun')?.value === '1',
+  };
+}
+
+// ── withoutBG tab (background removal) ───────────────────────────────────
+
+function renderWithoutBgForm() {
+  const imgs = state.withoutbg.images || [];
+  const listHtml = imgs.length
+    ? imgs.map((it, i) => `
+        <div class="fm-item" data-idx="${i}">
+          <span class="fm-ord">${String(i + 1).padStart(2, '0')}</span>
+          <span class="fm-name" title="${escapeHtml(it.path)}">${escapeHtml(it.name || basename(it.path))}</span>
+          <button type="button" class="btn fm-rm" data-idx="${i}" data-wbg="1">✕</button>
+        </div>`).join('')
+    : `<div class="fm-empty">Add one or more images (or a folder). Output names use the prefix knob.</div>`;
+
+  const html = `
+    <div class="panel-title-desc">
+      <h3>withoutBG · remove backgrounds</h3>
+      <p class="dream-hint">
+        <a href="https://github.com/withoutbg/withoutbg-python" target="_blank" rel="noopener">withoutbg-python</a>
+        — local open weights (free, private, ~455&nbsp;MB once) or Cloud API.
+        Saves cutout / mask / leftover background independently.
+      </p>
+    </div>
+
+    <div class="form-group">
+      <label>Images (${imgs.length})</label>
+      <div class="fm-list" id="wbgList">${listHtml}</div>
+      <div class="input-row" style="margin-top:8px; flex-wrap:wrap;">
+        <button type="button" class="btn btn-primary" id="btnWbgAddFiles">+ Images</button>
+        <button type="button" class="btn" id="btnWbgAddFolder">+ Folder</button>
+        <button type="button" class="btn" id="btnWbgClear" ${imgs.length ? '' : 'disabled'}>Clear</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Output folder (blank = next to each source)</label>
+      <div class="input-row">
+        <input type="text" id="wbgOutputDir" placeholder="~/img/cutouts/">
+        <button type="button" class="btn" id="btnWbgOutBrowse">Browse</button>
+      </div>
+    </div>
+
+    <div class="dream-section-title">Backend</div>
+    <div class="form-group">
+      <label>Mode</label>
+      <select id="wbgBackend">
+        <option value="local" selected>Local open weights (CPU, free)</option>
+        <option value="api">Cloud API (WITHOUTBG_API_KEY)</option>
+      </select>
+      <p class="dream-hint" style="margin-top:6px">
+        First local run downloads model weights from Hugging Face (~455&nbsp;MB).
+        Cloud needs <code>WITHOUTBG_API_KEY</code> in the server environment.
+      </p>
+    </div>
+    <div class="form-group" id="wbgApiKeyRow">
+      <label>API key (optional override)</label>
+      <input type="password" id="wbgApiKey" placeholder="sk_… or leave blank to use env" autocomplete="off">
+    </div>
+
+    <div class="dream-section-title">What to save</div>
+    <div class="knob-bank">
+      ${knobUnitHtml({ id: 'wbgSaveCutout', label: 'Cutout', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
+      ${knobUnitHtml({ id: 'wbgSaveMask', label: 'Mask', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+      ${knobUnitHtml({ id: 'wbgSaveBg', label: 'Background', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+      ${knobUnitHtml({ id: 'wbgDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+    </div>
+    <p class="dream-hint">
+      <strong>Cutout</strong> = subject RGBA (transparent BG).<br>
+      <strong>Mask</strong> = grayscale alpha (white = subject).<br>
+      <strong>Background</strong> = leftover scene (subject punched out / transparent).
+    </p>
+
+    <div class="dream-section-title">Naming / format</div>
+    <div class="form-group">
+      <label>Filename prefix</label>
+      <input type="text" id="wbgPrefix" value="withoutbg" placeholder="withoutbg">
+      <p class="dream-hint" style="margin-top:4px">
+        e.g. <code>photo.jpg</code> → <code>withoutbg-photo.png</code>,
+        <code>…-mask.png</code>, <code>…-bg.png</code>
+      </p>
+    </div>
+    <div class="form-group">
+      <label>Format (cutout &amp; background; mask is always PNG)</label>
+      <select id="wbgFmt">
+        <option value="png" selected>PNG (lossless alpha)</option>
+        <option value="webp">WebP (alpha, smaller)</option>
+      </select>
+    </div>
+  `;
+  elements.actionPanel.innerHTML = html;
+
+  setupBinaryKnob({
+    knobId: 'wbgSaveCutoutKnob', indicatorId: 'wbgSaveCutoutKnobInd', hiddenId: 'wbgSaveCutout',
+    leftValue: '0', rightValue: '1', initial: '1',
+  });
+  setupBinaryKnob({
+    knobId: 'wbgSaveMaskKnob', indicatorId: 'wbgSaveMaskKnobInd', hiddenId: 'wbgSaveMask',
+    leftValue: '0', rightValue: '1', initial: '0',
+  });
+  setupBinaryKnob({
+    knobId: 'wbgSaveBgKnob', indicatorId: 'wbgSaveBgKnobInd', hiddenId: 'wbgSaveBg',
+    leftValue: '0', rightValue: '1', initial: '0',
+  });
+  setupBinaryKnob({
+    knobId: 'wbgDryRunKnob', indicatorId: 'wbgDryRunKnobInd', hiddenId: 'wbgDryRun',
+    leftValue: '0', rightValue: '1', initial: '0',
+  });
+
+  const syncApi = () => {
+    const api = document.getElementById('wbgBackend')?.value === 'api';
+    document.getElementById('wbgApiKeyRow')?.classList.toggle('hidden', !api);
+  };
+  document.getElementById('wbgBackend')?.addEventListener('change', syncApi);
+  syncApi();
+
+  document.getElementById('btnWbgAddFiles')?.addEventListener('click', async () => {
+    try {
+      const res = await fetch(`/api/picker?mode=files&filter=image&start_path=`);
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      const paths = data.paths || (data.path ? [data.path] : []);
+      paths.forEach((p) => {
+        if (!p) return;
+        if (state.withoutbg.images.some((x) => x.path === p)) return;
+        state.withoutbg.images.push({ path: p, name: basename(p) });
+      });
+      renderWithoutBgForm();
+    } catch (err) {
+      alert(`Picker failed: ${err.message}`);
+    }
+  });
+  document.getElementById('btnWbgAddFolder')?.addEventListener('click', async () => {
+    try {
+      const res = await fetch(`/api/picker?mode=dir&start_path=`);
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      if (!data.path) return;
+      const listRes = await fetch(`/api/facemorph/list?path=${encodeURIComponent(data.path)}`);
+      if (listRes.ok) {
+        const listed = await listRes.json();
+        (listed.files || []).forEach((p) => {
+          if (state.withoutbg.images.some((x) => x.path === p)) return;
+          state.withoutbg.images.push({ path: p, name: basename(p) });
+        });
+      } else {
+        state.withoutbg.folder = data.path;
+      }
+      renderWithoutBgForm();
+    } catch (err) {
+      alert(`Folder pick failed: ${err.message}`);
+    }
+  });
+  document.getElementById('btnWbgClear')?.addEventListener('click', () => {
+    state.withoutbg.images = [];
+    state.withoutbg.folder = null;
+    renderWithoutBgForm();
+  });
+  document.getElementById('btnWbgOutBrowse')?.addEventListener('click', () => {
+    openFileBrowser('wbgOutputDir', true, 'dir', 'all');
+  });
+  document.querySelectorAll('.fm-rm[data-wbg]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.idx, 10);
+      state.withoutbg.images.splice(i, 1);
+      renderWithoutBgForm();
+    });
+  });
+}
+
+function collectWithoutBgBody() {
+  const images = (state.withoutbg.images || []).map((x) => x.path);
+  if (!images.length && !state.withoutbg.folder) {
+    alert('Add at least one image (or a folder).');
+    return null;
+  }
+  const save_cutout = document.getElementById('wbgSaveCutout')?.value === '1';
+  const save_mask = document.getElementById('wbgSaveMask')?.value === '1';
+  const save_background = document.getElementById('wbgSaveBg')?.value === '1';
+  if (!save_cutout && !save_mask && !save_background) {
+    alert('Turn on at least one of: Cutout, Mask, Background.');
+    return null;
+  }
+  const apiKey = document.getElementById('wbgApiKey')?.value?.trim() || null;
+  return {
+    image_paths: images.length ? images : null,
+    image_dir: images.length ? null : (state.withoutbg.folder || null),
+    output_dir: document.getElementById('wbgOutputDir')?.value?.trim() || null,
+    backend: document.getElementById('wbgBackend')?.value || 'local',
+    api_key: apiKey,
+    save_cutout,
+    save_mask,
+    save_background,
+    prefix: document.getElementById('wbgPrefix')?.value ?? 'withoutbg',
+    suffix: '',
+    fmt: document.getElementById('wbgFmt')?.value || 'png',
+    dry_run: document.getElementById('wbgDryRun')?.value === '1',
+  };
+}
+
+// ── Face Morph tab (facemorph package + optional DeepDream) ───────────────
+
+function renderFaceMorphForm() {
+  const imgs = state.faceMorph.images || [];
+  const listHtml = imgs.length
+    ? imgs.map((it, i) => `
+        <div class="fm-item" data-idx="${i}">
+          <span class="fm-ord">${String(i + 1).padStart(2, '0')}</span>
+          <span class="fm-name" title="${escapeHtml(it.path)}">${escapeHtml(it.name || basename(it.path))}</span>
+          <button type="button" class="btn fm-up" data-idx="${i}" ${i === 0 ? 'disabled' : ''}>↑</button>
+          <button type="button" class="btn fm-down" data-idx="${i}" ${i >= imgs.length - 1 ? 'disabled' : ''}>↓</button>
+          <button type="button" class="btn fm-rm" data-idx="${i}">✕</button>
+        </div>`).join('')
+    : `<div class="fm-empty">Add at least 2 face images (folder or multi-select). Order = morph sequence.</div>`;
+
+  const html = `
+    <div class="panel-title-desc">
+      <h3>Face Morph chain</h3>
+      <p class="dream-hint">
+        From <code>~/snc/cod/facemorph</code> — dlib 68-point landmarks + Delaunay triangles.
+        Morph A→B→C… into one video. Optionally DeepDream the faces first, or the morph video after.
+      </p>
+    </div>
+
+    <div class="form-group">
+      <label>Face images (${imgs.length})</label>
+      <div class="fm-list" id="fmList">${listHtml}</div>
+      <div class="input-row" style="margin-top:8px; flex-wrap:wrap;">
+        <button type="button" class="btn btn-primary" id="btnFmAddFiles">+ Images</button>
+        <button type="button" class="btn" id="btnFmAddFolder">+ Folder</button>
+        <button type="button" class="btn" id="btnFmClear" ${imgs.length ? '' : 'disabled'}>Clear</button>
+      </div>
+      <p class="dream-hint" style="margin-top:6px">Alphabetical folder order if you use + Folder. Reorder with ↑↓. Every image needs a detectable face.</p>
+    </div>
+
+    <div class="form-group">
+      <label>Output video (blank = auto next to first image)</label>
+      <div class="input-row">
+        <input type="text" id="fmOutput" placeholder="~/faces/chain_morph.mp4">
+        <button type="button" class="btn" id="btnFmOutBrowse">Save As</button>
+      </div>
+    </div>
+
+    <div class="dream-section-title">Morph timing / quality</div>
+    <div class="knob-bank">
+      ${knobUnitHtml({ id: 'fmDuration', label: 'Sec/pair', value: '2.0' })}
+      ${knobUnitHtml({ id: 'fmFps', label: 'FPS', value: '30' })}
+      ${knobUnitHtml({ id: 'fmCrf', label: 'CRF', value: '18' })}
+      ${knobUnitHtml({ id: 'fmKeepFrames', label: 'Keep PNG', value: '0', binary: true, leftCap: 'No', rightCap: 'Yes' })}
+      ${knobUnitHtml({ id: 'fmDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+    </div>
+    <p class="dream-hint">CRF 0 = lossless (huge/slow). 18 ≈ near-lossless. Sec/pair × pairs ≈ video length.</p>
+
+    <div class="dream-section-title">DeepDream integration</div>
+    <div class="form-group">
+      <label>Dream mode</label>
+      <select id="fmDreamMode">
+        <option value="none" selected>Morph only (no dream)</option>
+        <option value="after">Morph first, then DeepDream the video</option>
+        <option value="faces_first">DeepDream each face, then morph</option>
+      </select>
+      <p class="dream-hint" style="margin-top:6px">
+        <strong>after</strong> = optical-flow dream on the morph (trippy, stable motion).<br>
+        <strong>faces_first</strong> = dream stills then morph (hallucinated faces blend).
+      </p>
+    </div>
+    <div class="fm-dream-opts" id="fmDreamOpts">
+      <div class="form-group">
+        <label>Dream model</label>
+        <select id="fmDreamModel">
+          <option value="inception_v3" selected>InceptionV3</option>
+          <option value="vgg16">VGG16</option>
+          <option value="resnet50">ResNet50</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Layer preset</label>
+        <select id="fmDreamPreset">
+          <option value="shallow">Shallow</option>
+          <option value="mid">Mid</option>
+          <option value="classic" selected>Classic</option>
+          <option value="deep">Deep</option>
+          <option value="full">Full</option>
+        </select>
+      </div>
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'fmDreamIters', label: 'Iterations', value: '10' })}
+        ${knobUnitHtml({ id: 'fmDreamOctaves', label: 'Octaves', value: '2' })}
+        ${knobUnitHtml({ id: 'fmDreamStep', label: 'Step', value: '0.015' })}
+        ${knobUnitHtml({ id: 'fmDreamPreview', label: 'Preview W', value: '640' })}
+        ${knobUnitHtml({ id: 'fmDreamFlow', label: 'Opt. flow', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
+      </div>
+      <p class="dream-hint">Keep Preview W ≤ 800 for speed. Optical flow only applies to dream mode “after”.</p>
+    </div>
+  `;
+  elements.actionPanel.innerHTML = html;
+
+  setupContinuousKnob({
+    knobId: 'fmDurationKnob', indicatorId: 'fmDurationKnobInd', valueId: 'fmDurationVal', hiddenId: 'fmDuration',
+    min: 0.5, max: 8, step: 0.1, decimals: 1,
+  });
+  setupContinuousKnob({
+    knobId: 'fmFpsKnob', indicatorId: 'fmFpsKnobInd', valueId: 'fmFpsVal', hiddenId: 'fmFps',
+    min: 12, max: 60, step: 1, decimals: 0,
+  });
+  setupContinuousKnob({
+    knobId: 'fmCrfKnob', indicatorId: 'fmCrfKnobInd', valueId: 'fmCrfVal', hiddenId: 'fmCrf',
+    min: 0, max: 28, step: 1, decimals: 0,
+  });
+  setupBinaryKnob({
+    knobId: 'fmKeepFramesKnob', indicatorId: 'fmKeepFramesKnobInd', hiddenId: 'fmKeepFrames',
+    leftValue: '0', rightValue: '1', initial: '0',
+  });
+  setupBinaryKnob({
+    knobId: 'fmDryRunKnob', indicatorId: 'fmDryRunKnobInd', hiddenId: 'fmDryRun',
+    leftValue: '0', rightValue: '1', initial: '0',
+  });
+  setupContinuousKnob({
+    knobId: 'fmDreamItersKnob', indicatorId: 'fmDreamItersKnobInd', valueId: 'fmDreamItersVal', hiddenId: 'fmDreamIters',
+    min: 1, max: 40, step: 1, decimals: 0,
+  });
+  setupContinuousKnob({
+    knobId: 'fmDreamOctavesKnob', indicatorId: 'fmDreamOctavesKnobInd', valueId: 'fmDreamOctavesVal', hiddenId: 'fmDreamOctaves',
+    min: 1, max: 5, step: 1, decimals: 0,
+  });
+  setupContinuousKnob({
+    knobId: 'fmDreamStepKnob', indicatorId: 'fmDreamStepKnobInd', valueId: 'fmDreamStepVal', hiddenId: 'fmDreamStep',
+    min: 0.005, max: 0.08, step: 0.005, decimals: 3,
+  });
+  setupContinuousKnob({
+    knobId: 'fmDreamPreviewKnob', indicatorId: 'fmDreamPreviewKnobInd', valueId: 'fmDreamPreviewVal', hiddenId: 'fmDreamPreview',
+    min: 0, max: 1280, step: 20, decimals: 0,
+    format: (v) => (v <= 0 ? 'full' : String(Math.round(v))),
+  });
+  setupBinaryKnob({
+    knobId: 'fmDreamFlowKnob', indicatorId: 'fmDreamFlowKnobInd', hiddenId: 'fmDreamFlow',
+    leftValue: '0', rightValue: '1', initial: '1',
+  });
+
+  const syncDreamOpts = () => {
+    const mode = document.getElementById('fmDreamMode')?.value || 'none';
+    document.getElementById('fmDreamOpts')?.classList.toggle('hidden', mode === 'none');
+  };
+  document.getElementById('fmDreamMode')?.addEventListener('change', syncDreamOpts);
+  syncDreamOpts();
+
+  document.getElementById('btnFmAddFiles')?.addEventListener('click', async () => {
+    try {
+      const res = await fetch(`/api/picker?mode=files&filter=image&start_path=`);
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      const paths = data.paths || (data.path ? [data.path] : []);
+      paths.forEach((p) => {
+        if (!p) return;
+        if (state.faceMorph.images.some((x) => x.path === p)) return;
+        state.faceMorph.images.push({ path: p, name: basename(p) });
+      });
+      renderFaceMorphForm();
+    } catch (err) {
+      alert(`Picker failed: ${err.message}`);
+    }
+  });
+  document.getElementById('btnFmAddFolder')?.addEventListener('click', async () => {
+    try {
+      const res = await fetch(`/api/picker?mode=dir&start_path=`);
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      if (!data.path) return;
+      // list dir via a lightweight API — use media path listing through shell of images by asking backend morph preview?
+      // For now: store as folder and expand on run via image_dir
+      const listRes = await fetch(`/api/facemorph/list?path=${encodeURIComponent(data.path)}`);
+      if (listRes.ok) {
+        const listed = await listRes.json();
+        (listed.files || []).forEach((p) => {
+          if (state.faceMorph.images.some((x) => x.path === p)) return;
+          state.faceMorph.images.push({ path: p, name: basename(p) });
+        });
+      } else {
+        // fallback: just remember folder path as single "virtual" entry via image_dir on collect
+        state.faceMorph.folder = data.path;
+        logConsole(`[FACEMORPH]: Folder ${data.path} — will expand at run if list API missing`);
+      }
+      renderFaceMorphForm();
+    } catch (err) {
+      alert(`Folder pick failed: ${err.message}`);
+    }
+  });
+  document.getElementById('btnFmClear')?.addEventListener('click', () => {
+    state.faceMorph.images = [];
+    state.faceMorph.folder = null;
+    renderFaceMorphForm();
+  });
+  document.getElementById('btnFmOutBrowse')?.addEventListener('click', () => {
+    openFileBrowser('fmOutput', false, 'file_save', 'all');
+  });
+
+  document.querySelectorAll('.fm-rm').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.idx, 10);
+      state.faceMorph.images.splice(i, 1);
+      renderFaceMorphForm();
+    });
+  });
+  document.querySelectorAll('.fm-up').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.idx, 10);
+      if (i <= 0) return;
+      const a = state.faceMorph.images;
+      [a[i - 1], a[i]] = [a[i], a[i - 1]];
+      renderFaceMorphForm();
+    });
+  });
+  document.querySelectorAll('.fm-down').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.idx, 10);
+      const a = state.faceMorph.images;
+      if (i >= a.length - 1) return;
+      [a[i], a[i + 1]] = [a[i + 1], a[i]];
+      renderFaceMorphForm();
+    });
+  });
+}
+
+function collectFaceMorphBody() {
+  const images = (state.faceMorph.images || []).map((x) => x.path);
+  if (images.length < 2 && !state.faceMorph.folder) {
+    alert('Add at least 2 face images (or a folder with 2+ faces).');
+    return null;
+  }
+  const dream_mode = document.getElementById('fmDreamMode')?.value || 'none';
+  const body = {
+    image_paths: images.length >= 2 ? images : null,
+    image_dir: images.length < 2 ? (state.faceMorph.folder || null) : null,
+    output_path: document.getElementById('fmOutput')?.value?.trim() || null,
+    duration: parseFloat(document.getElementById('fmDuration')?.value || '2'),
+    fps: parseInt(document.getElementById('fmFps')?.value || '30', 10),
+    crf: parseInt(document.getElementById('fmCrf')?.value || '18', 10),
+    keep_frames: document.getElementById('fmKeepFrames')?.value === '1',
+    dream_mode,
+    dream_model_name: document.getElementById('fmDreamModel')?.value || 'inception_v3',
+    dream_layer_preset: document.getElementById('fmDreamPreset')?.value || 'classic',
+    dream_iterations: parseInt(document.getElementById('fmDreamIters')?.value || '10', 10),
+    dream_octaves: parseInt(document.getElementById('fmDreamOctaves')?.value || '2', 10),
+    dream_step: parseFloat(document.getElementById('fmDreamStep')?.value || '0.015'),
+    dream_preview_width: parseInt(document.getElementById('fmDreamPreview')?.value || '640', 10),
+    dream_optical_flow: document.getElementById('fmDreamFlow')?.value === '1',
+    dream_temporal_blend: 0.85,
+    dry_run: document.getElementById('fmDryRun')?.value === '1',
+  };
+  return body;
+}
+
+// ── DeepDream tab ─────────────────────────────────────────────────────────
+
+/** Real nets + their custom-knob layers (must match deepdream_engine.py). */
+const DREAM_MODELS = {
+  inception_v3: {
+    label: 'InceptionV3 (ImageNet) — classic Google DeepDream',
+    layers: [
+      { id: 'mixed3', label: 'mixed3', def: 0 },
+      { id: 'mixed4', label: 'mixed4', def: 1.0 },
+      { id: 'mixed5', label: 'mixed5', def: 1.5 },
+      { id: 'mixed6', label: 'mixed6', def: 2.0 },
+      { id: 'mixed7', label: 'mixed7', def: 2.5 },
+    ],
+    presets: {
+      shallow: 'Shallow — mixed3–4 (fine textures)',
+      mid: 'Mid — mixed4–6',
+      deep: 'Deep — mixed5–7 (large forms)',
+      classic: 'Classic — mixed4–7 (Google-style)',
+      full: 'Full — mixed3–7',
+      custom: 'Custom weights (knobs below)',
+    },
+  },
+  vgg16: {
+    label: 'VGG16 (ImageNet) — hierarchical / classic NN dream look',
+    layers: [
+      { id: 'block2_conv2', label: 'b2c2', def: 0 },
+      { id: 'block3_conv3', label: 'b3c3', def: 0.5 },
+      { id: 'block4_conv3', label: 'b4c3', def: 1.0 },
+      { id: 'block5_conv1', label: 'b5c1', def: 1.5 },
+      { id: 'block5_conv2', label: 'b5c2', def: 0 },
+      { id: 'block5_conv3', label: 'b5c3', def: 2.0 },
+    ],
+    presets: {
+      shallow: 'Shallow — block2–3 (edges / textures)',
+      mid: 'Mid — block3–4',
+      deep: 'Deep — block4–5 (objects / eyes)',
+      classic: 'Classic — block3/4/5 mix',
+      full: 'Full — block2–5',
+      custom: 'Custom weights (knobs below)',
+    },
+  },
+  resnet50: {
+    label: 'ResNet50 (ImageNet) — residual features, different “creatures”',
+    layers: [
+      { id: 'conv2_block3_out', label: 'c2b3', def: 0 },
+      { id: 'conv3_block4_out', label: 'c3b4', def: 0.8 },
+      { id: 'conv4_block1_out', label: 'c4b1', def: 1.0 },
+      { id: 'conv4_block6_out', label: 'c4b6', def: 1.5 },
+      { id: 'conv5_block3_out', label: 'c5b3', def: 2.0 },
+    ],
+    presets: {
+      shallow: 'Shallow — conv2–3',
+      mid: 'Mid — conv3–4',
+      deep: 'Deep — conv4–5',
+      classic: 'Classic — conv3/4/5 mix',
+      full: 'Full — conv2–5',
+      custom: 'Custom weights (knobs below)',
+    },
+  },
+};
+
+function renderDeepDreamForm() {
+  const html = `
+    <div class="panel-title-desc">
+      <h3>Google DeepDream</h3>
+      <p class="dream-hint">
+        Gradient ascent on a real CNN (pick the <strong>model</strong>, then which
+        <strong>layers</strong> inside it). Image / video / Ouroboros. Knobs for continuous
+        params; binary snap knobs for on/off.
+      </p>
+    </div>
+
+    <div class="form-group">
+      <label>Input (image or video)</label>
+      <div class="input-row">
+        <input type="text" id="dreamInput" placeholder="/absolute/path/to/image.png or video.mp4">
+        <button class="btn" type="button" id="btnDreamBrowseIn">Browse</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Output path (blank = auto next to source)</label>
+      <div class="input-row">
+        <input type="text" id="dreamOutput" placeholder="auto: name_dream.png / name_dream.mp4">
+        <button class="btn" type="button" id="btnDreamBrowseOut">Save As</button>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Guide image <span style="font-weight:normal;color:var(--text-muted)">(optional — guided dream)</span></label>
+      <div class="input-row">
+        <input type="text" id="dreamGuide" placeholder="Leave blank for classic L2 dream; pick image to steer features">
+        <button class="btn" type="button" id="btnDreamBrowseGuide">Browse</button>
+      </div>
+      <p class="dream-hint" style="margin-top:6px">
+        Guided dreaming (DeepDreamAnim / Google): match activations to the guide’s features
+        (flowers → floral patterns, faces → face-like forms, …).
+      </p>
+    </div>
+
+    <div class="dream-section-title">Media</div>
+    <div class="knob-bank">
+      ${knobUnitHtml({ id: 'dreamMedia', label: 'Media', value: 'auto', binary: true, leftCap: 'Image', rightCap: 'Video' })}
+      ${knobUnitHtml({ id: 'dreamAutoDetect', label: 'Detect', value: '1', binary: true, leftCap: 'Force', rightCap: 'Auto' })}
+    </div>
+    <p class="dream-hint">With Detect=Auto, extension picks image vs video. Force uses the Media knob.</p>
+
+    <div class="dream-section-title">Ascent</div>
+    <div class="knob-bank">
+      ${knobUnitHtml({ id: 'dreamStep', label: 'Step', value: '0.01' })}
+      ${knobUnitHtml({ id: 'dreamIters', label: 'Iterations', value: '20' })}
+      ${knobUnitHtml({ id: 'dreamOctaves', label: 'Octaves', value: '3' })}
+      ${knobUnitHtml({ id: 'dreamOctScale', label: 'Oct scale', value: '1.4' })}
+      ${knobUnitHtml({ id: 'dreamMaxLoss', label: 'Max loss', value: '15' })}
+      ${knobUnitHtml({ id: 'dreamBlend', label: 'Blend', value: '1.0' })}
+      ${knobUnitHtml({ id: 'dreamPreviewW', label: 'Preview W', value: '0' })}
+    </div>
+
+    <div class="dream-section-title">Binary</div>
+    <div class="knob-bank">
+      ${knobUnitHtml({ id: 'dreamJitter', label: 'Jitter', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
+      ${knobUnitHtml({ id: 'dreamDetail', label: 'Detail', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
+      ${knobUnitHtml({ id: 'dreamAudio', label: 'Audio', value: '1', binary: true, leftCap: 'Drop', rightCap: 'Keep' })}
+      ${knobUnitHtml({ id: 'dreamDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+    </div>
+
+    <div class="form-group">
+      <label>Neural network (architecture)</label>
+      <select id="dreamModel">
+        <option value="inception_v3" selected>InceptionV3 (ImageNet) — classic Google DeepDream</option>
+        <option value="vgg16">VGG16 (ImageNet) — hierarchical / classic NN dream look</option>
+        <option value="resnet50">ResNet50 (ImageNet) — residual features, different creatures</option>
+      </select>
+      <p class="dream-hint" style="margin-top:6px">
+        These are <strong>different models</strong>, not just labels. VGG/ResNet load separate ImageNet weights
+        (first use may download once). Layer presets below map to that model’s real layer names.
+      </p>
+    </div>
+
+    <div class="form-group">
+      <label>Layer preset <span style="font-weight:normal;color:var(--text-muted)">(within selected model)</span></label>
+      <select id="dreamLayerPreset"></select>
+    </div>
+
+    <div class="dream-section-title dream-layer-weights" id="dreamLayerWeightsTitle">Custom layer weights</div>
+    <div class="knob-bank dream-layer-weights" id="dreamLayerWeightsBank"></div>
+
+    <div class="dream-section-title dream-video-only" id="dreamVideoTitle">DeepDream video (temporal)</div>
+    <div class="knob-bank dream-video-only" id="dreamVideoBank">
+      ${knobUnitHtml({ id: 'dreamFrameStep', label: 'Frame step', value: '1' })}
+      ${knobUnitHtml({ id: 'dreamMaxFrames', label: 'Max frames', value: '0' })}
+      ${knobUnitHtml({ id: 'dreamTemporalBlend', label: 'Temporal blend', value: '0.85' })}
+      ${knobUnitHtml({ id: 'dreamOpticalFlow', label: 'Optical flow', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+      ${knobUnitHtml({ id: 'dreamLayerCycle', label: 'Layer cycle', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+    </div>
+    <p class="dream-hint dream-video-only">
+      <strong>Temporal blend</strong> (simple / gordicaleksa): alpha-mix last dream + current frame (0.85 classic; 1.0 = off).<br>
+      <strong>Optical flow</strong> (DeepDreamAnim — different &amp; stronger): warp the
+      <em>hallucination residual</em> with Farneback flow so patterns stick to motion.
+      When flow is On, temporal blend is ignored.<br>
+      <strong>Layer cycle</strong>: one layer per frame (DeepDreamAnim multi-layer loop).<br>
+      Frame step &gt; 1 holds last dream. Preview W (Ascent section) speeds iteration.
+    </p>
+
+    <div class="dream-section-title">Ouroboros (zoom / spin / translate)</div>
+    <div class="knob-bank">
+      ${knobUnitHtml({ id: 'dreamOuro', label: 'Ouroboros', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+    </div>
+    <p class="dream-hint">
+      Feedback loop from a <strong>still image</strong>: dream → geometric transform → feed back
+      (gordicaleksa/pytorch-deepdream). Writes a video even if input is a still.
+    </p>
+    <div class="dream-ouro-only" id="dreamOuroPanel">
+      <div class="form-group">
+        <label>Frame transform</label>
+        <select id="dreamFrameTransform">
+          <option value="zoom_rotate" selected>Zoom + Spin (classic spiral)</option>
+          <option value="zoom">Zoom only</option>
+          <option value="rotate">Spin only</option>
+          <option value="translate">Translate (5px diagonal pan)</option>
+          <option value="none">None (dream loop, no geometry)</option>
+        </select>
+      </div>
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'dreamOuroLen', label: 'Frames', value: '30' })}
+        ${knobUnitHtml({ id: 'dreamOuroFps', label: 'FPS', value: '30' })}
+        ${knobUnitHtml({ id: 'dreamZoom', label: 'Zoom', value: '1.04' })}
+        ${knobUnitHtml({ id: 'dreamSpin', label: 'Spin °', value: '1.5' })}
+        ${knobUnitHtml({ id: 'dreamTx', label: 'Pan X', value: '5' })}
+        ${knobUnitHtml({ id: 'dreamTy', label: 'Pan Y', value: '5' })}
+      </div>
+      <p class="dream-hint">
+        <strong>Zoom</strong> &gt; 1 zooms in each frame; <strong>Spin</strong> is °/frame @ 30&nbsp;fps.
+        <strong>Translate</strong>: +X/+Y = top-left → bottom-right (default 5&nbsp;px/frame, as in the README).
+        Motion auto-scales with FPS.
+      </p>
+    </div>
+  `;
+  elements.actionPanel.innerHTML = html;
+
+  // Continuous knobs
+  setupContinuousKnob({
+    knobId: 'dreamStepKnob', indicatorId: 'dreamStepKnobInd', valueId: 'dreamStepVal', hiddenId: 'dreamStep',
+    min: 0.001, max: 0.1, step: 0.001, decimals: 3,
+  });
+  setupContinuousKnob({
+    knobId: 'dreamItersKnob', indicatorId: 'dreamItersKnobInd', valueId: 'dreamItersVal', hiddenId: 'dreamIters',
+    min: 1, max: 100, step: 1, decimals: 0,
+  });
+  setupContinuousKnob({
+    knobId: 'dreamOctavesKnob', indicatorId: 'dreamOctavesKnobInd', valueId: 'dreamOctavesVal', hiddenId: 'dreamOctaves',
+    min: 1, max: 8, step: 1, decimals: 0,
+  });
+  setupContinuousKnob({
+    knobId: 'dreamOctScaleKnob', indicatorId: 'dreamOctScaleKnobInd', valueId: 'dreamOctScaleVal', hiddenId: 'dreamOctScale',
+    min: 1.1, max: 2.0, step: 0.05, decimals: 2,
+  });
+  setupContinuousKnob({
+    knobId: 'dreamMaxLossKnob', indicatorId: 'dreamMaxLossKnobInd', valueId: 'dreamMaxLossVal', hiddenId: 'dreamMaxLoss',
+    min: 0, max: 50, step: 0.5, decimals: 1, format: (v) => (v <= 0 ? 'off' : v.toFixed(1)),
+  });
+  setupContinuousKnob({
+    knobId: 'dreamBlendKnob', indicatorId: 'dreamBlendKnobInd', valueId: 'dreamBlendVal', hiddenId: 'dreamBlend',
+    min: 0, max: 1, step: 0.05, decimals: 2,
+  });
+  setupContinuousKnob({
+    knobId: 'dreamFrameStepKnob', indicatorId: 'dreamFrameStepKnobInd', valueId: 'dreamFrameStepVal', hiddenId: 'dreamFrameStep',
+    min: 1, max: 30, step: 1, decimals: 0,
+  });
+  setupContinuousKnob({
+    knobId: 'dreamMaxFramesKnob', indicatorId: 'dreamMaxFramesKnobInd', valueId: 'dreamMaxFramesVal', hiddenId: 'dreamMaxFrames',
+    min: 0, max: 500, step: 1, decimals: 0, format: (v) => (v <= 0 ? 'all' : String(Math.round(v))),
+  });
+  setupContinuousKnob({
+    knobId: 'dreamTemporalBlendKnob', indicatorId: 'dreamTemporalBlendKnobInd',
+    valueId: 'dreamTemporalBlendVal', hiddenId: 'dreamTemporalBlend',
+    min: 0, max: 1, step: 0.05, decimals: 2,
+    format: (v) => (v >= 0.999 ? 'off' : v.toFixed(2)),
+  });
+  setupContinuousKnob({
+    knobId: 'dreamPreviewWKnob', indicatorId: 'dreamPreviewWKnobInd',
+    valueId: 'dreamPreviewWVal', hiddenId: 'dreamPreviewW',
+    min: 0, max: 1280, step: 20, decimals: 0,
+    format: (v) => (v <= 0 ? 'full' : String(Math.round(v))),
+  });
+  setupContinuousKnob({
+    knobId: 'dreamOuroLenKnob', indicatorId: 'dreamOuroLenKnobInd', valueId: 'dreamOuroLenVal', hiddenId: 'dreamOuroLen',
+    min: 1, max: 300, step: 1, decimals: 0,
+  });
+  setupContinuousKnob({
+    knobId: 'dreamOuroFpsKnob', indicatorId: 'dreamOuroFpsKnobInd', valueId: 'dreamOuroFpsVal', hiddenId: 'dreamOuroFps',
+    min: 1, max: 60, step: 1, decimals: 0,
+  });
+  setupContinuousKnob({
+    knobId: 'dreamZoomKnob', indicatorId: 'dreamZoomKnobInd', valueId: 'dreamZoomVal', hiddenId: 'dreamZoom',
+    min: 0.9, max: 1.15, step: 0.005, decimals: 3,
+  });
+  setupContinuousKnob({
+    knobId: 'dreamSpinKnob', indicatorId: 'dreamSpinKnobInd', valueId: 'dreamSpinVal', hiddenId: 'dreamSpin',
+    min: -15, max: 15, step: 0.1, decimals: 1,
+  });
+  setupContinuousKnob({
+    knobId: 'dreamTxKnob', indicatorId: 'dreamTxKnobInd', valueId: 'dreamTxVal', hiddenId: 'dreamTx',
+    min: -20, max: 20, step: 0.5, decimals: 1,
+  });
+  setupContinuousKnob({
+    knobId: 'dreamTyKnob', indicatorId: 'dreamTyKnobInd', valueId: 'dreamTyVal', hiddenId: 'dreamTy',
+    min: -20, max: 20, step: 0.5, decimals: 1,
+  });
+
+  // Binary knobs
+  // Media: store image|video; Detect: 0=force 1=auto
+  setupBinaryKnob({
+    knobId: 'dreamMediaKnob', indicatorId: 'dreamMediaKnobInd', hiddenId: 'dreamMedia',
+    leftValue: 'image', rightValue: 'video', leftLabel: 'Image', rightLabel: 'Video',
+    initial: 'image',
+  });
+  setupBinaryKnob({
+    knobId: 'dreamAutoDetectKnob', indicatorId: 'dreamAutoDetectKnobInd', hiddenId: 'dreamAutoDetect',
+    leftValue: '0', rightValue: '1', initial: '1',
+  });
+  setupBinaryKnob({
+    knobId: 'dreamJitterKnob', indicatorId: 'dreamJitterKnobInd', hiddenId: 'dreamJitter',
+    leftValue: '0', rightValue: '1', initial: '1',
+  });
+  setupBinaryKnob({
+    knobId: 'dreamDetailKnob', indicatorId: 'dreamDetailKnobInd', hiddenId: 'dreamDetail',
+    leftValue: '0', rightValue: '1', initial: '1',
+  });
+  setupBinaryKnob({
+    knobId: 'dreamAudioKnob', indicatorId: 'dreamAudioKnobInd', hiddenId: 'dreamAudio',
+    leftValue: '0', rightValue: '1', initial: '1',
+  });
+  setupBinaryKnob({
+    knobId: 'dreamDryRunKnob', indicatorId: 'dreamDryRunKnobInd', hiddenId: 'dreamDryRun',
+    leftValue: '0', rightValue: '1', initial: '0',
+  });
+  setupBinaryKnob({
+    knobId: 'dreamOuroKnob', indicatorId: 'dreamOuroKnobInd', hiddenId: 'dreamOuro',
+    leftValue: '0', rightValue: '1', initial: '0',
+  });
+  setupBinaryKnob({
+    knobId: 'dreamOpticalFlowKnob', indicatorId: 'dreamOpticalFlowKnobInd', hiddenId: 'dreamOpticalFlow',
+    leftValue: '0', rightValue: '1', initial: '0',
+  });
+  setupBinaryKnob({
+    knobId: 'dreamLayerCycleKnob', indicatorId: 'dreamLayerCycleKnobInd', hiddenId: 'dreamLayerCycle',
+    leftValue: '0', rightValue: '1', initial: '0',
+  });
+
+  function rebuildLayerUiForModel(modelKey, { keepPreset = true } = {}) {
+    const spec = DREAM_MODELS[modelKey] || DREAM_MODELS.inception_v3;
+    const presetSel = document.getElementById('dreamLayerPreset');
+    const prevPreset = keepPreset ? (presetSel?.value || 'classic') : 'classic';
+    if (presetSel) {
+      presetSel.innerHTML = Object.entries(spec.presets)
+        .map(([k, label]) => `<option value="${k}">${label}</option>`)
+        .join('');
+      if (spec.presets[prevPreset]) presetSel.value = prevPreset;
+      else presetSel.value = 'classic';
+    }
+    const bank = document.getElementById('dreamLayerWeightsBank');
+    if (bank) {
+      bank.innerHTML = spec.layers.map((L) => {
+        const safeId = `dreamL_${L.id.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+        return knobUnitHtml({ id: safeId, label: L.label, value: String(L.def) });
+      }).join('');
+      spec.layers.forEach((L) => {
+        const safeId = `dreamL_${L.id.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+        setupContinuousKnob({
+          knobId: `${safeId}Knob`,
+          indicatorId: `${safeId}KnobInd`,
+          valueId: `${safeId}Val`,
+          hiddenId: safeId,
+          min: 0, max: 5, step: 0.1, decimals: 1,
+        });
+        // store real layer name for collect
+        const hid = document.getElementById(safeId);
+        if (hid) hid.dataset.layerName = L.id;
+      });
+    }
+  }
+
+  function syncDreamUiVisibility() {
+    const preset = document.getElementById('dreamLayerPreset')?.value;
+    const custom = preset === 'custom';
+    document.querySelectorAll('.dream-layer-weights').forEach((el) => {
+      el.classList.toggle('hidden', !custom);
+    });
+
+    const ouro = document.getElementById('dreamOuro')?.value === '1';
+    document.querySelectorAll('.dream-ouro-only').forEach((el) => {
+      el.classList.toggle('hidden', !ouro);
+    });
+
+    const auto = document.getElementById('dreamAutoDetect')?.value === '1';
+    const media = document.getElementById('dreamMedia')?.value || 'image';
+    const input = document.getElementById('dreamInput')?.value || '';
+    let showVideo = false;
+    if (!ouro) {
+      if (auto) {
+        showVideo = /\.(mp4|m4v|mov|mkv|webm|avi|mpg|mpeg)$/i.test(input);
+      } else {
+        showVideo = media === 'video';
+      }
+    }
+    document.querySelectorAll('.dream-video-only').forEach((el) => {
+      el.classList.toggle('hidden', !showVideo);
+    });
+  }
+
+  rebuildLayerUiForModel(document.getElementById('dreamModel')?.value || 'inception_v3');
+
+  document.getElementById('dreamModel')?.addEventListener('change', (e) => {
+    rebuildLayerUiForModel(e.target.value);
+    syncDreamUiVisibility();
+    logConsole(`[DEEPDREAM]: Model → ${e.target.value}`);
+  });
+  document.getElementById('dreamLayerPreset')?.addEventListener('change', syncDreamUiVisibility);
+  document.getElementById('dreamAutoDetect')?.addEventListener('change', syncDreamUiVisibility);
+  document.getElementById('dreamMedia')?.addEventListener('change', syncDreamUiVisibility);
+  document.getElementById('dreamOuro')?.addEventListener('change', syncDreamUiVisibility);
+  document.getElementById('dreamInput')?.addEventListener('input', syncDreamUiVisibility);
+
+  document.getElementById('btnDreamBrowseIn')?.addEventListener('click', () => {
+    // Prefer all files so both images and videos are visible
+    openFileBrowser('dreamInput', false, 'file', 'all');
+  });
+  document.getElementById('btnDreamBrowseOut')?.addEventListener('click', () => {
+    openFileBrowser('dreamOutput', false, 'file_save', 'all');
+  });
+  document.getElementById('btnDreamBrowseGuide')?.addEventListener('click', () => {
+    openFileBrowser('dreamGuide', false, 'file', 'image');
+  });
+
+  // Apply pending send-to path
+  if (state.pendingInputPath && state.pendingInputTarget === 'deepdream') {
+    const inp = document.getElementById('dreamInput');
+    if (inp) {
+      inp.value = state.pendingInputPath;
+      inp.dispatchEvent(new Event('input'));
+    }
+    state.pendingInputPath = null;
+    state.pendingInputTarget = null;
+  }
+
+  syncDreamUiVisibility();
+}
+
+function collectDeepDreamBody() {
+  const input = document.getElementById('dreamInput')?.value?.trim();
+  const output = document.getElementById('dreamOutput')?.value?.trim() || null;
+  if (!input) {
+    alert('Please provide an input image or video path.');
+    return null;
+  }
+
+  const auto = document.getElementById('dreamAutoDetect')?.value === '1';
+  const mediaKnob = document.getElementById('dreamMedia')?.value || 'image';
+  let media_kind = 'auto';
+  if (!auto) media_kind = mediaKnob === 'video' ? 'video' : 'image';
+
+  const maxFramesRaw = parseFloat(document.getElementById('dreamMaxFrames')?.value || '0');
+  const max_frames = maxFramesRaw > 0 ? Math.round(maxFramesRaw) : null;
+  const ouroboros = document.getElementById('dreamOuro')?.value === '1';
+  const guide = document.getElementById('dreamGuide')?.value?.trim() || null;
+  const previewW = parseInt(document.getElementById('dreamPreviewW')?.value || '0', 10);
+  const model_name = document.getElementById('dreamModel')?.value || 'inception_v3';
+  const layer_preset = document.getElementById('dreamLayerPreset')?.value || 'classic';
+
+  // Collect custom layer knobs (real names in data-layer-name)
+  const custom_layer_weights = {};
+  document.querySelectorAll('#dreamLayerWeightsBank input[type="hidden"][data-layer-name]').forEach((el) => {
+    const name = el.dataset.layerName;
+    const w = parseFloat(el.value);
+    if (name && Number.isFinite(w) && w > 0) custom_layer_weights[name] = w;
+  });
+
+  return {
+    input_path: input,
+    output_path: output,
+    media_kind,
+    model_name,
+    step: parseFloat(document.getElementById('dreamStep')?.value || '0.01'),
+    iterations: parseInt(document.getElementById('dreamIters')?.value || '20', 10),
+    num_octave: parseInt(document.getElementById('dreamOctaves')?.value || '3', 10),
+    octave_scale: parseFloat(document.getElementById('dreamOctScale')?.value || '1.4'),
+    max_loss: parseFloat(document.getElementById('dreamMaxLoss')?.value || '15'),
+    blend: parseFloat(document.getElementById('dreamBlend')?.value || '1'),
+    jitter: document.getElementById('dreamJitter')?.value === '1',
+    reinject_detail: document.getElementById('dreamDetail')?.value === '1',
+    keep_audio: document.getElementById('dreamAudio')?.value === '1',
+    layer_preset,
+    custom_layer_weights: layer_preset === 'custom' ? custom_layer_weights : null,
+    frame_step: parseInt(document.getElementById('dreamFrameStep')?.value || '1', 10),
+    max_frames,
+    temporal_blend: parseFloat(document.getElementById('dreamTemporalBlend')?.value || '0.85'),
+    optical_flow: document.getElementById('dreamOpticalFlow')?.value === '1',
+    layer_cycle: document.getElementById('dreamLayerCycle')?.value === '1',
+    guide_path: guide,
+    preview_width: previewW > 0 ? previewW : 0,
+    ouroboros,
+    ouroboros_length: parseInt(document.getElementById('dreamOuroLen')?.value || '30', 10),
+    ouroboros_fps: parseFloat(document.getElementById('dreamOuroFps')?.value || '30'),
+    frame_transform: document.getElementById('dreamFrameTransform')?.value || 'zoom_rotate',
+    zoom: parseFloat(document.getElementById('dreamZoom')?.value || '1.04'),
+    rotation_deg: parseFloat(document.getElementById('dreamSpin')?.value || '1.5'),
+    translate_x: parseFloat(document.getElementById('dreamTx')?.value || '5'),
+    translate_y: parseFloat(document.getElementById('dreamTy')?.value || '5'),
+    dry_run: document.getElementById('dreamDryRun')?.value === '1',
+  };
+}
+
+// ── Quick Transmute settings tab ──────────────────────────────────────────
+
+const QUICK_LS_KEY = 'fftransmute.quick';
+
+function loadQuickSettings() {
+  try {
+    const raw = localStorage.getItem(QUICK_LS_KEY);
+    if (!raw) return;
+    const o = JSON.parse(raw);
+    if (o && typeof o === 'object') {
+      if (['pad', 'crop', 'stretch'].includes(o.reconcile)) state.quick.reconcile = o.reconcile;
+      if (typeof o.aspect === 'string' && o.aspect) state.quick.aspect = o.aspect;
+      if (typeof o.aspectCustom === 'string') state.quick.aspectCustom = o.aspectCustom;
+    }
+  } catch (_) { /* ignore */ }
+}
+
+function saveQuickSettings() {
+  try {
+    localStorage.setItem(QUICK_LS_KEY, JSON.stringify({
+      reconcile: state.quick.reconcile || 'pad',
+      aspect: state.quick.aspect || 'auto',
+      aspectCustom: state.quick.aspectCustom || '',
+    }));
+  } catch (_) { /* ignore */ }
+}
+
+function resolveQuickAspect() {
+  let aspect = state.quick.aspect || 'auto';
+  if (aspect === 'custom') {
+    aspect = (state.quick.aspectCustom || '').trim();
+    if (!aspect || !/^(\d+:\d+|\d+x\d+)$/i.test(aspect)) {
+      return { ok: false, error: 'Custom AR needs W:H (e.g. 5:4) or WxH (e.g. 1080x1920).' };
+    }
+  }
+  return { ok: true, aspect, mode: state.quick.reconcile || 'pad' };
+}
+
+function quickTransmuteLabel() {
+  const r = resolveQuickAspect();
+  if (!r.ok) return 'Quick Transmute (configure…)';
+  const mode = r.mode;
+  const ar = r.aspect || 'auto';
+  return `Quick Transmute (${mode} · ${ar})`;
+}
+
+function renderQuickTransmuteForm() {
+  const rec = state.quick.reconcile || 'pad';
+  const aspect = state.quick.aspect || 'auto';
+  const custom = state.quick.aspectCustom || '';
+  const html = `
+    <div class="panel-title-desc">
+      <h3>Quick Transmute defaults</h3>
+      <p>
+        Same Fit / AR as sequence stitch. Configure once here, then
+        <strong>right-click</strong> any Media Pool clip → <em>Quick Transmute</em>.
+        One click: auto-names next to the source, no dialogs.
+      </p>
+    </div>
+
+    <div class="form-group">
+      <label>Fit mode</label>
+      <select id="quickReconcile">
+        <option value="pad" ${rec === 'pad' ? 'selected' : ''}>Pad (scale up, letterbox if AR differs)</option>
+        <option value="crop" ${rec === 'crop' ? 'selected' : ''}>Crop (scale up, center-crop if AR differs)</option>
+        <option value="stretch" ${rec === 'stretch' ? 'selected' : ''}>Stretch (warp AR)</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Target aspect ratio</label>
+      <div class="input-row" style="gap:8px; flex-wrap:wrap;">
+        <select id="quickAspect" style="flex:1; min-width:140px;">
+          <option value="auto" ${aspect === 'auto' ? 'selected' : ''}>Auto (source AR)</option>
+          <option value="1:1" ${aspect === '1:1' ? 'selected' : ''}>1:1</option>
+          <option value="16:9" ${aspect === '16:9' ? 'selected' : ''}>16:9</option>
+          <option value="9:16" ${aspect === '9:16' ? 'selected' : ''}>9:16</option>
+          <option value="3:2" ${aspect === '3:2' ? 'selected' : ''}>3:2</option>
+          <option value="2:3" ${aspect === '2:3' ? 'selected' : ''}>2:3</option>
+          <option value="4:3" ${aspect === '4:3' ? 'selected' : ''}>4:3</option>
+          <option value="3:4" ${aspect === '3:4' ? 'selected' : ''}>3:4</option>
+          <option value="custom" ${aspect === 'custom' ? 'selected' : ''}>Custom…</option>
+        </select>
+        <input type="text" id="quickAspectCustom" class="pool-aspect-custom"
+          placeholder="W:H or WxH" title="Custom aspect e.g. 5:4 or 1080x1920"
+          value="${escapeHtml(custom)}"
+          style="display:${aspect === 'custom' ? 'inline-block' : 'none'}; width: 140px;">
+      </div>
+    </div>
+
+    <div class="form-group quick-summary" id="quickSummary">
+      <label>Active preset</label>
+      <div class="quick-summary-box">
+        <code id="quickSummaryText">${escapeHtml(quickTransmuteLabel())}</code>
+        <p class="quick-summary-hint">
+          Right-click a pool card or use <strong>Send to → Quick Transmute</strong>.
+          Output lands beside the source as
+          <code>name_&lt;fit&gt;_&lt;ar&gt;_&lt;WxH&gt;.mp4</code>.
+        </p>
+      </div>
+    </div>
+
+    <div class="form-group" style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button type="button" class="btn" id="btnQuickCopySeq">Copy from sequence settings</button>
+      <button type="button" class="btn" id="btnQuickToPool">Open Media Pool</button>
+    </div>
+  `;
+  elements.actionPanel.innerHTML = html;
+
+  const syncSummary = () => {
+    const el = document.getElementById('quickSummaryText');
+    if (el) el.textContent = quickTransmuteLabel();
+  };
+
+  document.getElementById('quickReconcile')?.addEventListener('change', (e) => {
+    state.quick.reconcile = e.target.value;
+    saveQuickSettings();
+    syncSummary();
+  });
+  document.getElementById('quickAspect')?.addEventListener('change', (e) => {
+    state.quick.aspect = e.target.value;
+    const customEl = document.getElementById('quickAspectCustom');
+    if (customEl) customEl.style.display = state.quick.aspect === 'custom' ? 'inline-block' : 'none';
+    saveQuickSettings();
+    syncSummary();
+  });
+  document.getElementById('quickAspectCustom')?.addEventListener('input', (e) => {
+    state.quick.aspectCustom = e.target.value.trim();
+    saveQuickSettings();
+    syncSummary();
+  });
+  document.getElementById('btnQuickCopySeq')?.addEventListener('click', () => {
+    state.quick.reconcile = state.pool.reconcile || 'pad';
+    state.quick.aspect = state.pool.aspect || 'auto';
+    state.quick.aspectCustom = state.pool.aspectCustom || '';
+    saveQuickSettings();
+    renderQuickTransmuteForm();
+    logConsole(`[QUICK]: Copied sequence settings → ${quickTransmuteLabel()}`);
+  });
+  document.getElementById('btnQuickToPool')?.addEventListener('click', () => switchTab('pool'));
+}
+
+/**
+ * One-click fit using Quick Transmute settings. No dialogs; auto-named output.
+ */
+async function runQuickTransmute(path) {
+  if (!path) return;
+  const cfg = resolveQuickAspect();
+  if (!cfg.ok) {
+    alert(cfg.error + '\nOpen the Quick Transmute tab to fix AR.');
+    switchTab('quick');
+    return;
+  }
+
+  const body = {
+    input_path: path,
+    mode: cfg.mode,
+    aspect: cfg.aspect,
+    output_path: null,
+    dry_run: false,
+  };
+
+  elements.statusDot.className = 'status-dot loading';
+  elements.statusText.textContent = 'Quick Transmute…';
+  logConsole(`[QUICK]: POST /ops/fit\n${JSON.stringify(body, null, 2)}`);
+
+  try {
+    const response = await fetch('/ops/fit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+    }
+    const data = await response.json();
+    displayOpResult(data);
+    if (data.ok && data.output_path) {
+      addPathsToPool([data.output_path]);
+      if (state.activeTab === 'pool') {
+        renderPoolGrid();
+        refreshPoolToolbarCounts();
+      }
+      logConsole(`[QUICK]: Done → ${data.output_path}`);
+      elements.statusText.textContent = 'Quick Transmute done';
+    } else if (!data.ok) {
+      throw new Error(data.error || 'fit failed');
+    }
+  } catch (err) {
+    elements.statusDot.className = 'status-dot error';
+    elements.statusText.textContent = 'Quick Transmute failed';
+    logConsole(`[QUICK FAILED]: ${err.message}`, 'error');
+    alert(`Quick Transmute failed: ${err.message}`);
+  } finally {
+    await checkHealth();
   }
 }
 
@@ -360,13 +1883,11 @@ function updateMoshParams() {
 
   if (mode === 'melt') {
     html = `
-      <div class="form-group">
-        <label>Smear Tail (Memory): <span class="slider-val" id="valTail">18</span></label>
-        <div class="slider-container">
-          <input type="range" id="moshTail" min="1" max="100" value="18">
-        </div>
-        <span class="field-desc">Number of smear frames. Higher = longer, gooier drips.</span>
+      <div class="dream-section-title">Smear</div>
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'moshTail', label: 'Smear tail', value: '18' })}
       </div>
+      <p class="dream-hint">Memory length in frames. Higher = longer, gooier drips.</p>
 
       <!-- Vector Joystick Pad for Melt mode -->
       <div class="vector-pad-wrapper" style="margin-top: 16px;">
@@ -394,20 +1915,21 @@ function updateMoshParams() {
     `;
   } else if (mode === 'hijack') {
     html = `
-      <div class="form-group">
-        <label>Hijack Source Type</label>
-        <select id="hijackSourceSelect">
-          <option value="file">Image File (from disk)</option>
-          <option value="frame">Extract Frame (from this video)</option>
-        </select>
-        <span class="field-desc">Choose whether to inject a custom image file or grab an existing frame of the video.</span>
+      <div class="dream-section-title">Hijack</div>
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'hijackSourceSelect', label: 'Source', value: 'file', binary: true, leftCap: 'Image', rightCap: 'Frame' })}
+        ${knobUnitHtml({ id: 'hijackTransitionStyle', label: 'Transition', value: 'smear', binary: true, leftCap: 'Smear', rightCap: 'Freeze' })}
       </div>
+      <p class="dream-hint">
+        <strong>Smear</strong> keeps motion vectors (video motion drags the inject).
+        <strong>Freeze</strong> zeroes vectors (image holds still). Residuals cleared either way.
+      </p>
 
       <div class="form-group" id="groupHijackFile">
         <label>Injected Image Path</label>
         <div class="input-row">
           <input type="text" id="hijackImagePath" placeholder="/absolute/path/to/image.png">
-          <button class="btn" onclick="openFileBrowser('hijackImagePath', false)">Browse</button>
+          <button class="btn" onclick="openFileBrowser('hijackImagePath', false, 'file', 'image')">Browse</button>
         </div>
         <span class="field-desc">Image file to inject as the starting texture.</span>
       </div>
@@ -436,15 +1958,6 @@ function updateMoshParams() {
       <!-- Hidden inputs for backend compatibility -->
       <input type="number" id="hijackStartFrame" value="50" style="display: none;">
       <input type="number" id="hijackEndFrame" value="${maxFrames}" style="display: none;">
-
-      <div class="form-group">
-        <label>Transition Style</label>
-        <select id="hijackTransitionStyle">
-          <option value="smear">Smear (Keep Motion Vectors, Clear Residuals)</option>
-          <option value="freeze">Freeze (Zero Motion Vectors, Clear Residuals)</option>
-        </select>
-        <span class="field-desc">Choose whether the motion of the video drags the image or if it holds frozen still.</span>
-      </div>
     `;
   } else if (mode === 'destruct') {
     html = `
@@ -534,18 +2047,30 @@ function updateMoshParams() {
 
   // Re-attach listeners dynamically
   if (mode === 'melt') {
-    const tail = document.getElementById('moshTail');
-    if (tail) tail.addEventListener('input', (e) => document.getElementById('valTail').textContent = e.target.value);
-    
+    setupContinuousKnob({
+      knobId: 'moshTailKnob', indicatorId: 'moshTailKnobInd', valueId: 'moshTailVal', hiddenId: 'moshTail',
+      min: 1, max: 100, step: 1, decimals: 0,
+    });
     // Set up Melt joystick pad
     setupMeltPad();
   } else if (mode === 'hijack') {
-    const hjSelect = document.getElementById('hijackSourceSelect');
-    hjSelect.addEventListener('change', (e) => {
-      const isFile = e.target.value === 'file';
-      document.getElementById('groupHijackFile').style.display = isFile ? 'block' : 'none';
-      document.getElementById('groupHijackFrame').style.display = isFile ? 'none' : 'block';
+    setupBinaryKnob({
+      knobId: 'hijackSourceSelectKnob', indicatorId: 'hijackSourceSelectKnobInd', hiddenId: 'hijackSourceSelect',
+      leftValue: 'file', rightValue: 'frame', initial: 'file',
     });
+    setupBinaryKnob({
+      knobId: 'hijackTransitionStyleKnob', indicatorId: 'hijackTransitionStyleKnobInd', hiddenId: 'hijackTransitionStyle',
+      leftValue: 'smear', rightValue: 'freeze', initial: 'smear',
+    });
+    const syncHijackSource = () => {
+      const isFile = (document.getElementById('hijackSourceSelect')?.value || 'file') === 'file';
+      const gf = document.getElementById('groupHijackFile');
+      const gr = document.getElementById('groupHijackFrame');
+      if (gf) gf.style.display = isFile ? 'block' : 'none';
+      if (gr) gr.style.display = isFile ? 'none' : 'block';
+    };
+    document.getElementById('hijackSourceSelect')?.addEventListener('change', syncHijackSource);
+    syncHijackSource();
 
     setupTimelineSlider('hijackStartFrame', 'hijackEndFrame', 50, maxFrames);
   } else if (mode === 'destruct') {
@@ -1122,16 +2647,11 @@ function renderTransmuteForm() {
       <!-- Injected dynamically -->
     </div>
 
-    <div class="form-group horizontal">
-      <label for="transmuteDryRun">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-        Dry Run Mode (Output shell command only)
-      </label>
-      <label class="switch">
-        <input type="checkbox" id="transmuteDryRun">
-        <span class="slider"></span>
-      </label>
+    <div class="dream-section-title">Run</div>
+    <div class="knob-bank">
+      ${knobUnitHtml({ id: 'transmuteDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
     </div>
+    <p class="dream-hint">Dry = print shell command only, no file written.</p>
   `;
 
   elements.actionPanel.innerHTML = html;
@@ -1141,6 +2661,11 @@ function renderTransmuteForm() {
   select.addEventListener('change', (e) => {
     activeTransmuteOp = e.target.value;
     updateTransmuteExtras();
+  });
+
+  setupBinaryKnob({
+    knobId: 'transmuteDryRunKnob', indicatorId: 'transmuteDryRunKnobInd', hiddenId: 'transmuteDryRun',
+    leftValue: '0', rightValue: '1', initial: '0',
   });
 
   updateTransmuteExtras();
@@ -1156,51 +2681,65 @@ function updateTransmuteExtras() {
 
   if (fields.includes('quality')) {
     const isPng = activeTransmuteOp === 'first_frame';
-    const desc = isPng ? "PNG compression scale. 2-31, lower is higher quality." : "JPEG compression scale. 2-31, lower is higher quality.";
+    const desc = isPng
+      ? 'PNG compression scale. 2–31, lower is higher quality.'
+      : 'JPEG compression scale. 2–31, lower is higher quality.';
     html += `
-      <div class="form-group">
-        <label>Extract Quality: <span class="slider-val" id="valQuality">2</span></label>
-        <div class="slider-container">
-          <input type="range" id="transmuteQuality" min="2" max="31" value="2">
-        </div>
-        <span class="field-desc">${desc}</span>
+      <div class="dream-section-title">Extract</div>
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'transmuteQuality', label: 'Quality', value: '2' })}
       </div>
+      <p class="dream-hint">${desc}</p>
     `;
   }
 
   if (fields.includes('seconds_from_end')) {
     html += `
-      <div class="form-group">
-        <label>Seconds From End</label>
-        <input type="number" id="transmuteSecondsFromEnd" value="0.1" step="0.1" min="0.0">
-        <span class="field-desc">How far from the end of the video clip to seek before extracting the frame.</span>
+      <div class="dream-section-title">Seek</div>
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'transmuteSecondsFromEnd', label: 'From end (s)', value: '0.1' })}
       </div>
+      <p class="dream-hint">How far from the end of the clip to seek before grabbing the frame.</p>
     `;
   }
 
   if (fields.includes('width') || fields.includes('height')) {
     html += `
-      <div style="display: flex; gap: 16px; margin-bottom: 16px;">
-        <div class="form-group" style="flex: 1; margin-bottom: 0;">
-          <label>Width (px)</label>
-          <input type="number" id="transmuteWidth" value="1920" step="2" min="16">
-        </div>
-        <div class="form-group" style="flex: 1; margin-bottom: 0;">
-          <label>Height (px)</label>
-          <input type="number" id="transmuteHeight" value="1080" step="2" min="16">
-        </div>
+      <div class="dream-section-title">Size</div>
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'transmuteWidth', label: 'Width', value: '1920' })}
+        ${knobUnitHtml({ id: 'transmuteHeight', label: 'Height', value: '1080' })}
       </div>
-      <span class="field-desc" style="display: block; margin-top: -8px; margin-bottom: 16px;">Resolution dimensions. Whole, even numbers only.</span>
+      <p class="dream-hint">Resolution in pixels (prefer even numbers).</p>
     `;
   }
 
   extrasContainer.innerHTML = html;
 
-  // Set up listeners for new sliders
-  const quality = document.getElementById('transmuteQuality');
-  if (quality) {
-    quality.addEventListener('input', (e) => {
-      document.getElementById('valQuality').textContent = e.target.value;
+  if (fields.includes('quality')) {
+    setupContinuousKnob({
+      knobId: 'transmuteQualityKnob', indicatorId: 'transmuteQualityKnobInd',
+      valueId: 'transmuteQualityVal', hiddenId: 'transmuteQuality',
+      min: 2, max: 31, step: 1, decimals: 0,
+    });
+  }
+  if (fields.includes('seconds_from_end')) {
+    setupContinuousKnob({
+      knobId: 'transmuteSecondsFromEndKnob', indicatorId: 'transmuteSecondsFromEndKnobInd',
+      valueId: 'transmuteSecondsFromEndVal', hiddenId: 'transmuteSecondsFromEnd',
+      min: 0, max: 5, step: 0.05, decimals: 2,
+    });
+  }
+  if (fields.includes('width') || fields.includes('height')) {
+    setupContinuousKnob({
+      knobId: 'transmuteWidthKnob', indicatorId: 'transmuteWidthKnobInd',
+      valueId: 'transmuteWidthVal', hiddenId: 'transmuteWidth',
+      min: 16, max: 7680, step: 2, decimals: 0, sensitivity: 220,
+    });
+    setupContinuousKnob({
+      knobId: 'transmuteHeightKnob', indicatorId: 'transmuteHeightKnobInd',
+      valueId: 'transmuteHeightVal', hiddenId: 'transmuteHeight',
+      min: 16, max: 4320, step: 2, decimals: 0, sensitivity: 220,
     });
   }
 }
@@ -1259,19 +2798,19 @@ function renderMultiForm() {
       <span class="field-desc">Where the merged output video will be written.</span>
     </div>
 
-    <div class="form-group horizontal">
-      <label for="multiDryRun">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-        Dry Run Mode (Output shell command only)
-      </label>
-      <label class="switch">
-        <input type="checkbox" id="multiDryRun">
-        <span class="slider"></span>
-      </label>
+    <div class="dream-section-title">Run</div>
+    <div class="knob-bank">
+      ${knobUnitHtml({ id: 'multiDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
     </div>
+    <p class="dream-hint">Dry = print shell command only, no file written.</p>
   `;
 
   elements.actionPanel.innerHTML = html;
+
+  setupBinaryKnob({
+    knobId: 'multiDryRunKnob', indicatorId: 'multiDryRunKnobInd', hiddenId: 'multiDryRun',
+    leftValue: '0', rightValue: '1', initial: '0',
+  });
 
   // Add listeners
   const modeRadios = document.querySelectorAll('input[name="multiMode"]');
@@ -1392,19 +2931,19 @@ function renderAdvancedForm() {
       <span class="field-desc">Where the output file will be written. Auto-named if blank.</span>
     </div>
 
-    <div class="form-group horizontal">
-      <label for="advDryRun">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-        Dry Run Mode (Output shell command only)
-      </label>
-      <label class="switch">
-        <input type="checkbox" id="advDryRun">
-        <span class="slider"></span>
-      </label>
+    <div class="dream-section-title">Run</div>
+    <div class="knob-bank">
+      ${knobUnitHtml({ id: 'advDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
     </div>
+    <p class="dream-hint">Dry = print shell command only, no file written.</p>
   `;
 
   elements.actionPanel.innerHTML = html;
+
+  setupBinaryKnob({
+    knobId: 'advDryRunKnob', indicatorId: 'advDryRunKnobInd', hiddenId: 'advDryRun',
+    leftValue: '0', rightValue: '1', initial: '0',
+  });
 }
 
 
@@ -2013,7 +3552,10 @@ function renderPoolGrid() {
         <div class="pool-send-wrap">
           <button type="button" class="btn pool-send-btn" title="Send this clip to a tool">Send to ▾</button>
           <div class="pool-send-menu" hidden>
+            <button type="button" class="pool-send-item pool-send-quick" data-send="quick">${escapeHtml(quickTransmuteLabel())}</button>
+            <div class="pool-send-sep"></div>
             <button type="button" class="pool-send-item" data-send="mosh">Datamosh</button>
+            <button type="button" class="pool-send-item" data-send="deepdream">DeepDream</button>
             <button type="button" class="pool-send-item" data-send="transmute">Transmute</button>
             <button type="button" class="pool-send-item" data-send="multi">Multi (Join/Grid)</button>
             <button type="button" class="pool-send-item" data-send="advanced">Raw CLI</button>
@@ -2119,6 +3661,15 @@ function renderPoolGrid() {
     card.addEventListener('dblclick', (e) => {
       if (e.target.closest('.pool-card-remove, .pool-send-wrap')) return;
       addPathToSequence(item.path);
+    });
+
+    // Right-click context menu (Quick Transmute + send targets)
+    card.addEventListener('contextmenu', (e) => {
+      if (e.target.closest('.pool-card-remove')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      selectPoolItem(item.path);
+      showPoolContextMenu(e.clientX, e.clientY, item.path);
     });
 
     grid.appendChild(card);
@@ -4068,6 +5619,11 @@ function sendPoolPathTo(path, target) {
     return;
   }
 
+  if (target === 'quick') {
+    runQuickTransmute(path);
+    return;
+  }
+
   if (target === 'sequence') {
     addPathToSequence(path);
     logConsole(`[POOL]: Sent to sequence → ${basename(path)}`);
@@ -4093,6 +5649,14 @@ function sendPoolPathTo(path, target) {
       input.dispatchEvent(new Event('input'));
     }
     logConsole(`[POOL]: Sent to Datamosh → ${path}`);
+  } else if (target === 'deepdream') {
+    switchTab('deepdream');
+    const input = document.getElementById('dreamInput');
+    if (input) {
+      input.value = path;
+      input.dispatchEvent(new Event('input'));
+    }
+    logConsole(`[POOL]: Sent to DeepDream → ${path}`);
   } else if (target === 'transmute') {
     switchTab('transmute');
     const input = document.getElementById('transmuteInput');
@@ -4201,14 +5765,87 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('.pool-send-wrap')) return;
   document.querySelectorAll('.pool-send-menu:not([hidden])').forEach(m => { m.hidden = true; });
   document.querySelectorAll('.pool-card.menu-open').forEach(c => c.classList.remove('menu-open'));
+  if (!e.target.closest('.pool-ctx-menu')) hidePoolContextMenu();
 });
 
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') hidePoolContextMenu();
+});
+
+// ── Pool right-click context menu ─────────────────────────────────────────
+
+function hidePoolContextMenu() {
+  const m = document.getElementById('poolCtxMenu');
+  if (m) m.remove();
+}
+
+function showPoolContextMenu(x, y, path) {
+  hidePoolContextMenu();
+  const menu = document.createElement('div');
+  menu.id = 'poolCtxMenu';
+  menu.className = 'pool-ctx-menu';
+  menu.setAttribute('role', 'menu');
+  menu.innerHTML = `
+    <button type="button" class="pool-ctx-item pool-ctx-quick" data-act="quick">${escapeHtml(quickTransmuteLabel())}</button>
+    <div class="pool-ctx-sep"></div>
+    <button type="button" class="pool-ctx-item" data-act="sequence">Add to sequence</button>
+    <button type="button" class="pool-ctx-item" data-act="preview">Preview</button>
+    <button type="button" class="pool-ctx-item" data-act="mosh">Send → Datamosh</button>
+    <button type="button" class="pool-ctx-item" data-act="deepdream">Send → DeepDream</button>
+    <button type="button" class="pool-ctx-item" data-act="transmute">Send → Transmute</button>
+    <button type="button" class="pool-ctx-item" data-act="multi">Send → Multi</button>
+    <button type="button" class="pool-ctx-item" data-act="advanced">Send → Raw CLI</button>
+    <div class="pool-ctx-sep"></div>
+    <button type="button" class="pool-ctx-item" data-act="save_first_png">Save first frame PNG…</button>
+    <button type="button" class="pool-ctx-item" data-act="save_last_png">Save last frame PNG…</button>
+    <div class="pool-ctx-sep"></div>
+    <button type="button" class="pool-ctx-item pool-ctx-muted" data-act="quick_setup">Configure Quick Transmute…</button>
+  `;
+  document.body.appendChild(menu);
+
+  // Position, clamp to viewport
+  const pad = 6;
+  const rect = menu.getBoundingClientRect();
+  let left = x;
+  let top = y;
+  if (left + rect.width > window.innerWidth - pad) left = window.innerWidth - rect.width - pad;
+  if (top + rect.height > window.innerHeight - pad) top = window.innerHeight - rect.height - pad;
+  if (left < pad) left = pad;
+  if (top < pad) top = pad;
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+
+  menu.querySelectorAll('.pool-ctx-item').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const act = btn.dataset.act;
+      hidePoolContextMenu();
+      if (act === 'quick_setup') {
+        switchTab('quick');
+        return;
+      }
+      sendPoolPathTo(path, act);
+    });
+  });
+}
+
 // File Browser Logic
-window.openFileBrowser = async function(targetInputId, selectDirOnly = false, mode = 'file') {
+// mode: 'file' | 'file_save' | 'dir'
+// filter: 'video' | 'image' | 'project' | 'all' (passed to /api/picker)
+window.openFileBrowser = async function(targetInputId, selectDirOnly = false, mode = 'file', filter = null) {
   let pickerMode = 'file';
   if (selectDirOnly) pickerMode = 'dir';
   else if (mode === 'file_save') pickerMode = 'save';
   else if (mode === 'dir') pickerMode = 'dir';
+
+  // Infer filter from target when not specified
+  let fileFilter = filter;
+  if (!fileFilter) {
+    if (targetInputId === 'hijackImagePath') fileFilter = 'image';
+    else if (mode === 'file_save' || pickerMode === 'save') fileFilter = 'video';
+    else if (pickerMode === 'dir') fileFilter = 'all';
+    else fileFilter = 'video';
+  }
   
   let startPath = '';
   if (targetInputId !== 'addMultiClip') {
@@ -4222,7 +5859,9 @@ window.openFileBrowser = async function(targetInputId, selectDirOnly = false, mo
   elements.statusText.textContent = 'Waiting for file picker...';
   
   try {
-    const url = `/api/picker?mode=${pickerMode}&start_path=${encodeURIComponent(startPath)}`;
+    const url = `/api/picker?mode=${pickerMode}`
+      + `&start_path=${encodeURIComponent(startPath)}`
+      + `&filter=${encodeURIComponent(fileFilter)}`;
     const response = await fetch(url);
     if (!response.ok) throw new Error(await response.text());
     
@@ -4418,8 +6057,216 @@ function formatBytes(bytes, decimals = 2) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
+// ── Job run / cooperative stop ────────────────────────────────────────────
+// Stop is cooperative: we abort the fetch + POST /api/cancel so DeepDream
+// loops exit soon. ffmpeg/transmute mid-process may still finish the current
+// subprocess — that's a hard limit of shelling out without process groups.
+
+let activeJob = {
+  token: null,
+  controller: null,
+  stopping: false,
+  pollTimer: null,
+  lastProgressKey: '',
+};
+
+function formatJobLine(p) {
+  if (!p || !p.found) return null;
+  const parts = ['[PROGRESS]'];
+  if (p.phase) parts.push(`[${p.phase}]`);
+  if (p.total > 0) {
+    parts.push(`${p.current || 0}/${p.total}${p.unit ? ' ' + p.unit : ''}`);
+    if (p.pct != null) parts.push(`(${p.pct}%)`);
+  }
+  if (p.message) parts.push(p.message);
+  parts.push(`| elapsed ${p.elapsed_h || '—'}`);
+  if (p.eta_s != null && p.eta_s > 0 && p.status === 'running') {
+    parts.push(`| ETA ${p.eta_h || '—'}`);
+  }
+  return parts.join(' ');
+}
+
+function stopJobProgressPoll() {
+  if (activeJob.pollTimer) {
+    clearInterval(activeJob.pollTimer);
+    activeJob.pollTimer = null;
+  }
+}
+
+function startJobProgressPoll(token) {
+  stopJobProgressPoll();
+  if (!token) return;
+  activeJob.lastProgressKey = '';
+
+  const tick = async () => {
+    if (!activeJob.token || activeJob.token !== token) return;
+    try {
+      const res = await fetch(`/api/job/${encodeURIComponent(token)}`);
+      if (!res.ok) return;
+      const p = await res.json();
+      if (!p || !p.found) return;
+
+      // status bar: compact
+      if (elements.statusText && p.status === 'running') {
+        let st = p.message || 'Processing…';
+        if (p.total > 0) st = `${p.current || 0}/${p.total} · ${p.elapsed_h || ''}`
+          + (p.eta_s != null && p.eta_s > 0 ? ` · ETA ${p.eta_h}` : '');
+        elements.statusText.textContent = st;
+      }
+
+      // console: only when something meaningful changes
+      const key = `${p.phase}|${p.current}|${p.total}|${p.message}|${p.status}`;
+      if (key !== activeJob.lastProgressKey) {
+        activeJob.lastProgressKey = key;
+        const line = formatJobLine(p);
+        if (line) logConsole(line);
+      }
+    } catch (_) {
+      // ignore poll errors while job runs
+    }
+  };
+
+  // first tick soon, then every 1.5s
+  tick();
+  activeJob.pollTimer = setInterval(tick, 1500);
+}
+
+function setRunUiBusy(busy, { stopping = false } = {}) {
+  if (elements.btnRun) {
+    elements.btnRun.disabled = busy;
+    if (busy) {
+      elements.btnRun.innerHTML = stopping
+        ? `<span style="animation: pulse-dot 1s infinite;">●</span> Stopping…`
+        : `<span style="animation: pulse-dot 1s infinite;">●</span> Processing…`;
+    } else {
+      elements.btnRun.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        Run Operation
+      `;
+    }
+  }
+  if (elements.btnStop) {
+    elements.btnStop.hidden = !busy;
+    elements.btnStop.disabled = stopping;
+  }
+}
+
+function newJobToken() {
+  if (crypto?.randomUUID) return crypto.randomUUID().replace(/-/g, '');
+  return `${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
+}
+
+async function stopActiveOperation() {
+  if (!activeJob.token && !activeJob.controller) {
+    logConsole('[STOP]: Nothing running');
+    return;
+  }
+  activeJob.stopping = true;
+  setRunUiBusy(true, { stopping: true });
+  elements.statusText.textContent = 'Stopping…';
+  logConsole('[STOP]: Cancel requested — waiting for cooperative exit…');
+
+  const token = activeJob.token;
+  try {
+    if (token) {
+      await fetch('/api/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+    }
+  } catch (err) {
+    logConsole(`[STOP]: cancel API: ${err.message}`, 'error');
+  }
+  try {
+    activeJob.controller?.abort();
+  } catch (_) { /* ignore */ }
+}
+
+/**
+ * POST /ops/<id> with job token + abort support. Shared by Run, Stitch, Quick.
+ */
+async function runOpWithCancel(opId, body, { label = 'Processing…' } = {}) {
+  if (activeJob.controller) {
+    // one job at a time in the UI
+    logConsole('[JOB]: Already running — stop first or wait', 'error');
+    throw new Error('A job is already running');
+  }
+
+  const token = newJobToken();
+  const controller = new AbortController();
+  stopJobProgressPoll();
+  activeJob = { token, controller, stopping: false, pollTimer: null, lastProgressKey: '' };
+
+  elements.statusDot.className = 'status-dot loading';
+  elements.statusText.textContent = label;
+  setRunUiBusy(true);
+  startJobProgressPoll(token);
+
+  logConsole(`[EXECUTE]: POST /ops/${opId} (job ${token.slice(0, 8)}…)\nParameters: ${JSON.stringify(body, null, 2)}`);
+  logConsole('[PROGRESS]: live updates every ~1.5s (elapsed / count / ETA when known)');
+
+  try {
+    const response = await fetch(`/ops/${opId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Job-Token': token,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    if (data && data.error === 'Cancelled by user') {
+      elements.statusDot.className = 'status-dot';
+      elements.statusText.textContent = 'Stopped';
+      logConsole('[STOP]: Operation cancelled', 'error');
+      displayOpResult(data);
+      return data;
+    }
+    displayOpResult(data);
+    return data;
+  } catch (err) {
+    if (err.name === 'AbortError' || activeJob.stopping) {
+      elements.statusDot.className = 'status-dot';
+      elements.statusText.textContent = 'Stopped';
+      logConsole('[STOP]: Fetch aborted (server may still wind down current step)');
+      return { ok: false, error: 'Cancelled by user', operation: opId };
+    }
+    elements.statusDot.className = 'status-dot error';
+    elements.statusText.textContent = 'Failed';
+    logConsole(`[EXECUTION FAILED]: ${err.message}`, 'error');
+    throw err;
+  } finally {
+    stopJobProgressPoll();
+    // one last progress fetch for final stats
+    try {
+      const res = await fetch(`/api/job/${encodeURIComponent(token)}`);
+      if (res.ok) {
+        const p = await res.json();
+        const line = formatJobLine(p);
+        if (line) logConsole(line + ' · final');
+      }
+    } catch (_) { /* ignore */ }
+    activeJob = { token: null, controller: null, stopping: false, pollTimer: null, lastProgressKey: '' };
+    setRunUiBusy(false);
+  }
+}
+
 // Running Operations
 async function runActiveOperation() {
+  if (activeJob.controller) {
+    alert('A job is already running. Hit Stop first, or wait for it to finish.');
+    return;
+  }
   const tab = state.activeTab;
   let opId = '';
   let body = {};
@@ -4485,7 +6332,8 @@ async function runActiveOperation() {
   } else if (tab === 'transmute') {
     const input = document.getElementById('transmuteInput')?.value;
     const output = document.getElementById('transmuteOutput')?.value || null;
-    const dryRun = document.getElementById('transmuteDryRun')?.checked || false;
+    const dryRun = document.getElementById('transmuteDryRun')?.value === '1'
+      || document.getElementById('transmuteDryRun')?.checked || false;
     
     if (!input) {
       alert("Please provide an Input path.");
@@ -4502,20 +6350,21 @@ async function runActiveOperation() {
     // Add extra params if needed
     const fields = transmuteOpsDetails[activeTransmuteOp].fields;
     if (fields.includes('quality')) {
-      body.quality = parseInt(document.getElementById('transmuteQuality').value);
+      body.quality = parseInt(document.getElementById('transmuteQuality').value, 10);
     }
     if (fields.includes('seconds_from_end')) {
       body.seconds_from_end = parseFloat(document.getElementById('transmuteSecondsFromEnd').value);
     }
     if (fields.includes('width')) {
-      body.width = parseInt(document.getElementById('transmuteWidth').value);
-      body.height = parseInt(document.getElementById('transmuteHeight').value);
+      body.width = parseInt(document.getElementById('transmuteWidth').value, 10);
+      body.height = parseInt(document.getElementById('transmuteHeight').value, 10);
     }
   } else if (tab === 'multi') {
     const mode = activeMultiMode; // 'join' or 'grid'
     const reconcile = document.getElementById('multiReconcile')?.value || 'pad';
     const output = document.getElementById('multiOutput')?.value || null;
-    const dryRun = document.getElementById('multiDryRun')?.checked || false;
+    const dryRun = document.getElementById('multiDryRun')?.value === '1'
+      || document.getElementById('multiDryRun')?.checked || false;
     
     if (state.multiClips.length < (mode === 'grid' ? 4 : 2)) {
       alert(mode === 'grid' ? "Grid mode requires exactly 4 clips." : "Stitch mode requires 2 or more clips.");
@@ -4533,11 +6382,32 @@ async function runActiveOperation() {
       output_path: output,
       dry_run: dryRun
     };
+  } else if (tab === 'deepdream') {
+    const dreamBody = collectDeepDreamBody();
+    if (!dreamBody) return;
+    opId = 'deepdream';
+    body = dreamBody;
+  } else if (tab === 'facemorph') {
+    const fmBody = collectFaceMorphBody();
+    if (!fmBody) return;
+    opId = 'facemorph';
+    body = fmBody;
+  } else if (tab === 'withoutbg') {
+    const wbgBody = collectWithoutBgBody();
+    if (!wbgBody) return;
+    opId = 'withoutbg';
+    body = wbgBody;
+  } else if (tab === 'styletransfer') {
+    const stBody = collectStyleTransferBody();
+    if (!stBody) return;
+    opId = 'styletransfer';
+    body = stBody;
   } else if (tab === 'advanced') {
     const input = document.getElementById('advInput')?.value;
     const flagsStr = document.getElementById('advFlags')?.value || '';
     const output = document.getElementById('advOutput')?.value || null;
-    const dryRun = document.getElementById('advDryRun')?.checked || false;
+    const dryRun = document.getElementById('advDryRun')?.value === '1'
+      || document.getElementById('advDryRun')?.checked || false;
 
     if (!input) {
       alert("Please provide an Input path.");
@@ -4555,42 +6425,17 @@ async function runActiveOperation() {
     };
   }
 
-  // Execute Request
-  elements.statusDot.className = 'status-dot loading';
-  elements.statusText.textContent = 'Processing...';
-  elements.btnRun.disabled = true;
-  elements.btnRun.innerHTML = `<span style="animation: pulse-dot 1s infinite;">●</span> Processing...`;
-  
-  logConsole(`[EXECUTE]: POST /ops/${opId}\nParameters: ${JSON.stringify(body, null, 2)}`);
+  if (!opId) {
+    alert('Nothing to run on this tab.');
+    return;
+  }
 
   try {
-    const response = await fetch(`/ops/${opId}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(body)
+    await runOpWithCancel(opId, body, {
+      label: tab === 'deepdream' ? 'DeepDream… (Stop available)' : 'Processing…',
     });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`HTTP ${response.status}: ${errorText}`);
-    }
-
-    const data = await response.json();
-    displayOpResult(data);
-  } catch (err) {
-    elements.statusDot.className = 'status-dot error';
-    elements.statusText.textContent = 'Failed';
-    logConsole(`[EXECUTION FAILED]: ${err.message}`);
-  } finally {
-    elements.btnRun.disabled = false;
-    elements.btnRun.innerHTML = `
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="5 3 19 12 5 21 5 3"/>
-      </svg>
-      Run Operation
-    `;
+  } catch (_) {
+    // already logged
   }
 }
 
@@ -4608,6 +6453,12 @@ function displayOpResult(res) {
   }
 
   if (!res.ok) {
+    if (res.error === 'Cancelled by user') {
+      elements.statusDot.className = 'status-dot';
+      elements.statusText.textContent = 'Stopped';
+      logConsole(`[STOPPED]: ${res.operation || 'job'} cancelled by user`, 'error');
+      return;
+    }
     elements.statusDot.className = 'status-dot error';
     elements.statusText.textContent = 'Failed';
     logConsole(`[ERROR]: ${res.error || 'Operation failed'}`, 'error');

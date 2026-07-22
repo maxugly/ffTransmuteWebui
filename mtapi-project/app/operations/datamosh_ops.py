@@ -34,6 +34,8 @@ async def _execute_mosh_pipeline(
     start_frame: int = 1,
     end_frame: int = 999999
 ) -> OperationResult:
+    from ..pathutil import unique_output_path
+
     # Validate input file
     if not os.path.exists(input_path):
         return OperationResult(
@@ -41,6 +43,9 @@ async def _execute_mosh_pipeline(
             operation=operation,
             error=f"Input file not found: {input_path}"
         )
+
+    # Never overwrite a previous mosh result at the same path
+    output_path = str(unique_output_path(output_path))
 
     cwd = os.path.dirname(os.path.abspath(input_path))
     

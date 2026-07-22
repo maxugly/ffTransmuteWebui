@@ -11,9 +11,11 @@ Layout under ~/.cache/mtapi/media/ (override with MTAPI_MEDIA_CACHE):
   by_hash/<hash>/
     record.json              meta, paths seen, history of ops/opens
     first.jpg / last.jpg     frame thumbs (kept forever once generated)
+    last.extract_v           extract-method version (stale lasts re-extracted)
 
-First open of a clip is slow (hash + optional thumb extract). After that
-everything is disk hits.
+First open of a clip is slow (hash + last-frame decode to EOF). After that
+everything is disk hits. Last frame uses ``-update 1`` through EOF so
+B-frames yield the true final display frame, not a near-end keyframe.
 """
 from __future__ import annotations
 
@@ -71,6 +73,58 @@ def _thumb_path(content_hash: str, which: str) -> Path:
 def _phash_path(content_hash: str, which: str) -> Path:
     """Perceptual hash text file (hex) for first/last frame."""
     return _hash_dir(content_hash) / f"{which}.phash"
+
+
+# Frame extract quality version — bump to force re-extraction of cached thumbs.
+# v1: -sseof + -frames:v 1  → often a near-end keyframe, not true last display frame
+# v2: decode forward to EOF with -update 1 → true last frame (B-frames OK)
+FRAME_EXTRACT_VERSION = 2
+
+
+def _extract_ver_path(content_hash: str, which: str) -> Path:
+    return _hash_dir(content_hash) / f"{which}.extract_v"
+
+
+def _thumb_is_current(content_hash: str, which: str) -> bool:
+    """True if cached thumb exists and was produced with the current extract method."""
+    tp = _thumb_path(content_hash, which)
+    if not tp.exists() or tp.stat().st_size <= 0:
+        return False
+    # First-frame method is unchanged; only last needs version gate
+    if which != "last":
+        return True
+    vp = _extract_ver_path(content_hash, which)
+    try:
+        return vp.read_text(encoding="utf-8").strip() == str(FRAME_EXTRACT_VERSION)
+    except Exception:
+        return False
+
+
+def _mark_extract_version(content_hash: str, which: str) -> None:
+    d = _hash_dir(content_hash)
+    d.mkdir(parents=True, exist_ok=True)
+    try:
+        _extract_ver_path(content_hash, which).write_text(
+            f"{FRAME_EXTRACT_VERSION}\n", encoding="utf-8"
+        )
+    except Exception:
+        pass
+
+
+def _invalidate_stale_last_thumb(content_hash: str) -> None:
+    """Drop last.jpg + last.phash when produced by the old (inaccurate) method."""
+    if _thumb_is_current(content_hash, "last"):
+        return
+    for p in (
+        _thumb_path(content_hash, "last"),
+        _phash_path(content_hash, "last"),
+        _extract_ver_path(content_hash, "last"),
+    ):
+        try:
+            if p.exists():
+                p.unlink()
+        except OSError:
+            pass
 
 
 def _path_key(path: Path) -> str:
@@ -243,8 +297,57 @@ def append_history(
 
 # ── frame extraction (hash-keyed paths) ────────────────────────────────────
 
+def _last_frame_ffmpeg_cmds(
+    path: Path,
+    out_path: Path,
+    *,
+    scale: str | None = None,
+    q: int = 4,
+) -> list[list[str]]:
+    """Build ffmpeg command ladder for the *true* last display frame.
+
+    Old approach used ``-sseof -0.5 -frames:v 1`` which grabs the first frame
+    after a near-end keyframe seek — often wrong with B-frames / open GOPs.
+
+    Correct approach: seek near the end (for speed), then decode *all*
+    remaining frames and keep overwriting the output with ``-update 1``.
+    The file that remains after EOF is the actual last presentation frame.
+    Fall back to longer windows, then a full-file decode if needed.
+    """
+    vf = ["-vf", scale] if scale else []
+    # -vsync 0 / fps_mode passthrough: process every decoded frame (no drop)
+    common_tail = [
+        "-an", "-sn",
+        "-vsync", "0",
+        *vf,
+        "-update", "1",
+        "-q:v", str(q),
+        str(out_path),
+    ]
+    # Seek windows from short → long → full. Full decode is slow but exact.
+    windows = ["-3", "-10", "-30", "-120"]
+    cmds: list[list[str]] = []
+    for w in windows:
+        cmds.append([
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-sseof", w, "-i", str(path),
+            *common_tail,
+        ])
+    # Full-file decode (always reaches true last frame; import-time OK)
+    cmds.append([
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+        "-i", str(path),
+        *common_tail,
+    ])
+    return cmds
+
+
 async def extract_frame(path: Path, out_path: Path, which: str) -> bool:
-    """Extract first or last frame as JPEG into out_path."""
+    """Extract first or last frame as JPEG into out_path.
+
+    Last frame is decoded to EOF (``-update 1``) so B-frame streams yield the
+    true final display frame, not a nearby keyframe.
+    """
     out_path.parent.mkdir(parents=True, exist_ok=True)
     scale = "scale=480:-2"
 
@@ -254,22 +357,14 @@ async def extract_frame(path: Path, out_path: Path, which: str) -> bool:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        await proc.communicate()
-        return proc.returncode == 0 and out_path.exists() and out_path.stat().st_size > 0
+        _, err = await proc.communicate()
+        ok = proc.returncode == 0 and out_path.exists() and out_path.stat().st_size > 0
+        if not ok and err:
+            log.debug("extract_frame cmd failed: %s\n%s", " ".join(cmd[:8]), err.decode(errors="replace")[:400])
+        return ok
 
     if which == "last":
-        attempts = [
-            [
-                "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-                "-sseof", "-0.5", "-i", str(path),
-                "-frames:v", "1", "-vf", scale, "-q:v", "4", str(out_path),
-            ],
-            [
-                "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-                "-sseof", "-3", "-i", str(path),
-                "-update", "1", "-frames:v", "1", "-vf", scale, "-q:v", "4", str(out_path),
-            ],
-        ]
+        attempts = _last_frame_ffmpeg_cmds(path, out_path, scale=scale, q=4)
     else:
         attempts = [
             [
@@ -296,17 +391,31 @@ async def extract_frame(path: Path, out_path: Path, which: str) -> bool:
 
 
 async def ensure_thumbs(content_hash: str, source_path: Path, which: str | None = None) -> dict[str, bool]:
-    """Generate missing thumbs for this hash. which=None means both."""
+    """Generate missing (or stale last-frame) thumbs for this hash. which=None means both."""
     wanted = [which] if which in ("first", "last") else ["first", "last"]
     result = {}
+    # Drop inaccurate v1 last thumbs so they re-extract with EOF method
+    if "last" in wanted:
+        _invalidate_stale_last_thumb(content_hash)
+
     for w in wanted:
         tp = _thumb_path(content_hash, w)
-        if tp.exists() and tp.stat().st_size > 0:
+        if _thumb_is_current(content_hash, w):
             result[w] = True
             continue
         ok = await extract_frame(source_path, tp, w)
         result[w] = ok
-        if not ok:
+        if ok:
+            _mark_extract_version(content_hash, w)
+            # Stale last.phash was already dropped; recompute after new thumb
+            if w == "last":
+                pp = _phash_path(content_hash, "last")
+                try:
+                    if pp.exists():
+                        pp.unlink()
+                except OSError:
+                    pass
+        else:
             log.warning("thumb %s failed for %s (%s)", w, content_hash, source_path)
     # Always try to attach perceptual hashes for frames we have
     await ensure_phashes(content_hash, source_path, which=which)
@@ -687,14 +796,17 @@ async def export_frame_png(
     if not source_path.is_file():
         return {"ok": False, "error": "Source file not found"}
 
+    from .pathutil import unique_output_path
+
     if output_path is None:
         stem = source_path.stem
         output_path = source_path.parent / f"{stem}_{which}.png"
     else:
-        output_path = Path(output_path).resolve()
+        output_path = Path(output_path).expanduser()
         if output_path.suffix.lower() != ".png":
             output_path = output_path.with_suffix(".png")
 
+    output_path = unique_output_path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     async def _run(cmd: list[str]) -> tuple[bool, str]:
@@ -708,18 +820,8 @@ async def export_frame_png(
         return ok, err.decode(errors="replace").strip()
 
     if which == "last":
-        attempts = [
-            [
-                "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-                "-sseof", "-0.1", "-i", str(source_path),
-                "-frames:v", "1", "-update", "1", str(output_path),
-            ],
-            [
-                "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-                "-sseof", "-1", "-i", str(source_path),
-                "-frames:v", "1", "-update", "1", str(output_path),
-            ],
-        ]
+        # True last display frame (decode remaining frames to EOF with -update 1)
+        attempts = _last_frame_ffmpeg_cmds(source_path, output_path, scale=None, q=2)
     else:
         attempts = [
             [
@@ -748,6 +850,7 @@ async def export_frame_png(
                         "which": which,
                         "output_path": str(output_path),
                         "format": "png",
+                        "extract_version": FRAME_EXTRACT_VERSION if which == "last" else 1,
                     },
                 )
             except Exception:
@@ -769,14 +872,28 @@ async def export_frame_png(
 
 
 async def get_thumb_file(content_hash: str, which: str, source_path: Path | None = None) -> Path | None:
-    """Return path to thumb JPEG, generating if needed and source_path given."""
+    """Return path to thumb JPEG, generating if needed and source_path given.
+
+    Stale last-frame thumbs (pre accuracy fix) are regenerated automatically.
+    """
     which = which if which in ("first", "last") else "first"
+    if which == "last":
+        _invalidate_stale_last_thumb(content_hash)
     tp = _thumb_path(content_hash, which)
-    if tp.exists() and tp.stat().st_size > 0:
+    if _thumb_is_current(content_hash, which):
         return tp
     if source_path is not None and source_path.is_file():
         ok = await extract_frame(source_path, tp, which)
         if ok:
+            _mark_extract_version(content_hash, which)
+            # Invalidate old last pHash so match finder uses accurate frame
+            if which == "last":
+                try:
+                    pp = _phash_path(content_hash, "last")
+                    if pp.exists():
+                        pp.unlink()
+                except OSError:
+                    pass
             rec = load_record(content_hash)
             if rec:
                 rec.setdefault("thumbs", {})[which] = True

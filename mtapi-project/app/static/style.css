@@ -1,9 +1,14 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
 
 :root {
+  /* Tell the browser/OS this UI is dark so native <select> popups
+     (KDE/Qt, Chromium) don't open as white lists with light text. */
+  color-scheme: dark;
   --bg-color: #080B11;
   --panel-bg: rgba(17, 24, 39, 0.7);
   --panel-border: rgba(255, 255, 255, 0.08);
+  --input-bg: #111827;
+  --input-bg-hover: #1f2937;
   --primary: #3b82f6;
   --primary-glow: rgba(59, 130, 246, 0.35);
   --primary-hover: #60a5fa;
@@ -31,6 +36,11 @@
   scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 
+html {
+  color-scheme: dark;
+  background-color: var(--bg-color);
+}
+
 body {
   background-color: var(--bg-color);
   background-image: 
@@ -41,6 +51,7 @@ body {
   min-height: 100vh;
   overflow: hidden;
   display: flex;
+  color-scheme: dark;
 }
 
 /* Scrollbar Customization */
@@ -361,21 +372,73 @@ label {
 
 input[type="text"], select, textarea {
   width: 100%;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--input-bg);
   border: 1px solid var(--panel-border);
-  color: #fff;
+  color: var(--text-main);
   padding: 10px 14px;
   border-radius: var(--radius-md);
   font-family: inherit;
   font-size: 0.9rem;
   outline: none;
   transition: all 0.2s ease;
+  color-scheme: dark;
+  /* Avoid OS high-contrast / forced-colors remapping our palette */
+  forced-color-adjust: none;
+}
+
+input[type="text"]::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
 }
 
 input[type="text"]:focus, select:focus, textarea:focus {
   border-color: var(--primary);
-  background: rgba(59, 130, 246, 0.03);
+  background: var(--input-bg-hover);
   box-shadow: 0 0 0 2px var(--primary-glow);
+}
+
+/* Native <option> list (when the browser paints it in-page / respects CSS).
+   Combined with color-scheme: dark this fixes white-on-white on KDE/Chromium. */
+select {
+  background-color: var(--input-bg);
+  color: var(--text-main);
+  /* Keep system arrow readable on dark field */
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-position: calc(100% - 16px) calc(50% - 2px), calc(100% - 11px) calc(50% - 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 2rem;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+select option,
+select optgroup {
+  background-color: #111827;
+  color: #f3f4f6;
+}
+
+select option:checked,
+select option:hover,
+select option:focus {
+  background-color: #1d4ed8;
+  color: #ffffff;
+}
+
+/* number / other inputs used in forms */
+input[type="number"],
+input[type="search"],
+input[type="password"],
+input[type="email"],
+input[type="url"] {
+  background: var(--input-bg);
+  border: 1px solid var(--panel-border);
+  color: var(--text-main);
+  color-scheme: dark;
+  forced-color-adjust: none;
 }
 
 /* Custom sliders */
@@ -503,6 +566,25 @@ input:checked + .slider:before {
 
 .btn-primary:active {
   transform: scale(0.98);
+}
+
+.btn-stop {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.45);
+  gap: 6px;
+  font-weight: 600;
+}
+
+.btn-stop:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.35);
+  color: #fff;
+  border-color: var(--error);
+}
+
+.btn-stop:disabled {
+  opacity: 0.55;
+  cursor: wait;
 }
 
 .btn-icon-only {
@@ -1115,6 +1197,203 @@ input:checked + .slider:before {
   padding: 2px 8px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--panel-border);
+}
+
+/* ── Knob banks (DeepDream & reusable) ─────────────────────────────── */
+.knob-bank {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 22px;
+  align-items: flex-start;
+  padding: 12px 4px 8px;
+}
+
+.knob-unit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 88px;
+  user-select: none;
+}
+
+.knob-unit-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: center;
+  max-width: 100px;
+  line-height: 1.25;
+}
+
+.knob-unit .daw-knob {
+  margin: 4px 0;
+  width: 64px;
+  height: 64px;
+}
+
+.knob-unit .daw-knob-indicator {
+  height: 18px;
+}
+
+.knob-unit .daw-knob-value-input {
+  width: 72px;
+  text-align: center;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.72rem;
+  padding: 3px 4px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+}
+
+.knob-unit .daw-knob-value-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+/* Binary snap knob: only left / right positions */
+.daw-knob.binary-knob {
+  cursor: pointer;
+  border-color: #475569;
+}
+
+.daw-knob.binary-knob .daw-knob-indicator {
+  background: var(--warning);
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.45);
+}
+
+.daw-knob.binary-knob.is-right {
+  border-color: var(--primary);
+}
+
+.daw-knob.binary-knob.is-right .daw-knob-indicator {
+  background: var(--primary);
+  box-shadow: 0 0 6px var(--primary-glow);
+}
+
+.binary-knob-caption {
+  display: flex;
+  justify-content: space-between;
+  width: 78px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+
+.binary-knob-caption .cap-on {
+  color: var(--primary-hover);
+}
+
+.dream-section-title {
+  margin: 18px 0 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.dream-section-title:first-of-type {
+  margin-top: 8px;
+}
+
+.dream-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin: 0 0 10px;
+}
+
+.dream-layer-weights.hidden {
+  display: none !important;
+}
+
+.dream-video-only.hidden {
+  display: none !important;
+}
+
+.dream-ouro-only.hidden {
+  display: none !important;
+}
+
+.dream-ouro-only {
+  margin-top: 4px;
+  padding: 10px 12px 4px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(251, 191, 36, 0.18);
+  background: rgba(251, 191, 36, 0.04);
+}
+
+/* Face Morph list */
+.fm-list {
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.2);
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.fm-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+
+.fm-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.fm-ord {
+  font-family: 'Fira Code', monospace;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  min-width: 1.6rem;
+}
+
+.fm-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fm-item .btn {
+  padding: 2px 6px;
+  min-height: 24px;
+  font-size: 0.7rem;
+}
+
+.fm-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.fm-dream-opts.hidden {
+  display: none !important;
+}
+
+.fm-dream-opts {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  background: rgba(168, 85, 247, 0.06);
 }
 
 /* Timeline Dual Range Slider Styling */
@@ -2859,6 +3138,102 @@ body.pool-resizing video {
   height: 1px;
   margin: 4px 6px;
   background: rgba(255, 255, 255, 0.08);
+}
+
+.pool-send-item.pool-send-quick {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.pool-send-item.pool-send-quick:hover {
+  background: rgba(251, 191, 36, 0.18);
+  color: #fde68a;
+}
+
+/* Right-click context menu on pool cards */
+.pool-ctx-menu {
+  position: fixed;
+  z-index: 10000;
+  min-width: 220px;
+  max-width: min(320px, 90vw);
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: rgba(12, 16, 26, 0.98);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pool-ctx-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 7px 12px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 0.78rem;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pool-ctx-item:hover {
+  background: rgba(59, 130, 246, 0.18);
+  color: #fff;
+}
+
+.pool-ctx-item.pool-ctx-quick {
+  color: #fbbf24;
+  font-weight: 600;
+}
+
+.pool-ctx-item.pool-ctx-quick:hover {
+  background: rgba(251, 191, 36, 0.18);
+  color: #fde68a;
+}
+
+.pool-ctx-item.pool-ctx-muted {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.pool-ctx-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Quick Transmute settings tab */
+.quick-summary-box {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.quick-summary-box code {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.85rem;
+  color: #fbbf24;
+}
+
+.quick-summary-hint {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.quick-summary-hint code {
+  font-size: 0.72rem;
+  color: var(--text-muted);
 }
 
 /* Remove sat next to Send — keep same visual weight */
