@@ -1770,6 +1770,25 @@ input:checked + .slider:before {
   pointer-events: none;
 }
 
+.pool-seq-indicator {
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 2px;
+  color: #3b82f6;
+  background: rgba(0, 0, 0, 0.6);
+  text-shadow:
+    0 0 2px #000,
+    0 1px 2px #000;
+  pointer-events: none;
+}
+
 .pool-card-remove {
   position: absolute;
   top: 4px;

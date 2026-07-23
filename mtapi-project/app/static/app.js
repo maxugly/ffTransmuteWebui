@@ -3819,6 +3819,14 @@ function bindPoolDragResize(el, { axis, onMove, startVals }) {
   });
 }
 
+function sequencePositions(path) {
+  const out = [];
+  state.pool.sequence.forEach((s, i) => {
+    if (s.path === path) out.push(i + 1);
+  });
+  return out;
+}
+
 function renderPoolGrid() {
   const grid = document.getElementById('poolGrid');
   if (!grid) return;
@@ -3858,6 +3866,7 @@ function renderPoolGrid() {
       ? '<span class="pool-meta-loading">hashing + probing…</span>'
       : buildPoolMetaHtml(item);
     const hasOverlay = loadingMeta || (metaHtml && metaHtml.trim().length > 0);
+    const seqPos = sequencePositions(item.path);
 
     card.innerHTML = `
       <div class="pool-card-actions">
@@ -3880,6 +3889,7 @@ function renderPoolGrid() {
         </div>
         <button class="pool-card-remove" type="button" title="Remove from pool" data-remove="${idx}">✕</button>
       </div>
+      ${seqPos.length > 0 ? `<span class="pool-seq-indicator">${seqPos.join(' ')}</span>` : ''}
       <div class="pool-frames">
         <div class="pool-frame">
           <img class="pool-thumb" src="${firstSrc}" alt="First frame" loading="lazy" data-which="first" draggable="false"
@@ -4072,8 +4082,10 @@ function updatePoolFocusFrame(path) {
   const m = item.meta || {};
   const dur = m.duration != null ? formatDurationExact(m.duration) : '';
   const hash = item.hash || m.hash || '';
+  const seqPos = sequencePositions(path);
 
   frame.innerHTML = `
+    ${seqPos.length > 0 ? `<span class="pool-seq-indicator">${seqPos.join(' ')}</span>` : ''}
     <div class="pool-focus-frames">
       <div class="pool-frame">
         <img class="pool-thumb" src="${firstSrc}" alt="First" draggable="false"
@@ -4155,6 +4167,7 @@ function setupSequenceDropZone() {
       if (insertAt > from) insertAt -= 1;
       state.pool.sequence.splice(insertAt, 0, item);
       renderSequenceBox();
+      renderPoolGrid();
       selectPoolItem(item.path);
       scheduleSavePoolState();
       return;
@@ -4183,6 +4196,7 @@ function addPathToSequence(path, insertAt = null) {
   }
   logConsole(`[SEQ]: + ${name}`);
   renderSequenceBox();
+  renderPoolGrid();
   selectPoolItem(path); // select in library + sequence together
   // Refresh stitch button / counts without full re-render if possible
   refreshPoolToolbarCounts();
@@ -4199,6 +4213,8 @@ function removeSequenceAt(idx) {
     state.pool.playback.index = Math.max(0, state.pool.sequence.length - 1);
   }
   renderSequenceBox();
+  renderPoolGrid();
+  updatePoolFocusFrame(displayFocusPath());
   refreshPoolToolbarCounts();
   updateSeqTransportUI();
   scheduleSavePoolState();
@@ -4210,6 +4226,8 @@ function clearSequence() {
   state.pool.sequence = [];
   logConsole('[SEQ]: Cleared');
   renderSequenceBox();
+  renderPoolGrid();
+  updatePoolFocusFrame(displayFocusPath());
   refreshPoolToolbarCounts();
   updateSeqTransportUI();
   scheduleSavePoolState();
