@@ -88,6 +88,86 @@ when the target path already exists (related withoutBG files share one number).
 **Jobs** — send `X-Job-Token` on long `POST /ops/*`; poll
 `GET /api/job/{token}`; stop with `POST /api/cancel`.
 
+### Folder Watcher (ingest → DNxHR)
+
+Background polling service that watches an input directory for new video
+files, stabilizes (waits for file size to stop changing), then transcodes
+each to DNxHR-LB `.mov` — Resolve-friendly intermediate format. Processed
+originals are moved to a `dun/` subfolder so they don't get picked up
+again.
+
+Controlled at `GET /api/watcher` (status) and `POST /api/watcher` (config).
+Defaults to **off** at boot — never auto-starts, even if `enabled` was true
+last run. The UI has a dedicated tab.
+
+**Status** (`GET /api/watcher`):
+
+```bash
+curl -s http://localhost:24590/api/watcher | jq .
+```
+
+```json
+{
+  "ok": true,
+  "enabled": false,
+  "running": false,
+  "in_dir": "/home/m/incoming",
+  "out_dir": "/home/m/transcoded",
+  "in_dir_ok": true,
+  "out_dir_ok": true,
+  "target_width": 1920,
+  "target_height": 1080,
+  "resize_mode": "letterbox",
+  "last_error": null,
+  "last_event": "done → myclip_resolve.mov",
+  "processing": null,
+  "processed_count": 7,
+  "failed_count": 1,
+  "log_lines": ["14:32:01 watcher started", "14:32:05 done → myclip_resolve.mov", ...]
+}
+```
+
+**Configure / start / stop** (`POST /api/watcher`):
+
+```bash
+curl -X POST http://localhost:24590/api/watcher \
+  -H "Content-Type: application/json" \
+  -d '{
+    "enabled": true,
+    "in_dir": "/home/m/incoming",
+    "out_dir": "/home/m/transcoded",
+    "target_width": 1920,
+    "target_height": 1080,
+    "resize_mode": "letterbox"
+  }'
+```
+
+| field | type | default | notes |
+|---|---|---|---|
+| `enabled` | bool \| null | — | `true` to start, `false` to stop. Omit to leave as-is. |
+| `in_dir` | string \| null | — | absolute path to watched folder |
+| `out_dir` | string \| null | — | absolute path for DNxHR `.mov` outputs |
+| `target_width` | int \| null | 1920 | AR reference width (min 2) |
+| `target_height` | int \| null | 1080 | AR reference height (min 2) |
+| `resize_mode` | string \| null | `"letterbox"` | `"letterbox"` pads to AR with black bars; `"crop"` scales up then center-crops |
+
+All fields except `enabled` persist to `data/watcher.json` on disk (paths
+survive restarts). `enabled` is intentionally NOT persisted — the watcher
+always boots off.
+
+**How it works:**
+
+- Polls `in_dir` every 2 seconds
+- Detects new files by extension (`.mp4`, `.mov`, `.mkv`, etc.)
+- Waits for file size to remain unchanged for 1.5 seconds (stabilization —
+  avoids grabbing files still being copied)
+- Transcodes: ffprobe → letterbox/crop to target AR → DNxHR-LB (`dnxhd`
+  codec, `yuv422p` pixel format) with PCM 16-bit audio (silent audio track
+  added if source has none)
+- Moves original to `in_dir/dun/` on success
+- Keeps up to 80 log lines; counts processed and failed
+- If `in_dir` and `out_dir` resolve to the same path, it refuses to start
+
 Every response is the same shape:
 ```json
 {
@@ -167,8 +247,5 @@ for X" is close to unambiguous.
   it's given, with this process's own permissions. That's fine on
   localhost/your LAN talking to your own machine; do not put this on the
   open internet without adding both.
-- **Synchronous only.** Every call blocks until ffmpeg finishes. Not a
-  problem at these clip lengths; will want a job-id-plus-polling (or
-  WebSocket progress) pattern before this handles long-form video.
 - **`dry_run` only exists on transmute ops** — `datamosh.sh` has no `-d`
   equivalent to hook into yet.

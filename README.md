@@ -11,7 +11,7 @@ Two layers:
 1. **Core CLI** (`transmute`, `datamosh.sh`, ffglitch JS) — ffmpeg-centric, minimal deps  
 2. **mtapi + WebUI** (`mtapi-project/`) — typed `POST /ops/*`, media pool, job cancel/progress, sequential output names so re-runs never overwrite
 
-**WebUI tabs include:** Datamosh, DeepDream, Face Morph, withoutBG, Style Transfer, single-clip transmute, join/grid, Quick Transmute (`fit`), Media Pool, raw CLI.
+**WebUI tabs include:** Datamosh, DeepDream, Face Morph, withoutBG, Style Transfer, single-clip transmute, join/grid, Quick Transmute (`fit`), Media Pool, Folder Watcher (ingest → DNxHR), raw CLI.
 
 ---
 
@@ -23,7 +23,8 @@ ffTransmuteWebui/
 ├── datamosh.sh                  # Video datamoshing suite (MPEG-2 / AVI frame destruction)
 ├── melt.js                      # ffglitch motion vector displacement script
 ├── no_keyframe.js               # ffglitch iframe removal script
-├── docs-transmute-README.md     # Original transmute CLI specification
+├── docs-transmute-README.md     # Standalone transmute CLI reference
+├── docs-datamosh-README.md      # Standalone datamosh.sh CLI reference
 ├── mtapi-project/               # FastAPI backend & WebUI project directory
 │   ├── app/                     # Python app package (routes, contracts, media store)
 │   │   ├── operations/          # Typed operation handlers (transmute, datamosh)
@@ -53,6 +54,17 @@ Run `transmute` directly for rapid geometry processing:
 # Extract first frame as high-quality PNG
 ./transmute input.mp4 -f
 ```
+
+Run `datamosh.sh` for motion-vector or keyframe-suppression glitching:
+```bash
+# Melt — continuous motion smear with default settings
+./datamosh.sh input.mp4 output.mp4
+
+# Classic — keyframe-suppression bleed at scene cuts
+./datamosh.sh input.mp4 output.mp4 --mode classic
+```
+
+Full references: [transmute CLI](docs-transmute-README.md) · [datamosh CLI](docs-datamosh-README.md)
 
 ### 3. Launching the Web Server & UI
 ```bash
@@ -84,8 +96,8 @@ Outputs auto-sequence (`file.png`, `file_0001.png`, …) so repeated runs do not
 ## 📜 Subdirectory Documentation
 
 Detailed documentation and agent guidance are available in each directory:
-- [mtapi-project README](file:///home/m/snc/cod/ffTransmuteWebui/mtapi-project/README.md) & [mtapi-project AGENTS.md](file:///home/m/snc/cod/ffTransmuteWebui/mtapi-project/AGENTS.md)
-- [app README](file:///home/m/snc/cod/ffTransmuteWebui/mtapi-project/app/README.md) & [app AGENTS.md](file:///home/m/snc/cod/ffTransmuteWebui/mtapi-project/app/AGENTS.md)
-- [operations README](file:///home/m/snc/cod/ffTransmuteWebui/mtapi-project/app/operations/README.md) & [operations AGENTS.md](file:///home/m/snc/cod/ffTransmuteWebui/mtapi-project/app/operations/AGENTS.md)
-- [static README](file:///home/m/snc/cod/ffTransmuteWebui/mtapi-project/app/static/README.md) & [static AGENTS.md](file:///home/m/snc/cod/ffTransmuteWebui/mtapi-project/app/static/AGENTS.md)
-- [bin README](file:///home/m/snc/cod/ffTransmuteWebui/mtapi-project/bin/README.md) & [bin AGENTS.md](file:///home/m/snc/cod/ffTransmuteWebui/mtapi-project/bin/AGENTS.md)
+- [mtapi-project README](mtapi-project/README.md) & [mtapi-project AGENTS.md](mtapi-project/AGENTS.md)
+- [app README](mtapi-project/app/README.md) & [app AGENTS.md](mtapi-project/app/AGENTS.md)
+- [operations README](mtapi-project/app/operations/README.md) & [operations AGENTS.md](mtapi-project/app/operations/AGENTS.md)
+- [static README](mtapi-project/app/static/README.md) & [static AGENTS.md](mtapi-project/app/static/AGENTS.md)
+- [bin README](mtapi-project/bin/README.md) & [bin AGENTS.md](mtapi-project/bin/AGENTS.md)
