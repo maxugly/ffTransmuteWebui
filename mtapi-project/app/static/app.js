@@ -4147,6 +4147,17 @@ function updatePoolFocusFrame(path) {
   const hash = item.hash || m.hash || '';
   const seqPos = sequencePositions(path);
 
+  // Sequence timing info
+  let seqTimingHtml = '';
+  const seqEntry = state.pool.sequence.find(s => s.path === path);
+  if (seqEntry && seqEntry.targetDuration != null && seqEntry.targetDuration > 0 && m.duration && m.duration > 0) {
+    const factor = seqEntry.targetDuration / m.duration;
+    const pct = Math.round((m.duration / seqEntry.targetDuration) * 100);
+    seqTimingHtml = `<div class="pool-meta-row" style="color:#f59e0b;font-weight:600;">
+      <span>⏱ ${formatDurationExact(m.duration)} → ${formatDurationExact(seqEntry.targetDuration)} (${pct}% speed ${factor >= 1 ? 'slower' : 'faster'})</span>
+    </div>`;
+  }
+
   frame.innerHTML = `
     ${seqPos.length > 0 ? `<span class="pool-seq-indicator">${seqPos.join(' ')}</span>` : ''}
     <div class="pool-focus-frames">
@@ -4170,6 +4181,7 @@ function updatePoolFocusFrame(path) {
         ${m.fps ? `<span>${m.fps} fps</span>` : ''}
         ${m.frames != null ? `<span>${m.frames} fr</span>` : ''}
       </div>
+      ${seqTimingHtml}
     </div>
   `;
 
@@ -4561,6 +4573,7 @@ function onSeqClipDurationChange() {
   }
   updateSeqClipSettings();
   renderSequenceBox(); // refresh token duration labels + speed colors
+  updatePoolFocusFrame(displayFocusPath()); // refresh preview timing
   // Persist immediately (don't wait for debounce — times are easy to lose)
   savePoolStateNow();
 }
