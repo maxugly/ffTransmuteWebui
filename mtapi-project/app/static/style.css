@@ -307,18 +307,23 @@ header h2 {
 .preview-console-resize::after {
   content: '';
   position: absolute;
-  left: 50%;
-  top: 1px;
-  transform: translateX(-50%);
-  width: 36px;
-  height: 3px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.12);
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.15);
+  transition: background 0.12s ease;
 }
 .preview-console-resize:hover,
 body.preview-resizing .preview-console-resize {
-  background: rgba(59, 130, 246, 0.15);
-  border-color: rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.25);
+}
+.preview-console-resize:hover::after,
+body.preview-resizing .preview-console-resize::after {
+  background: rgba(59, 130, 246, 0.55);
 }
 body.preview-resizing {
   cursor: row-resize !important;
@@ -2792,18 +2797,23 @@ input:checked + .slider:before {
 .pool-v-resize::after {
   content: '';
   position: absolute;
-  left: 50%;
-  top: 1px;
-  transform: translateX(-50%);
-  width: 36px;
-  height: 3px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.12);
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.15);
+  transition: background 0.12s ease;
 }
 .pool-v-resize:hover,
 body.pool-resizing .pool-v-resize {
-  background: rgba(59, 130, 246, 0.15);
-  border-color: rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.25);
+}
+.pool-v-resize:hover::after,
+body.pool-resizing .pool-v-resize::after {
+  background: rgba(59, 130, 246, 0.55);
 }
 
 .pool-compose {
@@ -2832,18 +2842,23 @@ body.pool-resizing .pool-v-resize {
 .pool-h-resize::after {
   content: '';
   position: absolute;
-  top: 50%;
-  left: 1px;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 36px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.12);
+  top: 8px;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.15);
+  transition: background 0.12s ease;
 }
 .pool-h-resize:hover,
 body.pool-resizing .pool-h-resize {
-  background: rgba(59, 130, 246, 0.15);
-  border-color: rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.25);
+}
+.pool-h-resize:hover::after,
+body.pool-resizing .pool-h-resize::after {
+  background: rgba(59, 130, 246, 0.55);
 }
 
 .pool-sel-match-resize {
@@ -2851,11 +2866,28 @@ body.pool-resizing .pool-h-resize {
   cursor: row-resize;
   background: transparent;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
+  position: relative;
+  transition: background 0.12s ease;
+}
+.pool-sel-match-resize::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.15);
   transition: background 0.12s ease;
 }
 .pool-sel-match-resize:hover,
 body.pool-resizing .pool-sel-match-resize {
-  background: rgba(168, 85, 247, 0.2);
+  background: rgba(168, 85, 247, 0.12);
+}
+.pool-sel-match-resize:hover::after,
+body.pool-resizing .pool-sel-match-resize::after {
+  background: rgba(168, 85, 247, 0.55);
 }
 
 body.pool-resizing {
