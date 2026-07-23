@@ -11,8 +11,7 @@ bin/
 ├── transmute          # Geometry & frame extraction Bash script
 ├── datamosh.sh        # Datamoshing orchestrator Bash script
 ├── melt.js            # ffglitch JS script for vector displacement melting
-├── no_keyframe.js     # ffglitch JS script for removing iframe/keyframe data
-└── custom_glitch.js   # ffglitch JS script for custom motion vector manipulation
+└── no_keyframe.js     # ffglitch JS script for removing iframe/keyframe data
 ```
 
 ---
@@ -31,9 +30,8 @@ bin/
 - **Modes**:
   - `melt`: Uses `melt.js` via `ffedit` to corrupt motion vectors across P-frames.
   - `classic`: Uses `no_keyframe.js` to strip keyframes and hold vector buffer across transitions.
-  - `custom`: Uses `custom_glitch.js` to clear DCT residuals (`q_dct`) or apply directional vector drift (`mv`).
 
-### 3. `melt.js`, `no_keyframe.js`, `custom_glitch.js`
+### 3. `melt.js`, `no_keyframe.js`
 - **Language**: ECMAScript (ffglitch module format)
 - **Engine**: `ffedit` (part of [ffglitch](https://ffglitch.org/))
-- **Purpose**: Direct frame payload inspection, motion vector modification (`frame.mv`), and DCT residual zeroing (`frame.q_dct`).
+- **Purpose**: Direct frame payload inspection and motion vector modification (`frame.mv`).
