@@ -3827,6 +3827,63 @@ function sequencePositions(path) {
   return out;
 }
 
+function showClipInfoOverlay(item) {
+  const m = item.meta || {};
+  const name = item.name || basename(item.path);
+  const path = item.path || '';
+  const hash = item.hash || m.hash || '';
+  const dur = m.duration != null ? formatDurationExact(m.duration) : '—';
+  const fps = m.fps != null && m.fps > 0 ? `${m.fps} fps` : '—';
+  const frames = m.frames != null ? `${m.frames}` : '—';
+  const vcodec = m.video_codec || '—';
+  const acodec = m.audio_codec || '—';
+  const size = m.size != null ? formatBytes(m.size) : (item.size != null ? formatBytes(item.size) : '—');
+  const dims = m.width && m.height ? `${m.width}×${m.height}` : '—';
+  const seqPos = sequencePositions(path);
+  const seqStr = seqPos.length > 0 ? seqPos.join(' ') : '—';
+  const cacheTag = m.cached === true ? 'cached' : (m.cached === false ? 'new' : '—');
+  const history = m.history_count != null ? m.history_count : (item.history_count || 0);
+  const opens = m.open_count != null ? m.open_count : (item.open_count || 0);
+
+  const rows = [
+    ['name', name],
+    ['path', path],
+    ['hash', hash ? shortHash(hash) : '—'],
+    ['sequence', seqStr, 'info-seq'],
+    ['duration', dur],
+    ['resolution', dims],
+    ['fps', fps],
+    ['frames', frames],
+    ['video codec', vcodec],
+    ['audio codec', acodec],
+    ['file size', size],
+    ['cache', cacheTag],
+    ['opens / history', `${opens} / ${history}`],
+  ];
+
+  const overlay = document.createElement('div');
+  overlay.className = 'pool-info-overlay';
+  overlay.innerHTML = `<div class="pool-info-panel">
+    <button class="pool-info-close" type="button" title="Close">✕</button>
+    <h3>${escapeHtml(name)}</h3>
+    ${rows.map(([label, value, extraClass]) => {
+      const cls = extraClass ? `info-value ${extraClass}` : 'info-value';
+      return `<div class="info-row">
+        <span class="info-label">${label}</span>
+        <span class="${cls}">${escapeHtml(String(value))}</span>
+      </div>`;
+    }).join('')}
+  </div>`;
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay || e.target.closest('.pool-info-close')) {
+      overlay.remove();
+    }
+  });
+
+  document.body.appendChild(overlay);
+}
+
 function renderPoolGrid() {
   const grid = document.getElementById('poolGrid');
   if (!grid) return;
@@ -3908,10 +3965,11 @@ function renderPoolGrid() {
           ${metaHtml}
         </div>
       </div>` : `<div class="pool-overlay-text" id="poolMeta-${idx}" style="display:none"></div>`}
+      <button class="pool-card-info-btn" type="button" title="Clip info" data-info-idx="${idx}">ⓘ</button>
     `;
 
     card.addEventListener('click', (e) => {
-      if (e.target.closest('.pool-card-remove, .pool-send-wrap')) return;
+      if (e.target.closest('.pool-card-remove, .pool-send-wrap, .pool-card-info-btn')) return;
       selectPoolItem(item.path);
     });
 
@@ -3938,6 +3996,11 @@ function renderPoolGrid() {
     card.querySelector('.pool-card-remove')?.addEventListener('click', (e) => {
       e.stopPropagation();
       removePoolItem(idx);
+    });
+
+    card.querySelector('.pool-card-info-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showClipInfoOverlay(item);
     });
 
     // Send-to dropdown

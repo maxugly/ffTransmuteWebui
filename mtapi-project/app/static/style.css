@@ -1736,6 +1736,100 @@ input:checked + .slider:before {
 /* three-state combo */
 .pool-card.seq-active.selected:hover::after { box-shadow: inset 0 0 0 3px rgb(236, 72, 153); } /* active + selected + hovered → pink */
 
+/* info button — bottom-right corner */
+.pool-card-info-btn {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  z-index: 6;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.5);
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.6rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.pool-card-info-btn:hover {
+  background: rgba(59, 130, 246, 0.3);
+  color: #fff;
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+/* ---- clip info overlay ---- */
+.pool-info-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pool-info-panel {
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 20px 24px;
+  max-width: 440px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  color: #e2e8f0;
+  font-size: 0.78rem;
+  font-family: 'Fira Code', monospace;
+  position: relative;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+.pool-info-panel h3 {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+}
+.pool-info-panel .info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.pool-info-panel .info-label {
+  color: rgba(255, 255, 255, 0.5);
+}
+.pool-info-panel .info-value {
+  color: #e2e8f0;
+  text-align: right;
+  max-width: 60%;
+  word-break: break-all;
+}
+.pool-info-panel .info-seq {
+  color: #3b82f6;
+}
+.pool-info-close {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  transition: color 0.12s;
+}
+.pool-info-close:hover {
+  color: #fff;
+}
+
 /* Open dropdown draws above every other tile (including hover neighbors) */
 .pool-card.menu-open {
   z-index: 200 !important;
