@@ -372,6 +372,141 @@ async def _execute_mosh_pipeline(
         )
 
 
+async def _trim_and_mosh(
+    operation: str,
+    input_path: str,
+    output_path: str,
+    start_frame: int,
+    end_frame: int,
+    glitch_mode: int,
+    glitch_params: list[int],
+) -> OperationResult:
+    """Trim a portion of the video, mosh it, then reassemble with clean bookends."""
+    import json
+    from ..pathutil import unique_output_path
+
+    # If no trimming needed, delegate directly to the main pipeline
+    if start_frame <= 1 and end_frame >= 999999:
+        return await _execute_mosh_pipeline(
+            operation, input_path, output_path,
+            glitch_mode=glitch_mode,
+            glitch_params=glitch_params,
+        )
+
+    # Probe FPS
+    code, out, err = await run_command([
+        "ffprobe", "-v", "quiet", "-print_format", "json",
+        "-show_streams", "-select_streams", "v:0", input_path,
+    ])
+    if code != 0:
+        return OperationResult(ok=False, operation=operation, error=f"ffprobe failed: {err.strip()}")
+    info = json.loads(out)
+    stream = info["streams"][0] if info.get("streams") else {}
+    fps_parts = stream.get("avg_frame_rate", "30/1").split("/")
+    fps = float(fps_parts[0]) / float(fps_parts[1]) if len(fps_parts) == 2 else 30.0
+    frame_dur = 1.0 / fps
+
+    start_time = (start_frame - 1) * frame_dur
+    end_time = end_frame * frame_dur
+
+    # Check for audio
+    code_a, _, _ = await run_command([
+        "ffprobe", "-v", "quiet", "-select_streams", "a:0",
+        "-show_entries", "stream=codec_type", "-of", "csv=p=0", input_path,
+    ])
+    has_audio = (code_a == 0)
+
+    tmpdir = tempfile.mkdtemp(prefix="mtapi_trim_")
+    try:
+        audio_flag = ["-c:a", "copy"] if has_audio else ["-an"]
+
+        # Part A: 0 to start_frame (untouched)
+        tmp_a = os.path.join(tmpdir, "partA.mp4")
+        a_cmd = ["ffmpeg", "-y", "-i", input_path, "-t", f"{start_time}",
+                 "-c:v", "libx264", "-pix_fmt", "yuv420p", *audio_flag, tmp_a]
+        code_a, _, err_a = await run_command(a_cmd)
+        if code_a != 0:
+            a_cmd2 = a_cmd[:-5] + ["-an", tmp_a]
+            code_a, _, err_a = await run_command(a_cmd2)
+            if code_a != 0:
+                return OperationResult(ok=False, operation=operation,
+                                       error=f"Part A slice failed: {err_a.strip()}")
+
+        # Part B: start_frame to end_frame (to be moshed)
+        tmp_b = os.path.join(tmpdir, "partB.mp4")
+        dur_b = end_time - start_time
+        b_cmd = ["ffmpeg", "-y", "-ss", f"{start_time}", "-i", input_path,
+                 "-t", f"{dur_b}", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                 *audio_flag, tmp_b]
+        code_b, _, err_b = await run_command(b_cmd)
+        if code_b != 0:
+            b_cmd2 = b_cmd[:-5] + ["-an", tmp_b]
+            code_b, _, err_b = await run_command(b_cmd2)
+            if code_b != 0:
+                return OperationResult(ok=False, operation=operation,
+                                       error=f"Part B slice failed: {err_b.strip()}")
+
+        # Mosh part B
+        tmp_moshed = os.path.join(tmpdir, "partB_moshed.mp4")
+        result = await _execute_mosh_pipeline(
+            operation, tmp_b, tmp_moshed,
+            glitch_mode=glitch_mode,
+            glitch_params=glitch_params,
+        )
+        if not result.ok:
+            return result
+
+        # Part C: end_frame to end (untouched)
+        tmp_c = os.path.join(tmpdir, "partC.mp4")
+        c_cmd = ["ffmpeg", "-y", "-ss", f"{end_time}", "-i", input_path,
+                 "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                 *audio_flag, tmp_c]
+        code_c, _, _ = await run_command(c_cmd)
+        if code_c != 0:
+            c_cmd2 = c_cmd[:-5] + ["-an", tmp_c]
+            code_c, _, _ = await run_command(c_cmd2)
+        has_c = (code_c == 0 and os.path.exists(tmp_c) and os.path.getsize(tmp_c) > 1000)
+
+        # Concat A + moshed B + C
+        output_path = unique_output_path(output_path)
+        inputs = ["-i", tmp_a, "-i", tmp_moshed]
+        filter_parts = ["[0:v][1:v]"]
+        n = 2
+        if has_c:
+            inputs.extend(["-i", tmp_c])
+            filter_parts[0] += "[2:v]"
+            n += 1
+        if has_audio:
+            filter_parts[0] += "[0:a?][1:a?]"
+            if has_c:
+                filter_parts[0] += "[2:a?]"
+            filter_str = f"{filter_parts[0]}concat=n={n}:v=1:a=1[outv][outa]"
+        else:
+            filter_str = f"{filter_parts[0]}concat=n={n}:v=1:a=0[outv]"
+
+        concat_cmd = ["ffmpeg", "-y", *inputs, "-filter_complex", filter_str,
+                      "-map", "[outv]"]
+        if has_audio:
+            concat_cmd.extend(["-map", "[outa]", "-c:a", "aac"])
+        concat_cmd.extend(["-c:v", "libx264", "-pix_fmt", "yuv420p", output_path])
+
+        code_concat, out_concat, err_concat = await run_command(concat_cmd)
+        if code_concat != 0:
+            return OperationResult(ok=False, operation=operation,
+                                   error=f"Concat failed: {err_concat.strip()}")
+
+        return OperationResult(
+            ok=True,
+            operation=operation,
+            output_path=output_path,
+            command=f"trim({start_frame}-{end_frame}) + mosh + concat",
+            stdout=out_concat,
+            stderr=err_concat,
+        )
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
 # --- 1. Melt Mode ---
 class DatamoshMeltParams(BaseModel):
     input_path: str = Field(..., description="Source video path")
@@ -379,15 +514,19 @@ class DatamoshMeltParams(BaseModel):
     tail: int = Field(18, ge=1, description="Frames of 'memory' in the smear")
     hdamp: int = Field(15, ge=0, le=100, description="Horizontal damping percent (0-100)")
     vdrift: int = Field(1, description="Constant per-frame vertical push")
+    start_frame: int = Field(1, ge=1, description="First frame to mosh (1 = from start)")
+    end_frame: int = Field(999999, ge=1, description="Last frame to mosh (default = to end)")
 
 
 async def datamosh_melt(p: DatamoshMeltParams) -> OperationResult:
-    return await _execute_mosh_pipeline(
+    return await _trim_and_mosh(
         "datamosh_melt",
         p.input_path,
         p.output_path,
+        p.start_frame,
+        p.end_frame,
         glitch_mode=0,
-        glitch_params=[p.tail, p.hdamp, p.vdrift]
+        glitch_params=[p.tail, p.hdamp, p.vdrift],
     )
 
 
@@ -405,15 +544,19 @@ register(OperationSpec(
 class DatamoshClassicParams(BaseModel):
     input_path: str = Field(..., description="Source video path")
     output_path: str = Field(..., description="Where to write the result")
+    start_frame: int = Field(1, ge=1, description="First frame to mosh (1 = from start)")
+    end_frame: int = Field(999999, ge=1, description="Last frame to mosh (default = to end)")
 
 
 async def datamosh_classic(p: DatamoshClassicParams) -> OperationResult:
-    return await _execute_mosh_pipeline(
+    return await _trim_and_mosh(
         "datamosh_classic",
         p.input_path,
         p.output_path,
+        p.start_frame,
+        p.end_frame,
         glitch_mode=1,
-        glitch_params=[]
+        glitch_params=[],
     )
 
 

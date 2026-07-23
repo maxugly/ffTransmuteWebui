@@ -2218,12 +2218,46 @@ function updateMoshParams() {
       <!-- Hidden inputs for Melt backend compatibility -->
       <input type="number" id="moshDamp" value="15" style="display: none;">
       <input type="number" id="moshDrift" value="1" style="display: none;">
+
+      <!-- Frame range (same controls as hijack/destruct) -->
+      <div class="timeline-wrapper">
+        <label>Mosh Target Range (Frames)</label>
+        <div class="timeline-container">
+          <div class="timeline-track"></div>
+          <div class="timeline-range" id="timelineRange"></div>
+          <input type="range" id="timelineStart" class="timeline-thumb" min="1" max="${maxFrames}" value="1">
+          <input type="range" id="timelineEnd" class="timeline-thumb" min="1" max="${maxFrames}" value="${maxFrames}">
+        </div>
+        <div class="timeline-labels">
+          <span>Start: <input type="text" class="timeline-value-input" id="valStartFrame" value="1"></span>
+          <span>End: <input type="text" class="timeline-value-input" id="valEndFrame" value="${maxFrames}"></span>
+        </div>
+      </div>
+      <input type="number" id="meltStartFrame" value="1" style="display: none;">
+      <input type="number" id="meltEndFrame" value="999999" style="display: none;">
     `;
   } else if (mode === 'classic') {
     html = `
       <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--panel-border); padding: 12px 16px; border-radius: var(--radius-md); font-size: 0.85rem; color: var(--text-muted); line-height: 1.4;">
         <strong>Classic Mode:</strong> Keyframe-suppression mosh (Avidemux style). Glitches only appear at camera cuts. If the video is a single shot, it will look unglitched.
       </div>
+
+      <!-- Frame range -->
+      <div class="timeline-wrapper">
+        <label>Mosh Target Range (Frames)</label>
+        <div class="timeline-container">
+          <div class="timeline-track"></div>
+          <div class="timeline-range" id="timelineRange"></div>
+          <input type="range" id="timelineStart" class="timeline-thumb" min="1" max="${maxFrames}" value="1">
+          <input type="range" id="timelineEnd" class="timeline-thumb" min="1" max="${maxFrames}" value="${maxFrames}">
+        </div>
+        <div class="timeline-labels">
+          <span>Start: <input type="text" class="timeline-value-input" id="valStartFrame" value="1"></span>
+          <span>End: <input type="text" class="timeline-value-input" id="valEndFrame" value="${maxFrames}"></span>
+        </div>
+      </div>
+      <input type="number" id="classicStartFrame" value="1" style="display: none;">
+      <input type="number" id="classicEndFrame" value="999999" style="display: none;">
     `;
   } else if (mode === 'hijack') {
     html = `
@@ -2365,6 +2399,9 @@ function updateMoshParams() {
     });
     // Set up Melt joystick pad
     setupMeltPad();
+    setupTimelineSlider('meltStartFrame', 'meltEndFrame', 1, maxFrames);
+  } else if (mode === 'classic') {
+    setupTimelineSlider('classicStartFrame', 'classicEndFrame', 1, maxFrames);
   } else if (mode === 'hijack') {
     setupBinaryKnob({
       knobId: 'hijackSourceSelectKnob', indicatorId: 'hijackSourceSelectKnobInd', hiddenId: 'hijackSourceSelect',
@@ -6699,13 +6736,17 @@ async function runActiveOperation() {
         output_path: output,
         tail: parseInt(document.getElementById('moshTail').value),
         hdamp: parseInt(document.getElementById('moshDamp').value),
-        vdrift: parseInt(document.getElementById('moshDrift').value)
+        vdrift: parseInt(document.getElementById('moshDrift').value),
+        start_frame: parseInt(document.getElementById('meltStartFrame').value),
+        end_frame: parseInt(document.getElementById('meltEndFrame').value),
       };
     } else if (mode === 'classic') {
       opId = 'datamosh_classic';
       body = {
         input_path: input,
-        output_path: output
+        output_path: output,
+        start_frame: parseInt(document.getElementById('classicStartFrame').value),
+        end_frame: parseInt(document.getElementById('classicEndFrame').value),
       };
     } else if (mode === 'hijack') {
       opId = 'datamosh_hijack';
