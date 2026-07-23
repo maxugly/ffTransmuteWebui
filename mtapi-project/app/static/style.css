@@ -1739,6 +1739,10 @@ input:checked + .slider:before {
   box-shadow: inset 0 0 0 3px #2dd4bf;
 }
 
+.pool-card.seq-active.selected::after {
+  box-shadow: inset 0 0 0 3px #22c55e;
+}
+
 /* Open dropdown draws above every other tile (including hover neighbors) */
 .pool-card.menu-open {
   z-index: 200 !important;
