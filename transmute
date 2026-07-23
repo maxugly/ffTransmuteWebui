@@ -35,7 +35,7 @@ Options:
            auto = shared AR if all match, else AR of the largest clip (by pixels)
   -T DURS Per-clip target duration (seconds) for -j, comma-separated, same order as inputs.
            Empty field = keep native length. E.g. -T 3.0,,5.5 stretches clip0 to 3s, clip2 to 5.5s.
-           Video uses setpts; audio uses atempo (chained for large factors).
+           Video uses setpts; audio uses rubberband (pitch-preserving).
   -g [MODE] GRID 2x2 panel of 4 videos. MODE=pad|crop|stretch (default: pad)
            INPUT must be 4 videos: "a,b,c,d" or folder with 4 videos
            Tile size from -A + max dims; final = tile*2 x tile*2
@@ -170,24 +170,12 @@ snap_canvas_to_ar() {
   TARGET_H=$H
 }
 
-# Build atempo chain for speed in (0,inf); each atempo must be in [0.5, 2.0]
-atempo_chain() {
+# Build rubberband tempo string for pitch-preserving speed change
+# rubberband handles any factor (no chaining needed) and preserves pitch.
+tempo_filter() {
   local speed
   speed=$(awk -v s="$1" 'BEGIN{ if (s<=0) s=1; printf "%.10f", s }')
-  local parts=()
-  # speed up: > 2
-  while awk -v s="$speed" 'BEGIN{exit !(s>2.0)}'; do
-    parts+=("atempo=2.0")
-    speed=$(awk -v s="$speed" 'BEGIN{printf "%.10f", s/2.0}')
-  done
-  # slow down: < 0.5
-  while awk -v s="$speed" 'BEGIN{exit !(s<0.5 && s>0)}'; do
-    parts+=("atempo=0.5")
-    speed=$(awk -v s="$speed" 'BEGIN{printf "%.10f", s/0.5}')
-  done
-  parts+=("atempo=${speed}")
-  local IFS=,
-  echo "${parts[*]}"
+  echo "rubberband=tempo=${speed}"
 }
 
 # Build per-stream video filter fragment for join/grid reconciliation
@@ -456,31 +444,39 @@ if $JOIN; then
   for i in "${!INPUTS[@]}"; do FILTER+="[v${i}]"; done
   FILTER+="concat=n=${#INPUTS[@]}:v=1:a=0[v]"
 
-  HAS_A=true
-  for f in "${INPUTS[@]}"; do ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "$f" | grep -q . || { HAS_A=false; break; }; done
+  # Build filter graph: video + per-clip audio (rubberband for time-stretch)
+  FILTER=""
+  for i in "${!INPUTS[@]}"; do
+    FILTER+="$(join_vf_for_mode "$JOIN_MODE" "$i" "$TARGET_W" "$TARGET_H" "${TIME_FACTOR[$i]}")"
+    fac="${TIME_FACTOR[$i]}"
+    # Check if this clip has audio
+    has_a=false
+    ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "${INPUTS[$i]}" | grep -q . && has_a=true
 
-  if $HAS_A; then
-    FILTER=""
-    for i in "${!INPUTS[@]}"; do
-      FILTER+="$(join_vf_for_mode "$JOIN_MODE" "$i" "$TARGET_W" "$TARGET_H" "${TIME_FACTOR[$i]}")"
-      fac="${TIME_FACTOR[$i]}"
-      # audio speed = 1/video_factor (longer video → slower audio)
-      if awk -v f="$fac" 'BEGIN{exit !(f==1 || f==0)}'; then
+    if awk -v f="$fac" 'BEGIN{exit !(f==1 || f==0)}'; then
+      # No time stretch
+      if $has_a; then
         FILTER+="[${i}:a]aformat=sample_fmts=fltp:channel_layouts=stereo[a${i}];"
       else
-        aspeed=$(awk -v f="$fac" 'BEGIN{ if (f<=0) f=1; printf "%.10f", 1.0/f }')
-        achain=$(atempo_chain "$aspeed")
-        FILTER+="[${i}:a]aformat=sample_fmts=fltp:channel_layouts=stereo,${achain}[a${i}];"
+        # Generate silent audio matching video duration
+        FILTER+="anullsrc=r=44100:cl=stereo,atrim=duration=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "${INPUTS[$i]}"),aformat=sample_fmts=fltp:channel_layouts=stereo[a${i}];"
       fi
-    done
-    for i in "${!INPUTS[@]}"; do FILTER+="[v${i}][a${i}]"; done
-    FILTER+="concat=n=${#INPUTS[@]}:v=1:a=1[v][a]"
-    CMD=(ffmpeg -hide_banner -y)
-    for f in "${INPUTS[@]}"; do CMD+=(-i "$f"); done
-    CMD+=(-filter_complex "$FILTER" -map "[v]" -map "[a]" -c:v libx264 -crf 18 -preset medium -c:a aac -b:a 192k "$OUTPUT")
-  else
-    CMD+=(-filter_complex "$FILTER" -map "[v]" -c:v libx264 -crf 18 -preset medium -an "$OUTPUT")
-  fi
+    else
+      aspeed=$(awk -v f="$fac" 'BEGIN{ if (f<=0) f=1; printf "%.10f", 1.0/f }')
+      if $has_a; then
+        FILTER+="[${i}:a]aformat=sample_fmts=fltp:channel_layouts=stereo,$(tempo_filter "$aspeed")[a${i}];"
+      else
+        # Silent audio, stretched to match
+        dur=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "${INPUTS[$i]}")
+        FILTER+="anullsrc=r=44100:cl=stereo,atrim=duration=${dur},aformat=sample_fmts=fltp:channel_layouts=stereo,$(tempo_filter "$aspeed")[a${i}];"
+      fi
+    fi
+  done
+  for i in "${!INPUTS[@]}"; do FILTER+="[v${i}][a${i}]"; done
+  FILTER+="concat=n=${#INPUTS[@]}:v=1:a=1[v][a]"
+  CMD=(ffmpeg -hide_banner -y)
+  for f in "${INPUTS[@]}"; do CMD+=(-i "$f"); done
+  CMD+=(-filter_complex "$FILTER" -map "[v]" -map "[a]" -c:v libx264 -crf 18 -preset medium -c:a aac -b:a 192k "$OUTPUT")
   echo "Output: $OUTPUT"; echo "Command: ${CMD[*]}"; if ! $DRYRUN; then "${CMD[@]}"; fi
   exit 0
 fi

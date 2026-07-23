@@ -253,7 +253,7 @@ class JoinParams(BaseModel):
         None,
         description=(
             "Optional per-clip target duration in seconds (same order as input_paths). "
-            "null/omit entry = keep native length. Applies temporal stretch via setpts/atempo."
+            "null/omit entry = keep native length. Applies temporal stretch via setpts/rubberband (pitch-preserving)."
         ),
     )
     output_path: str | None = Field(None, description="Output path; auto-named (join-<mode>_<W>x<H>.mp4) if omitted")
