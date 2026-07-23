@@ -3850,7 +3850,8 @@ function renderPoolGrid() {
     const card = document.createElement('article');
     const isSelected = state.pool.selectedPath === item.path;
     const isHovered = state.pool.hoverPath === item.path;
-    card.className = `pool-card${isSelected ? ' selected' : ''}${isHovered ? ' hovered' : ''}`;
+    const seqPos = sequencePositions(item.path);
+    card.className = `pool-card${isSelected ? ' selected' : ''}${isHovered ? ' hovered' : ''}${seqPos.length > 0 ? ' seq-active' : ''}`;
     card.dataset.path = item.path;
     card.dataset.idx = String(idx);
     card.draggable = true;
@@ -3866,7 +3867,6 @@ function renderPoolGrid() {
       ? '<span class="pool-meta-loading">hashing + probing…</span>'
       : buildPoolMetaHtml(item);
     const hasOverlay = loadingMeta || (metaHtml && metaHtml.trim().length > 0);
-    const seqPos = sequencePositions(item.path);
 
     card.innerHTML = `
       <div class="pool-card-actions">
