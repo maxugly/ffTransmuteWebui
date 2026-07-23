@@ -1710,6 +1710,8 @@ input:checked + .slider:before {
   z-index: 6;
 }
 
+.pool-card:hover::after,
+.pool-card.selected::after,
 .pool-card.seq-active::after {
   content: '';
   position: absolute;
@@ -1718,6 +1720,23 @@ input:checked + .slider:before {
   box-shadow: inset 0 0 0 3px #3b82f6;
   pointer-events: none;
   z-index: 4;
+}
+
+.pool-card:hover::after {
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.25);
+}
+
+.pool-card.selected::after {
+  box-shadow: inset 0 0 0 3px rgba(59, 130, 246, 0.42);
+}
+
+/* seq-active + hover/selected: state color replaces blue */
+.pool-card.seq-active:hover::after {
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.25);
+}
+
+.pool-card.seq-active.selected::after {
+  box-shadow: inset 0 0 0 3px rgba(59, 130, 246, 0.42);
 }
 
 /* Open dropdown draws above every other tile (including hover neighbors) */
