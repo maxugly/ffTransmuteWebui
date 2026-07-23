@@ -25,6 +25,8 @@ ffTransmuteWebui/
 ├── no_keyframe.js               # ffglitch iframe removal script
 ├── docs-transmute-README.md     # Standalone transmute CLI reference
 ├── docs-datamosh-README.md      # Standalone datamosh.sh CLI reference
+├── VERSIONING.md                # Humble versioning scheme explanation
+├── VERSION                      # Single-line version source of truth
 ├── mtapi-project/               # FastAPI backend & WebUI project directory
 │   ├── app/                     # Python app package (routes, contracts, media store)
 │   │   ├── operations/          # Typed operation handlers (transmute, datamosh)
@@ -64,7 +66,7 @@ Run `datamosh.sh` for motion-vector or keyframe-suppression glitching:
 ./datamosh.sh input.mp4 output.mp4 --mode classic
 ```
 
-Full references: [transmute CLI](docs-transmute-README.md) · [datamosh CLI](docs-datamosh-README.md)
+Full references: [transmute CLI](docs-transmute-README.md) · [datamosh CLI](docs-datamosh-README.md) · [versioning](VERSIONING.md)
 
 ### 3. Launching the Web Server & UI
 ```bash
