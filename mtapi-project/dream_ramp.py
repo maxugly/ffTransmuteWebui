@@ -54,7 +54,7 @@ def main():
     parser.add_argument("--curve", default="ease-in-out", choices=["linear", "ease-in", "ease-out", "ease-in-out"])
     parser.add_argument("--frame-step", type=int, default=1, help="Process every Nth frame (1 = all)")
     parser.add_argument("--max-frames", type=int, default=0, help="Cap frames (0 = all)")
-    parser.add_argument("--preview-width", type=int, default=0, help="Downscale for speed (0 = native)")
+    parser.add_argument("--preview-width", type=int, default=480, help="Downscale for speed (0 = native)")
     args = parser.parse_args()
 
     input_path = args.input.expanduser().resolve()
