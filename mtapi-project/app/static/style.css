@@ -1701,47 +1701,40 @@ input:checked + .slider:before {
 }
 
 .pool-card:hover {
-  border-color: rgba(255, 255, 255, 0.35);
   transform: translateY(-1px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   z-index: 5;
 }
 
 .pool-card.selected {
-  border-color: #22c55e;
-  box-shadow:
-    0 0 0 2px rgba(34, 197, 94, 0.55),
-    0 8px 28px rgba(34, 197, 94, 0.25);
   z-index: 6;
 }
 
-.pool-card.seq-active::after {
+/* ---- inset state rings (::after, 3px, solid RGB) ---- */
+
+.pool-card.seq-active::after,
+.pool-card:hover::after,
+.pool-card.selected::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 3px #3b82f6;
   pointer-events: none;
   z-index: 4;
 }
 
-.pool-card:hover::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 3px #7dd3fc;
-  pointer-events: none;
-  z-index: 4;
-}
+/* single states */
+.pool-card:hover::after           { box-shadow: inset 0 0 0 3px rgb(34, 239, 94); }    /* hovered  → green */
+.pool-card.selected::after        { box-shadow: inset 0 0 0 3px rgb(255, 255, 255); }  /* selected → white */
+.pool-card.seq-active::after      { box-shadow: inset 0 0 0 3px rgb(59, 130, 246); }   /* active   → blue */
 
-.pool-card.seq-active:hover::after {
-  box-shadow: inset 0 0 0 3px #2dd4bf;
-}
+/* two-state combos */
+.pool-card.selected:hover::after        { box-shadow: inset 0 0 0 3px rgb(134, 239, 172); }  /* selected + hovered     → light green */
+.pool-card.seq-active.selected::after   { box-shadow: inset 0 0 0 3px rgb(6, 182, 212); }    /* active + selected      → cyan */
+.pool-card.seq-active:hover::after      { box-shadow: inset 0 0 0 3px rgb(20, 184, 166); }   /* active + hovered       → teal */
 
-.pool-card.seq-active.selected::after {
-  box-shadow: inset 0 0 0 3px #22c55e;
-}
+/* three-state combo */
+.pool-card.seq-active.selected:hover::after { box-shadow: inset 0 0 0 3px rgb(236, 72, 153); } /* active + selected + hovered → pink */
 
 /* Open dropdown draws above every other tile (including hover neighbors) */
 .pool-card.menu-open {
@@ -2007,26 +2000,6 @@ input:checked + .slider:before {
 
 .action-panel.pool-active .pool-card {
   min-height: 100px;
-}
-
-.pool-card.focused,
-.pool-card.hovered {
-  border-color: rgba(168, 85, 247, 0.45);
-  box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.2);
-}
-
-/* Sticky selection wins visually over hover */
-.pool-card.selected {
-  border-color: #22c55e;
-  box-shadow:
-    0 0 0 1px rgba(34, 197, 94, 0.45),
-    0 8px 28px rgba(34, 197, 94, 0.18);
-}
-.pool-card.selected.hovered {
-  border-color: #22c55e;
-  box-shadow:
-    0 0 0 1px rgba(34, 197, 94, 0.55),
-    0 8px 28px rgba(34, 197, 94, 0.22);
 }
 
 .pool-card.dragging {
