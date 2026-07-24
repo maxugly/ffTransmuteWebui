@@ -3,13 +3,15 @@
 Ramped DeepDream — apply dream to a video with intensity increasing over time.
 
 Usage:
-    python dream_ramp.py /path/to/input.mp4 [--out output.mp4] [--step-max 0.03] [--model inception_v3]
+    python dream_ramp.py /path/to/input.mp4 [--out output.mp4] [--step-max 0.03]
 
 The dream starts at zero and linearly ramps to full by the end of the clip.
 Frames are extracted, dreamed individually, and re-encoded with original audio.
 
-Requires the mtapi-project venv with TensorFlow installed.
-Run from the mtapi-project directory or activate its venv first.
+New: --layer-ramp cycles through layer presets as intensity increases,
+so the effect qualitatively changes over time (e.g. shallow → mid → deep → full).
+
+Requires TensorFlow. Run from a venv with tensorflow-cpu and pillow installed.
 """
 
 import argparse
@@ -18,12 +20,6 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-
-# ── add mtapi-project to path so we can import the engine ──────────────
-_HERE = Path(__file__).resolve().parent
-_MTAPI = _HERE / "mtapi-project"
-if str(_MTAPI) not in sys.path:
-    sys.path.insert(0, str(_MTAPI))
 
 from app.operations.deepdream_engine import dream_image, _probe_video
 
@@ -40,12 +36,24 @@ def ramp_value(t: float, start: float, end: float, curve: str = "linear") -> flo
     return start + (end - start) * t
 
 
+def pick_in_list(t: float, items: list) -> str:
+    """Pick an item from a list based on t (0→1), cycling through evenly."""
+    if len(items) == 1:
+        return items[0]
+    bucket = t * (len(items) - 1)
+    idx = min(int(bucket), len(items) - 1)
+    return items[idx]
+
+
 def main():
     parser = argparse.ArgumentParser(description="Ramped DeepDream video")
     parser.add_argument("input", type=Path, help="Input video file")
     parser.add_argument("--out", "-o", type=Path, help="Output path (default: <input>_dreamramp.mp4)")
     parser.add_argument("--model", default="inception_v3", choices=["inception_v3", "vgg16", "resnet50"])
-    parser.add_argument("--layer-preset", default="classic", choices=["shallow", "mid", "deep", "classic", "full"])
+    parser.add_argument("--layer-preset", default="classic", choices=["shallow", "mid", "deep", "classic", "full"],
+                        help="Single preset (ignored if --layer-ramp is set)")
+    parser.add_argument("--layer-ramp", default=None,
+                        help="Comma-separated presets to cycle through, e.g. shallow,mid,deep,full")
     parser.add_argument("--step-min", type=float, default=0.0, help="Dream step at start (0 = no effect)")
     parser.add_argument("--step-max", type=float, default=0.03, help="Dream step at end")
     parser.add_argument("--iterations", type=int, default=5, help="Ascent iterations per frame")
@@ -57,6 +65,15 @@ def main():
     parser.add_argument("--preview-width", type=int, default=480, help="Downscale for speed (0 = native)")
     args = parser.parse_args()
 
+    # parse layer ramp
+    layer_ramp = None
+    if args.layer_ramp:
+        layer_ramp = [p.strip() for p in args.layer_ramp.split(",") if p.strip()]
+        for p in layer_ramp:
+            if p not in ("shallow", "mid", "deep", "classic", "full"):
+                print(f"ERROR: unknown layer preset '{p}' in --layer-ramp")
+                sys.exit(1)
+
     input_path = args.input.expanduser().resolve()
     if not input_path.is_file():
         print(f"ERROR: input not found: {input_path}")
@@ -66,7 +83,11 @@ def main():
 
     print(f"input : {input_path}")
     print(f"output: {output_path}")
-    print(f"model : {args.model}  preset: {args.layer_preset}")
+    print(f"model : {args.model}")
+    if layer_ramp:
+        print(f"layers: {' → '.join(layer_ramp)}")
+    else:
+        print(f"preset: {args.layer_preset}")
     print(f"step  : {args.step_min} → {args.step_max}  curve: {args.curve}")
     print(f"iters : {args.iterations}  octaves: {args.octaves}")
 
@@ -108,7 +129,6 @@ def main():
         out_fr = dream_dir / fr.name
 
         if args.frame_step > 1 and idx % args.frame_step != 0:
-            # copy previous dream frame
             prev = sorted(dream_dir.glob("f_*.png"))
             src = prev[-1] if prev else fr
             shutil.copy2(src, out_fr)
@@ -116,15 +136,15 @@ def main():
                 print(f"  frame {idx + 1}/{n_frames} (copy)")
             continue
 
-        # ramp the step value based on frame position
         t = idx / max(n_frames - 1, 1)
         current_step = ramp_value(t, args.step_min, args.step_max, args.curve)
+        current_preset = pick_in_list(t, layer_ramp) if layer_ramp else args.layer_preset
 
         dream_image(
             fr,
             out_fr,
             model_name=args.model,
-            layer_preset=args.layer_preset,
+            layer_preset=current_preset,
             step=current_step,
             iterations=args.iterations,
             num_octave=args.octaves,
@@ -134,7 +154,7 @@ def main():
 
         if idx % 5 == 0 or idx == n_frames - 1:
             pct = (idx + 1) / n_frames * 100
-            print(f"  frame {idx + 1}/{n_frames} ({pct:.0f}%)  step={current_step:.4f}")
+            print(f"  frame {idx + 1}/{n_frames} ({pct:.0f}%)  step={current_step:.4f}  {current_preset}")
 
     # encode output
     print("encoding output video…")
@@ -153,7 +173,6 @@ def main():
         print(f"ERROR encoding: {r.stderr.strip()}")
         sys.exit(1)
 
-    # cleanup
     shutil.rmtree(work)
     print(f"done → {output_path}")
 
