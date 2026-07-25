@@ -2949,7 +2949,8 @@ const transmuteOpsDetails = {
   square_letterbox: { summary: "Letterbox (pad) to a 1:1 square", fields: [] },
   reverse: { summary: "Reverse video and audio completely", fields: [] },
   crop_exact: { summary: "Center-crop to exact resolution", fields: ['width', 'height'] },
-  stretch_exact: { summary: "Stretch to exact resolution", fields: ['width', 'height'] }
+  stretch_exact: { summary: "Stretch to exact resolution", fields: ['width', 'height'] },
+  speed_ramp: { summary: "Speed ramp (spin-up / spin-down)", fields: ['speed_ramp'] }
 };
 
 let activeTransmuteOp = 'first_frame';
@@ -3063,6 +3064,26 @@ function updateTransmuteExtras() {
     `;
   }
 
+  if (fields.includes('speed_ramp')) {
+    html += `
+    <div class="dream-section-title">Speed Ramp</div>
+
+    <div class="knob-bank">
+      ${knobUnitHtml({ id: 'rampDirection', label: 'Direction', value: 'spin_down', binary: true, leftCap: 'Spin Up', rightCap: 'Spin Down' })}
+    </div>
+
+    <div class="knob-bank">
+      ${knobUnitHtml({ id: 'rampDuration', label: 'Duration (s)', value: '5.0' })}
+      ${knobUnitHtml({ id: 'rampStartSpeed', label: 'Start ×', value: '4.0' })}
+      ${knobUnitHtml({ id: 'rampEndSpeed', label: 'End ×', value: '0.33' })}
+    </div>
+
+    <p class="dream-hint" id="rampInfoLine" style="margin-top: 8px;">
+      Set parameters above to see required source duration.
+    </p>
+  `;
+  }
+
   extrasContainer.innerHTML = html;
 
   if (fields.includes('quality')) {
@@ -3091,6 +3112,75 @@ function updateTransmuteExtras() {
       min: 16, max: 4320, step: 2, decimals: 0, sensitivity: 220,
     });
   }
+
+  if (fields.includes('speed_ramp')) {
+    setupBinaryKnob({
+      knobId: 'rampDirectionKnob', indicatorId: 'rampDirectionKnobInd',
+      hiddenId: 'rampDirection',
+      leftValue: 'spin_up', rightValue: 'spin_down', initial: 'spin_down',
+    });
+    setupContinuousKnob({
+      knobId: 'rampDurationKnob', indicatorId: 'rampDurationKnobInd',
+      valueId: 'rampDurationVal', hiddenId: 'rampDuration',
+      min: 0.5, max: 60, step: 0.1, decimals: 1,
+    });
+    setupContinuousKnob({
+      knobId: 'rampStartSpeedKnob', indicatorId: 'rampStartSpeedKnobInd',
+      valueId: 'rampStartSpeedVal', hiddenId: 'rampStartSpeed',
+      min: 0.1, max: 20, step: 0.05, decimals: 2,
+    });
+    setupContinuousKnob({
+      knobId: 'rampEndSpeedKnob', indicatorId: 'rampEndSpeedKnobInd',
+      valueId: 'rampEndSpeedVal', hiddenId: 'rampEndSpeed',
+      min: 0.1, max: 20, step: 0.05, decimals: 2,
+    });
+
+    // Swap defaults when direction toggles
+    const dirEl = document.getElementById('rampDirection');
+    if (dirEl) {
+      dirEl.addEventListener('change', () => {
+        const dir = dirEl.value;
+        const startEl = document.getElementById('rampStartSpeed');
+        const endEl = document.getElementById('rampEndSpeed');
+        if (dir === 'spin_down') {
+          startEl.value = '4.0'; endEl.value = '0.33';
+        } else {
+          startEl.value = '0.33'; endEl.value = '4.0';
+        }
+        updateRampInfoLine();
+      });
+    }
+
+    // Update info line on knob changes
+    ['rampDuration', 'rampStartSpeed', 'rampEndSpeed', 'rampLoopMode', 'rampCurveShape'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('change', updateRampInfoLine);
+    });
+    // Also listen on the hidden inputs that knobs update
+    ['rampDuration', 'rampStartSpeed', 'rampEndSpeed'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('input', updateRampInfoLine);
+      }
+    });
+  }
+}
+
+function updateRampInfoLine() {
+  const line = document.getElementById('rampInfoLine');
+  if (!line) return;
+  const dur = parseFloat(document.getElementById('rampDuration')?.value) || 5;
+  const S = parseFloat(document.getElementById('rampStartSpeed')?.value) || 4;
+  const E = parseFloat(document.getElementById('rampEndSpeed')?.value) || 0.33;
+  if (S <= 0 || E <= 0 || S === E) {
+    line.textContent = 'Start and end speed must differ and be > 0.';
+    return;
+  }
+  // Compute how much source footage is needed (same math as backend)
+  const ratio = Math.max(S, E) / Math.min(S, E);
+  const T_needed = Math.log(ratio) * Math.min(S, E) * dur / (ratio - 1);
+  line.textContent = `Source needed: ${T_needed.toFixed(1)}s  →  output ~${dur.toFixed(1)}s  ` +
+    `(start ${S.toFixed(2)}× → end ${E.toFixed(2)}×)`;
 }
 
 // Multi-clip Join/Grid Form
@@ -6810,6 +6900,19 @@ async function runActiveOperation() {
     if (fields.includes('width')) {
       body.width = parseInt(document.getElementById('transmuteWidth').value, 10);
       body.height = parseInt(document.getElementById('transmuteHeight').value, 10);
+    }
+    if (activeTransmuteOp === 'speed_ramp') {
+      body = {
+        input_path: input,
+        output_path: output,
+        dry_run: dryRun,
+        direction: document.getElementById('rampDirection')?.value || 'spin_down',
+        duration: parseFloat(document.getElementById('rampDuration')?.value) || 5.0,
+        start_speed: parseFloat(document.getElementById('rampStartSpeed')?.value) || 4.0,
+        end_speed: parseFloat(document.getElementById('rampEndSpeed')?.value) || 0.333,
+        curve_shape: document.getElementById('rampCurveShape')?.value || 'exponential',
+        loop_mode: document.getElementById('rampLoopMode')?.value || 'auto',
+      };
     }
   } else if (tab === 'multi') {
     const mode = activeMultiMode; // 'join' or 'grid'

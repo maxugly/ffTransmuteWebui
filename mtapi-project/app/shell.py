@@ -17,6 +17,33 @@ BIN_DIR = Path(os.environ.get("MTAPI_BIN_DIR", Path(__file__).resolve().parent.p
 TRANSMUTE = str(BIN_DIR / "transmute")
 DATAMOSH = str(BIN_DIR / "datamosh.sh")
 
+_VIDEO_OUT_EXTS = frozenset({".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi"})
+
+
+def ensure_video_output_path(output_path: str | None) -> str | None:
+    """ffmpeg cannot guess a muxer for extensionless paths like '.../1'."""
+    if not output_path:
+        return output_path
+    p = output_path.strip()
+    if not p:
+        return None
+    lower = p.lower()
+    if any(lower.endswith(ext) for ext in _VIDEO_OUT_EXTS):
+        return p
+    base_stem, ext = os.path.splitext(p)
+    if ext and len(ext) <= 6 and ext[1:].isalnum():
+        return base_stem + ".mp4"
+    return p + ".mp4"
+
+
+async def probe_duration(path: str) -> float:
+    """ffprobe format=duration as float, or 0.0 on failure."""
+    argv = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path]
+    code, out, _ = await run_command(argv)
+    try:
+        return float(out.strip()) if code == 0 else 0.0
+    except ValueError:
+        return 0.0
 
 async def run_command(argv: list[str], cwd: str | None = None) -> tuple[int, str, str]:
     """Run argv, wait for it, return (exit_code, stdout, stderr) as text."""

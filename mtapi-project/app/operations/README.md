@@ -64,6 +64,7 @@ Python pipeline around ffgac / ffedit / custom glitch JS:
 
 | Module | Role |
 |--------|------|
+| `app/shell.py` | Subprocess helpers: `run_command`, `parse_line`, `ensure_video_output_path`, `probe_duration` |
 | `app/pathutil.py` | Never-overwrite outputs: `name.ext` → `name_0001.ext`, `name_0002.ext`… Related sets (cutout/mask/bg) share one sequence number |
 | `app/job_control.py` | Job tokens, cancel, progress polling (`X-Job-Token`, `GET /api/job/{token}`) |
 

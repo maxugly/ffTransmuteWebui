@@ -22,7 +22,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from ..contract import OperationResult, OperationSpec, register
-from ..shell import TRANSMUTE, parse_line, run_command
+from ..shell import TRANSMUTE, ensure_video_output_path, parse_line, run_command
 
 JoinGridMode = Literal["pad", "crop", "stretch"]
 
@@ -38,26 +38,6 @@ def _cwd_for(input_arg: str) -> str | None:
     return d if os.path.isdir(d) else None
 
 
-_VIDEO_OUT_EXTS = (".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi")
-
-
-def _ensure_video_output_path(output_path: str | None) -> str | None:
-    """ffmpeg cannot guess a muxer for extensionless paths like '.../1'."""
-    if not output_path:
-        return output_path
-    p = output_path.strip()
-    if not p:
-        return None
-    lower = p.lower()
-    if any(lower.endswith(ext) for ext in _VIDEO_OUT_EXTS):
-        return p
-    # Replace unknown short extension, or append .mp4
-    base, ext = os.path.splitext(p)
-    if ext and len(ext) <= 6 and ext[1:].isalnum():
-        return base + ".mp4"
-    return p + ".mp4"
-
-
 async def _run_transmute(
     operation: str,
     input_arg: str,
@@ -67,7 +47,7 @@ async def _run_transmute(
 ) -> OperationResult:
     from ..pathutil import unique_output_path
 
-    output_path = _ensure_video_output_path(output_path)
+    output_path = ensure_video_output_path(output_path)
     if output_path:
         # Avoid clobbering prior runs when the UI/user reuses a path
         output_path = str(unique_output_path(output_path))
