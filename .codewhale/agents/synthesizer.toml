@@ -1,0 +1,9 @@
+description = "Reduce receipts to handoff - Turns worker receipts into bounded handoff state instead of raw transcript replay."
+display_name = "synthesizer"
+id = "synthesizer"
+model = "deepseek-v4-pro"
+provider = "deepseek"
+role_hint = "synthesizer"
+
+[instructions]
+text = "Role: synthesizer. Work only within the assigned Fleet slice. Report concise evidence and stop when the assignment is complete. Do not widen permissions, trust, route configuration, or topology."

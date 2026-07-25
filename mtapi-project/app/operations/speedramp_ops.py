@@ -91,15 +91,35 @@ async def speed_ramp(p: SpeedRampParams) -> OperationResult:
         expr_v = f"log(1+PTS*TB/{A})/({k}*TB)"
     expr_a = expr_v
 
-    # How much output we actually get from the available input
+    # If input is too short for the requested curve, auto-derive end_speed
+    # so the ramp consumes exactly the available footage.
+    derived_e = None
     if input_dur >= T_needed:
         actual_out = p.duration
     else:
+        # Solve for k where T_needed = input_dur with S and D fixed.
+        # T_needed = (S - E)*D / ln(S/E) = input_dur  (spin_down)
+        # Binary search for E such that the integral equals input_dur.
+        lo, hi = (1e-8, S - 1e-8) if p.direction == "spin_down" else (S + 1e-8, 50.0)
+        for _ in range(60):
+            mid = (lo + hi) / 2
+            ratio = S / mid if p.direction == "spin_down" else mid / S
+            if ratio <= 1:
+                lo = mid; continue
+            T_est = (abs(S - mid) * p.duration) / math.log(ratio)
+            if T_est < input_dur:
+                lo = mid
+            else:
+                hi = mid
+        derived_e = (lo + hi) / 2
+        k2 = math.log(S / derived_e) / p.duration if p.direction == "spin_down" else math.log(derived_e / S) / p.duration
+        A2 = S / k2
+        actual_out = p.duration
         if p.direction == "spin_down":
-            actual_out = -math.log(max(1 - input_dur / A, 1e-10)) / k
+            expr_v = f"-log(1-PTS*TB/{A2})/({k2}*TB)"
         else:
-            actual_out = math.log(1 + input_dur / A) / k
-        actual_out = min(actual_out, p.duration)
+            expr_v = f"log(1+PTS*TB/{A2})/({k2}*TB)"
+        expr_a = expr_v
 
     # Probe source fps for output frame rate (match source, capped)
     source_fps = await _probe_fps(p.input_path)
@@ -113,7 +133,7 @@ async def speed_ramp(p: SpeedRampParams) -> OperationResult:
         "-i", p.input_path,
         "-filter:v", f"setpts='{expr_v}',fps={out_fps}",
         "-filter:a", f"asetpts='{expr_a}'",
-        "-t", str(actual_out),
+        "-shortest",
         "-c:v", "libx264", "-preset", "fast", "-crf", "23",
         "-c:a", "aac", "-b:a", "128k",
         output,
@@ -126,9 +146,11 @@ async def speed_ramp(p: SpeedRampParams) -> OperationResult:
             ok=True, operation="speed_ramp",
             dry_run=True, command=cmd_str, output_path=output,
             stdout=(
-                f"Command: {cmd_str}\nOutput: {output}\n"
-                f"Input: {input_dur:.2f}s  Needed: {T_needed:.2f}s  "
-                f"Output: {actual_out:.2f}s  FPS: {out_fps}"
+                f"Command: {cmd_str}\n"
+                f"Output: {output}\n"
+                f"Input: {input_dur:.2f}s  Target: {p.duration:.1f}s"
+                + (f"  Derived end_speed: {derived_e:.4f}x" if derived_e else f"  Source needed: {T_needed:.2f}s")
+                + f"  FPS: {out_fps}"
             ),
         )
 

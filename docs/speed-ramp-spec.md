@@ -1,8 +1,31 @@
 # Speed Ramp Spec — Spin Up / Spin Down
 
-> **Status**: spec (no code)
+> **Status**: ⚠️ setpts approach abandoned — see addendum. PNG frame-remap is the working path.
 > **Target**: Single-Clip Ops tab in ffTransmuteWebui
-> **Date**: 2026-07-25
+> **Date**: 2026-07-25 · updated 2026-07-25
+
+---
+
+## Addendum (2026-07-25): setpts is dead
+
+After extensive testing, ffmpeg's `setpts` filter with mathematical expressions
+(`N`-based or `PTS*TB`-based) proved unreliable for variable-speed ramps:
+
+- `N`-based expressions produce constant speed on current ffmpeg builds
+- `PTS*TB`-based expressions produce stutter/dropped frames on real clips
+- The `-fps_mode passthrough` workaround fails to preserve the curve
+- Full failure report: `docs/setpts-cli-failure-report.md`
+
+**New approach:** PNG frame-remap. Dump video to PNG sequence, apply the speed
+curve by selecting which source frame each output frame maps to (skip frames
+for fast, duplicate for slow), re-encode at constant framerate. No ffmpeg
+timestamp math. Cannot break.
+
+**Implementation:** `speedramp_png.py` (in progress, paused for RIFE op).
+Same pipeline as deepdream/facemorph/withoutbg: dump PNGs → process → re-encode.
+
+The curve math in sections 4 and 5 below is still correct conceptually.
+The implementation just bypasses ffmpeg's setpts filter entirely.
 
 ---
 
