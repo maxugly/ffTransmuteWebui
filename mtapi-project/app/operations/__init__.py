@@ -12,6 +12,7 @@ from . import (  # noqa: F401
     datamosh_ops,
     deepdream_ops,
     facemorph_ops,
+    rife_ops,
     speedramp_ops,
     withoutbg_ops,
     styletransfer_ops,
