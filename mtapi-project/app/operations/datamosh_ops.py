@@ -511,7 +511,8 @@ async def _trim_and_mosh(
 
         # Concat the non-empty segments in timeline order.  Part A is absent
         # when start_frame=1, so input indexes must be generated dynamically.
-        output_path = unique_output_path(output_path)
+        # OperationResult.output_path is str — unique_output_path returns Path.
+        output_path = str(unique_output_path(output_path))
         segments: list[str] = []
         if tmp_a is not None:
             segments.append(tmp_a)
