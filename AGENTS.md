@@ -50,7 +50,7 @@ Agents operating at this level are responsible for top-level repository integrit
 | facemorph | `facemorph_ops.py` | ✅ stable |
 | withoutbg | `withoutbg_ops.py` | ✅ stable (video mode spec'd) |
 | style transfer | `styletransfer_ops.py` | ✅ stable |
-| RIFE interpolation | `rife_ops.py` | ✅ new in 000.000.2.25 |
+| RIFE interpolation | `rife_ops.py` | ✅ stable in 000.000.3.0 |
 | speed ramp | `speedramp_ops.py` + `speedramp_png.py` | ⚠️ in progress |
 | raw transmute | `transmute_ops.py` | ✅ escape hatch |
 
@@ -77,7 +77,8 @@ When modifying files at the root level or coordinating changes across components
 5. **Unified Pipeline Pattern**:
    - New neural/video ops follow: ffmpeg dump PNGs → tool/engine processes frames → ffmpeg re-encode. Never invent a new I/O pattern.
 6. **Version Bumping**:
-   - Bump far-right DD in VERSION for each feature. Commit + push per change.
+   - Bump far-right DD in VERSION for each feature (000.000.X.DD). Commit + push per change.
+   - Bump third segment (000.000.X.0) for significant releases (new ops, major UI additions).
 
 ---
 
@@ -102,11 +103,43 @@ When modifying files at the root level or coordinating changes across components
 4. Update this AGENTS.md ops registry table.
 5. Bump VERSION (far-right DD).
 
-### C. Agent Coordination
-1. Read `.coms.md` for current threads and decisions.
-2. Post updates signed with your agent ID.
-3. Update `.presence.json` when status changes.
-4. `.coms.md` and `.presence.json` are gitignored — project-local only.
+### C. Agent Coordination — MANDATORY STARTUP ROUTINE
+
+**Every session starts with this. Do not skip steps.**
+
+1. **Check `.presence.json`.** Read the file. Find your agent entry. Look at `pending`.
+2. **If `pending` is set:** read `.coms.md` immediately. Find the assignment post.
+   Post ACK to `.coms.md` BEFORE doing anything else.
+3. **If `pending` is null:** you're idle. Read `.coms.md` for announcements, post status.
+4. **Do the work.** Post results to the correct channel.
+
+**Two-channel system:** `.coms.md` = status. `.artifacts.md` = content.
+**Track system:** F-track (fundamentals) before M-track (features).
+
+### D. Browser Verification — MANDATORY FOR ALL FRONTEND CHANGES
+
+**Any agent touching `app/static/` files (HTML, CSS, JS) MUST verify in a real
+browser before claiming DONE. curl ≠ browser. Syntax check ≠ browser. The
+browser's JavaScript `fetch()` can fail silently due to CORS, module import
+errors, or script load failures that static checks never catch.**
+
+The mandatory verification sequence:
+
+1. `browser_navigate` to `http://localhost:24590/`
+2. `browser_console` — check for JS errors. ZERO errors allowed.
+3. Click through EVERY tab affected by the change.
+4. If the change adds a form: verify every control renders (textbox, select,
+   knob, button).
+5. If the change adds a run path: execute a dry_run through the form.
+6. Only after steps 1-5 pass clean: post DONE or VERIFIED.
+
+**No agent reports frontend work as "tested" or "done" without browser
+verification.** "I tested it" means "I opened the browser and clicked through
+every tab with zero console errors." Anything less is untested code.
+
+**Conductor's verification gate:** When a builder reports DONE on frontend
+work, the conductor independently verifies with `browser_navigate` +
+`browser_console` before marking VERIFIED. Trust but verify.
 
 ---
 
