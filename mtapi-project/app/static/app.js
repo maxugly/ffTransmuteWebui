@@ -2750,22 +2750,23 @@ async function probeMoshInputVideo() {
     const data = await res.json();
     if (data.ok && data.frames) {
       state.moshVideoFrames = data.frames;
-      
-      // Update DOM range inputs dynamically if they exist
+
+      // Update DOM range inputs + blue selection bar if they exist
       const startEl = document.getElementById('timelineStart');
       const endEl = document.getElementById('timelineEnd');
       if (startEl && endEl) {
         startEl.max = data.frames;
         endEl.max = data.frames;
-        
-        let sVal = parseInt(startEl.value);
-        let eVal = parseInt(endEl.value);
-        if (sVal > data.frames) sVal = 1;
-        if (eVal > data.frames) eVal = data.frames;
+
+        let sVal = parseInt(startEl.value, 10);
+        let eVal = parseInt(endEl.value, 10);
+        if (isNaN(sVal) || sVal > data.frames) sVal = 1;
+        if (isNaN(eVal) || eVal > data.frames) eVal = data.frames;
+        if (eVal <= sVal) eVal = Math.min(data.frames, sVal + 1);
         startEl.value = sVal;
         endEl.value = eVal;
-        
-        // Trigger update Event
+
+        // Refresh left/width of .timeline-range (and hidden frame fields)
         startEl.dispatchEvent(new Event('input'));
       }
     }
@@ -2780,48 +2781,67 @@ function setupTimelineSlider(hiddenStartId, hiddenEndId, defaultStart, defaultEn
   const rangeHighlight = document.getElementById('timelineRange');
   const valStart = document.getElementById('valStartFrame');
   const valEnd = document.getElementById('valEndFrame');
-  
+
   const hiddenStart = document.getElementById(hiddenStartId);
   const hiddenEnd = document.getElementById(hiddenEndId);
 
   if (!startInput || !endInput || !rangeHighlight || !hiddenStart || !hiddenEnd || !valStart || !valEnd) return;
 
-  const maxFrames = state.moshVideoFrames || 100;
+  function currentMaxFrames() {
+    const fromState = parseInt(state.moshVideoFrames, 10);
+    const fromDom = parseInt(startInput.max, 10);
+    const max = fromState || fromDom || 100;
+    return max > 1 ? max : 2; // avoid divide-by-zero in percent math
+  }
 
-  startInput.min = 1;
-  startInput.max = maxFrames;
-  endInput.min = 1;
-  endInput.max = maxFrames;
+  function applyMax(maxFrames) {
+    startInput.min = 1;
+    startInput.max = maxFrames;
+    endInput.min = 1;
+    endInput.max = maxFrames;
+  }
 
-  let initStart = parseInt(hiddenStart.value) || defaultStart;
-  let initEnd = parseInt(hiddenEnd.value) || defaultEnd;
+  let maxFrames = currentMaxFrames();
+  applyMax(maxFrames);
+
+  let initStart = parseInt(hiddenStart.value, 10) || defaultStart;
+  let initEnd = parseInt(hiddenEnd.value, 10) || defaultEnd;
 
   if (initStart > maxFrames) initStart = 1;
   if (initEnd > maxFrames || initEnd === 999999) initEnd = maxFrames;
+  if (initStart < 1) initStart = 1;
+  if (initEnd <= initStart) initEnd = Math.min(maxFrames, initStart + 1);
 
   startInput.value = initStart;
   endInput.value = initEnd;
 
   function updateTimeline() {
-    let startVal = parseInt(startInput.value);
-    let endVal = parseInt(endInput.value);
+    maxFrames = currentMaxFrames();
+    applyMax(maxFrames);
+
+    let startVal = parseInt(startInput.value, 10);
+    let endVal = parseInt(endInput.value, 10);
+    if (isNaN(startVal)) startVal = 1;
+    if (isNaN(endVal)) endVal = maxFrames;
 
     // Keep at least 1 frame of distance
     if (startVal >= endVal) {
       if (this === startInput) {
-        startInput.value = endVal - 1;
-        startVal = endVal - 1;
+        startVal = Math.max(1, endVal - 1);
+        startInput.value = startVal;
       } else {
-        endInput.value = startVal + 1;
-        endVal = startVal + 1;
+        endVal = Math.min(maxFrames, startVal + 1);
+        endInput.value = endVal;
       }
     }
 
-    const percentLeft = ((startVal - 1) / (maxFrames - 1)) * 100;
-    const percentRight = ((endVal - 1) / (maxFrames - 1)) * 100;
+    const span = Math.max(1, maxFrames - 1);
+    const percentLeft = ((startVal - 1) / span) * 100;
+    const percentRight = ((endVal - 1) / span) * 100;
+    const widthPct = Math.max(0, percentRight - percentLeft);
 
     rangeHighlight.style.left = `${percentLeft}%`;
-    rangeHighlight.style.width = `${percentRight - percentLeft}%`;
+    rangeHighlight.style.width = `${widthPct}%`;
 
     if (document.activeElement !== valStart) {
       valStart.value = startVal;
@@ -2837,46 +2857,44 @@ function setupTimelineSlider(hiddenStartId, hiddenEndId, defaultStart, defaultEn
   startInput.addEventListener('input', updateTimeline);
   endInput.addEventListener('input', updateTimeline);
 
-  // Range dragging variables
+  // Range dragging: drag the blue bar to slide the whole window
   let rangeDragging = false;
   let dragStartX = 0;
   let dragStartValL = 0;
   let dragStartValR = 0;
 
   function onRangeMouseDown(e) {
-    const rect = rangeHighlight.getBoundingClientRect();
-    const clickX = e.clientX;
-    
-    // Drag only if we clicked inside the highlight range bar
-    if (clickX >= rect.left && clickX <= rect.right) {
-      rangeDragging = true;
-      dragStartX = clickX;
-      dragStartValL = parseInt(startInput.value);
-      dragStartValR = parseInt(endInput.value);
-      
-      rangeHighlight.classList.add('active');
-      
-      window.addEventListener('mousemove', onRangeMouseMove);
-      window.addEventListener('mouseup', onRangeMouseUp);
-      e.preventDefault();
-    }
+    // Ignore if a thumb is the real target (they sit above the bar)
+    if (e.target !== rangeHighlight) return;
+
+    rangeDragging = true;
+    dragStartX = e.clientX;
+    dragStartValL = parseInt(startInput.value, 10);
+    dragStartValR = parseInt(endInput.value, 10);
+
+    rangeHighlight.classList.add('active');
+
+    window.addEventListener('mousemove', onRangeMouseMove);
+    window.addEventListener('mouseup', onRangeMouseUp);
+    e.preventDefault();
+    e.stopPropagation();
   }
 
   function onRangeMouseMove(e) {
     if (!rangeDragging) return;
 
+    maxFrames = currentMaxFrames();
     const trackRect = startInput.getBoundingClientRect();
     const trackWidth = trackRect.width;
     if (trackWidth <= 0) return;
-    
+
     const deltaX = e.clientX - dragStartX;
-    const deltaFrames = Math.round((deltaX / trackWidth) * (maxFrames - 1));
-    
+    const deltaFrames = Math.round((deltaX / trackWidth) * Math.max(1, maxFrames - 1));
+
     let newStart = dragStartValL + deltaFrames;
     let newEnd = dragStartValR + deltaFrames;
-    
     const rangeSpan = dragStartValR - dragStartValL;
-    
+
     if (newStart < 1) {
       newStart = 1;
       newEnd = newStart + rangeSpan;
@@ -2885,10 +2903,10 @@ function setupTimelineSlider(hiddenStartId, hiddenEndId, defaultStart, defaultEn
       newEnd = maxFrames;
       newStart = newEnd - rangeSpan;
     }
-    
+
     startInput.value = newStart;
     endInput.value = newEnd;
-    
+
     updateTimeline();
   }
 
@@ -2900,12 +2918,36 @@ function setupTimelineSlider(hiddenStartId, hiddenEndId, defaultStart, defaultEn
   }
 
   rangeHighlight.addEventListener('mousedown', onRangeMouseDown);
+  // Touch support for the blue range handle
+  rangeHighlight.addEventListener('touchstart', (e) => {
+    if (!e.touches || !e.touches[0]) return;
+    const t = e.touches[0];
+    rangeDragging = true;
+    dragStartX = t.clientX;
+    dragStartValL = parseInt(startInput.value, 10);
+    dragStartValR = parseInt(endInput.value, 10);
+    rangeHighlight.classList.add('active');
+    const onMove = (ev) => {
+      if (!rangeDragging || !ev.touches || !ev.touches[0]) return;
+      onRangeMouseMove({ clientX: ev.touches[0].clientX });
+      ev.preventDefault();
+    };
+    const onEnd = () => {
+      onRangeMouseUp();
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onEnd);
+    };
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onEnd);
+    e.preventDefault();
+  }, { passive: false });
 
   // Editable inputs key listeners
   function onTextSubmit() {
-    let sVal = parseInt(valStart.value.replace(/[^0-9]/g, ''));
-    let eVal = parseInt(valEnd.value.replace(/[^0-9]/g, ''));
-    
+    maxFrames = currentMaxFrames();
+    let sVal = parseInt(String(valStart.value).replace(/[^0-9]/g, ''), 10);
+    let eVal = parseInt(String(valEnd.value).replace(/[^0-9]/g, ''), 10);
+
     if (isNaN(sVal)) sVal = 1;
     if (isNaN(eVal)) eVal = maxFrames;
 
@@ -2914,15 +2956,15 @@ function setupTimelineSlider(hiddenStartId, hiddenEndId, defaultStart, defaultEn
 
     if (sVal >= eVal) {
       if (this === valStart) {
-        sVal = eVal - 1;
+        sVal = Math.max(1, eVal - 1);
       } else {
-        eVal = sVal + 1;
+        eVal = Math.min(maxFrames, sVal + 1);
       }
     }
 
     startInput.value = sVal;
     endInput.value = eVal;
-    
+
     updateTimeline();
   }
 
@@ -2934,7 +2976,7 @@ function setupTimelineSlider(hiddenStartId, hiddenEndId, defaultStart, defaultEn
   valEnd.addEventListener('blur', onTextSubmit);
   valEnd.addEventListener('keydown', (e) => { if (e.key === 'Enter') { valEnd.blur(); e.preventDefault(); } });
 
-  // Initial update
+  // Initial update — paints the blue selected-range bar
   updateTimeline();
 }
 

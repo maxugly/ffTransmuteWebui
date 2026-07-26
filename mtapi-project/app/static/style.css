@@ -1436,65 +1436,54 @@ input:checked + .slider:before {
   z-index: 1;
 }
 
+/* Selected mosh range (blue bar). Sits under the thumbs, above the gray track.
+   Acts as the drag handle to move the whole window. */
 .timeline-range {
-  height: 6px;
+  left: 0;
+  width: 0;
+  height: 10px;
+  min-width: 4px;
   background: var(--primary);
-  border-radius: 3px;
+  border-radius: 5px;
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   z-index: 2;
-  box-shadow: 0 0 8px var(--primary-glow);
-  pointer-events: auto; /* enable click and drag in the middle */
+  box-shadow: 0 0 10px var(--primary-glow);
+  pointer-events: auto;
   cursor: grab;
 }
 
-.timeline-range:active, .timeline-range.active {
+.timeline-range:active,
+.timeline-range.active {
   background: var(--accent);
-  box-shadow: 0 0 8px var(--accent-glow);
+  box-shadow: 0 0 10px var(--accent-glow);
   cursor: grabbing;
 }
 
-.timeline-thumb {
+/* Dual thumbs: must beat global input[type=range] (0,1,1) so the blue
+   highlight is not painted over by the default range track background. */
+input.timeline-thumb[type="range"] {
+  flex: none;
   pointer-events: none;
   position: absolute;
   top: 50%;
+  left: 0;
   transform: translateY(-50%);
   width: 100%;
-  background: none;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
   -webkit-appearance: none;
   appearance: none;
   z-index: 3;
-  left: 0;
-  margin: 0;
+  outline: none;
 }
 
 /* Chrome/Safari */
-.timeline-thumb::-webkit-slider-thumb {
-  height: 18px;
-  width: 18px;
-  border-radius: 50%;
-  background: #fff;
-  border: 2px solid var(--primary);
-  cursor: pointer;
-  pointer-events: auto; /* enable pointer events on thumb only */
-  -webkit-appearance: none;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
-  transition: background-color 0.15s ease, border-color 0.15s ease;
-}
-
-.timeline-thumb::-webkit-slider-thumb:hover {
-  background: var(--primary-hover);
-  border-color: #fff;
-}
-
-.timeline-thumb::-webkit-slider-thumb:active {
-  background: var(--accent);
-  border-color: #fff;
-}
-
-/* Firefox */
-.timeline-thumb::-moz-range-thumb {
+input.timeline-thumb[type="range"]::-webkit-slider-thumb {
   height: 18px;
   width: 18px;
   border-radius: 50%;
@@ -1502,26 +1491,60 @@ input:checked + .slider:before {
   border: 2px solid var(--primary);
   cursor: pointer;
   pointer-events: auto;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  -webkit-appearance: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
   transition: background-color 0.15s ease, border-color 0.15s ease;
+  /* Center on the 24px track (see runnable-track height below) */
+  margin-top: 3px;
 }
 
-.timeline-thumb::-moz-range-thumb:hover {
+input.timeline-thumb[type="range"]::-webkit-slider-thumb:hover {
   background: var(--primary-hover);
   border-color: #fff;
 }
 
-.timeline-thumb::-moz-range-thumb:active {
+input.timeline-thumb[type="range"]::-webkit-slider-thumb:active {
   background: var(--accent);
   border-color: #fff;
 }
 
-/* Hide track in Chrome/Firefox range inputs so they don't draw over each other */
-.timeline-thumb::-webkit-slider-runnable-track {
-  background: none;
+/* Firefox */
+input.timeline-thumb[type="range"]::-moz-range-thumb {
+  height: 18px;
+  width: 18px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--primary);
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
-.timeline-thumb::-moz-range-track {
-  background: none;
+
+input.timeline-thumb[type="range"]::-moz-range-thumb:hover {
+  background: var(--primary-hover);
+  border-color: #fff;
+}
+
+input.timeline-thumb[type="range"]::-moz-range-thumb:active {
+  background: var(--accent);
+  border-color: #fff;
+}
+
+/* Fully clear native tracks so they never cover .timeline-range.
+   Match control height so thumbs sit vertically centered. */
+input.timeline-thumb[type="range"]::-webkit-slider-runnable-track {
+  height: 24px;
+  background: transparent;
+  border: none;
+}
+input.timeline-thumb[type="range"]::-moz-range-track {
+  height: 24px;
+  background: transparent;
+  border: none;
+}
+input.timeline-thumb[type="range"]::-moz-range-progress {
+  background: transparent;
 }
 
 .timeline-labels {

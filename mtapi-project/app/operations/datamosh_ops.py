@@ -372,6 +372,56 @@ async def _execute_mosh_pipeline(
         )
 
 
+async def _probe_has_audio(path: str) -> bool:
+    """True only when ffprobe reports an actual audio stream (not merely exit 0)."""
+    code, out, _ = await run_command([
+        "ffprobe", "-v", "error", "-select_streams", "a",
+        "-show_entries", "stream=codec_type", "-of", "csv=p=0", path,
+    ])
+    return code == 0 and "audio" in out.strip().lower()
+
+
+async def _slice_segment(
+    input_path: str,
+    output_path: str,
+    *,
+    start_time: float | None = None,
+    duration: float | None = None,
+    keep_audio: bool = False,
+) -> tuple[bool, str]:
+    """Encode a timeline slice. Prefer re-encoded AAC audio; fall back to -an."""
+    cmd = ["ffmpeg", "-y"]
+    if start_time is not None and start_time > 0:
+        cmd.extend(["-ss", f"{start_time}"])
+    cmd.extend(["-i", input_path])
+    if duration is not None:
+        cmd.extend(["-t", f"{duration}"])
+    cmd.extend(["-c:v", "libx264", "-pix_fmt", "yuv420p"])
+    if keep_audio:
+        cmd.extend(["-c:a", "aac", "-b:a", "192k", output_path])
+    else:
+        cmd.extend(["-an", output_path])
+
+    code, _, err = await run_command(cmd)
+    if code == 0:
+        return True, ""
+
+    if keep_audio:
+        # Retry without audio (source may lack a usable track despite probe)
+        cmd_an = ["ffmpeg", "-y"]
+        if start_time is not None and start_time > 0:
+            cmd_an.extend(["-ss", f"{start_time}"])
+        cmd_an.extend(["-i", input_path])
+        if duration is not None:
+            cmd_an.extend(["-t", f"{duration}"])
+        cmd_an.extend(["-c:v", "libx264", "-pix_fmt", "yuv420p", "-an", output_path])
+        code, _, err = await run_command(cmd_an)
+        if code == 0:
+            return True, ""
+
+    return False, err.strip()
+
+
 async def _trim_and_mosh(
     operation: str,
     input_path: str,
@@ -409,42 +459,34 @@ async def _trim_and_mosh(
     start_time = (start_frame - 1) * frame_dur
     end_time = end_frame * frame_dur
 
-    # Check for audio
-    code_a, _, _ = await run_command([
-        "ffprobe", "-v", "quiet", "-select_streams", "a:0",
-        "-show_entries", "stream=codec_type", "-of", "csv=p=0", input_path,
-    ])
-    has_audio = (code_a == 0)
+    # Must check stream content — ffprobe often exits 0 with empty output when
+    # no audio stream exists, which previously forced a broken a=1 concat.
+    has_audio = await _probe_has_audio(input_path)
 
     tmpdir = tempfile.mkdtemp(prefix="mtapi_trim_")
     try:
-        audio_flag = ["-c:a", "copy"] if has_audio else ["-an"]
-
-        # Part A: 0 to start_frame (untouched)
-        tmp_a = os.path.join(tmpdir, "partA.mp4")
-        a_cmd = ["ffmpeg", "-y", "-i", input_path, "-t", f"{start_time}",
-                 "-c:v", "libx264", "-pix_fmt", "yuv420p", *audio_flag, tmp_a]
-        code_a, _, err_a = await run_command(a_cmd)
-        if code_a != 0:
-            a_cmd2 = a_cmd[:-5] + ["-an", tmp_a]
-            code_a, _, err_a = await run_command(a_cmd2)
-            if code_a != 0:
+        # Part A: 0 to start_frame (untouched).  At frame 1 this is a
+        # zero-length segment; skip it so concat never sees an empty input.
+        tmp_a = None
+        if start_time > 0:
+            tmp_a = os.path.join(tmpdir, "partA.mp4")
+            ok_a, err_a = await _slice_segment(
+                input_path, tmp_a, duration=start_time, keep_audio=has_audio,
+            )
+            if not ok_a:
                 return OperationResult(ok=False, operation=operation,
-                                       error=f"Part A slice failed: {err_a.strip()}")
+                                       error=f"Part A slice failed: {err_a}")
 
         # Part B: start_frame to end_frame (to be moshed)
         tmp_b = os.path.join(tmpdir, "partB.mp4")
         dur_b = end_time - start_time
-        b_cmd = ["ffmpeg", "-y", "-ss", f"{start_time}", "-i", input_path,
-                 "-t", f"{dur_b}", "-c:v", "libx264", "-pix_fmt", "yuv420p",
-                 *audio_flag, tmp_b]
-        code_b, _, err_b = await run_command(b_cmd)
-        if code_b != 0:
-            b_cmd2 = b_cmd[:-5] + ["-an", tmp_b]
-            code_b, _, err_b = await run_command(b_cmd2)
-            if code_b != 0:
-                return OperationResult(ok=False, operation=operation,
-                                       error=f"Part B slice failed: {err_b.strip()}")
+        ok_b, err_b = await _slice_segment(
+            input_path, tmp_b,
+            start_time=start_time, duration=dur_b, keep_audio=has_audio,
+        )
+        if not ok_b:
+            return OperationResult(ok=False, operation=operation,
+                                   error=f"Part B slice failed: {err_b}")
 
         # Mosh part B
         tmp_moshed = os.path.join(tmpdir, "partB_moshed.mp4")
@@ -458,39 +500,67 @@ async def _trim_and_mosh(
 
         # Part C: end_frame to end (untouched)
         tmp_c = os.path.join(tmpdir, "partC.mp4")
-        c_cmd = ["ffmpeg", "-y", "-ss", f"{end_time}", "-i", input_path,
-                 "-c:v", "libx264", "-pix_fmt", "yuv420p",
-                 *audio_flag, tmp_c]
-        code_c, _, _ = await run_command(c_cmd)
-        if code_c != 0:
-            c_cmd2 = c_cmd[:-5] + ["-an", tmp_c]
-            code_c, _, _ = await run_command(c_cmd2)
-        has_c = (code_c == 0 and os.path.exists(tmp_c) and os.path.getsize(tmp_c) > 1000)
+        ok_c, _ = await _slice_segment(
+            input_path, tmp_c, start_time=end_time, keep_audio=has_audio,
+        )
+        has_c = (
+            ok_c
+            and os.path.exists(tmp_c)
+            and os.path.getsize(tmp_c) > 1000
+        )
 
-        # Concat A + moshed B + C
+        # Concat the non-empty segments in timeline order.  Part A is absent
+        # when start_frame=1, so input indexes must be generated dynamically.
         output_path = unique_output_path(output_path)
-        inputs = ["-i", tmp_a, "-i", tmp_moshed]
-        filter_parts = ["[0:v][1:v]"]
-        n = 2
+        segments: list[str] = []
+        if tmp_a is not None:
+            segments.append(tmp_a)
+        segments.append(tmp_moshed)
         if has_c:
-            inputs.extend(["-i", tmp_c])
-            filter_parts[0] += "[2:v]"
-            n += 1
-        if has_audio:
-            filter_parts[0] += "[0:a?][1:a?]"
-            if has_c:
-                filter_parts[0] += "[2:a?]"
-            filter_str = f"{filter_parts[0]}concat=n={n}:v=1:a=1[outv][outa]"
+            segments.append(tmp_c)
+
+        # Only request audio concat when *every* segment actually has audio.
+        # Moshed B may drop audio even when the source had it.
+        segment_audio = [await _probe_has_audio(seg) for seg in segments]
+        use_audio = bool(segment_audio) and all(segment_audio)
+
+        inputs: list[str] = []
+        video_labels: list[str] = []
+        for index, segment in enumerate(segments):
+            inputs.extend(["-i", segment])
+            video_labels.append(f"[{index}:v]")
+
+        n = len(segments)
+        if use_audio:
+            audio_labels = [f"[{index}:a]" for index in range(n)]
+            # concat expects interleaved v/a per segment: [0:v][0:a][1:v][1:a]...
+            interleaved = "".join(
+                f"[{i}:v][{i}:a]" for i in range(n)
+            )
+            filter_str = f"{interleaved}concat=n={n}:v=1:a=1[outv][outa]"
         else:
-            filter_str = f"{filter_parts[0]}concat=n={n}:v=1:a=0[outv]"
+            filter_str = f"{''.join(video_labels)}concat=n={n}:v=1:a=0[outv]"
 
         concat_cmd = ["ffmpeg", "-y", *inputs, "-filter_complex", filter_str,
                       "-map", "[outv]"]
-        if has_audio:
+        if use_audio:
             concat_cmd.extend(["-map", "[outa]", "-c:a", "aac"])
+        else:
+            concat_cmd.append("-an")
         concat_cmd.extend(["-c:v", "libx264", "-pix_fmt", "yuv420p", output_path])
 
         code_concat, out_concat, err_concat = await run_command(concat_cmd)
+
+        # Last-resort video-only retry (e.g. mismatched sample rates / dropped tracks)
+        if code_concat != 0 and use_audio:
+            filter_v = f"{''.join(video_labels)}concat=n={n}:v=1:a=0[outv]"
+            concat_cmd = [
+                "ffmpeg", "-y", *inputs, "-filter_complex", filter_v,
+                "-map", "[outv]", "-an",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", output_path,
+            ]
+            code_concat, out_concat, err_concat = await run_command(concat_cmd)
+
         if code_concat != 0:
             return OperationResult(ok=False, operation=operation,
                                    error=f"Concat failed: {err_concat.strip()}")
