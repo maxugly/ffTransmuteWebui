@@ -51,3 +51,6 @@ mtapi-project/join-*.mp4
 1.mp4
 .coms.md
 .presence.json
+
+# Agent runtime lock state
+mtapi-project/.codewhale/state/*.lock
