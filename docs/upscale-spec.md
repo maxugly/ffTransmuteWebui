@@ -9,7 +9,7 @@ After upscaling, the AI models naturally eliminate organic film grain. A **Re-Gr
 
 ## Architecture & Hardware Guardrails
 - **Backend**: NCNN Vulkan is strictly preferred over OpenVINO here. Real-ESRGAN and SRMD have highly optimized NCNN Vulkan compute shaders that run brilliantly on Intel Xe. SRMD in particular builds its degradation map dynamically in C++, which is tedious in Python/OpenVINO.
-- **Tiling**: Built-in to the NCNN binaries. Set tile size to 256 for 16GB RAM constraints.
+- **Tiling & Resolution Limit**: Built-in to the NCNN binaries. Set tile size to 256 for 16GB RAM constraints. (Note: Empirical testing on Intel 1335U shows the hardware sweet spot for the final output target is ~1024x1024. Pushing significantly beyond this risks aggressive memory swapping).
 - **Re-Grain**: FFmpeg `noise` filter (`allf=t+g` for temporal gaussian).
 
 ## Implementation Design (Pipeline)

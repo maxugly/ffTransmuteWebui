@@ -6,8 +6,8 @@ Leverages Stable Diffusion (via OpenVINO `optimum-intel`) to not just upsample a
 ## Architecture & Hardware Guardrails
 - **Backend**: `diffusers` + `optimum-intel` (OpenVINO). This completely replaces the need for IPEX or PyTorch XPU for diffusion models.
 - **Hardware Target**: Intel Iris Xe iGPU. Execution is triggered simply by exporting `DEVICE="gpu"` and loading the model through `optimum-intel`'s `OVStableDiffusionPipeline` or `OVStableDiffusionImg2ImgPipeline`.
-- **Memory Optimization**: The pipeline inherently uses FP16 OpenVINO IR models, fitting SD1.5 or LCM (Latent Consistency Models) easily into the 16GB shared RAM limit.
-- **Tiling**: Processes the image in overlapping 512x512 patches, using `diffusers` img2img.
+- **Memory Optimization**: The pipeline inherently uses FP16 OpenVINO IR models. While tiling theoretically allows infinite resolution, the hardware sweet spot for Intel 1335U (16GB RAM) is a maximum target resolution of ~1024x1024. Exceeding this often causes aggressive RAM swapping or OOM.
+- **Tiling**: Processes the image in overlapping 512x512 patches, using `diffusers` img2img. Ensure the final upscaled target canvas does not significantly exceed 1024x1024.
 
 ## Implementation Design (Pipeline)
 1. **Model Loading**:
