@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tempfile as _tf
@@ -853,55 +852,6 @@ def transform_frame(
         fillcolor=(0, 0, 0),
     )
     return np.asarray(out)
-
-
-def _encode_png_sequence(
-    pattern: Path | str,
-    output_path: Path,
-    *,
-    fps: float = 30.0,
-    audio_from: Path | None = None,
-) -> Path:
-    """Encode f_%06d.png style sequence to video."""
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    has_audio = False
-    if audio_from is not None and Path(audio_from).is_file():
-        has_a = subprocess.run(
-            [
-                "ffprobe", "-v", "error", "-select_streams", "a",
-                "-show_entries", "stream=index", "-of", "csv=p=0",
-                str(audio_from),
-            ],
-            capture_output=True,
-            text=True,
-        )
-        has_audio = bool(has_a.stdout.strip())
-
-    if has_audio:
-        cmd = [
-            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-            "-framerate", str(fps),
-            "-i", str(pattern),
-            "-i", str(audio_from),
-            "-map", "0:v:0", "-map", "1:a:0?",
-            "-c:v", "libx264", "-crf", "18", "-preset", "medium", "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-b:a", "192k", "-shortest",
-            str(output_path),
-        ]
-    else:
-        cmd = [
-            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-            "-framerate", str(fps),
-            "-i", str(pattern),
-            "-c:v", "libx264", "-crf", "18", "-preset", "medium", "-pix_fmt", "yuv420p",
-            "-an",
-            str(output_path),
-        ]
-    enc = subprocess.run(cmd, capture_output=True, text=True)
-    if enc.returncode != 0 or not output_path.is_file():
-        raise RuntimeError(enc.stderr.strip() or "ffmpeg encode failed")
-    return output_path
 
 
 def dream_ouroboros(
