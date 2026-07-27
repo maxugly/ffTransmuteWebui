@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "authority": [
+    "current user request",
+    "live code and tests",
+    "AGENTS.md",
+    "memory",
+    "old handoffs"
+  ],
+  "protected_invariants": [
+    "do not commit secrets or API keys",
+    "do not push without explicit user request",
+    "verify frontend changes in browser before claiming done"
+  ],
+  "verification_policy": {
+    "before_claiming_done": [
+      "run syntax checks (node -c for JS, python -c 'compile()' for Python)",
+      "run project tests if they exist",
+      "for any change touching app/static/: browser_navigate to http://localhost:24590/ then browser_console — ZERO JS errors required",
+      "for any change to index.html or app.js: click through every affected tab",
+      "read changed files back to confirm edits applied correctly"
+    ]
+  },
+  "escalate_when": [
+    "a destructive git operation was not explicitly authorized",
+    "the server needs restarting and no systemd service exists"
+  ]
+}
