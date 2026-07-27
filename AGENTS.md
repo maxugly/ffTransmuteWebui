@@ -141,6 +141,12 @@ every tab with zero console errors." Anything less is untested code.
 work, the conductor independently verifies with `browser_navigate` +
 `browser_console` before marking VERIFIED. Trust but verify.
 
+**Subagent AGENTS.md gap — CRITICAL:** `delegate_task` subagents have
+`skip_context_files=True` — they do NOT receive this AGENTS.md. Builders
+will NOT see these rules unless the conductor includes them in the
+`context` field of every `delegate_task` call. For frontend assignments,
+always add the browser verification sequence directly into the context.
+
 ---
 
 ## ⚡ 5. Troubleshooting & Known Edge Cases
