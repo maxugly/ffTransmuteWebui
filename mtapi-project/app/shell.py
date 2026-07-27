@@ -36,14 +36,10 @@ def ensure_video_output_path(output_path: str | None) -> str | None:
     return p + ".mp4"
 
 
+# TODO: remove — use app.probe.probe_duration directly
 async def probe_duration(path: str) -> float:
-    """ffprobe format=duration as float, or 0.0 on failure."""
-    argv = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path]
-    code, out, _ = await run_command(argv)
-    try:
-        return float(out.strip()) if code == 0 else 0.0
-    except ValueError:
-        return 0.0
+    from .probe import probe_duration as _pd
+    return await _pd(path)
 
 async def run_command(argv: list[str], cwd: str | None = None) -> tuple[int, str, str]:
     """Run argv, wait for it, return (exit_code, stdout, stderr) as text.
