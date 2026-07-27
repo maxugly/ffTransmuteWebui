@@ -1,0 +1,174 @@
+/* ── Global shared path input bar ───────────────────────────────────────── */
+
+.global-inputs-panel {
+  border-bottom: 1px solid var(--panel-border);
+  background: rgba(10, 15, 26, 0.35);
+}
+
+.global-toggle {
+  float: right;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 2px 8px;
+  line-height: 1;
+}
+.global-toggle:hover { color: var(--text-main); }
+
+.global-inputs-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 14px 8px;
+}
+
+.global-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.global-row label {
+  flex-shrink: 0;
+  width: 90px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  text-align: right;
+}
+.global-row textarea,
+.global-row input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  font-family: 'Fira Code', 'Cascadia Code', 'JetBrains Mono', monospace;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  resize: vertical;
+  transition: border-color 0.15s;
+}
+.global-row textarea:focus,
+.global-row input[type="text"]:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-glow);
+}
+.global-row .btn {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  padding: 2px 10px;
+}
+.gi-status {
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.global-inputs-inner.collapsed {
+  display: none;
+}
+
+/* App Workspace Area */
+.app-content {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(400px, 1.2fr) minmax(360px, 1fr);
+  overflow: hidden;
+}
+
+/* Action Panel (Forms) */
+.action-panel {
+  padding: 24px 28px;
+  overflow-y: auto;
+  border-right: 1px solid var(--panel-border);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.panel-title-desc {
+  margin-bottom: 8px;
+}
+
+.panel-title-desc h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.panel-title-desc p {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Preview / Console Panel */
+.preview-panel {
+  padding: 16px 20px 12px;
+  overflow: hidden;
+  background: rgba(8, 11, 17, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+
+.preview-panel-title {
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
+.preview-panel-title p {
+  font-size: 0.75rem;
+}
+
+/* Stage fills space above terminal; centers the AR-correct viewer */
+.media-viewer-stage {
+  flex: 1 1 auto;
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.preview-console-resize {
+  flex: 0 0 6px;
+  cursor: row-resize;
+  position: relative;
+  z-index: 5;
+  border-top: 1px solid var(--panel-border);
+  transition: background 0.12s ease;
+}
+.preview-console-resize::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.15);
+  transition: background 0.12s ease;
+}
+.preview-console-resize:hover,
+body.preview-resizing .preview-console-resize {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.25);
+}
+.preview-console-resize:hover::after,
+body.preview-resizing .preview-console-resize::after {
+  background: rgba(59, 130, 246, 0.55);
+}
+body.preview-resizing {
+  cursor: row-resize !important;
+  user-select: none !important;
+}
