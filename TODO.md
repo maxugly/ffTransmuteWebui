@@ -20,8 +20,8 @@
 - [ ] Global inputs: Path in directory scanning, Path out output override
 - [ ] Global inputs: file existence verification before processing
 - [ ] Global inputs: stop between iterations
-- [ ] main.py route split: pool routes (state, save, load, last, match, scan)
-- [ ] main.py route split: watcher, jobs, health
+- [x] main.py route split: pool routes ✅
+- [x] main.py route split: watcher, jobs, health ✅
 - [ ] media_store.py split: 1324 lines → app/media/*.py
 - [ ] Review agy's civitai-spec.md
 
