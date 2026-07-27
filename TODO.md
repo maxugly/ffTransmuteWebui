@@ -11,9 +11,8 @@
 - [x] **0.1 Nested Static Assets**: Extend `routes/static.py` to recursively serve `/css/*` and `/js/**`. Keep `/style.css` and `/app.js` alive until cutover. ✅  
   *Verify: `GET /css/_ping.css` → 200; `GET /js/_ping.js` → 200; remove pings.*
 
-- [ ] **0.2 ES Module Entry**: `index.html` → `<script type="module" src="/js/main.js">`. `main.js` imports current app as one module first.  
-  *Module strategy: ES `export`/`import` for `state` and `elements`. `window` bridges only for inline handlers (`openFileBrowser`, `removeMultiClip`, `moveMultiClip`). `window.state` is acceptable transitional glue if exports fight you — do not use classic multi-`<script>` + top-level `let`.*  
-  *Verify: Cold load → health green → all tabs render → zero console errors → mosh Browse opens modal.*
+- [x] **0.2 ES Module Entry**: `index.html` → `<script type="module" src="/js/main.js">`. ✅  
+  *Verify: Cold load → health green → all tabs render → zero console errors.*
 
 - [ ] **0.3 CSS Tokens**: Extract `:root` + dependent resets to `css/base.css`. Link it first.  
   *Verify: Hard reload → mosh + pool colors/spacing unchanged.*
