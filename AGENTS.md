@@ -124,12 +124,42 @@ ffmpeg -y -f lavfi -i "testsrc=duration=1:size=320x240:rate=1" \
   -vframes 1 /tmp/teste.png
 ```
 
-#### How to Test
+#### How to Test (use the WebUI — not curl)
 
-**Test ONLY the specific operations you touched.** Not the whole server.
-Not every tab. Just the ops whose code, engine, or route you changed.
+Testing through the API proves the backend works. Testing through the WebUI
+proves the whole stack works — the form collects the right params, the button
+fires the POST, the response displays correctly, and no JS errors swallow the
+result. **Use the WebUI for all verification.**
 
-For a video op (rife, transmute, deepdream, datamosh, etc.):
+Start Playwright once per session:
+
+```
+start_mcp_server with @playwright/mcp
+```
+
+Then for each op you touched:
+
+1. **`browser_navigate`** to `http://localhost:24590/`
+2. **`browser_click`** the tab for the op you changed (e.g. "RIFE Slow-Mo")
+3. **`browser_snapshot`** — verify the form rendered with all controls
+4. **`browser_type`** into the input field: `/tmp/teste.mp4` (or `.png` for image ops)
+5. **`browser_click`** the Run Operation button
+6. **`browser_console`** — check for JS errors
+7. Watch the terminal output — the server now streams ffmpeg progress in real-time
+
+**You are testing ONE thing: does it run without choking?** Not output quality.
+Not correctness. Just: the form submits, the server accepts it, ffmpeg runs,
+and you get an `ok: True` response with no JS errors in console.
+
+If the form doesn't render, the button does nothing, or the console shows
+errors — fix before continuing. The server terminal will show ffmpeg
+progress and any subprocess failures as they happen.
+
+Clean up test outputs: `rm -f /tmp/teste_rife.mp4 /tmp/teste_crop.mp4 /tmp/teste_withoutbg.png`
+
+#### Quick Backend-Only Check (when the WebUI is not available)
+
+If you can't use the browser for some reason, fall back to curl:
 
 ```bash
 curl -s -X POST http://localhost:24590/ops/<op_id> \
@@ -138,43 +168,10 @@ curl -s -X POST http://localhost:24590/ops/<op_id> \
   | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('ok'), d.get('error',''))"
 ```
 
-For an image op (withoutbg, styletransfer, facemorph):
+But prefer the WebUI path — it catches form and JS bugs that curl can't.
 
-```bash
-curl -s -X POST http://localhost:24590/ops/<op_id> \
-  -H "Content-Type: application/json" \
-  -d '{"input_path":"/tmp/teste.png"}' \
-  | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('ok'), d.get('error',''))"
-```
-
-**You are testing ONE thing: does it run without choking?** Not output quality.
-Not correctness. Just: `ok: True` with no error. If ffmpeg crashes, the op
-handler throws, or the subprocess hangs — you'll see it here in seconds.
-
-- `ok: True` → passed. Delete the output file and move on.
-- `ok: False` → read `error` and `stderr`. Fix before continuing.
-- Timeout → server crashed. Check the server terminal for the traceback.
-
-Clean up: `rm -f /tmp/teste_rife.mp4 /tmp/teste_crop.mp4 /tmp/teste_withoutbg.png`
-
-#### Browser Verification (only for changes in `app/static/`)
-
-If you touched HTML, CSS, or JS, also verify in a real browser after the
-backend test passes. Start Playwright once per session:
-
-```
-start_mcp_server with @playwright/mcp
-```
-
-Then: `browser_navigate http://localhost:24590/` → `browser_console` (ZERO
-errors) → click the tab you changed → verify the form rendered → `browser_screenshot`.
-
-If you added a new form or tab: click it and verify every control renders
-(textbox, select, knob, button). Run the op with `/tmp/teste.mp4` through
-the form — not dry_run — and check the terminal output for errors.
-
-**No agent claims DONE without both: backend test passed AND (if frontend
-touched) browser clean with zero console errors.**
+**No agent claims DONE without running `/tmp/teste.mp4` (or `.png`) through
+the WebUI form for every op touched, with zero JS console errors.**
 
 ---
 
