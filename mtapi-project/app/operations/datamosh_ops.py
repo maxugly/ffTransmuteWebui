@@ -36,6 +36,7 @@ async def _execute_mosh_pipeline(
     end_frame: int = 999999
 ) -> OperationResult:
     from ..pathutil import unique_output_path
+    from ..probe import probe_duration
 
     # Validate input file
     if not os.path.exists(input_path):
@@ -179,23 +180,25 @@ async def _execute_mosh_pipeline(
                             error=f"Failed to slice Part 2 (frames {start_frame}+): {p2_err.strip()}"
                         )
 
-                # Replace the first frame of Part 2 with the image
-                tmp_part2_skipped = os.path.join(tmpdir, "part2_skipped.mp4")
-                skip_code, skip_out, skip_err = await run_command([
-                    "ffmpeg", "-ss", f"{frame_dur}", "-i", tmp_part2,
-                    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "copy", "-y", tmp_part2_skipped
-                ])
-                if skip_code != 0:
+                # Replace the first frame of Part 2 with the image.
+                # If Part 2 is too short to skip a frame (hijack near video end),
+                # fall back to using Part 2 directly — the injected image still
+                # prepends before Part 2 in the concat.
+                tmp_part2_skipped: str | None = None
+                p2dur = await probe_duration(tmp_part2)
+                if p2dur > frame_dur * 1.1:
+                    tmp_part2_skipped = os.path.join(tmpdir, "part2_skipped.mp4")
                     skip_code, skip_out, skip_err = await run_command([
                         "ffmpeg", "-ss", f"{frame_dur}", "-i", tmp_part2,
-                        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an", "-y", tmp_part2_skipped
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "copy", "-y", tmp_part2_skipped
                     ])
                     if skip_code != 0:
-                        return OperationResult(
-                            ok=False,
-                            operation=operation,
-                            error=f"Failed to skip first frame of Part 2: {skip_err.strip()}"
-                        )
+                        skip_code, skip_out, skip_err = await run_command([
+                            "ffmpeg", "-ss", f"{frame_dur}", "-i", tmp_part2,
+                            "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an", "-y", tmp_part2_skipped
+                        ])
+                if tmp_part2_skipped is None:
+                    tmp_part2_skipped = tmp_part2  # too short to skip — use directly
 
                 # Concatenate image + Part 2
                 tmp_concat = os.path.join(tmpdir, "concat.mp4")
