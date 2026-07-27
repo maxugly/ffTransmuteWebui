@@ -7093,10 +7093,43 @@ async function runOpWithCancel(opId, body, { label = 'Processing…' } = {}) {
       logConsole('[STOP]: Fetch aborted (server may still wind down current step)');
       return { ok: false, error: 'Cancelled by user', operation: opId };
     }
-    elements.statusDot.className = 'status-dot error';
-    elements.statusText.textContent = 'Failed';
-    logConsole(`[EXECUTION FAILED]: ${err.message}`, 'error');
-    throw err;
+    // Long-running ops (deepdream, rife, etc.) can outlive the browser fetch
+    // timeout (~5 min). Poll the job endpoint — it may have finished on the server.
+    logConsole(`[FETCH DROPPED]: ${err.message} — polling server for result…`, 'error');
+    elements.statusDot.className = 'status-dot loading';
+    elements.statusText.textContent = 'Reconnecting…';
+    try {
+      var recovered = false;
+      for (var i = 0; i < 60; i++) {
+        await new Promise(function(r) { setTimeout(r, 2000); });
+        var jobRes = await fetch(`/api/job/${encodeURIComponent(token)}`);
+        if (!jobRes.ok) continue;
+        var jobData = await jobRes.json();
+        if (jobData.status === 'done') {
+          recovered = true;
+          elements.statusDot.className = 'status-dot';
+          elements.statusText.textContent = 'Complete';
+          logConsole('[RECOVERED]: job completed on server');
+          // No structured result from job endpoint — operation succeeded
+          return { ok: true, operation: opId, output_path: jobData.output_path || null };
+        }
+        if (jobData.status === 'error') {
+          logConsole('[JOB ERROR]: ' + (jobData.message || 'unknown'), 'error');
+          return { ok: false, error: jobData.message || 'Job failed on server', operation: opId };
+        }
+      }
+      if (!recovered) {
+        elements.statusDot.className = 'status-dot error';
+        elements.statusText.textContent = 'Failed';
+        logConsole('[EXECUTION FAILED]: fetch dropped, server unresponsive after 2 min', 'error');
+        throw err;
+      }
+    } catch (_) {
+      elements.statusDot.className = 'status-dot error';
+      elements.statusText.textContent = 'Failed';
+      logConsole(`[EXECUTION FAILED]: ${err.message}`, 'error');
+      throw err;
+    }
   } finally {
     stopJobProgressPoll();
     // one last progress fetch for final stats
