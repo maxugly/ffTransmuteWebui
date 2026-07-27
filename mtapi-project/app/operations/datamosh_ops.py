@@ -15,6 +15,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from ..contract import OperationResult, OperationSpec, register
+from ..output_dir_ctx import get_output_dir
 from ..shell import run_command, BIN_DIR
 
 CUSTOM_GLITCH_JS = str(BIN_DIR / "custom_glitch.js")
@@ -581,7 +582,7 @@ async def _trim_and_mosh(
 # --- 1. Melt Mode ---
 class DatamoshMeltParams(BaseModel):
     input_path: str = Field(..., description="Source video path")
-    output_path: str = Field(..., description="Where to write the result")
+    output_path: str | None = Field(None, description="Where to write the result; auto-named if omitted")
     tail: int = Field(18, ge=1, description="Frames of 'memory' in the smear")
     hdamp: int = Field(15, ge=0, le=100, description="Horizontal damping percent (0-100)")
     vdrift: int = Field(1, description="Constant per-frame vertical push")
@@ -590,10 +591,19 @@ class DatamoshMeltParams(BaseModel):
 
 
 async def datamosh_melt(p: DatamoshMeltParams) -> OperationResult:
+    from ..pathutil import finalize_output_path
+    out = p.output_path or str(finalize_output_path(
+        p.output_path,
+        source=p.input_path,
+        default_suffix="_melt",
+        default_ext=".mp4",
+        allowed_exts={".mp4", ".mkv", ".avi", ".mov", ".m4v", ".webm"},
+        output_dir=get_output_dir(),
+    ))
     return await _trim_and_mosh(
         "datamosh_melt",
         p.input_path,
-        p.output_path,
+        out,
         p.start_frame,
         p.end_frame,
         glitch_mode=0,
@@ -614,16 +624,22 @@ register(OperationSpec(
 # --- 2. Classic Mode ---
 class DatamoshClassicParams(BaseModel):
     input_path: str = Field(..., description="Source video path")
-    output_path: str = Field(..., description="Where to write the result")
+    output_path: str | None = Field(None, description="Where to write the result; auto-named if omitted")
     start_frame: int = Field(1, ge=1, description="First frame to mosh (1 = from start)")
     end_frame: int = Field(999999, ge=1, description="Last frame to mosh (default = to end)")
 
 
 async def datamosh_classic(p: DatamoshClassicParams) -> OperationResult:
+    from ..pathutil import finalize_output_path
+    out = p.output_path or str(finalize_output_path(
+        p.output_path, source=p.input_path, default_suffix="_classic",
+        default_ext=".mp4", allowed_exts={".mp4",".mkv",".avi",".mov",".m4v",".webm"},
+        output_dir=get_output_dir(),
+    ))
     return await _trim_and_mosh(
         "datamosh_classic",
         p.input_path,
-        p.output_path,
+        out,
         p.start_frame,
         p.end_frame,
         glitch_mode=1,
@@ -644,7 +660,7 @@ register(OperationSpec(
 # --- 3. Visual Hijack Mode (P-Frame Injection) ---
 class DatamoshHijackParams(BaseModel):
     input_path: str = Field(..., description="Source video path")
-    output_path: str = Field(..., description="Where to write the result")
+    output_path: str | None = Field(None, description="Where to write the result; auto-named if omitted")
     inject_mode: str = Field("file", description="Source of injected image: 'file' or 'frame'")
     inject_image_path: str | None = Field(None, description="Absolute path to the image file (if mode is 'file')")
     inject_frame_num: int = Field(0, ge=0, description="Source frame number to extract (if mode is 'frame')")
@@ -654,6 +670,12 @@ class DatamoshHijackParams(BaseModel):
 
 
 async def datamosh_hijack(p: DatamoshHijackParams) -> OperationResult:
+    from ..pathutil import finalize_output_path
+    out = p.output_path or str(finalize_output_path(
+        p.output_path, source=p.input_path, default_suffix="_hijack",
+        default_ext=".mp4", allowed_exts={".mp4",".mkv",".avi",".mov",".m4v",".webm"},
+        output_dir=get_output_dir(),
+    ))
     mode_val = 2 if p.transition_style == "smear" else 4
     relative_end = p.end_frame - p.start_frame
     if relative_end < 0:
@@ -662,7 +684,7 @@ async def datamosh_hijack(p: DatamoshHijackParams) -> OperationResult:
     return await _execute_mosh_pipeline(
         "datamosh_hijack",
         p.input_path,
-        p.output_path,
+        out,
         glitch_mode=mode_val,
         glitch_params=[0, relative_end, 100, 0, 0], # start relative frame 0, end relative end_frame
         inject_mode=p.inject_mode,
@@ -686,16 +708,22 @@ register(OperationSpec(
 # --- 4. Residual Destruct Mode ---
 class DatamoshDestructParams(BaseModel):
     input_path: str = Field(..., description="Source video path")
-    output_path: str = Field(..., description="Where to write the result")
+    output_path: str | None = Field(None, description="Where to write the result; auto-named if omitted")
     start_frame: int = Field(1, ge=0, description="Start frame of residual destruction")
     end_frame: int = Field(999999, ge=0, description="End frame of residual destruction")
 
 
 async def datamosh_destruct(p: DatamoshDestructParams) -> OperationResult:
+    from ..pathutil import finalize_output_path
+    out = p.output_path or str(finalize_output_path(
+        p.output_path, source=p.input_path, default_suffix="_destruct",
+        default_ext=".mp4", allowed_exts={".mp4",".mkv",".avi",".mov",".m4v",".webm"},
+        output_dir=get_output_dir(),
+    ))
     return await _execute_mosh_pipeline(
         "datamosh_destruct",
         p.input_path,
-        p.output_path,
+        out,
         glitch_mode=2,
         glitch_params=[p.start_frame, p.end_frame, 0, 0, 0]
     )
@@ -714,7 +742,7 @@ register(OperationSpec(
 # --- 5. Motion Vector Hack Mode ---
 class DatamoshMvHackParams(BaseModel):
     input_path: str = Field(..., description="Source video path")
-    output_path: str = Field(..., description="Where to write the result")
+    output_path: str | None = Field(None, description="Where to write the result; auto-named if omitted")
     start_frame: int = Field(1, ge=0, description="Start frame of vector override")
     end_frame: int = Field(999999, ge=0, description="End frame of vector override")
     multiplier: float = Field(1.0, description="Motion speed multiplier (e.g. 0.0 to freeze, 2.0 to double)")
@@ -723,11 +751,17 @@ class DatamoshMvHackParams(BaseModel):
 
 
 async def datamosh_mv_hack(p: DatamoshMvHackParams) -> OperationResult:
+    from ..pathutil import finalize_output_path
+    out = p.output_path or str(finalize_output_path(
+        p.output_path, source=p.input_path, default_suffix="_mvhack",
+        default_ext=".mp4", allowed_exts={".mp4",".mkv",".avi",".mov",".m4v",".webm"},
+        output_dir=get_output_dir(),
+    ))
     mult_percent = int(round(p.multiplier * 100))
     return await _execute_mosh_pipeline(
         "datamosh_mv_hack",
         p.input_path,
-        p.output_path,
+        out,
         glitch_mode=3,
         glitch_params=[p.start_frame, p.end_frame, mult_percent, p.drift_h, p.drift_v]
     )

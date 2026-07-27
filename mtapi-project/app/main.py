@@ -698,7 +698,10 @@ def _make_endpoint(spec):
         params: spec.params_model,  # type: ignore[name-defined]
         request: Request,
         x_job_token: str | None = Header(None, alias="X-Job-Token"),
+        x_mtapi_output_dir: str | None = Header(None, alias="X-MTAPI-Output-Dir"),
     ) -> OperationResult:
+        from . import output_dir_ctx
+        output_dir_ctx.set_output_dir(x_mtapi_output_dir)
         token = (x_job_token or "").strip() or job_control.new_token()
         job_control.register(token, operation=spec.id)
         job_control.bind(token)

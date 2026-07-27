@@ -1,6 +1,8 @@
 // State
 let state = {
   activeTab: 'mosh',
+  globalPath: '',     // shared path input — typed or picked, persists across tabs
+  globalOutputDir: '',  // shared output directory — auto-named outputs land here
   operations: {},
   health: { ok: true, warnings: [] },
   fb: {
@@ -189,7 +191,102 @@ const elements = {
   btnConfirmFb: document.getElementById('btnConfirmFb')
 };
 
+// ── Tab type declarations — what each tab accepts ────────────────────────
+// Used to validate the global path input against the current tab.
+const TAB_ACCEPTS = {
+  mosh:        'video',
+  transmute:   'video',
+  multi:       'video',
+  deepdream:   'any',
+  facemorph:   'image',
+  withoutbg:   'image',
+  styletransfer:'image',
+  rife:        'video',
+  advanced:    'video',
+  quick:       'video',
+};
+
 // Initialize
+// ── Global path helpers ──────────────────────────────────────────────────
+
+function detectFileType(path) {
+  if (!path) return null;
+  const ext = path.split('.').pop().toLowerCase();
+  const videoExts = ['mp4','mkv','avi','mov','m4v','webm','mpg','mpeg','wmv','flv','ts','m2ts'];
+  const imageExts = ['png','jpg','jpeg','webp','bmp','gif','tif','tiff','ppm','pgm','svg'];
+  if (videoExts.includes(ext)) return 'video';
+  if (imageExts.includes(ext)) return 'image';
+  return null;
+}
+
+function updateGlobalPathUI() {
+  const input = document.getElementById('globalPathInput');
+  const badge = document.getElementById('globalPathType');
+  const msg   = document.getElementById('globalPathMsg');
+  const runBtn = document.getElementById('btnRun');
+
+  if (!input || !badge || !msg || !runBtn) return;
+
+  const path = (input.value || '').trim();
+  state.globalPath = path;
+
+  // Type detection
+  const detected = detectFileType(path);
+  badge.className = 'path-type-badge';
+  badge.textContent = '';
+  if (detected) {
+    badge.classList.add(detected);
+    badge.textContent = detected;
+  }
+
+  // Validation against current tab
+  const tab = state.activeTab;
+  const accepts = TAB_ACCEPTS[tab] || 'any';
+  msg.classList.remove("show");
+  msg.textContent = "";
+  runBtn.disabled = false;
+  runBtn.title = '';
+
+  if (path && detected && accepts !== 'any' && detected !== accepts) {
+    msg.textContent = 'This tab needs ' + accepts + ' — you have ' + detected;
+    runBtn.disabled = true;
+    runBtn.title = 'Global input is ' + detected + ', but this tab requires ' + accepts;
+  }
+}
+
+function bestInput(fieldId) {
+  // Prefer the typed/picked global path when it's compatible with this tab
+  const tab = state.activeTab;
+  const accepts = TAB_ACCEPTS[tab] || 'any';
+  const globalVal = (state.globalPath || '').trim();
+  if (globalVal) {
+    const detected = detectFileType(globalVal);
+    if (accepts === 'any' || detected === accepts || !detected) {
+      return globalVal;
+    }
+  }
+  // Fall back to the tab's own input field
+  const el = document.getElementById(fieldId);
+  return el ? (el.value || '').trim() : '';
+}
+
+function bestOutput(fieldId) {
+  // Return user-specified output, or null to let the backend auto-name.
+  // When the global output dir is set, the backend will use it (via MTAPI_OUTPUT_DIR).
+  const el = document.getElementById(fieldId);
+  const explicit = el ? (el.value || '').trim() : '';
+  return explicit || null;
+}
+
+function resolveGlobalImage() {
+  // Return global path if it's a valid image, otherwise null.
+  const g = (state.globalPath || '').trim();
+  if (!g) return null;
+  const detected = detectFileType(g);
+  if (detected === 'image') return g;
+  return null;
+}
+
 async function init() {
   loadQuickSettings();
   setupEventListeners();
@@ -232,6 +329,30 @@ function setupEventListeners() {
   elements.btnCancelFb.addEventListener('click', closeFbModal);
   elements.fbUpBtn.addEventListener('click', navigateUpFb);
   elements.btnConfirmFb.addEventListener('click', confirmFbSelection);
+  const globalInput = document.getElementById("globalPathInput");
+  const globalBrowse = document.getElementById("btnGlobalBrowse");
+  if (globalInput) {
+    globalInput.addEventListener("input", updateGlobalPathUI);
+    globalInput.addEventListener("change", updateGlobalPathUI);
+  }
+  if (globalBrowse) {
+    globalBrowse.addEventListener("click", function() {
+      window.openFileBrowser("globalPathInput", false, "file", "all");
+    });
+  }
+  // Global output directory
+  const globalOutputDir = document.getElementById("globalOutputDir");
+  const globalOutputBrowse = document.getElementById("btnGlobalOutputBrowse");
+  if (globalOutputDir) {
+    globalOutputDir.addEventListener("input", function() {
+      state.globalOutputDir = globalOutputDir.value.trim();
+    });
+  }
+  if (globalOutputBrowse) {
+    globalOutputBrowse.addEventListener("click", function() {
+      window.openFileBrowser("globalOutputDir", true, "dir", "all");
+    });
+  }
 }
 
 // API Calls
@@ -314,6 +435,7 @@ function switchTab(tab) {
 
   // Render Form for the Tab
   renderTabForm(tab);
+  updateGlobalPathUI();
 }
 
 // Render Specific Tab Forms
@@ -979,8 +1101,9 @@ function collectStyleTransferBody() {
   const contents = (state.styleTransfer.contents || []).map((x) => x.path).filter(Boolean);
   const style_path = (document.getElementById('stStylePath')?.value || state.styleTransfer.stylePath || '').trim();
   if (!contents.length) {
-    alert('Add at least one content image or folder.');
-    return null;
+    const fallback = resolveGlobalImage();
+    if (fallback) { contents.push(fallback); }
+    else { alert('Add at least one content image or folder.'); return null; }
   }
   if (!style_path) {
     alert('Pick a style image (painting / texture / etc.).');
@@ -1092,7 +1215,7 @@ function renderRifeForm() {
 }
 
 function collectRifeBody() {
-  const input = document.getElementById('rifeInput')?.value?.trim();
+  const input = bestInput('rifeInput');
   if (!input) {
     alert('Please provide an input video path.');
     return null;
@@ -1286,8 +1409,9 @@ function renderWithoutBgForm() {
 function collectWithoutBgBody() {
   const images = (state.withoutbg.images || []).map((x) => x.path);
   if (!images.length && !state.withoutbg.folder) {
-    alert('Add at least one image (or a folder).');
-    return null;
+    const fallback = resolveGlobalImage();
+    if (fallback) { images.push(fallback); }
+    else { alert('Add at least one image (or a folder).'); return null; }
   }
   const save_cutout = document.getElementById('wbgSaveCutout')?.value === '1';
   const save_mask = document.getElementById('wbgSaveMask')?.value === '1';
@@ -1975,7 +2099,7 @@ function renderDeepDreamForm() {
 }
 
 function collectDeepDreamBody() {
-  const input = document.getElementById('dreamInput')?.value?.trim();
+  const input = bestInput('dreamInput');
   const output = document.getElementById('dreamOutput')?.value?.trim() || null;
   if (!input) {
     alert('Please provide an input image or video path.');
@@ -6569,6 +6693,12 @@ window.openFileBrowser = async function(targetInputId, selectDirOnly = false, mo
           input.dispatchEvent(new Event('input'));
         }
       }
+      // Also populate the global shared input
+      const globalInput = document.getElementById('globalPathInput');
+      if (globalInput) {
+        globalInput.value = data.path;
+        updateGlobalPathUI();
+      }
       logConsole(`[PICKED]: ${data.path}`);
     } else {
       logConsole(`[PICKER]: Cancelled by user`);
@@ -6907,6 +7037,7 @@ async function runOpWithCancel(opId, body, { label = 'Processing…' } = {}) {
       headers: {
         'Content-Type': 'application/json',
         'X-Job-Token': token,
+        ...(state.globalOutputDir ? { 'X-MTAPI-Output-Dir': state.globalOutputDir } : {}),
       },
       body: JSON.stringify(body),
       signal: controller.signal,
@@ -6965,11 +7096,11 @@ async function runActiveOperation() {
   let body = {};
   
   if (tab === 'mosh') {
-    const input = document.getElementById('moshInput')?.value;
-    const output = document.getElementById('moshOutput')?.value;
+    const input = bestInput('moshInput');
+    const output = bestOutput('moshOutput');
     
-    if (!input || !output) {
-      alert("Please provide both Input and Output paths.");
+    if (!input) {
+      alert("Please provide an Input path.");
       return;
     }
     
@@ -7027,7 +7158,7 @@ async function runActiveOperation() {
       };
     }
   } else if (tab === 'transmute') {
-    const input = document.getElementById('transmuteInput')?.value;
+    const input = bestInput('transmuteInput');
     const output = document.getElementById('transmuteOutput')?.value || null;
     const dryRun = document.getElementById('transmuteDryRun')?.value === '1'
       || document.getElementById('transmuteDryRun')?.checked || false;
@@ -7118,7 +7249,7 @@ async function runActiveOperation() {
     opId = 'rife';
     body = rifeBody;
   } else if (tab === 'advanced') {
-    const input = document.getElementById('advInput')?.value;
+    const input = bestInput('advInput');
     const flagsStr = document.getElementById('advFlags')?.value || '';
     const output = document.getElementById('advOutput')?.value || null;
     const dryRun = document.getElementById('advDryRun')?.value === '1'

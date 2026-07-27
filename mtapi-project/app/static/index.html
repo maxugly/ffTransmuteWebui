@@ -156,6 +156,21 @@
       </div>
     </header>
 
+    <!-- Global shared path input — typed paths bypass the native KDE file picker -->
+    <div class="global-input-bar" id="globalInputBar">
+      <input type="text" id="globalPathInput" placeholder="Type a file path or click Browse…" autocomplete="off" spellcheck="false">
+      <button class="btn" id="btnGlobalBrowse" title="Open native file picker">Browse</button>
+      <span class="path-type-badge" id="globalPathType" title="Detected file type"></span>
+      <span class="path-type-msg" id="globalPathMsg"></span>
+    </div>
+
+    <!-- Global shared output directory — all auto-named outputs land here -->
+    <div class="global-input-bar global-output-bar" id="globalOutputBar">
+      <input type="text" id="globalOutputDir" placeholder="Output directory (auto: next to input file)…" autocomplete="off" spellcheck="false">
+      <button class="btn" id="btnGlobalOutputBrowse" title="Pick output directory">📁</button>
+      <span class="path-type-msg" id="globalOutputMsg"></span>
+    </div>
+
     <!-- Content Workspace -->
     <div class="app-content">
       

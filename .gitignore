@@ -54,3 +54,4 @@ mtapi-project/join-*.mp4
 
 # Agent runtime lock state
 mtapi-project/.codewhale/state/*.lock
+.playwright-mcp/
