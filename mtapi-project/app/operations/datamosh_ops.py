@@ -37,6 +37,7 @@ async def _execute_mosh_pipeline(
 ) -> OperationResult:
     from ..pathutil import unique_output_path
     from ..probe import probe_duration
+    from .. import job_control
 
     # Validate input file
     if not os.path.exists(input_path):
@@ -265,6 +266,7 @@ async def _execute_mosh_pipeline(
                 operation=operation,
                 error=f"ffgac transcode failed: {err_ffgac.strip()}"
             )
+        job_control.check_cancelled()
 
         # Step 2: Edit/Glitch the raw stream using ffedit
         if glitch_mode == 0:
@@ -334,6 +336,8 @@ async def _execute_mosh_pipeline(
                     operation=operation,
                     error=f"ffedit glitch failed: {err_ffedit.strip()}"
                 )
+
+        job_control.check_cancelled()
 
         # Step 3: Re-encode raw video back to intermediate MP4
         tmp_mp4_part2 = os.path.join(tmpdir, "mp4_part2.mp4")
