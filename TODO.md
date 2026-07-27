@@ -8,7 +8,7 @@
 - [ ] PNG pipeline: deepdream_engine (1127 lines — gradient ascent, temporal blend, ouroboros)
 
 ## next
-- [ ] Static routes: extract 3 file-serving endpoints from main.py → app/routes/static.py
+- [x] Static routes: extract 3 file-serving endpoints from main.py → app/routes/static.py ✅
 - [ ] Global inputs bar: finish 4-input UI (video, image, path in, path out)
 - [ ] Global inputs: multi-file sequential processing (withoutbg, facemorph, styletransfer)
 - [ ] Global inputs: status indicators (✅ ❌ ✔️) and styletransfer banner
