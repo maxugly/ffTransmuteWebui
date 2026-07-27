@@ -525,7 +525,8 @@ def dream_image(
         keras.utils.save_img(str(output_path), out_arr)
         return output_path
     finally:
-        pipeline.cleanup()
+        if preview_tmp is not None:
+            pipeline.cleanup()
 
 
 def linear_blend(img1, img2, alpha: float):
