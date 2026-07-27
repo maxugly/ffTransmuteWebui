@@ -9,7 +9,7 @@
 
 ## next
 - [x] Static routes: extract 3 file-serving endpoints from main.py → app/routes/static.py ✅
-- [ ] Global inputs bar: finish 4-input UI (video, image, path in, path out)
+- [x] Global inputs bar: finish 4-input UI (video, image, path in, path out) ✅
 - [ ] Global inputs: multi-file sequential processing (withoutbg, facemorph, styletransfer)
 - [ ] Global inputs: status indicators (✅ ❌ ✔️) and styletransfer banner
 - [ ] Global inputs: Path in directory scanning, Path out output override
