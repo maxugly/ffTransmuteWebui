@@ -1116,12 +1116,15 @@ function renderStyleTransferForm() {
 }
 
 function collectStyleTransferBody() {
-  const contents = (state.styleTransfer.contents || []).map((x) => x.path).filter(Boolean);
+  var contents = (state.styleTransfer.contents || []).map((x) => x.path).filter(Boolean);
   const style_path = (document.getElementById('stStylePath')?.value || state.styleTransfer.stylePath || '').trim();
   if (!contents.length) {
-    const fallback = resolveGlobalImage();
-    if (fallback) { contents.push(fallback); }
-    else { alert('Add at least one content image or folder.'); return null; }
+    var fallbacks = resolveGlobalImages();
+    if (fallbacks.length) { contents = fallbacks; }
+    else {
+      alert('Add at least one content image or folder.');
+      return null;
+    }
   }
   if (!style_path) {
     alert('Pick a style image (painting / texture / etc.).');
