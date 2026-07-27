@@ -162,6 +162,17 @@ async def styletransfer(p: StyleTransferParams) -> OperationResult:
             dry_run=p.dry_run,
         )
 
+    if not p.dry_run:
+        from ..pathutil import verify_paths_exist
+        missing = verify_paths_exist(contents)
+        if missing:
+            return OperationResult(
+                ok=False,
+                operation="styletransfer",
+                error=f"Content files not found: {', '.join(missing)}",
+                dry_run=p.dry_run,
+            )
+
     style = Path(p.style_path).expanduser().resolve()
     if not style.is_file() and not p.dry_run:
         return OperationResult(

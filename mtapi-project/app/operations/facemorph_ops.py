@@ -70,9 +70,13 @@ class FaceMorphParams(BaseModel):
 
 
 def _collect_images(p: FaceMorphParams, *, allow_missing: bool = False) -> list[str]:
-    from ..pathutil import parse_path_list
+    from ..pathutil import parse_path_list, verify_paths_exist
     if p.input_path:
         paths = parse_path_list(p.input_path)
+        if not allow_missing:
+            missing = verify_paths_exist(paths)
+            if missing:
+                return []  # caller reports the missing list
         out = []
         for x in paths:
             path = Path(x).expanduser().resolve()
@@ -104,6 +108,17 @@ def _default_output(images: list[str], dream_mode: str) -> Path:
 
 async def facemorph(p: FaceMorphParams) -> OperationResult:
     images = _collect_images(p, allow_missing=bool(p.dry_run))
+    if p.input_path and not p.dry_run:
+        from ..pathutil import parse_path_list, verify_paths_exist
+        raw = parse_path_list(p.input_path)
+        missing = verify_paths_exist(raw)
+        if missing:
+            return OperationResult(
+                ok=False,
+                operation="facemorph",
+                error=f"Files not found: {', '.join(missing)}",
+                dry_run=p.dry_run,
+            )
     if len(images) < 2:
         return OperationResult(
             ok=False,
