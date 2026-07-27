@@ -17,7 +17,12 @@ import argparse
 import subprocess
 import sys
 import json
+import os
 from pathlib import Path
+
+# Use consolidated ffprobe helpers (sync wrappers — this is a standalone CLI)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "mtapi-project"))
+from app.probe import probe_fps_sync as _fps, probe_duration_sync as _dur
 
 
 def main():
@@ -39,27 +44,28 @@ def main():
 
     output_path = (args.out or input_path.parent / f"{input_path.stem}_speedramp.mp4").expanduser().resolve()
 
-    # Probe video
+    # Probe via consolidated helpers
+    sp = str(input_path)
+    fps = _fps(sp, default=30.0)
+    duration = _dur(sp)
+    total_frames = 0
+    if fps > 0 and duration > 0:
+        total_frames = int(duration * fps)
+
+    # Audio detection still needs a quick ffprobe
     r = subprocess.run(
         ["ffprobe", "-v", "quiet", "-print_format", "json",
-         "-show_format", "-show_streams", "-select_streams", "v:0",
+         "-show_streams", "-select_streams", "a",
          str(input_path)],
         capture_output=True, text=True,
     )
-    if r.returncode != 0:
-        print(f"ERROR probing video: {r.stderr.strip()}")
-        sys.exit(1)
-
-    info = json.loads(r.stdout)
-    v_stream = info["streams"][0] if info.get("streams") else {}
-    total_frames = int(v_stream.get("nb_frames", 0))
-    fps_parts = v_stream.get("avg_frame_rate", "30/1").split("/")
-    fps = float(fps_parts[0]) / float(fps_parts[1]) if len(fps_parts) == 2 else 30.0
-    duration = float(info.get("format", {}).get("duration", 0))
-    has_audio = any(s.get("codec_type") == "audio" for s in info.get("streams", []))
-
-    if total_frames <= 0 and duration > 0:
-        total_frames = int(duration * fps)
+    has_audio = False
+    if r.returncode == 0:
+        try:
+            info = json.loads(r.stdout)
+            has_audio = bool(info.get("streams"))
+        except (json.JSONDecodeError, KeyError):
+            pass
 
     print(f"input : {input_path}")
     print(f"output: {output_path}")
