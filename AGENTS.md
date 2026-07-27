@@ -123,29 +123,45 @@ browser before claiming DONE. curl ≠ browser. Syntax check ≠ browser. The
 browser's JavaScript `fetch()` can fail silently due to CORS, module import
 errors, or script load failures that static checks never catch.**
 
-The mandatory verification sequence:
+#### Browser Setup (run once per session)
 
-1. `browser_navigate` to `http://localhost:24590/`
-2. `browser_console` — check for JS errors. ZERO errors allowed.
-3. Click through EVERY tab affected by the change.
+You are ALLOWED and EXPECTED to use browser automation. Start it:
+
+```
+start_mcp_server with @playwright/mcp
+```
+
+(Playwright + Chrome are installed system-wide via AUR. No setup needed.)
+
+Once the MCP server is running, use these tools:
+
+| tool | what it does |
+|------|-------------|
+| `browser_navigate` | load a page at a URL |
+| `browser_console` | check for JS errors (ZERO allowed) |
+| `browser_screenshot` | take visual proof of rendered page |
+| `browser_click` | click elements by their ref ID |
+| `browser_snapshot` | get text snapshot of page state |
+
+#### Mandatory Verification Sequence
+
+1. **`browser_navigate`** to `http://localhost:24590/`
+2. **`browser_console`** — check for JS errors. ZERO errors allowed.
+3. **Click through EVERY tab** affected by the change. Use `browser_click` on
+   each nav item, then `browser_snapshot` to verify the form rendered.
 4. If the change adds a form: verify every control renders (textbox, select,
    knob, button).
 5. If the change adds a run path: execute a dry_run through the form.
-6. Only after steps 1-5 pass clean: post DONE or VERIFIED.
+6. **`browser_screenshot`** — take visual proof of the working page.
+7. Only after steps 1-6 pass clean: claim DONE.
 
 **No agent reports frontend work as "tested" or "done" without browser
 verification.** "I tested it" means "I opened the browser and clicked through
 every tab with zero console errors." Anything less is untested code.
 
 **Conductor's verification gate:** When a builder reports DONE on frontend
-work, the conductor independently verifies with `browser_navigate` +
-`browser_console` before marking VERIFIED. Trust but verify.
-
-**Subagent AGENTS.md gap — CRITICAL:** `delegate_task` subagents have
-`skip_context_files=True` — they do NOT receive this AGENTS.md. Builders
-will NOT see these rules unless the conductor includes them in the
-`context` field of every `delegate_task` call. For frontend assignments,
-always add the browser verification sequence directly into the context.
+work, the conductor independently verifies with browser_navigate +
+browser_console + browser_screenshot before marking VERIFIED. Trust but verify.
 
 ---
 
