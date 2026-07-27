@@ -110,15 +110,23 @@ def _safe_int(val, default: int = 0) -> int:
         return default
 
 
+# TODO: remove remaining inline ffprobe — use app.probe for individual fields
 async def _probe_media_full(path_obj: Path) -> dict:
     """Rich ffprobe: duration, fps, frames, video/audio codecs, size, dims."""
+    from .probe import probe_duration, probe_fps, probe_dimensions, probe_frame_count
+    sp = str(path_obj)
+    fps = await probe_fps(sp)
+    duration = await probe_duration(sp)
+    width, height = await probe_dimensions(sp)
+    frames = await probe_frame_count(sp)
+    if frames <= 0 and duration > 0 and fps > 0:
+        frames = int(round(duration * fps))
+
+    # Codec / format info still needs a full JSON probe
     cmd = [
         "ffprobe", "-v", "error",
-        "-show_entries",
-        "format=duration,size,bit_rate,format_name:"
-        "stream=index,codec_type,codec_name,width,height,r_frame_rate,nb_frames,duration,avg_frame_rate",
-        "-of", "json",
-        str(path_obj),
+        "-show_entries", "format=size,format_name,bit_rate:stream=codec_type,codec_name",
+        "-of", "json", sp,
     ]
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -129,42 +137,30 @@ async def _probe_media_full(path_obj: Path) -> dict:
         stdout_b, stderr_b = await proc.communicate()
         if proc.returncode != 0:
             return {"ok": False, "error": stderr_b.decode().strip() or "ffprobe failed"}
-
         data = json.loads(stdout_b.decode())
-        fmt = data.get("format") or {}
         streams = data.get("streams") or []
-
+        fmt = data.get("format") or {}
         vstream = next((s for s in streams if s.get("codec_type") == "video"), None)
-        astream = next((s for s in streams if s.get("codec_type") == "audio"), None)
-
         if not vstream:
             return {"ok": False, "error": "No video streams found"}
-
-        fps = _parse_fps(vstream.get("avg_frame_rate") or vstream.get("r_frame_rate"))
-        duration = _safe_float(fmt.get("duration"))
-        if duration <= 0:
-            duration = _safe_float(vstream.get("duration"))
-
-        frames = _safe_int(vstream.get("nb_frames"))
-        if frames <= 0 and duration > 0 and fps > 0:
-            frames = int(round(duration * fps))
-
+        astream = next((s for s in streams if s.get("codec_type") == "audio"), None)
+        video_codec = vstream.get("codec_name") or "unknown"
+        audio_codec = (astream.get("codec_name") if astream else None) or "none"
         try:
             file_size = path_obj.stat().st_size
         except Exception:
             file_size = _safe_int(fmt.get("size"))
-
         return {
             "ok": True,
             "path": str(path_obj),
             "name": path_obj.name,
-            "width": vstream.get("width"),
-            "height": vstream.get("height"),
+            "width": width,
+            "height": height,
             "fps": round(fps, 3) if fps else 0.0,
             "duration": round(duration, 3) if duration else 0.0,
             "frames": frames,
-            "video_codec": vstream.get("codec_name") or "unknown",
-            "audio_codec": (astream.get("codec_name") if astream else None) or "none",
+            "video_codec": video_codec,
+            "audio_codec": audio_codec,
             "size": file_size,
             "format_name": fmt.get("format_name"),
             "bit_rate": _safe_int(fmt.get("bit_rate")),
