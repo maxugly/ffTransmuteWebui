@@ -318,7 +318,10 @@ def dream_image(
     # optional preview downscale
     preview_tmp = None
     if preview_width and int(preview_width) > 0:
+        from ..png_pipeline import PngFramePipeline, dump_sync, encode_sync
+        pipeline = PngFramePipeline(prefix="mtapi_prev_")
         work = Path(_tf.mkdtemp(prefix="mtapi_prev_"))
+        pipeline._tmpdir = str(work)
         preview_tmp = work
         input_path = _maybe_preview_resize(input_path, int(preview_width), work)
         if progress_cb and input_path.name.startswith("_preview_"):
@@ -523,8 +526,7 @@ def dream_image(
         keras.utils.save_img(str(output_path), out_arr)
         return output_path
     finally:
-        if preview_tmp is not None:
-            shutil.rmtree(preview_tmp, ignore_errors=True)
+        pipeline.cleanup()
 
 
 def linear_blend(img1, img2, alpha: float):
@@ -934,7 +936,10 @@ def dream_ouroboros(
     length = max(1, int(length))
     fps = float(fps) if fps and fps > 0 else 30.0
 
+    from ..png_pipeline import PngFramePipeline, dump_sync, encode_sync
+    pipeline = PngFramePipeline(prefix="mtapi_ouro_")
     work = Path(_tf.mkdtemp(prefix="mtapi_ouro_"))
+    pipeline._tmpdir = str(work)
     try:
         dream_dir = work / "dream"
         dream_dir.mkdir()
@@ -999,12 +1004,9 @@ def dream_ouroboros(
                 total=length,
                 unit="frames",
             )
-        _encode_png_sequence(
-            dream_dir / "f_%06d.png",
-            output_path,
-            fps=fps,
-            audio_from=None,
-        )
+        encode_sync(str(dream_dir), str(output_path), fps,
+                    frame_pattern="f_%06d.png", preset="medium",
+                    audio_from=None)
         if progress_cb:
             progress_cb(
                 "ouroboros complete",
@@ -1015,7 +1017,7 @@ def dream_ouroboros(
             )
         return output_path
     finally:
-        shutil.rmtree(work, ignore_errors=True)
+        pipeline.cleanup()
 
 
 def resolve_layer_weights(
