@@ -7,10 +7,8 @@ Runs with cwd=facemorph root so the relative landmark model path resolves.
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
@@ -135,7 +133,11 @@ def morph_image_list(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     frames_per_segment = max(2, int(float(duration) * int(fps)))
-    frame_dir = Path(tempfile.mkdtemp(prefix="mtapi_facemorph_"))
+    import tempfile as _tf
+    from ..png_pipeline import PngFramePipeline
+    pipeline = PngFramePipeline(prefix="mtapi_facemorph_")
+    frame_dir = Path(_tf.mkdtemp(prefix="mtapi_facemorph_"))
+    pipeline._tmpdir = str(frame_dir)
     pairs_total = len(image_files) - 1
 
     if progress_cb:
@@ -221,7 +223,7 @@ def morph_image_list(
             pairs_done += 1
 
         if total_frames < 1:
-            shutil.rmtree(frame_dir, ignore_errors=True)
+            pipeline.cleanup()
             return {
                 "ok": False,
                 "error": "No morph frames produced. " + (
@@ -270,7 +272,7 @@ def morph_image_list(
             "frame_dir": str(frame_dir) if keep_frames else None,
         }
         if not keep_frames:
-            shutil.rmtree(frame_dir, ignore_errors=True)
+            pipeline.cleanup()
         if progress_cb:
             progress_cb(
                 f"facemorph done → {output_path}",
