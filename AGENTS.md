@@ -146,10 +146,6 @@ Once the MCP server is running, use these tools:
 verification.** "I tested it" means "I opened the browser and clicked through
 every tab with zero console errors." Anything less is untested code.
 
-**Conductor's verification gate:** When a builder reports DONE on frontend
-work, the conductor independently verifies with browser_navigate +
-browser_console + browser_screenshot before marking VERIFIED. Trust but verify.
-
 ---
 
 ## ⚡ 5. Troubleshooting & Known Edge Cases

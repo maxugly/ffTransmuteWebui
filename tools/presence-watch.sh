@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # presence-watch.sh — polls .presence.json, detects agent state changes.
-# Adapted from AIIM presence-watch.sh for the nested ffTransmuteWebui format.
+# Legacy utility from earlier coordination experiment. Still works if needed.
 #
 # Tracks: pending (poke), current (task), status changes.
 # Prints notifications to stdout. Add --webhook URL for remote delivery.
