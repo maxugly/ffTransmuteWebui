@@ -232,6 +232,7 @@ function updateGlobalInputs() {
   window.globalInputs.image   = document.getElementById('giImage')?.value || '';
   window.globalInputs.pathIn  = document.getElementById('giPathIn')?.value || '';
   window.globalInputs.pathOut = document.getElementById('giPathOut')?.value || '';
+  updateStatusIndicators();
 }
 
 function updateStatusIndicators() {
@@ -240,9 +241,7 @@ function updateStatusIndicators() {
   const gi = window.globalInputs;
   var rows = [
     { key: 'video',   elId: 'giVideoStatus',   needs: (accepts === 'video' || accepts === 'any') },
-    { key: 'image',   elId: 'giImageStatus',   needs: (accepts === 'image' || accepts === 'any') },
-    { key: 'pathIn',  elId: 'giPathInStatus',  needs: true },
-    { key: 'pathOut', elId: 'giPathOutStatus', needs: true }
+    { key: 'image',   elId: 'giImageStatus',   needs: (accepts === 'image' || accepts === 'any') }
   ];
   rows.forEach(function(r) {
     var el = document.getElementById(r.elId);
@@ -454,6 +453,7 @@ function switchTab(tab) {
 
   // Render Form for the Tab
   renderTabForm(tab);
+  updateStatusIndicators();
 }
 
 // Render Specific Tab Forms
@@ -981,6 +981,11 @@ function renderStyleTransferForm() {
         unlimited styles via a reference image (painting, glass, texture…).
         Not DeepDream: no ImageNet dog faces.
       </p>
+    </div>
+
+    <div class="styletransfer-banner" style="background:rgba(234,179,8,0.12); border:1px solid rgba(234,179,8,0.3); border-radius:6px; padding:10px 14px; font-size:0.82rem; color:#facc15; margin-bottom:12px;">
+      ⚠ Style Transfer uses a style reference image in addition to content images.
+      Choose your content images in the global bar above, then pick a style image in the form below.
     </div>
 
     <div class="form-group">
