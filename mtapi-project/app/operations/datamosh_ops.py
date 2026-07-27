@@ -142,6 +142,15 @@ async def _execute_mosh_pipeline(
 
             if start_frame > 1:
                 # Range-based Mosh! We slice the video into Part 1 (pre-mosh) and Part 2 (mosh)
+                remaining_frames = end_frame - start_frame + 1
+                if remaining_frames < 3:
+                    return OperationResult(
+                        ok=False,
+                        operation=operation,
+                        error=f"Hijack point too close to end (frame {start_frame}, "
+                              f"only ~{remaining_frames} frames after). Need at least 3 frames "
+                              f"for the mosh to produce output."
+                    )
                 split_time = start_frame * frame_dur
                 
                 # Part 1: Start of video up to start_frame
@@ -180,11 +189,10 @@ async def _execute_mosh_pipeline(
                             error=f"Failed to slice Part 2 (frames {start_frame}+): {p2_err.strip()}"
                         )
 
-                # Replace the first frame of Part 2 with the image.
-                # If Part 2 is too short to skip a frame (hijack near video end),
-                # fall back to using Part 2 directly — the injected image still
-                # prepends before Part 2 in the concat.
-                tmp_part2_skipped: str | None = None
+                # Replace the first frame of Part 2 with the injected image.
+                # Skip the first frame of Part 2, then concat image + remainder.
+                # If Part 2 is too short (hijack near video end), skip the concat
+                # and use the image video directly.
                 p2dur = await probe_duration(tmp_part2)
                 if p2dur > frame_dur * 1.1:
                     tmp_part2_skipped = os.path.join(tmpdir, "part2_skipped.mp4")
@@ -197,29 +205,31 @@ async def _execute_mosh_pipeline(
                             "ffmpeg", "-ss", f"{frame_dur}", "-i", tmp_part2,
                             "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an", "-y", tmp_part2_skipped
                         ])
-                if tmp_part2_skipped is None:
-                    tmp_part2_skipped = tmp_part2  # too short to skip — use directly
-
-                # Concatenate image + Part 2
-                tmp_concat = os.path.join(tmpdir, "concat.mp4")
-                concat_code, concat_out, concat_err = await run_command([
-                    "ffmpeg", "-i", tmp_img_vid, "-i", tmp_part2_skipped,
-                    "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[outv]",
-                    "-map", "[outv]", "-map", "1:a?", "-c:v", "libx264", "-c:a", "copy", "-y", tmp_concat
-                ])
-                if concat_code != 0:
-                    concat_code, concat_out, concat_err = await run_command([
-                        "ffmpeg", "-i", tmp_img_vid, "-i", tmp_part2_skipped,
-                        "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[outv]",
-                        "-map", "[outv]", "-an", "-c:v", "libx264", "-y", tmp_concat
-                    ])
-                    if concat_code != 0:
-                        return OperationResult(
-                            ok=False,
-                            operation=operation,
-                            error=f"Concatenation of image and Part 2 failed: {concat_err.strip()}"
-                        )
-                source_video = tmp_concat
+                    if skip_code == 0:
+                        # Concat image + skipped Part 2
+                        tmp_concat = os.path.join(tmpdir, "concat.mp4")
+                        concat_code, concat_out, concat_err = await run_command([
+                            "ffmpeg", "-i", tmp_img_vid, "-i", tmp_part2_skipped,
+                            "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[outv]",
+                            "-map", "[outv]", "-map", "1:a?", "-c:v", "libx264", "-c:a", "copy", "-y", tmp_concat
+                        ])
+                        if concat_code != 0:
+                            concat_code, concat_out, concat_err = await run_command([
+                                "ffmpeg", "-i", tmp_img_vid, "-i", tmp_part2_skipped,
+                                "-filter_complex", "[0:v][1:v]concat=n=2:v=1:a=0[outv]",
+                                "-map", "[outv]", "-an", "-c:v", "libx264", "-y", tmp_concat
+                            ])
+                            if concat_code != 0:
+                                return OperationResult(
+                                    ok=False,
+                                    operation=operation,
+                                    error=f"Concatenation of image and Part 2 failed: {concat_err.strip()}"
+                                )
+                        source_video = tmp_concat
+                    else:
+                        source_video = tmp_img_vid  # skip failed, Part 2 unusable
+                else:
+                    source_video = tmp_img_vid  # Part 2 too short, use image only
             else:
                 # Prepend at start (start_frame <= 1)
                 tmp_concat = os.path.join(tmpdir, "concat.mp4")
