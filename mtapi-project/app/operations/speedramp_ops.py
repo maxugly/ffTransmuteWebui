@@ -165,22 +165,10 @@ async def speed_ramp(p: SpeedRampParams) -> OperationResult:
     )
 
 
+# TODO: remove — use app.probe.probe_fps directly
 async def _probe_fps(path: str) -> float:
-    """Probe video frame rate via ffprobe. Returns 30.0 on failure."""
-    argv = [
-        "ffprobe", "-v", "error",
-        "-select_streams", "v:0",
-        "-show_entries", "stream=r_frame_rate",
-        "-of", "csv=p=0", path,
-    ]
-    code, out, _ = await run_command(argv)
-    try:
-        if code == 0 and "/" in out:
-            num, den = out.strip().split("/", 1)
-            return float(num) / float(den)
-        return float(out.strip()) if code == 0 else 30.0
-    except (ValueError, ZeroDivisionError):
-        return 30.0
+    from ..probe import probe_fps
+    return await probe_fps(path, default=30.0)
 
 
 register(OperationSpec(
