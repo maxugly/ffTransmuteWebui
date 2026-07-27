@@ -25,6 +25,11 @@ import subprocess
 import sys
 import tempfile
 
+# Use consolidated ffprobe helpers (sync wrappers — this is a standalone CLI)
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "mtapi-project"))
+from app.probe import probe_duration_sync as _dur, probe_fps_sync as _fps
+from app.probe import probe_frame_count_sync as _fc
+
 
 # ── helpers ──────────────────────────────────────────────────────────────
 
@@ -38,31 +43,30 @@ def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
     return r
 
 
+# TODO: remove — use probe_duration_sync / probe_fps_sync / probe_frame_count_sync directly
 def probe(path: str, key: str) -> str:
     """ffprobe a single value. key = 'stream=width,height' etc."""
-    r = run([
+    r = subprocess.run([
         "ffprobe", "-v", "error",
         "-select_streams", "v:0",
         "-show_entries", f"stream={key}",
         "-of", "csv=p=0",
         path,
-    ])
+    ], capture_output=True, text=True)
     return r.stdout.strip()
 
 
+# TODO: remove — use _dur / _fps / _fc directly
 def duration(path: str) -> float:
-    return float(probe(path, "duration"))
+    return _dur(path)
 
 
 def fps(path: str) -> float:
-    """Return frame rate as float from r_frame_rate (e.g. '96/1' → 96.0)."""
-    raw = probe(path, "r_frame_rate")
-    num, den = raw.split("/")
-    return float(num) / float(den)
+    return _fps(path)
 
 
 def frame_count(path: str) -> int:
-    return int(probe(path, "nb_read_frames"))
+    return _fc(path)
 
 
 # ── curve math ──────────────────────────────────────────────────────────
