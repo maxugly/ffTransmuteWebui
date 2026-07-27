@@ -46,18 +46,43 @@ async def probe_duration(path: str) -> float:
         return 0.0
 
 async def run_command(argv: list[str], cwd: str | None = None) -> tuple[int, str, str]:
-    """Run argv, wait for it, return (exit_code, stdout, stderr) as text."""
+    """Run argv, wait for it, return (exit_code, stdout, stderr) as text.
+
+    stderr is streamed to the 'mtapi' logger in real-time so the server
+    terminal shows ffmpeg progress, errors, and warnings as they happen —
+    not just a silent wait followed by a result at the end.
+    """
+    import logging
+    _log = logging.getLogger("mtapi")
+
     proc = await asyncio.create_subprocess_exec(
         *argv,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    stdout_b, stderr_b = await proc.communicate()
+
+    async def _read_stderr() -> str:
+        lines: list[str] = []
+        while True:
+            line = await proc.stderr.readline()  # type: ignore[union-attr]
+            if not line:
+                break
+            decoded = line.decode(errors="replace").rstrip("\n")
+            if decoded.strip():
+                _log.info("[%s] %s", argv[0] if argv else "?", decoded)
+            lines.append(decoded)
+        return "\n".join(lines)
+
+    stderr_task = asyncio.create_task(_read_stderr())
+    stdout_b = await proc.stdout.read()  # type: ignore[union-attr]
+    stderr_text = await stderr_task
+    await proc.wait()
+
     return (
         proc.returncode if proc.returncode is not None else -1,
         stdout_b.decode(errors="replace"),
-        stderr_b.decode(errors="replace"),
+        stderr_text,
     )
 
 

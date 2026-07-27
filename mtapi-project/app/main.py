@@ -29,6 +29,11 @@ from . import operations  # noqa: F401  (side effect: populates REGISTRY)
 
 log = logging.getLogger("mtapi")
 
+# Ensure progress output is visible during development.
+# ffmpeg stderr is streamed line-by-line via shell.run_command.
+logging.basicConfig(level=logging.INFO, format="%(name)s %(levelname)s %(message)s")
+log.setLevel(logging.INFO)
+
 
 def _read_project_version() -> str:
     """Humble AAA.BBB.CCC.DD from repo root VERSION (see VERSIONING.md)."""

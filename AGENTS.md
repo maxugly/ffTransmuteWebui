@@ -105,99 +105,76 @@ read them for context but don't feel obligated to maintain them.
 
 ### D. Verification — MANDATORY BEFORE CLAIMING DONE
 
-#### Test Clip
+#### Test Assets
 
-A small 2-second test video lives at `/tmp/teste.mp4` (320×240, 24fps, 47KB).
-It has video + audio and processes in under 5 seconds. Use it for every
-verification run. If it's missing, regenerate:
+| file | what | size |
+|------|------|------|
+| `/tmp/teste.mp4` | 2s video, 320×240, 24fps, audio | 47KB |
+| `/tmp/teste.png` | 1-frame still, 320×240 | 2KB |
+
+Both process in under 5 seconds. If missing:
 
 ```bash
 ffmpeg -y -f lavfi -i "testsrc=duration=2:size=320x240:rate=24" \
   -f lavfi -i "sine=frequency=440:duration=2" \
   -c:v libx264 -preset ultrafast -crf 28 -c:a aac -b:a 64k -shortest \
   /tmp/teste.mp4
+
+ffmpeg -y -f lavfi -i "testsrc=duration=1:size=320x240:rate=1" \
+  -vframes 1 /tmp/teste.png
 ```
 
-#### Part 1: Backend Operation Testing
+#### How to Test
 
-**90% of errors in this project are ffmpeg failures or Python glue code
-breaking between the UI and the CLI — not browser JS errors. Every change
-that touches `app/operations/`, `app/main.py`, `app/shell.py`, or any
-engine file MUST test with real video input before claiming DONE.**
+**Test ONLY the specific operations you touched.** Not the whole server.
+Not every tab. Just the ops whose code, engine, or route you changed.
 
-For each operation affected by the change:
+For a video op (rife, transmute, deepdream, datamosh, etc.):
 
 ```bash
 curl -s -X POST http://localhost:24590/ops/<op_id> \
   -H "Content-Type: application/json" \
-  -d '{"input_path":"/tmp/teste.mp4","dry_run":false}' \
+  -d '{"input_path":"/tmp/teste.mp4"}' \
   | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('ok'), d.get('error',''))"
 ```
 
-- `ok: True` — passed. Verify output file exists at the returned `output_path`.
-- `ok: False` — read `error` and `stderr`. Fix before continuing.
-- Timeout / no response — server crashed. Check logs, restart, fix.
+For an image op (withoutbg, styletransfer, facemorph):
 
-**Minimum ops to test for any backend change:**
-- `rife` (fastest neural op — tests PNG pipeline + subprocess)
-- `crop_exact` (tests transmute CLI wrapper)
-- `datamosh_melt` with `dry_run: true` (tests datamosh CLI wrapper)
-- Any op whose code you touched
+```bash
+curl -s -X POST http://localhost:24590/ops/<op_id> \
+  -H "Content-Type: application/json" \
+  -d '{"input_path":"/tmp/teste.png"}' \
+  | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('ok'), d.get('error',''))"
+```
 
-Clean up test outputs after: `rm -f /tmp/teste_rife.mp4 /tmp/teste_crop.mp4`
+**You are testing ONE thing: does it run without choking?** Not output quality.
+Not correctness. Just: `ok: True` with no error. If ffmpeg crashes, the op
+handler throws, or the subprocess hangs — you'll see it here in seconds.
 
-#### Part 2: Browser Verification (frontend changes)
+- `ok: True` → passed. Delete the output file and move on.
+- `ok: False` → read `error` and `stderr`. Fix before continuing.
+- Timeout → server crashed. Check the server terminal for the traceback.
 
-**Any agent touching `app/static/` files (HTML, CSS, JS) MUST verify in a
-real browser. curl ≠ browser. Syntax check ≠ browser. JS module import
-failures and silent `fetch()` errors are invisible to static checks.**
+Clean up: `rm -f /tmp/teste_rife.mp4 /tmp/teste_crop.mp4 /tmp/teste_withoutbg.png`
 
-##### Browser Setup (run once per session)
+#### Browser Verification (only for changes in `app/static/`)
 
-You are ALLOWED and EXPECTED to use browser automation. Start it:
+If you touched HTML, CSS, or JS, also verify in a real browser after the
+backend test passes. Start Playwright once per session:
 
 ```
 start_mcp_server with @playwright/mcp
 ```
 
-(Playwright + Chrome are installed system-wide via AUR. No setup needed.)
+Then: `browser_navigate http://localhost:24590/` → `browser_console` (ZERO
+errors) → click the tab you changed → verify the form rendered → `browser_screenshot`.
 
-Once the MCP server is running, use these tools:
+If you added a new form or tab: click it and verify every control renders
+(textbox, select, knob, button). Run the op with `/tmp/teste.mp4` through
+the form — not dry_run — and check the terminal output for errors.
 
-| tool | what it does |
-|------|-------------|
-| `browser_navigate` | load a page at a URL |
-| `browser_console` | check for JS errors (ZERO allowed) |
-| `browser_screenshot` | take visual proof of rendered page |
-| `browser_click` | click elements by their ref ID |
-| `browser_snapshot` | get text snapshot of page state |
-
-#### Mandatory Verification Sequence
-
-**For ALL changes, do both parts in order:**
-
-**Part 1 — Backend (run first, catches 90% of bugs):**
-1. Run affected ops via curl with `/tmp/teste.mp4` (see Part 1 above).
-2. Check `ok: True` and verify output files exist.
-3. Clean up test outputs.
-
-**Part 2 — Browser (for any change touching `app/static/`):**
-1. **`browser_navigate`** to `http://localhost:24590/`
-2. **`browser_console`** — check for JS errors. ZERO errors allowed.
-3. **Click through EVERY tab** affected by the change. Use `browser_click` on
-   each nav item, then `browser_snapshot` to verify the form rendered.
-4. If the change adds a form: verify every control renders (textbox, select,
-   knob, button).
-5. If the change adds a run path: run it for real with `/tmp/teste.mp4` —
-   not just dry_run. Check the console and the output.
-6. **`browser_screenshot`** — take visual proof of the working page.
-
-Only after both parts pass clean: claim DONE.
-
-**No agent reports work as "tested" or "done" without running real video
-through the affected ops.** "I tested it" means "/tmp/teste.mp4 went through
-every affected op with ok: True AND the browser shows zero console errors."
-Anything less is untested code.
+**No agent claims DONE without both: backend test passed AND (if frontend
+touched) browser clean with zero console errors.**
 
 ---
 
