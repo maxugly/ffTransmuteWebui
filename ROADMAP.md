@@ -1,101 +1,85 @@
 # Roadmap — Phase 2: Filter Graph Architecture
 
-> Vision document. Not a TODO. This is where we're headed after the cleanup.
+> Vision document. This is the destination — what we're building toward.
+> Execution plan: TODO.md. Progress tracking: AUDIT.md.
 
 ---
 
 ## The Problem
 
-Right now, every neural/video op (deepdream, styletransfer, facemorph,
-upcoming ascii, ffglitch) recycles the same lifecycle:
-
-1. ffmpeg probe + extract frames to tempdir
-2. Python loop opens each frame, passes to tool, saves
-3. ffmpeg re-encode + attempt to mux audio
-4. cleanup tempdir
-
-Each op manages its own ffmpeg, its own tempdirs, its own model loading.
-You can't chain them. You can't mix them. Every new op reinvents the wheel.
+Every neural/video op recycles the same lifecycle: ffmpeg probe + extract
+frames → Python loop processes frames → ffmpeg re-encode → cleanup tempdir.
+Ops can't be chained. Each manages its own ffmpeg, tempdirs, and models.
 
 ## The Target
 
 Move from "Monolithic Operations" to "Filter Graph / Pipeline."
 
-Operations become Filters. A Filter exposes `process_frame(image_array)`.
-The Pipeline handles video I/O once — decode, run frames through the chain,
-encode. Chaining becomes a JSON array:
+Operations become Filters exposing `process_frame(image_array)`. The
+VideoPipeline handles video I/O once. Chaining becomes a JSON array:
 
 ```json
 POST /ops/pipeline
-{
-  "steps": [
-    {"op": "withoutbg"},
-    {"op": "deepdream", "blend": 0.5},
-    {"op": "pixelsort"},
-    {"op": "ascii"}
-  ]
-}
+{ "steps": [{"op": "withoutbg"}, {"op": "deepdream", "blend": 0.5}] }
 ```
 
 ## The Pieces
 
-### 1. Unified Pipeline Engine
+### 1. Unified Pipeline Engine (Phase 3)
+Evolve PngFramePipeline into a VideoPipeline that owns decode→frame-loop→encode.
+Ops stop knowing about videos or tempdirs.
 
-Extract ffmpeg frame I/O into a shared `VideoPipeline` class. Operations
-stop knowing about videos or tempdirs — they become Filters with a
-`process_frame(image_array)` or `process_frame_batch()` method.
+### 2. Op-to-Filter Conversion (Phase 4)
+Migrate engines one at a time. Each becomes a pure filter. Old engines coexist
+until all are migrated. Order: rife → withoutbg → styletransfer → facemorph → deepdream.
 
-The Pipeline decodes once, passes frames through in RAM, encodes once.
-Already partially done: `PngFramePipeline` handles the tempdir bookends.
-Next step: push it deeper — into the frame loop itself.
+### 3. Model Manager (Phase 4, deferred)
+LRU cache for PyTorch/TF/dlib weights. Built when two heavy models share a chain.
+Ops request weights through the manager — never load GPU memory directly.
 
-### 2. Effect Chaining
+### 4. Standardized Job Workspace (Phase 3.1)
+Replace scattered mktemp with `/tmp/mtapi_jobs/{job_id}/` containing
+frames_in/, frames_out/, audio.aac, metadata.json. Failed jobs preserve
+workspace for debugging.
 
-Build `POST /ops/pipeline` — accepts a JSON array of steps, builds the
-chain, extracts frames, passes each frame through sequentially, muxes
-output. This is the "ComfyUI for ffTransmute" moment.
+### 5. Dynamic Mixing (Phase 5)
+POST /ops/pipeline endpoint. VideoPipeline decodes once, streams through
+filter chain in RAM, encodes once. Multi-Pass UI tab for queuing filters.
 
-### 3. Model / VRAM Manager
-
-deepdream loads TF weights. styletransfer loads PyTorch. facemorph loads
-dlib. Chaining them means all three could be in VRAM simultaneously → OOM.
-
-A `ModelManager` checks if a model fits. If not, offloads the
-least-recently-used model to system RAM before loading the new one.
-Operations never touch GPU memory directly — they go through the manager.
-
-### 4. Standardized Job Workspace
-
-Instead of `mktemp` scattered across scripts: `JobWorkspace` class.
-
-```bash
-/tmp/mtapi_jobs/{job_id}/
-├── audio.aac          # extracted audio
-├── frames_in/         # source frames
-├── frames_out/        # processed frames
-└── metadata.json      # job parameters
-```
-
-Failing jobs leave a preserved workspace for debugging. User can download
-individual components (just audio, just frames).
-
-### 5. UI Evolution: Tabs → Nodes
-
-- **Phase 1:** A "Multi-Pass" tab — add effects to a list, reorder, hit run.
-- **Phase 2:** Node-based editor (Blender compositor / ComfyUI style).
+### 6. UI Evolution (Phase 5.2)
+Multi-Pass tab → stack operations, reorder, hit run. Future: node-based
+editor (Blender compositor / ComfyUI style).
 
 ---
 
-## When
+## The Path (from final plan)
 
-After the current cleanup wave is done:
-- [x] PNG pipeline consolidation
-- [x] ffprobe consolidation
-- [x] main.py route split
-- [ ] Global inputs backend (file verification, stop between iterations, path scanning)
-- [ ] media_store.py split
-- [ ] CivitAI integration
+```
+Phase 0    Infrastructure safety (nested routing, ES modules, CSS tokens)
+Phase 1    Easy wins (melt twins, cancel audit)
+Track F    Frontend modularization (style.css → app.js split)
+Track D    Datamosh split (5 mosh modes → per-file handlers)
+Track M    Media facade + split (cache → thumbnails → pool → projects)
+Phase 3    VideoPipeline + JobWorkspace
+Phase 4    Op-to-Filter conversion (rife → withoutbg → styletransfer → facemorph → deepdream)
+Phase 5    Dynamic mixing (POST /ops/pipeline + Multi-Pass UI)
+Phase 6    New features (CivitAI, ASCII, FFglitch, speed ramp, rubberband)
+```
 
-The first concrete step toward this vision — `VideoPipeline` that owns the
-decode→frame-loop→encode — is a natural evolution of the `PngFramePipeline`
-we just built. The class exists. It just needs to go deeper.
+## Progress
+
+| phase | status |
+|-------|--------|
+| 0.1 nested static routes | ✅ done |
+| 0.2 ES module entry | next |
+| 1.2 datamosh twins | ✅ done |
+| everything else | pending |
+
+---
+
+## Rules
+
+- One commit per item. Verify before next.
+- Frontend before backend engines. CSS before JS.
+- Facade before internal split. Old paths coexist during migration.
+- Model Manager deferred until needed. Don't build infrastructure without a caller.
