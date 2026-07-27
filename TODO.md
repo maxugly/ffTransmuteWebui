@@ -22,5 +22,4 @@
 - [ ] Speed ramp end-to-end (M4)
 - [ ] QA review pass (M5)
 - [ ] Rubberband audio v2 (M6)
-- [ ] Systemd service for server auto-restart
 - [ ] Delete app.js.bak and old style.css (dead code cleanup)
