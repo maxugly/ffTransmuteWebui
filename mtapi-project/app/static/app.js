@@ -232,7 +232,6 @@ function updateGlobalInputs() {
   window.globalInputs.image   = document.getElementById('giImage')?.value || '';
   window.globalInputs.pathIn  = document.getElementById('giPathIn')?.value || '';
   window.globalInputs.pathOut = document.getElementById('giPathOut')?.value || '';
-  updateStatusIndicators();
 }
 
 function updateStatusIndicators() {
@@ -455,7 +454,6 @@ function switchTab(tab) {
 
   // Render Form for the Tab
   renderTabForm(tab);
-  updateStatusIndicators();
 }
 
 // Render Specific Tab Forms
