@@ -4,8 +4,6 @@ RIFE frame interpolation — wraps rife-ncnn-vulkan for the typed ops registry.
 from __future__ import annotations
 
 import asyncio
-import shutil
-import tempfile
 from pathlib import Path
 from typing import Literal
 
@@ -112,45 +110,22 @@ async def rife_interpolate(p: RifeParams) -> OperationResult:
         )
 
     # ---- execute ----
-    tmpdir = None
+    from ..png_pipeline import PngFramePipeline
+    pipeline = PngFramePipeline(prefix="rife_")
     logs: list[str] = [summary]
 
     try:
-        tmpdir = tempfile.mkdtemp(prefix="rife_")
-        tmpdir_in = Path(tmpdir) / "in"
-        tmpdir_out = Path(tmpdir) / "out"
-        tmpdir_in.mkdir()
+        frame_dir = await pipeline.dump(
+            input_path, vsync=0, start_number=0,
+        )
+        tmpdir_out = pipeline.tmpdir / "out"
         tmpdir_out.mkdir()
-
-        in_pattern = str(tmpdir_in / "frame_%06d.png")
         out_pattern = str(tmpdir_out / "frame_%06d.png")
-
-        # 1. dump PNGs
-        code, stdout, stderr = await run_command([
-            "ffmpeg", "-y",
-            "-i", str(input_path),
-            "-an",
-            "-vsync", "0",
-            "-start_number", "0",
-            in_pattern,
-        ])
-        if code != 0:
-            logs.append(f"ffmpeg dump failed (exit {code})")
-            logs.append(stderr)
-            return OperationResult(
-                ok=False,
-                operation="rife",
-                dry_run=False,
-                command=summary,
-                stdout="\n".join(logs),
-                stderr=stderr,
-                error=f"ffmpeg PNG dump failed with exit code {code}",
-            )
 
         # 2. rife-ncnn-vulkan
         rife_argv = [
             _RIFE_BIN,
-            "-i", str(tmpdir_in),
+            "-i", str(frame_dir),
             "-o", str(tmpdir_out),
             "-n", str(total_out_frames),
             "-m", p.model,
@@ -182,30 +157,10 @@ async def rife_interpolate(p: RifeParams) -> OperationResult:
             )
 
         # 3. re-encode
-        code, stdout, stderr = await run_command([
-            "ffmpeg", "-y",
-            "-framerate", str(out_fps),
-            "-start_number", "1",
-            "-i", out_pattern,
-            "-an",
-            "-c:v", "libx264",
-            "-preset", "fast",
-            "-crf", "18",
-            "-pix_fmt", "yuv420p",
-            str(out),
-        ])
-        if code != 0:
-            logs.append(f"ffmpeg encode failed (exit {code})")
-            logs.append(stderr)
-            return OperationResult(
-                ok=False,
-                operation="rife",
-                dry_run=False,
-                command=summary,
-                stdout="\n".join(logs),
-                stderr=stderr,
-                error=f"ffmpeg re-encode failed with exit code {code}",
-            )
+        await pipeline.encode(
+            tmpdir_out, out, out_fps,
+            start_number=1, frame_pattern="frame_%06d.png",
+        )
 
         logs.append(f"Output: {out}")
         return OperationResult(
@@ -229,8 +184,7 @@ async def rife_interpolate(p: RifeParams) -> OperationResult:
         )
 
     finally:
-        if tmpdir is not None:
-            shutil.rmtree(tmpdir, ignore_errors=True)
+        pipeline.cleanup()
 
 
 register(OperationSpec(
