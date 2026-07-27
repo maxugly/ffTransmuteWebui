@@ -6,20 +6,19 @@
 - [x] PNG pipeline: rife_ops + speedramp_png
 - [x] PNG pipeline: facemorph_engine
 - [x] PNG pipeline: deepdream_engine
-- [x] ffprobe consolidation → app/probe.py (7 callers migrated)
-- [x] datamosh twins: bin/datamosh.sh deleted, shell.py → root
-- [x] Static routes: extract 3 file-serving endpoints → routes/static.py
-- [x] Global inputs bar: 4-input UI (video, image, pathIn, pathOut)
-- [x] Global inputs: multi-file sequential processing (withoutbg, facemorph, styletransfer)
-- [x] main.py route split: ALL 6 modules done — main.py 298 lines (was ~700)
+- [x] ffprobe consolidation → app/probe.py
+- [x] datamosh twins
+- [x] Static routes → routes/static.py
+- [x] Global inputs bar: 4-input UI
+- [x] Global inputs: multi-file sequential processing
+- [x] Global inputs: status indicators + styletransfer banner
+- [x] main.py route split: ALL 6 modules done
+
+## now
+- [ ] Global inputs backend: Path in scanning, Path out override, file verification, stop between iterations
 
 ## next
-- [ ] Global inputs: status indicators (✅ ❌ ✔️) and styletransfer banner
-- [ ] Global inputs: Path in directory scanning, Path out output override
-- [ ] Global inputs: file existence verification before processing
-- [ ] Global inputs: stop between iterations
 - [ ] media_store.py split: 1324 lines → app/media/*.py
-- [ ] Review agy's civitai-spec.md
 
 ## someday
 - [ ] Speed ramp end-to-end (M4)
