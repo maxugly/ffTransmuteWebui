@@ -33,34 +33,15 @@ class RifeParams(BaseModel):
     dry_run: bool = Field(False, description="Print command only")
 
 
+# TODO: remove after verifying no remaining callers
 async def _ffprobe_frame_count(input_path: Path) -> int:
-    code, out, _ = await run_command([
-        "ffprobe", "-v", "error",
-        "-select_streams", "v:0",
-        "-count_frames",
-        "-show_entries", "stream=nb_read_frames",
-        "-of", "csv=p=0",
-        str(input_path),
-    ])
-    try:
-        return int(out.strip()) if code == 0 else 0
-    except ValueError:
-        return 0
+    from ..probe import probe_frame_count
+    return await probe_frame_count(str(input_path))
 
-
+# TODO: remove after verifying no remaining callers
 async def _ffprobe_fps(input_path: Path) -> float:
-    code, out, _ = await run_command([
-        "ffprobe", "-v", "error",
-        "-select_streams", "v:0",
-        "-show_entries", "stream=r_frame_rate",
-        "-of", "csv=p=0",
-        str(input_path),
-    ])
-    try:
-        num_s, den_s = out.strip().split("/")
-        return float(num_s) / float(den_s)
-    except (ValueError, ZeroDivisionError):
-        return 0.0
+    from ..probe import probe_fps
+    return await probe_fps(str(input_path))
 
 
 async def rife_interpolate(p: RifeParams) -> OperationResult:
