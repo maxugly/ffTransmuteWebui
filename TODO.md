@@ -2,21 +2,23 @@
 
 > Pick one. Do it. Check it off. Next.
 
-## now
-- [x] PNG pipeline: rife_ops + speedramp_png ✅
-- [x] PNG pipeline: facemorph_engine ✅
-- [x] PNG pipeline: deepdream_engine ✅
-- [ ] main.py route split: /api/browse → app/routes/browse.py (codewhale working on this)
+## done
+- [x] PNG pipeline: rife_ops + speedramp_png
+- [x] PNG pipeline: facemorph_engine
+- [x] PNG pipeline: deepdream_engine
+- [x] ffprobe consolidation → app/probe.py (7 callers migrated)
+- [x] datamosh twins: bin/datamosh.sh deleted, shell.py → root
+- [x] Static routes: extract 3 file-serving endpoints → routes/static.py
+- [x] Global inputs bar: 4-input UI (video, image, pathIn, pathOut)
+- [x] Global inputs: multi-file sequential processing (withoutbg, facemorph, styletransfer)
+- [x] main.py route split: /api/browse → routes/browse.py
+- [x] main.py route split: media routes → routes/media.py (8 endpoints)
 
 ## next
-- [x] Static routes: extract 3 file-serving endpoints from main.py ✅
-- [x] Global inputs bar: finish 4-input UI ✅
-- [ ] Global inputs: multi-file sequential processing (withoutbg, facemorph, styletransfer)
 - [ ] Global inputs: status indicators (✅ ❌ ✔️) and styletransfer banner
 - [ ] Global inputs: Path in directory scanning, Path out output override
 - [ ] Global inputs: file existence verification before processing
 - [ ] Global inputs: stop between iterations
-- [ ] main.py route split: media routes (video, image, probe, media_info, thumbnail, export_frame)
 - [ ] main.py route split: pool routes (state, save, load, last, match, scan)
 - [ ] main.py route split: picker (178 lines of kdialog/zenity/tkinter)
 - [ ] main.py route split: watcher, jobs, health
