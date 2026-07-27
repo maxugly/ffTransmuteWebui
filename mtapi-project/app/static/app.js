@@ -1,8 +1,6 @@
 // State
 let state = {
   activeTab: 'mosh',
-  globalPath: '',     // shared path input — typed or picked, persists across tabs
-  globalOutputDir: '',  // shared output directory — auto-named outputs land here
   operations: {},
   health: { ok: true, warnings: [] },
   fb: {
@@ -191,6 +189,14 @@ const elements = {
   btnConfirmFb: document.getElementById('btnConfirmFb')
 };
 
+// ── Global shared inputs — persist across all tabs ──────────────────────
+window.globalInputs = {
+  video:   '',   // newline-separated video paths
+  image:   '',   // newline-separated image paths
+  pathIn:  '',   // input directory
+  pathOut: '',   // output directory
+};
+
 // ── Tab type declarations — what each tab accepts ────────────────────────
 // Used to validate the global path input against the current tab.
 const TAB_ACCEPTS = {
@@ -219,72 +225,65 @@ function detectFileType(path) {
   return null;
 }
 
-function updateGlobalPathUI() {
-  const input = document.getElementById('globalPathInput');
-  const badge = document.getElementById('globalPathType');
-  const msg   = document.getElementById('globalPathMsg');
-  const runBtn = document.getElementById('btnRun');
+// ── Global inputs sync ──────────────────────────────────────────────────
 
-  if (!input || !badge || !msg || !runBtn) return;
+function updateGlobalInputs() {
+  window.globalInputs.video   = document.getElementById('giVideo')?.value || '';
+  window.globalInputs.image   = document.getElementById('giImage')?.value || '';
+  window.globalInputs.pathIn  = document.getElementById('giPathIn')?.value || '';
+  window.globalInputs.pathOut = document.getElementById('giPathOut')?.value || '';
+  updateStatusIndicators();
+}
 
-  const path = (input.value || '').trim();
-  state.globalPath = path;
-
-  // Type detection
-  const detected = detectFileType(path);
-  badge.className = 'path-type-badge';
-  badge.textContent = '';
-  if (detected) {
-    badge.classList.add(detected);
-    badge.textContent = detected;
-  }
-
-  // Validation against current tab
+function updateStatusIndicators() {
   const tab = state.activeTab;
   const accepts = TAB_ACCEPTS[tab] || 'any';
-  msg.classList.remove("show");
-  msg.textContent = "";
-  runBtn.disabled = false;
-  runBtn.title = '';
-
-  if (path && detected && accepts !== 'any' && detected !== accepts) {
-    msg.textContent = 'This tab needs ' + accepts + ' — you have ' + detected;
-    runBtn.disabled = true;
-    runBtn.title = 'Global input is ' + detected + ', but this tab requires ' + accepts;
-  }
+  const gi = window.globalInputs;
+  var rows = [
+    { key: 'video',   elId: 'giVideoStatus',   needs: (accepts === 'video' || accepts === 'any') },
+    { key: 'image',   elId: 'giImageStatus',   needs: (accepts === 'image' || accepts === 'any') },
+    { key: 'pathIn',  elId: 'giPathInStatus',  needs: true },
+    { key: 'pathOut', elId: 'giPathOutStatus', needs: true }
+  ];
+  rows.forEach(function(r) {
+    var el = document.getElementById(r.elId);
+    if (!el) return;
+    var val = (gi[r.key] || '').trim();
+    if (!r.needs)      { el.textContent = '\u274C'; el.title = 'Not used by this tab'; }
+    else if (val)      { el.textContent = '\u2705'; el.title = 'Active'; }
+    else               { el.textContent = ''; el.title = ''; }
+  });
 }
 
 function bestInput(fieldId) {
-  // Prefer the typed/picked global path when it's compatible with this tab
   const tab = state.activeTab;
   const accepts = TAB_ACCEPTS[tab] || 'any';
-  const globalVal = (state.globalPath || '').trim();
-  if (globalVal) {
-    const detected = detectFileType(globalVal);
-    if (accepts === 'any' || detected === accepts || !detected) {
-      return globalVal;
-    }
+  const gi = window.globalInputs;
+  var lines;
+  if ((accepts === 'video' || accepts === 'any') && gi.video.trim()) {
+    lines = gi.video.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+    if (lines.length) return lines[0];
   }
-  // Fall back to the tab's own input field
+  if ((accepts === 'image' || accepts === 'any') && gi.image.trim()) {
+    lines = gi.image.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+    if (lines.length) return lines[0];
+  }
   const el = document.getElementById(fieldId);
   return el ? (el.value || '').trim() : '';
 }
 
 function bestOutput(fieldId) {
-  // Return user-specified output, or null to let the backend auto-name.
-  // When the global output dir is set, the backend will use it (via MTAPI_OUTPUT_DIR).
   const el = document.getElementById(fieldId);
   const explicit = el ? (el.value || '').trim() : '';
   return explicit || null;
 }
 
 function resolveGlobalImage() {
-  // Return global path if it's a valid image, otherwise null.
-  const g = (state.globalPath || '').trim();
-  if (!g) return null;
-  const detected = detectFileType(g);
-  if (detected === 'image') return g;
-  return null;
+  return resolveGlobalImages()[0] || null;
+}
+
+function resolveGlobalImages() {
+  return window.globalInputs.image.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
 }
 
 async function init() {
@@ -329,28 +328,49 @@ function setupEventListeners() {
   elements.btnCancelFb.addEventListener('click', closeFbModal);
   elements.fbUpBtn.addEventListener('click', navigateUpFb);
   elements.btnConfirmFb.addEventListener('click', confirmFbSelection);
-  const globalInput = document.getElementById("globalPathInput");
-  const globalBrowse = document.getElementById("btnGlobalBrowse");
-  if (globalInput) {
-    globalInput.addEventListener("input", updateGlobalPathUI);
-    globalInput.addEventListener("change", updateGlobalPathUI);
-  }
-  if (globalBrowse) {
-    globalBrowse.addEventListener("click", function() {
-      window.openFileBrowser("globalPathInput", false, "file", "all");
+  // Global inputs
+  var giIds = ['giVideo', 'giImage', 'giPathIn', 'giPathOut'];
+  giIds.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', updateGlobalInputs);
+      el.addEventListener('change', updateGlobalInputs);
+    }
+  });
+  var btnGiVideoBrowse = document.getElementById('btnGiVideoBrowse');
+  if (btnGiVideoBrowse) {
+    btnGiVideoBrowse.addEventListener('click', function() {
+      window.openFileBrowser('giVideo', false, 'files', 'video');
     });
   }
-  // Global output directory
-  const globalOutputDir = document.getElementById("globalOutputDir");
-  const globalOutputBrowse = document.getElementById("btnGlobalOutputBrowse");
-  if (globalOutputDir) {
-    globalOutputDir.addEventListener("input", function() {
-      state.globalOutputDir = globalOutputDir.value.trim();
+  var btnGiImageBrowse = document.getElementById('btnGiImageBrowse');
+  if (btnGiImageBrowse) {
+    btnGiImageBrowse.addEventListener('click', function() {
+      window.openFileBrowser('giImage', false, 'files', 'image');
     });
   }
-  if (globalOutputBrowse) {
-    globalOutputBrowse.addEventListener("click", function() {
-      window.openFileBrowser("globalOutputDir", true, "dir", "all");
+  var btnGiPathInBrowse = document.getElementById('btnGiPathInBrowse');
+  if (btnGiPathInBrowse) {
+    btnGiPathInBrowse.addEventListener('click', function() {
+      window.openFileBrowser('giPathIn', true, 'dir', 'all');
+    });
+  }
+  var btnGiPathOutBrowse = document.getElementById('btnGiPathOutBrowse');
+  if (btnGiPathOutBrowse) {
+    btnGiPathOutBrowse.addEventListener('click', function() {
+      window.openFileBrowser('giPathOut', true, 'dir', 'all');
+    });
+  }
+  // Chevron toggle
+  var btnToggle = document.getElementById('btnGlobalToggle');
+  if (btnToggle) {
+    btnToggle.addEventListener('click', function() {
+      var inner = document.getElementById('globalInputsInner');
+      if (inner) {
+        var collapsed = inner.classList.toggle('collapsed');
+        btnToggle.textContent = collapsed ? '\u25B6' : '\u25BC';
+        btnToggle.title = collapsed ? 'Expand global inputs' : 'Collapse global inputs';
+      }
     });
   }
 }
@@ -435,7 +455,7 @@ function switchTab(tab) {
 
   // Render Form for the Tab
   renderTabForm(tab);
-  updateGlobalPathUI();
+  updateStatusIndicators();
 }
 
 // Render Specific Tab Forms
@@ -1407,10 +1427,10 @@ function renderWithoutBgForm() {
 }
 
 function collectWithoutBgBody() {
-  const images = (state.withoutbg.images || []).map((x) => x.path);
+  var images = (state.withoutbg.images || []).map((x) => x.path);
   if (!images.length && !state.withoutbg.folder) {
-    const fallback = resolveGlobalImage();
-    if (fallback) { images.push(fallback); }
+    var fallbacks = resolveGlobalImages();
+    if (fallbacks.length) { images = fallbacks; }
     else { alert('Add at least one image (or a folder).'); return null; }
   }
   const save_cutout = document.getElementById('wbgSaveCutout')?.value === '1';
@@ -6647,13 +6667,14 @@ function showPoolContextMenu(x, y, path) {
 }
 
 // File Browser Logic
-// mode: 'file' | 'file_save' | 'dir'
+// mode: 'file' | 'files' | 'file_save' | 'dir'
 // filter: 'video' | 'image' | 'project' | 'all' (passed to /api/picker)
 window.openFileBrowser = async function(targetInputId, selectDirOnly = false, mode = 'file', filter = null) {
   let pickerMode = 'file';
   if (selectDirOnly) pickerMode = 'dir';
   else if (mode === 'file_save') pickerMode = 'save';
   else if (mode === 'dir') pickerMode = 'dir';
+  else if (mode === 'files') pickerMode = 'files';
 
   // Infer filter from target when not specified
   let fileFilter = filter;
@@ -6683,7 +6704,14 @@ window.openFileBrowser = async function(targetInputId, selectDirOnly = false, mo
     if (!response.ok) throw new Error(await response.text());
     
     const data = await response.json();
-    if (data.path) {
+    if (pickerMode === 'files' && data.paths && data.paths.length) {
+      const input = document.getElementById(targetInputId);
+      if (input) {
+        input.value = data.paths.join('\n');
+        input.dispatchEvent(new Event('input'));
+      }
+      logConsole('[PICKED]: ' + data.paths.length + ' file(s)');
+    } else if (data.path) {
       if (targetInputId === 'addMultiClip') {
         addMultiClipPath(data.path);
       } else {
@@ -6692,12 +6720,6 @@ window.openFileBrowser = async function(targetInputId, selectDirOnly = false, mo
           input.value = data.path;
           input.dispatchEvent(new Event('input'));
         }
-      }
-      // Also populate the global shared input
-      const globalInput = document.getElementById('globalPathInput');
-      if (globalInput) {
-        globalInput.value = data.path;
-        updateGlobalPathUI();
       }
       logConsole(`[PICKED]: ${data.path}`);
     } else {
@@ -7037,7 +7059,7 @@ async function runOpWithCancel(opId, body, { label = 'Processing…' } = {}) {
       headers: {
         'Content-Type': 'application/json',
         'X-Job-Token': token,
-        ...(state.globalOutputDir ? { 'X-MTAPI-Output-Dir': state.globalOutputDir } : {}),
+        ...(window.globalInputs.pathOut.trim() ? { 'X-MTAPI-Output-Dir': window.globalInputs.pathOut.trim() } : {}),
       },
       body: JSON.stringify(body),
       signal: controller.signal,

@@ -285,3 +285,38 @@ def unique_related_paths(
             return candidate
         n += 1
     raise RuntimeError(f"Could not allocate unique related paths near {primary}")
+
+
+def parse_path_list(raw: str | list[str] | None) -> list[str]:
+    """Parse newline-separated (or already-listed) absolute paths.
+
+    Strips whitespace, skips blank lines, returns only non-empty strings.
+    Accepts None, a string, or a pre-split list — callers don't need to
+    check the type before calling.
+
+    >>> parse_path_list("/a/b.mp4\\n/c/d.mp4")
+    ['/a/b.mp4', '/c/d.mp4']
+    >>> parse_path_list("  /a/b.mp4  \\n\\n\\n/c/d.mp4  ")
+    ['/a/b.mp4', '/c/d.mp4']
+    >>> parse_path_list(None)
+    []
+    >>> parse_path_list(["/a.mp4", "/b.mp4"])
+    ['/a.mp4', '/b.mp4']
+    """
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return [p.strip() for p in raw if p and p.strip()]
+    lines = str(raw).split("\n")
+    return [line.strip() for line in lines if line.strip()]
+
+
+def verify_paths_exist(paths: list[str]) -> list[str]:
+    """Return a list of paths that do NOT exist as files.
+    Empty list means everything is ok."""
+    from pathlib import Path
+    missing: list[str] = []
+    for p in paths:
+        if not Path(p).is_file():
+            missing.append(p)
+    return missing

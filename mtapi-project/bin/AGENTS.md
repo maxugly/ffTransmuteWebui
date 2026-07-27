@@ -10,7 +10,7 @@
 Scripts in this directory interface directly with video processing binaries (`ffmpeg`, `ffgac`, `ffedit`).
 
 Agents modifying binaries in `bin` MUST enforce:
-- **Parity with Root Scripts**: Any fix or feature added to root `./transmute` or `./datamosh.sh` MUST be mirrored in `mtapi-project/bin/`.
+- **Root scripts are authoritative**: Scripts in `bin/` are for the API. Root scripts are the single source of truth. `bin/datamosh.sh` was removed (consolidated) — the API now uses the root copy directly via `shell.py:DATAMOSH`.
 - **Stdout Protocol Integrity**:
   - `transmute` MUST always output:
     `Output: <target_output_filepath>`

@@ -15,7 +15,7 @@ from pathlib import Path
 BIN_DIR = Path(os.environ.get("MTAPI_BIN_DIR", Path(__file__).resolve().parent.parent / "bin"))
 
 TRANSMUTE = str(BIN_DIR / "transmute")
-DATAMOSH = str(BIN_DIR / "datamosh.sh")
+DATAMOSH = str(Path(__file__).resolve().parents[2] / "datamosh.sh")  # root copy
 
 _VIDEO_OUT_EXTS = frozenset({".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi"})
 

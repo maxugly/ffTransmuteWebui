@@ -23,6 +23,11 @@ OutFmt = Literal["png", "webp"]
 
 
 class WithoutBGParams(BaseModel):
+    input_path: str | None = Field(
+        None,
+        description="Newline-separated image paths (alternative to image_paths). "
+                    "If set, each line is one image. Used by global image input.",
+    )
     image_paths: list[str] | None = Field(
         None,
         description="Explicit list of image paths to process",
@@ -91,10 +96,35 @@ def _collect_images(p: WithoutBGParams) -> list[str]:
             return wbe.get_image_files(d)
     return []
 
+def _collect_images_v2(p: WithoutBGParams) -> list[str]:
+    """Collect images from input_path (newline-sep), image_paths, or image_dir."""
+    from ..pathutil import parse_path_list, verify_paths_exist
+    images = _collect_images(p)
+    if not images and p.input_path:
+        images = parse_path_list(p.input_path)
+    if images:
+        missing = verify_paths_exist(images)
+        if missing:
+            job_control.check_cancelled()  # respect cancel before error
+            return []  # caller reports missing
+    return images
+
 
 async def withoutbg_remove(p: WithoutBGParams) -> OperationResult:
-    images = _collect_images(p)
+    images = _collect_images_v2(p)
     if not images:
+        # Check if paths were provided but missing
+        from ..pathutil import parse_path_list, verify_paths_exist
+        raw = parse_path_list(p.input_path) if p.input_path else []
+        if raw:
+            missing = verify_paths_exist(raw)
+            detail = "; missing: " + ", ".join(missing) if missing else ""
+            return OperationResult(
+                ok=False,
+                operation="withoutbg",
+                error=f"All paths missing or invalid{detail}",
+                dry_run=p.dry_run,
+            )
         return OperationResult(
             ok=False,
             operation="withoutbg",
