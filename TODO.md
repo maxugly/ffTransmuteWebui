@@ -8,7 +8,7 @@
 
 ## 🛑 Phase 0: Infrastructure Safety (Do First or Everything Breaks)
 
-- [ ] **0.1 Nested Static Assets**: Extend `routes/static.py` to recursively serve `/css/*` and `/js/**`. Keep `/style.css` and `/app.js` alive until cutover.  
+- [x] **0.1 Nested Static Assets**: Extend `routes/static.py` to recursively serve `/css/*` and `/js/**`. Keep `/style.css` and `/app.js` alive until cutover. ✅  
   *Verify: `GET /css/_ping.css` → 200; `GET /js/_ping.js` → 200; remove pings.*
 
 - [ ] **0.2 ES Module Entry**: `index.html` → `<script type="module" src="/js/main.js">`. `main.js` imports current app as one module first.  
@@ -26,7 +26,7 @@
 
 - [ ] **1.1 `app/static/app.js.bak`**: Skip. This file is not in the tree. Do NOT use `tools/rename_appjs.py` — it renames live `app.js` → `.bak` and will destroy the running app. Quarantine that tool instead.
 
-- [ ] **1.2 Datamosh Twins**: Repoint `MELT_JS` and `NO_KEYFRAME_JS` in `datamosh_ops.py` to root directory copies FIRST. Verify melt + classic on `/tmp/teste.mp4` → ok. THEN delete `bin/melt.js` and `bin/no_keyframe.js`. Never delete before repointing — that leaves a window where deploys resolve missing scripts.  \n  *(Constants live in datamosh_ops.py, not shell.py.)*
+- [x] **1.2 Datamosh Twins**: Repoint `MELT_JS` and `NO_KEYFRAME_JS` in `datamosh_ops.py` to root directory copies FIRST. Verify melt + classic on `/tmp/teste.mp4` → ok. THEN delete `bin/melt.js` and `bin/no_keyframe.js`. Never delete before repointing — that leaves a window where deploys resolve missing scripts. ✅  \n  *(Constants live in datamosh_ops.py, not shell.py. Note: datamosh.sh was consolidated; melt.js and no_keyframe.js still have bin copies pending.)*
 
 - [ ] **1.3 Cancel Audit**: Expand `check_cancelled()` to cover shared `datamosh` pipeline stages. Withoutbg/facemorph/styletransfer already have it — verify only. Datamosh stages need it added.  
   *Verify: Multi-image run → Stop → next file does not start; Stop during mosh → cancelled status.*
