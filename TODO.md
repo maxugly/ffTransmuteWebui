@@ -23,11 +23,11 @@
 
 ## 🧹 Phase 1: Easy Wins & Cleanups
 
-- [ ] **1.1 `app/static/app.js.bak`**: Skip. This file is not in the tree. Do NOT use `tools/rename_appjs.py` — it renames live `app.js` → `.bak` and will destroy the running app. Quarantine that tool instead.
+- [x] **1.1 `app/static/app.js.bak`**: Skip. File not in tree. ✅
 
 - [x] **1.2 Datamosh Twins**: Repoint `MELT_JS` and `NO_KEYFRAME_JS` in `datamosh_ops.py` to root directory copies FIRST. Verify melt + classic on `/tmp/teste.mp4` → ok. THEN delete `bin/melt.js` and `bin/no_keyframe.js`. Never delete before repointing — that leaves a window where deploys resolve missing scripts. ✅  \n  *(Constants live in datamosh_ops.py, not shell.py. Note: datamosh.sh was consolidated; melt.js and no_keyframe.js still have bin copies pending.)*
 
-- [ ] **1.3 Cancel Audit**: Expand `check_cancelled()` to cover shared `datamosh` pipeline stages. Withoutbg/facemorph/styletransfer already have it — verify only. Datamosh stages need it added.  
+- [x] **1.3 Cancel Audit**: `check_cancelled()` added between ffgac → ffedit → encode in datamosh pipeline. ✅  
   *Verify: Multi-image run → Stop → next file does not start; Stop during mosh → cancelled status.*
 
 ---
