@@ -11,17 +11,13 @@
 - [x] Static routes: extract 3 file-serving endpoints → routes/static.py
 - [x] Global inputs bar: 4-input UI (video, image, pathIn, pathOut)
 - [x] Global inputs: multi-file sequential processing (withoutbg, facemorph, styletransfer)
-- [x] main.py route split: /api/browse → routes/browse.py
-- [x] main.py route split: media routes → routes/media.py (8 endpoints)
-- [x] main.py route split: /api/picker → routes/picker.py (180 lines)
+- [x] main.py route split: ALL 6 modules done — main.py 298 lines (was ~700)
 
 ## next
 - [ ] Global inputs: status indicators (✅ ❌ ✔️) and styletransfer banner
 - [ ] Global inputs: Path in directory scanning, Path out output override
 - [ ] Global inputs: file existence verification before processing
 - [ ] Global inputs: stop between iterations
-- [x] main.py route split: pool routes ✅
-- [x] main.py route split: watcher, jobs, health ✅
 - [ ] media_store.py split: 1324 lines → app/media/*.py
 - [ ] Review agy's civitai-spec.md
 
