@@ -7618,3 +7618,23 @@ window.addEventListener('beforeunload', () => {
 
 // Run on page load
 window.addEventListener('DOMContentLoaded', init);
+
+// ── ES module exports ───────────────────────────────────────────────────
+
+export {
+  state, elements, 
+  init, switchTab, renderTabForm,
+  bestInput, bestOutput, resolveGlobalImage, resolveGlobalImages,
+  TAB_ACCEPTS, detectFileType,
+  runActiveOperation, runOpWithCancel, stopActiveOperation,
+  logConsole, displayOpResult, setRunUiBusy,
+  fitPreviewViewer, basename, escapeHtml,
+  collectDeepDreamBody, collectFaceMorphBody,
+  collectWithoutBgBody, collectStyleTransferBody, collectRifeBody,
+  buildPoolStatePayload,
+  knobUnitHtml, setupContinuousKnob, setupBinaryKnob,
+  renderMoshForm, renderDeepDreamForm, renderFaceMorphForm,
+  renderWithoutBgForm, renderStyleTransferForm, renderRifeForm,
+  renderTransmuteForm, renderMultiForm, renderQuickTransmuteForm,
+  renderWatcherForm, renderAdvancedForm, renderPoolForm,
+};
