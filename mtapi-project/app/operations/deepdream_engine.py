@@ -16,7 +16,7 @@ import os
 import shutil
 import subprocess
 import sys
-import tempfile
+import tempfile as _tf
 from pathlib import Path
 from typing import Any, Callable
 
@@ -318,7 +318,7 @@ def dream_image(
     # optional preview downscale
     preview_tmp = None
     if preview_width and int(preview_width) > 0:
-        work = Path(tempfile.mkdtemp(prefix="mtapi_prev_"))
+        work = Path(_tf.mkdtemp(prefix="mtapi_prev_"))
         preview_tmp = work
         input_path = _maybe_preview_resize(input_path, int(preview_width), work)
         if progress_cb and input_path.name.startswith("_preview_"):
@@ -660,7 +660,10 @@ def dream_video(
     meta = _probe_video(input_path)
     fps = meta.get("fps") or 25.0
 
-    work = Path(tempfile.mkdtemp(prefix="mtapi_dream_"))
+    from ..png_pipeline import PngFramePipeline, dump_sync, encode_sync
+    pipeline = PngFramePipeline(prefix="mtapi_dream_")
+    work = Path(_tf.mkdtemp(prefix="mtapi_dream_"))
+    pipeline._tmpdir = str(work)
     try:
         frames_dir = work / "frames"
         dream_dir = work / "dream"
@@ -671,18 +674,7 @@ def dream_video(
 
         if progress_cb:
             progress_cb("extracting frames…", phase="extract", current=0, total=0, unit="frames")
-        extract = subprocess.run(
-            [
-                "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-                "-i", str(input_path),
-                "-vsync", "0",
-                str(frames_dir / "f_%06d.png"),
-            ],
-            capture_output=True,
-            text=True,
-        )
-        if extract.returncode != 0:
-            raise RuntimeError(extract.stderr.strip() or "ffmpeg frame extract failed")
+        dump_sync(str(input_path), str(frames_dir), frame_pattern="f_%06d.png")
 
         frames = sorted(frames_dir.glob("f_*.png"))
         if not frames:
@@ -769,12 +761,9 @@ def dream_video(
                 total=to_process if total else 0,
                 unit="frames",
             )
-        _encode_png_sequence(
-            dream_dir / "f_%06d.png",
-            output_path,
-            fps=fps,
-            audio_from=input_path if keep_audio else None,
-        )
+        encode_sync(str(dream_dir), str(output_path), fps,
+                    frame_pattern="f_%06d.png", preset="medium",
+                    audio_from=str(input_path) if keep_audio else None)
         if progress_cb:
             progress_cb(
                 "video complete",
@@ -785,7 +774,7 @@ def dream_video(
             )
         return output_path
     finally:
-        shutil.rmtree(work, ignore_errors=True)
+        pipeline.cleanup()
 
 
 def transform_frame(
@@ -945,7 +934,7 @@ def dream_ouroboros(
     length = max(1, int(length))
     fps = float(fps) if fps and fps > 0 else 30.0
 
-    work = Path(tempfile.mkdtemp(prefix="mtapi_ouro_"))
+    work = Path(_tf.mkdtemp(prefix="mtapi_ouro_"))
     try:
         dream_dir = work / "dream"
         dream_dir.mkdir()
