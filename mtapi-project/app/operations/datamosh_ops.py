@@ -190,6 +190,12 @@ async def _execute_mosh_pipeline(
                         "ffmpeg", "-ss", f"{frame_dur}", "-i", tmp_part2,
                         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-an", "-y", tmp_part2_skipped
                     ])
+                    if skip_code != 0:
+                        return OperationResult(
+                            ok=False,
+                            operation=operation,
+                            error=f"Failed to skip first frame of Part 2: {skip_err.strip()}"
+                        )
 
                 # Concatenate image + Part 2
                 tmp_concat = os.path.join(tmpdir, "concat.mp4")
