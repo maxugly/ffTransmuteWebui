@@ -9,6 +9,7 @@ This class handles steps 1 + 3 + cleanup. The middle step stays in each op.
 """
 from __future__ import annotations
 
+import subprocess
 import shutil
 import tempfile
 from pathlib import Path
@@ -128,3 +129,57 @@ class PngFramePipeline:
         if self._tmpdir is not None:
             shutil.rmtree(self._tmpdir, ignore_errors=True)
             self._tmpdir = None
+
+
+# ── sync wrappers (for standalone CLI scripts) ─────────────────────────
+
+def dump_sync(
+    input_path: str,
+    tmpdir: str,
+    *,
+    frame_pattern: str = "frame_%06d.png",
+    vsync: int = 0,
+    start_number: int = 0,
+    fps: float | None = None,
+    audio: bool = False,
+) -> None:
+    """Synchronous ffmpeg dump to an existing tempdir. Used by CLI scripts."""
+    argv = [
+        "ffmpeg", "-y", "-v", "error",
+        "-i", input_path,
+        "-fps_mode", "passthrough" if vsync == 0 else "cfr",
+        "-start_number", str(start_number),
+    ]
+    if not audio:
+        argv.append("-an")
+    if fps is not None:
+        argv.extend(["-r", str(fps)])
+    argv.append(str(Path(tmpdir) / frame_pattern))
+    subprocess.run(argv, check=True)
+
+
+def encode_sync(
+    frame_dir: str,
+    output_path: str,
+    fps: float,
+    *,
+    frame_pattern: str = "frame_%06d.png",
+    start_number: int = 1,
+    codec: str = "libx264",
+    preset: str = "fast",
+    crf: int = 18,
+    pix_fmt: str = "yuv420p",
+    audio: bool = False,
+) -> None:
+    """Synchronous ffmpeg encode. Used by CLI scripts."""
+    argv = [
+        "ffmpeg", "-y", "-v", "error",
+        "-framerate", str(fps),
+        "-start_number", str(start_number),
+        "-i", str(Path(frame_dir) / frame_pattern),
+    ]
+    if not audio:
+        argv.append("-an")
+    argv.extend(["-c:v", codec, "-preset", preset, "-crf", str(crf), "-pix_fmt", pix_fmt])
+    argv.append(output_path)
+    subprocess.run(argv, check=True)

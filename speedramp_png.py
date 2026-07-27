@@ -29,6 +29,7 @@ import tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "mtapi-project"))
 from app.probe import probe_duration_sync as _dur, probe_fps_sync as _fps
 from app.probe import probe_frame_count_sync as _fc
+from app.png_pipeline import dump_sync, encode_sync
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
@@ -219,14 +220,7 @@ def main():
     tmpdir = tempfile.mkdtemp(prefix="speedramp_")
     print(f"\nPhase 1: dumping {input_frames} frames → {tmpdir}/")
 
-    run([
-        "ffmpeg", "-y", "-v", "error",
-        "-i", args.input,
-        "-an",                          # no audio
-        "-vsync", "0",                  # every frame, no dup/drop
-        "-start_number", "0",
-        f"{tmpdir}/src_%06d.png",
-    ])
+    dump_sync(args.input, tmpdir, frame_pattern="src_%06d.png")
 
     # Verify PNG count
     pngs = sorted(f for f in os.listdir(tmpdir) if f.endswith(".png"))
@@ -268,17 +262,8 @@ def main():
 
     print(f"Phase 3: encoding → {args.output}")
 
-    run([
-        "ffmpeg", "-y", "-v", "error",
-        "-framerate", str(args.output_fps),
-        "-i", f"{outdir}/out_%06d.png",
-        "-c:v", "libx264",
-        "-preset", "fast",
-        "-crf", str(args.crf),
-        "-pix_fmt", "yuv420p",
-        "-an",
-        args.output,
-    ])
+    encode_sync(outdir, args.output, args.output_fps,
+                frame_pattern="out_%06d.png", crf=args.crf)
 
     # Verify output
     out_dur = duration(args.output)
