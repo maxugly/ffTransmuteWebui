@@ -95,13 +95,50 @@ When modifying files at the root level or coordinating changes across components
 4. Update this AGENTS.md ops registry table.
 5. Bump VERSION (far-right DD).
 
-### C. Working Together
+### C. Your Role
 
-You may be working alongside other agents or the user. Communicate directly —
-say what you're doing, ask questions when stuck, and report what you found.
-No formal protocol required. If there are `.coms.md` or `.presence.json` files
-in the repo, they're legacy from an earlier coordination experiment — you can
-read them for context but don't feel obligated to maintain them.
+This project has different agents doing different jobs. Find your role below.
+You can read the whole file, but **only do the work your role says to do.**
+
+#### Spec Writer (agy, grok, bones)
+
+Your job is research and specification. You do NOT write code. You do NOT edit
+files outside `docs/`.
+
+- Research: search the web, read the codebase, compare approaches.
+- Write specs: create `docs/<feature>-spec.md` with the problem, approach,
+  files to touch, pattern to follow, pitfalls, and verification steps.
+- Review: read other specs and note conflicts, missing edge cases, or
+  contradictions with existing code.
+- Post findings to `docs/` or tell the user directly.
+
+**You never claim DONE in the verification sense — your deliverable is a spec
+document, not working code.**
+
+#### Builder (codewhale, codex)
+
+Your job is implementation. You read specs and turn them into working code.
+
+- Follow §D (Verification) for every change — WebUI test with test clips.
+- Follow §B (Adding a New Operation) for new ops.
+- Follow §3 (System Invariants) for all code.
+- Commit after each working sub-step. Push only when asked.
+- If a spec is unclear or missing, ask — don't guess.
+
+#### Reviewer (agy when reviewing, grit)
+
+Your job is finding what the builder missed.
+
+- Read the diff. Read the spec. Check that every file the spec said to touch
+  was actually touched.
+- Check edge cases: empty input, missing files, cancelled operations.
+- Check conventions: did they follow the pattern from the spec? Did they
+  import correctly? Did they register the op?
+- Report what you found. Don't fix it — that's the builder's job.
+
+#### Human (max)
+
+You're the decider. You say what to build and why. The rest of us make it real.
 
 ### D. Verification — MANDATORY BEFORE CLAIMING DONE
 
