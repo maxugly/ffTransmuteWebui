@@ -24,8 +24,6 @@ Agents operating at this level are responsible for top-level repository integrit
 ├── docs-transmute-README.md     # Reference doc for standalone transmute CLI flags
 ├── docs/                        # Specs, failure reports, debug notes
 ├── mtapi-project/               # FastAPI backend package and WebUI client
-├── .coms.md                     # Agent comms board (append-only, project-local)
-├── .presence.json               # Agent state table + milestones
 └── AGENTS.md                    # Root agent operational directives (this file)
 ```
 
@@ -53,12 +51,6 @@ Agents operating at this level are responsible for top-level repository integrit
 | RIFE interpolation | `rife_ops.py` | ✅ stable in 000.000.3.0 |
 | speed ramp | `speedramp_ops.py` + `speedramp_png.py` | ⚠️ in progress |
 | raw transmute | `transmute_ops.py` | ✅ escape hatch |
-
-### Agent Infrastructure
-
-- `.coms.md` — append-only war room. Threads tagged OPEN/ACK/FEEDBACK/VOTING/MERGED/DONE.
-- `.presence.json` — agent roster + milestone state + decisions + blockers.
-- Pattern from `aiim/` project: one `.coms.md` + `.presence.json` pair per project.
 
 ---
 
@@ -103,18 +95,13 @@ When modifying files at the root level or coordinating changes across components
 4. Update this AGENTS.md ops registry table.
 5. Bump VERSION (far-right DD).
 
-### C. Agent Coordination — MANDATORY STARTUP ROUTINE
+### C. Working Together
 
-**Every session starts with this. Do not skip steps.**
-
-1. **Check `.presence.json`.** Read the file. Find your agent entry. Look at `pending`.
-2. **If `pending` is set:** read `.coms.md` immediately. Find the assignment post.
-   Post ACK to `.coms.md` BEFORE doing anything else.
-3. **If `pending` is null:** you're idle. Read `.coms.md` for announcements, post status.
-4. **Do the work.** Post results to the correct channel.
-
-**Two-channel system:** `.coms.md` = status. `.artifacts.md` = content.
-**Track system:** F-track (fundamentals) before M-track (features).
+You may be working alongside other agents or the user. Communicate directly —
+say what you're doing, ask questions when stuck, and report what you found.
+No formal protocol required. If there are `.coms.md` or `.presence.json` files
+in the repo, they're legacy from an earlier coordination experiment — you can
+read them for context but don't feel obligated to maintain them.
 
 ### D. Browser Verification — MANDATORY FOR ALL FRONTEND CHANGES
 
