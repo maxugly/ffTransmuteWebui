@@ -70,6 +70,12 @@ def finalize_output_path(
     if default_ext and not str(default_ext).startswith("."):
         default_ext = f".{default_ext}"
     src = Path(source).expanduser() if source else None
+    if output_dir is None:
+        try:
+            from .output_dir_ctx import get_output_dir
+            output_dir = get_output_dir()
+        except ImportError:
+            pass
     od = Path(output_dir).expanduser() if output_dir else None
     if od is not None and od.is_file():
         od = od.parent
