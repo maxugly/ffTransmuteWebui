@@ -3,8 +3,7 @@
 > Pick one. Do it. Check it off. Next.
 
 ## now
-- [ ] PNG pipeline: facemorph_engine (ffmpeg tangled with dlib landmarks)
-- [ ] PNG pipeline: styletransfer_engine (TF-Hub model loading in the way)
+- [x] PNG pipeline: facemorph_engine (ffmpeg tangled with dlib landmarks) ✅
 - [ ] PNG pipeline: deepdream_engine (1127 lines — gradient ascent, temporal blend, ouroboros)
 
 ## next
