@@ -320,3 +320,21 @@ def verify_paths_exist(paths: list[str]) -> list[str]:
         if not Path(p).is_file():
             missing.append(p)
     return missing
+
+
+def scan_input_dir(directory, extensions=None):
+    """Return sorted absolute paths of files in directory matching extensions.
+    Caps at 500. Skips dotfiles. extensions=None means all files."""
+    from pathlib import Path
+    d = Path(directory).expanduser().resolve()
+    if not d.is_dir():
+        return []
+    exts = {e.lower() for e in (extensions or set())} if extensions else None
+    files = []
+    for child in sorted(d.iterdir()):
+        if child.is_file() and not child.name.startswith("."):
+            if exts is None or child.suffix.lower() in exts:
+                files.append(str(child))
+                if len(files) >= 500:
+                    break
+    return files
