@@ -103,14 +103,56 @@ No formal protocol required. If there are `.coms.md` or `.presence.json` files
 in the repo, they're legacy from an earlier coordination experiment — you can
 read them for context but don't feel obligated to maintain them.
 
-### D. Browser Verification — MANDATORY FOR ALL FRONTEND CHANGES
+### D. Verification — MANDATORY BEFORE CLAIMING DONE
 
-**Any agent touching `app/static/` files (HTML, CSS, JS) MUST verify in a real
-browser before claiming DONE. curl ≠ browser. Syntax check ≠ browser. The
-browser's JavaScript `fetch()` can fail silently due to CORS, module import
-errors, or script load failures that static checks never catch.**
+#### Test Clip
 
-#### Browser Setup (run once per session)
+A small 2-second test video lives at `/tmp/teste.mp4` (320×240, 24fps, 47KB).
+It has video + audio and processes in under 5 seconds. Use it for every
+verification run. If it's missing, regenerate:
+
+```bash
+ffmpeg -y -f lavfi -i "testsrc=duration=2:size=320x240:rate=24" \
+  -f lavfi -i "sine=frequency=440:duration=2" \
+  -c:v libx264 -preset ultrafast -crf 28 -c:a aac -b:a 64k -shortest \
+  /tmp/teste.mp4
+```
+
+#### Part 1: Backend Operation Testing
+
+**90% of errors in this project are ffmpeg failures or Python glue code
+breaking between the UI and the CLI — not browser JS errors. Every change
+that touches `app/operations/`, `app/main.py`, `app/shell.py`, or any
+engine file MUST test with real video input before claiming DONE.**
+
+For each operation affected by the change:
+
+```bash
+curl -s -X POST http://localhost:24590/ops/<op_id> \
+  -H "Content-Type: application/json" \
+  -d '{"input_path":"/tmp/teste.mp4","dry_run":false}' \
+  | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('ok'), d.get('error',''))"
+```
+
+- `ok: True` — passed. Verify output file exists at the returned `output_path`.
+- `ok: False` — read `error` and `stderr`. Fix before continuing.
+- Timeout / no response — server crashed. Check logs, restart, fix.
+
+**Minimum ops to test for any backend change:**
+- `rife` (fastest neural op — tests PNG pipeline + subprocess)
+- `crop_exact` (tests transmute CLI wrapper)
+- `datamosh_melt` with `dry_run: true` (tests datamosh CLI wrapper)
+- Any op whose code you touched
+
+Clean up test outputs after: `rm -f /tmp/teste_rife.mp4 /tmp/teste_crop.mp4`
+
+#### Part 2: Browser Verification (frontend changes)
+
+**Any agent touching `app/static/` files (HTML, CSS, JS) MUST verify in a
+real browser. curl ≠ browser. Syntax check ≠ browser. JS module import
+failures and silent `fetch()` errors are invisible to static checks.**
+
+##### Browser Setup (run once per session)
 
 You are ALLOWED and EXPECTED to use browser automation. Start it:
 
@@ -132,19 +174,30 @@ Once the MCP server is running, use these tools:
 
 #### Mandatory Verification Sequence
 
+**For ALL changes, do both parts in order:**
+
+**Part 1 — Backend (run first, catches 90% of bugs):**
+1. Run affected ops via curl with `/tmp/teste.mp4` (see Part 1 above).
+2. Check `ok: True` and verify output files exist.
+3. Clean up test outputs.
+
+**Part 2 — Browser (for any change touching `app/static/`):**
 1. **`browser_navigate`** to `http://localhost:24590/`
 2. **`browser_console`** — check for JS errors. ZERO errors allowed.
 3. **Click through EVERY tab** affected by the change. Use `browser_click` on
    each nav item, then `browser_snapshot` to verify the form rendered.
 4. If the change adds a form: verify every control renders (textbox, select,
    knob, button).
-5. If the change adds a run path: execute a dry_run through the form.
+5. If the change adds a run path: run it for real with `/tmp/teste.mp4` —
+   not just dry_run. Check the console and the output.
 6. **`browser_screenshot`** — take visual proof of the working page.
-7. Only after steps 1-6 pass clean: claim DONE.
 
-**No agent reports frontend work as "tested" or "done" without browser
-verification.** "I tested it" means "I opened the browser and clicked through
-every tab with zero console errors." Anything less is untested code.
+Only after both parts pass clean: claim DONE.
+
+**No agent reports work as "tested" or "done" without running real video
+through the affected ops.** "I tested it" means "/tmp/teste.mp4 went through
+every affected op with ok: True AND the browser shows zero console errors."
+Anything less is untested code.
 
 ---
 
