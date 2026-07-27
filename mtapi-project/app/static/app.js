@@ -1679,10 +1679,15 @@ function renderFaceMorphForm() {
 }
 
 function collectFaceMorphBody() {
-  const images = (state.faceMorph.images || []).map((x) => x.path);
+  var images = (state.faceMorph.images || []).map((x) => x.path);
   if (images.length < 2 && !state.faceMorph.folder) {
-    alert('Add at least 2 face images (or a folder with 2+ faces).');
-    return null;
+    var fallbacks = resolveGlobalImages();
+    if (fallbacks.length >= 2) {
+      images = fallbacks;
+    } else {
+      alert('Add at least 2 face images (or a folder with 2+ faces).');
+      return null;
+    }
   }
   const dream_mode = document.getElementById('fmDreamMode')?.value || 'none';
   const body = {

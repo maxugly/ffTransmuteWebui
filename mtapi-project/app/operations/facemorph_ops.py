@@ -20,6 +20,11 @@ DreamMode = Literal["none", "after", "faces_first"]
 
 
 class FaceMorphParams(BaseModel):
+    input_path: str | None = Field(
+        None,
+        description="Newline-separated image paths (alternative to image_paths). "
+                    "If set, each line is one face image. Used by global image input.",
+    )
     image_dir: str | None = Field(
         None,
         description="Directory of face images (sorted alphabetically). Or use image_paths.",
@@ -65,6 +70,16 @@ class FaceMorphParams(BaseModel):
 
 
 def _collect_images(p: FaceMorphParams, *, allow_missing: bool = False) -> list[str]:
+    from ..pathutil import parse_path_list
+    if p.input_path:
+        paths = parse_path_list(p.input_path)
+        out = []
+        for x in paths:
+            path = Path(x).expanduser().resolve()
+            if path.is_file() or allow_missing:
+                out.append(str(path))
+        if out:
+            return out
     if p.image_paths:
         out = []
         for x in p.image_paths:
