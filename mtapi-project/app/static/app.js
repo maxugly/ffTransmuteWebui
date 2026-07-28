@@ -9,6 +9,7 @@ import {
   refreshPoolToolbarCounts, ensureVideoOutputPath,
   projectLabel,
   poolThumbUrl, shortHash, buildPoolMetaHtml,
+  _poolSeqId, _poolSaveTimer, _poolPersistReady,
 } from '/js/pool/persistence.js';
 let state = {
   activeTab: 'mosh',
@@ -124,10 +125,6 @@ function ensurePoolLayout() {
   }
   return L;
 }
-
-let _poolSeqId = 1;
-let _poolSaveTimer = null;
-let _poolPersistReady = false; // don't save until restore finishes
 
 const VIDEO_EXTS = ['.mp4', '.m4v', '.mov', '.avi', '.mkv', '.webm', '.mpeg', '.mpg', '.wmv', '.flv', '.ts', '.mts', '.m2ts'];
 
@@ -755,7 +752,6 @@ function updateWatcherLiveUI(st) {
       : `<div class="watcher-log-line dim">No events yet.</div>`;
   }
 }
-
 
 // ── Style Transfer tab (Magenta arbitrary stylization) ───────────────────
 
@@ -2314,7 +2310,6 @@ function updateMoshParams() {
         <strong>Motion Vector Hack:</strong> Multiplies motion speed or offsets motion vector coordinates for a targeted range of frames.
       </div>
 
-
       <!-- Vector joystick and rotary knob layout -->
       <div style="display: flex; justify-content: center; gap: 40px; background: rgba(255, 255, 255, 0.015); border: 1px solid var(--panel-border); padding: 20px; border-radius: var(--radius-md); margin-bottom: 16px;">
         <!-- Vector Joystick Pad -->
@@ -2380,7 +2375,6 @@ function updateMoshParams() {
     };
     document.getElementById('hijackSourceSelect')?.addEventListener('change', syncHijackSource);
     syncHijackSource();
-
 
   } else if (mode === 'destruct') {
 
@@ -3454,7 +3448,6 @@ window.moveMultiClip = function(idx, direction) {
   renderMultiClipsList();
 };
 
-
 // Advanced Form
 function renderAdvancedForm() {
   const html = `
@@ -3501,7 +3494,6 @@ function renderAdvancedForm() {
     leftValue: '0', rightValue: '1', initial: '0',
   });
 }
-
 
 // ─── Media Pool ───────────────────────────────────────────────────────────
 

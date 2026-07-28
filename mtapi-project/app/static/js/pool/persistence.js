@@ -1,8 +1,13 @@
 import {
   state, elements,
   basename, escapeHtml, formatDurationExact,
+  logConsole, displayOpResult,
   renderPoolForm, renderPoolGrid, renderSequenceBox,
 } from '/app.js';
+
+let _poolSeqId = 1;
+let _poolSaveTimer = null;
+let _poolPersistReady = false; // don't save until restore finishes
 
 // ── Pool persistence ──────────────────────────────────────────────────────
 
@@ -534,6 +539,7 @@ function buildPoolMetaHtml(item) {
 
 
 export {
+  _poolSeqId, _poolSaveTimer, _poolPersistReady,
   scheduleSavePoolState, buildPoolStatePayload,
   projectLabel, markProjectDirty, updateProjectNameUI,
   applyPoolData, projectNew, projectOpen, projectSave,
