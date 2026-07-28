@@ -195,6 +195,9 @@ window.globalInputs = {
   image:   '',   // newline-separated image paths
   pathIn:  '',   // input directory
   pathOut: '',   // output directory
+  frameStart: 1,      // global frame range start (for datamosh tabs)
+  frameEnd:   100,    // global frame range end
+  totalFrames: 100,   // probed from video
 };
 
 // ── Tab type declarations — what each tab accepts ────────────────────────
@@ -233,6 +236,27 @@ function updateGlobalInputs() {
   window.globalInputs.pathIn  = document.getElementById('giPathIn')?.value || '';
   window.globalInputs.pathOut = document.getElementById('giPathOut')?.value || '';
   updateStatusIndicators();
+  // Sync per-tab local fields from global inputs + show/hide frame row
+  _syncTabInputFromGlobal();
+}
+
+function _syncTabInputFromGlobal() {
+  const tab = state.activeTab;
+  const gi = window.globalInputs;
+
+  // Show/hide global frame row
+  var framesRow = document.getElementById('giFramesRow');
+  if (framesRow) framesRow.style.display = (tab === 'mosh') ? '' : 'none';
+
+  if (tab === 'mosh' && gi.video.trim()) {
+    var lines = gi.video.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+    if (lines.length) {
+      var probePath = lines[0];
+      if (probePath !== gi._lastProbedPath) {
+        probeGlobalVideo(probePath);
+      }
+    }
+  }
 }
 
 function updateStatusIndicators() {
@@ -286,6 +310,7 @@ function resolveGlobalImages() {
 
 async function init() {
   loadQuickSettings();
+  setupGlobalTimeline();
   setupEventListeners();
   setupPreviewConsoleResize();
   await checkHealth();
@@ -454,6 +479,9 @@ function switchTab(tab) {
   // Render Form for the Tab
   renderTabForm(tab);
   updateStatusIndicators();
+  // Show/hide global frame row per tab
+  var framesRow = document.getElementById('giFramesRow');
+  if (framesRow) framesRow.style.display = (tab === 'mosh') ? '' : 'none';
 }
 
 // Render Specific Tab Forms
@@ -2411,23 +2439,9 @@ function renderMoshForm() {
       </select>
     </div>
 
-    <div class="form-group">
-      <label>Input Video File</label>
-      <div class="input-row">
-        <input type="text" id="moshInput" placeholder="/absolute/path/to/input.mp4">
-        <button class="btn" onclick="openFileBrowser('moshInput', false)">Browse</button>
-      </div>
-      <span class="field-desc">Choose a video file to datamosh.</span>
-    </div>
-
-    <div class="form-group">
-      <label>Output Video File</label>
-      <div class="input-row">
-        <input type="text" id="moshOutput" placeholder="/absolute/path/to/output.mp4">
-        <button class="btn" onclick="openFileBrowser('moshOutput', false, 'file_save')">Save As</button>
-      </div>
-      <span class="field-desc">Where the glitched output video will be written.</span>
-    </div>
+    <p class="field-desc" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">
+      Set input/output paths and frame range in the global bar above.
+    </p>
 
     <!-- Mode Specific Parameters -->
     <div id="moshParamsContainer">
@@ -2442,11 +2456,7 @@ function renderMoshForm() {
   select.addEventListener('change', (e) => {
     state.selectedMoshMode = e.target.value;
     updateMoshParams();
-    syncMoshOutput();
   });
-
-  const moshInput = document.getElementById('moshInput');
-  moshInput.addEventListener('input', syncMoshOutput);
 
   updateMoshParams();
 }
@@ -2458,8 +2468,6 @@ function updateMoshParams() {
   
   const mode = state.selectedMoshMode;
   let html = '';
-
-  const maxFrames = state.moshVideoFrames || 100;
 
   if (mode === 'melt') {
     html = `
@@ -2487,22 +2495,6 @@ function updateMoshParams() {
       <input type="number" id="moshDamp" value="15" style="display: none;">
       <input type="number" id="moshDrift" value="1" style="display: none;">
 
-      <!-- Frame range (same controls as hijack/destruct) -->
-      <div class="timeline-wrapper">
-        <label>Mosh Target Range (Frames)</label>
-        <div class="timeline-container">
-          <div class="timeline-track"></div>
-          <div class="timeline-range" id="timelineRange"></div>
-          <input type="range" id="timelineStart" class="timeline-thumb" min="1" max="${maxFrames}" value="1">
-          <input type="range" id="timelineEnd" class="timeline-thumb" min="1" max="${maxFrames}" value="${maxFrames}">
-        </div>
-        <div class="timeline-labels">
-          <span>Start: <input type="text" class="timeline-value-input" id="valStartFrame" value="1"></span>
-          <span>End: <input type="text" class="timeline-value-input" id="valEndFrame" value="${maxFrames}"></span>
-        </div>
-      </div>
-      <input type="number" id="meltStartFrame" value="1" style="display: none;">
-      <input type="number" id="meltEndFrame" value="999999" style="display: none;">
     `;
   } else if (mode === 'classic') {
     html = `
@@ -2510,22 +2502,6 @@ function updateMoshParams() {
         <strong>Classic Mode:</strong> Keyframe-suppression mosh (Avidemux style). Glitches only appear at camera cuts. If the video is a single shot, it will look unglitched.
       </div>
 
-      <!-- Frame range -->
-      <div class="timeline-wrapper">
-        <label>Mosh Target Range (Frames)</label>
-        <div class="timeline-container">
-          <div class="timeline-track"></div>
-          <div class="timeline-range" id="timelineRange"></div>
-          <input type="range" id="timelineStart" class="timeline-thumb" min="1" max="${maxFrames}" value="1">
-          <input type="range" id="timelineEnd" class="timeline-thumb" min="1" max="${maxFrames}" value="${maxFrames}">
-        </div>
-        <div class="timeline-labels">
-          <span>Start: <input type="text" class="timeline-value-input" id="valStartFrame" value="1"></span>
-          <span>End: <input type="text" class="timeline-value-input" id="valEndFrame" value="${maxFrames}"></span>
-        </div>
-      </div>
-      <input type="number" id="classicStartFrame" value="1" style="display: none;">
-      <input type="number" id="classicEndFrame" value="999999" style="display: none;">
     `;
   } else if (mode === 'hijack') {
     html = `
@@ -2554,24 +2530,6 @@ function updateMoshParams() {
         <span class="field-desc">The index of the frame (0-indexed) inside the video to clone and inject.</span>
       </div>
 
-      <!-- Dual Range Timeline Slider -->
-      <div class="timeline-wrapper">
-        <label>Mosh Target Range (Frames)</label>
-        <div class="timeline-container">
-          <div class="timeline-track"></div>
-          <div class="timeline-range" id="timelineRange"></div>
-          <input type="range" id="timelineStart" class="timeline-thumb" min="1" max="${maxFrames}" value="50">
-          <input type="range" id="timelineEnd" class="timeline-thumb" min="1" max="${maxFrames}" value="${maxFrames}">
-        </div>
-        <div class="timeline-labels">
-          <span>Start: <input type="text" class="timeline-value-input" id="valStartFrame" value="50"></span>
-          <span>End: <input type="text" class="timeline-value-input" id="valEndFrame" value="${maxFrames}"></span>
-        </div>
-      </div>
-
-      <!-- Hidden inputs for backend compatibility -->
-      <input type="number" id="hijackStartFrame" value="50" style="display: none;">
-      <input type="number" id="hijackEndFrame" value="${maxFrames}" style="display: none;">
     `;
   } else if (mode === 'destruct') {
     html = `
@@ -2579,24 +2537,6 @@ function updateMoshParams() {
         <strong>Residual Destruct:</strong> Zeroes out the error-correction data (DCT coefficients) for P-frames in the specified range. Creates instant pixel bleed Trails.
       </div>
       
-      <!-- Dual Range Timeline Slider -->
-      <div class="timeline-wrapper">
-        <label>Mosh Target Range (Frames)</label>
-        <div class="timeline-container">
-          <div class="timeline-track"></div>
-          <div class="timeline-range" id="timelineRange"></div>
-          <input type="range" id="timelineStart" class="timeline-thumb" min="1" max="${maxFrames}" value="1">
-          <input type="range" id="timelineEnd" class="timeline-thumb" min="1" max="${maxFrames}" value="${maxFrames}">
-        </div>
-        <div class="timeline-labels">
-          <span>Start: <input type="text" class="timeline-value-input" id="valStartFrame" value="1"></span>
-          <span>End: <input type="text" class="timeline-value-input" id="valEndFrame" value="${maxFrames}"></span>
-        </div>
-      </div>
-
-      <!-- Hidden inputs for backend compatibility -->
-      <input type="number" id="destructStart" value="1" style="display: none;">
-      <input type="number" id="destructEnd" value="${maxFrames}" style="display: none;">
     `;
   } else if (mode === 'mv_hack') {
     html = `
@@ -2604,24 +2544,6 @@ function updateMoshParams() {
         <strong>Motion Vector Hack:</strong> Multiplies motion speed or offsets motion vector coordinates for a targeted range of frames.
       </div>
 
-      <!-- Dual Range Timeline Slider -->
-      <div class="timeline-wrapper">
-        <label>Mosh Target Range (Frames)</label>
-        <div class="timeline-container">
-          <div class="timeline-track"></div>
-          <div class="timeline-range" id="timelineRange"></div>
-          <input type="range" id="timelineStart" class="timeline-thumb" min="1" max="${maxFrames}" value="1">
-          <input type="range" id="timelineEnd" class="timeline-thumb" min="1" max="${maxFrames}" value="${maxFrames}">
-        </div>
-        <div class="timeline-labels">
-          <span>Start: <input type="text" class="timeline-value-input" id="valStartFrame" value="1"></span>
-          <span>End: <input type="text" class="timeline-value-input" id="valEndFrame" value="${maxFrames}"></span>
-        </div>
-      </div>
-
-      <!-- Hidden inputs for backend compatibility -->
-      <input type="number" id="mvStart" value="1" style="display: none;">
-      <input type="number" id="mvEnd" value="${maxFrames}" style="display: none;">
 
       <!-- Vector joystick and rotary knob layout -->
       <div style="display: flex; justify-content: center; gap: 40px; background: rgba(255, 255, 255, 0.015); border: 1px solid var(--panel-border); padding: 20px; border-radius: var(--radius-md); margin-bottom: 16px;">
@@ -2667,9 +2589,9 @@ function updateMoshParams() {
     });
     // Set up Melt joystick pad
     setupMeltPad();
-    setupTimelineSlider('meltStartFrame', 'meltEndFrame', 1, maxFrames);
+
   } else if (mode === 'classic') {
-    setupTimelineSlider('classicStartFrame', 'classicEndFrame', 1, maxFrames);
+
   } else if (mode === 'hijack') {
     setupBinaryKnob({
       knobId: 'hijackSourceSelectKnob', indicatorId: 'hijackSourceSelectKnobInd', hiddenId: 'hijackSourceSelect',
@@ -2689,13 +2611,13 @@ function updateMoshParams() {
     document.getElementById('hijackSourceSelect')?.addEventListener('change', syncHijackSource);
     syncHijackSource();
 
-    setupTimelineSlider('hijackStartFrame', 'hijackEndFrame', 50, maxFrames);
+
   } else if (mode === 'destruct') {
-    setupTimelineSlider('destructStart', 'destructEnd', 1, maxFrames);
+
   } else if (mode === 'mv_hack') {
     setupVectorPad();
     setupDawKnob();
-    setupTimelineSlider('mvStart', 'mvEnd', 1, maxFrames);
+
   }
 }
 
@@ -2983,64 +2905,179 @@ function setupDawKnob() {
   valueDisplay.addEventListener('keydown', (e) => { if (e.key === 'Enter') { valueDisplay.blur(); e.preventDefault(); } });
 }
 
-function syncMoshOutput() {
-  const moshInput = document.getElementById('moshInput').value;
-  const moshOutput = document.getElementById('moshOutput');
-  if (moshInput && moshOutput) {
-    const extIndex = moshInput.lastIndexOf('.');
-    if (extIndex !== -1) {
-      const base = moshInput.substring(0, extIndex);
-      const ext = moshInput.substring(extIndex);
-      const mode = state.selectedMoshMode;
-      let suffix = '_mosh';
-      if (mode === 'melt') suffix = '_melt';
-      else if (mode === 'classic') suffix = '_classic';
-      else if (mode === 'hijack') suffix = '_hijack';
-      else if (mode === 'destruct') suffix = '_destruct';
-      else if (mode === 'mv_hack') suffix = '_mvhack';
-      moshOutput.value = base + suffix + ext;
-    }
-    
-    // Probe the input video properties to update timeline max range
-    probeMoshInputVideo();
-  }
-}
+// ── Global video probe → populates global frame range ─────────────────────
 
-let currentProbedPath = '';
-async function probeMoshInputVideo() {
-  const path = document.getElementById('moshInput')?.value;
-  if (!path || path === currentProbedPath) return;
-  currentProbedPath = path;
+async function probeGlobalVideo(path) {
+  if (!path) return;
+  var gi = window.globalInputs;
+  if (path === gi._lastProbedPath) return;
+  gi._lastProbedPath = path;
 
   try {
     const res = await fetch(`/api/probe?path=${encodeURIComponent(path)}`);
     if (!res.ok) return;
     const data = await res.json();
     if (data.ok && data.frames) {
-      state.moshVideoFrames = data.frames;
+      gi.totalFrames = data.frames;
+      gi.frameEnd = data.frames;
+      if (gi.frameStart < 1 || gi.frameStart > data.frames) gi.frameStart = 1;
 
-      // Update DOM range inputs + blue selection bar if they exist
-      const startEl = document.getElementById('timelineStart');
-      const endEl = document.getElementById('timelineEnd');
+      var totalEl = document.getElementById('giTotalFrames');
+      if (totalEl) totalEl.textContent = data.frames;
+
+      var startEl = document.getElementById('giTimelineStart');
+      var endEl   = document.getElementById('giTimelineEnd');
+      var valS    = document.getElementById('giValStartFrame');
+      var valE    = document.getElementById('giValEndFrame');
       if (startEl && endEl) {
         startEl.max = data.frames;
         endEl.max = data.frames;
-
-        let sVal = parseInt(startEl.value, 10);
-        let eVal = parseInt(endEl.value, 10);
-        if (isNaN(sVal) || sVal > data.frames) sVal = 1;
-        if (isNaN(eVal) || eVal > data.frames) eVal = data.frames;
-        if (eVal <= sVal) eVal = Math.min(data.frames, sVal + 1);
-        startEl.value = sVal;
-        endEl.value = eVal;
-
-        // Refresh left/width of .timeline-range (and hidden frame fields)
+        startEl.value = gi.frameStart;
+        endEl.value   = gi.frameEnd;
+        if (valS) valS.value = gi.frameStart;
+        if (valE) valE.value = gi.frameEnd;
         startEl.dispatchEvent(new Event('input'));
       }
     }
   } catch (err) {
     console.error("Failed to probe video:", err);
   }
+}
+
+// ── Global timeline slider setup ──────────────────────────────────────────
+
+function setupGlobalTimeline() {
+  var startEl = document.getElementById('giTimelineStart');
+  var endEl   = document.getElementById('giTimelineEnd');
+  var rangeEl = document.getElementById('giTimelineRange');
+  var valS    = document.getElementById('giValStartFrame');
+  var valE    = document.getElementById('giValEndFrame');
+  if (!startEl || !endEl || !rangeEl) return;
+
+  function maxFrames() {
+    var m = parseInt(window.globalInputs.totalFrames, 10);
+    return (m > 1) ? m : 2;
+  }
+
+  function sync() {
+    var m = maxFrames();
+    startEl.min = 1; startEl.max = m;
+    endEl.min   = 1; endEl.max   = m;
+
+    var s = parseInt(startEl.value, 10);
+    var e = parseInt(endEl.value, 10);
+    if (isNaN(s)) s = 1;
+    if (isNaN(e)) e = m;
+    if (s >= e) { s = Math.max(1, e - 1); startEl.value = s; }
+    if (e <= s) { e = Math.min(m, s + 1); endEl.value = e; }
+
+    var span = Math.max(1, m - 1);
+    var pL   = ((s - 1) / span) * 100;
+    var pW   = Math.max(0, ((e - 1) / span) * 100 - pL);
+    rangeEl.style.left  = pL + '%';
+    rangeEl.style.width = pW + '%';
+
+    if (valS && document.activeElement !== valS) valS.value = s;
+    if (valE && document.activeElement !== valE) valE.value = e;
+
+    window.globalInputs.frameStart = s;
+    window.globalInputs.frameEnd   = e;
+  }
+
+  startEl.addEventListener('input', sync);
+  endEl.addEventListener('input', sync);
+
+  // Range dragging: drag the blue bar to slide the whole window
+  var rangeDragging = false;
+  var dragStartX = 0;
+  var dragStartValL = 0;
+  var dragStartValR = 0;
+
+  function onRangeMouseDown(e) {
+    if (e.target !== rangeEl) return;
+    rangeDragging = true;
+    dragStartX = e.clientX;
+    dragStartValL = parseInt(startEl.value, 10);
+    dragStartValR = parseInt(endEl.value, 10);
+    rangeEl.classList.add('active');
+    window.addEventListener('mousemove', onRangeMouseMove);
+    window.addEventListener('mouseup', onRangeMouseUp);
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  function onRangeMouseMove(e) {
+    if (!rangeDragging) return;
+    var m = maxFrames();
+    var trackRect = startEl.getBoundingClientRect();
+    var trackWidth = trackRect.width;
+    if (trackWidth <= 0) return;
+    var deltaX = e.clientX - dragStartX;
+    var deltaFrames = Math.round((deltaX / trackWidth) * Math.max(1, m - 1));
+    var span = dragStartValR - dragStartValL;
+    var ns = dragStartValL + deltaFrames;
+    var ne = dragStartValR + deltaFrames;
+    if (ns < 1) { ns = 1; ne = ns + span; }
+    if (ne > m) { ne = m; ns = ne - span; }
+    startEl.value = ns;
+    endEl.value = ne;
+    sync();
+  }
+
+  function onRangeMouseUp() {
+    rangeDragging = false;
+    rangeEl.classList.remove('active');
+    window.removeEventListener('mousemove', onRangeMouseMove);
+    window.removeEventListener('mouseup', onRangeMouseUp);
+  }
+
+  rangeEl.addEventListener('mousedown', onRangeMouseDown);
+
+  // Touch support for the blue range handle
+  rangeEl.addEventListener('touchstart', function(e) {
+    if (!e.touches || !e.touches[0]) return;
+    var t = e.touches[0];
+    rangeDragging = true;
+    dragStartX = t.clientX;
+    dragStartValL = parseInt(startEl.value, 10);
+    dragStartValR = parseInt(endEl.value, 10);
+    rangeEl.classList.add('active');
+    var onMove = function(ev) {
+      if (!rangeDragging || !ev.touches || !ev.touches[0]) return;
+      onRangeMouseMove({ clientX: ev.touches[0].clientX });
+      ev.preventDefault();
+    };
+    var onEnd = function() {
+      onRangeMouseUp();
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onEnd);
+    };
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onEnd);
+    e.preventDefault();
+  }, { passive: false });
+
+  [valS, valE].forEach(function(el) {
+    if (!el) return;
+    function commit() {
+      var raw = parseInt(String(el.value).replace(/[^0-9]/g, ''), 10);
+      var m = maxFrames();
+      if (isNaN(raw)) raw = (el === valS ? 1 : m);
+      if (el === valS) {
+        raw = Math.min(Math.max(1, raw), parseInt(endEl.value, 10) - 1);
+        startEl.value = raw;
+      } else {
+        raw = Math.max(Math.min(m, raw), parseInt(startEl.value, 10) + 1);
+        endEl.value = raw;
+      }
+      sync();
+    }
+    el.addEventListener('change', commit);
+    el.addEventListener('blur', commit);
+    el.addEventListener('keydown', function(e) { if (e.key === 'Enter') { el.blur(); e.preventDefault(); } });
+  });
+
+  sync();
 }
 
 function setupTimelineSlider(hiddenStartId, hiddenEndId, defaultStart, defaultEnd) {
@@ -7179,16 +7216,16 @@ async function runActiveOperation() {
         tail: parseInt(document.getElementById('moshTail').value),
         hdamp: parseInt(document.getElementById('moshDamp').value),
         vdrift: parseInt(document.getElementById('moshDrift').value),
-        start_frame: parseInt(document.getElementById('meltStartFrame').value),
-        end_frame: parseInt(document.getElementById('meltEndFrame').value),
+        start_frame: window.globalInputs.frameStart,
+        end_frame: window.globalInputs.frameEnd,
       };
     } else if (mode === 'classic') {
       opId = 'datamosh_classic';
       body = {
         input_path: input,
         output_path: output,
-        start_frame: parseInt(document.getElementById('classicStartFrame').value),
-        end_frame: parseInt(document.getElementById('classicEndFrame').value),
+        start_frame: window.globalInputs.frameStart,
+        end_frame: window.globalInputs.frameEnd,
       };
     } else if (mode === 'hijack') {
       opId = 'datamosh_hijack';
@@ -7199,8 +7236,8 @@ async function runActiveOperation() {
         inject_mode: injectMode,
         inject_image_path: injectMode === 'file' ? document.getElementById('hijackImagePath').value : null,
         inject_frame_num: injectMode === 'frame' ? parseInt(document.getElementById('hijackSourceFrame').value) : 0,
-        start_frame: parseInt(document.getElementById('hijackStartFrame').value),
-        end_frame: parseInt(document.getElementById('hijackEndFrame').value),
+        start_frame: window.globalInputs.frameStart,
+        end_frame: window.globalInputs.frameEnd,
         transition_style: document.getElementById('hijackTransitionStyle').value
       };
     } else if (mode === 'destruct') {
@@ -7208,16 +7245,16 @@ async function runActiveOperation() {
       body = {
         input_path: input,
         output_path: output,
-        start_frame: parseInt(document.getElementById('destructStart').value),
-        end_frame: parseInt(document.getElementById('destructEnd').value)
+        start_frame: window.globalInputs.frameStart,
+        end_frame: window.globalInputs.frameEnd
       };
     } else if (mode === 'mv_hack') {
       opId = 'datamosh_mv_hack';
       body = {
         input_path: input,
         output_path: output,
-        start_frame: parseInt(document.getElementById('mvStart').value),
-        end_frame: parseInt(document.getElementById('mvEnd').value),
+        start_frame: window.globalInputs.frameStart,
+        end_frame: window.globalInputs.frameEnd,
         multiplier: parseFloat(document.getElementById('mvMultiplier').value) / 100.0,
         drift_h: parseInt(document.getElementById('mvDriftH').value),
         drift_v: parseInt(document.getElementById('mvDriftV').value)

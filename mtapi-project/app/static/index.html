@@ -189,6 +189,22 @@
           <button class="btn" id="btnGiPathOutBrowse" title="Pick output directory">Browse</button>
           <span class="gi-status" id="giPathOutStatus" title=""></span>
         </div>
+        <!-- Row 5: Frame range (visible for datamosh tabs; hidden otherwise) -->
+        <div class="global-row" data-input="frames" id="giFramesRow" style="display:none">
+          <label>Frame range:</label>
+          <div class="timeline-container" style="flex:1; min-width:0; height:24px; position:relative; margin-bottom:0;">
+            <div class="timeline-track"></div>
+            <div class="timeline-range" id="giTimelineRange"></div>
+            <input type="range" id="giTimelineStart" class="timeline-thumb" min="1" max="100" value="1">
+            <input type="range" id="giTimelineEnd" class="timeline-thumb" min="1" max="100" value="100">
+          </div>
+          <span class="gi-frames-display">
+            <input type="text" class="timeline-value-input" id="giValStartFrame" value="1">
+            –
+            <input type="text" class="timeline-value-input" id="giValEndFrame" value="100">
+            / <span id="giTotalFrames">100</span>
+          </span>
+        </div>
       </div>
     </div>
 

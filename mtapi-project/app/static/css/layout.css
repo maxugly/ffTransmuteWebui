@@ -172,3 +172,35 @@ body.preview-resizing {
   cursor: row-resize !important;
   user-select: none !important;
 }
+
+/* ── Global frame range row ─────────────────────────────────────────────── */
+
+.gi-frames-display {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+  margin-left: 6px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.gi-frames-display .timeline-value-input {
+  width: 48px;
+  text-align: right;
+  padding: 1px 4px;
+  font-size: 0.73rem;
+}
+.gi-frames-display #giTotalFrames {
+  font-family: 'Fira Code', 'Cascadia Code', monospace;
+  color: var(--text-secondary);
+}
+
+/* Prevent text selection on the global frame range row during drag */
+#giFramesRow {
+  user-select: none;
+  -webkit-user-select: none;
+}
+#giFramesRow label {
+  user-select: none;
+  -webkit-user-select: none;
+}

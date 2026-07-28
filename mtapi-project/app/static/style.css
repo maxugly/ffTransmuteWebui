@@ -1499,6 +1499,8 @@ input:checked + .slider:before {
   height: 24px;
   position: relative;
   margin-bottom: 8px;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .timeline-track {
