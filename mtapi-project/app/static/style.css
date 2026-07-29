@@ -70,6 +70,90 @@ body {
   background: rgba(255, 255, 255, 0.2);
 }
 
+/* Collapse toggle buttons */
+.sidebar-collapse-btn,
+.preview-collapse-btn {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px 6px;
+  font-size: 0.85rem;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+.sidebar-collapse-btn:hover,
+.preview-collapse-btn:hover {
+  color: var(--text-main);
+  background: rgba(255,255,255,0.06);
+}
+
+/* Sidebar collapsed — icon-only mode */
+body.sidebar-collapsed aside {
+  width: 56px;
+}
+body.sidebar-collapsed .brand h1,
+body.sidebar-collapsed .nav-header,
+body.sidebar-collapsed .status-indicator span {
+  display: none;
+}
+body.sidebar-collapsed .brand {
+  padding: 16px 10px;
+  justify-content: center;
+}
+body.sidebar-collapsed .nav-item {
+  padding: 10px;
+  justify-content: center;
+  gap: 0;
+  font-size: 0;
+}
+body.sidebar-collapsed .nav-menu {
+  padding: 12px 6px;
+  gap: 4px;
+}
+body.sidebar-collapsed .status-indicator {
+  padding: 12px 8px;
+  justify-content: center;
+}
+
+/* Preview panel collapsed — handle stays visible at right edge */
+body.preview-collapsed .app-content {
+  grid-template-columns: 1fr;
+}
+body.preview-collapsed .preview-panel {
+  display: none;
+}
+body.preview-collapsed .preview-collapse-handle .preview-collapse-btn {
+  transform: none;
+}
+
+.preview-collapse-handle {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  cursor: pointer;
+  border-left: 1px solid var(--panel-border);
+  background: rgba(10, 15, 26, 0.45);
+  backdrop-filter: blur(4px);
+  transition: background 0.15s;
+}
+.preview-collapse-handle:hover {
+  background: rgba(59, 130, 246, 0.12);
+}
+.preview-collapse-handle .preview-collapse-btn {
+  border: none;
+  padding: 2px 4px;
+  font-size: 0.7rem;
+}
+
 /* Sidebar */
 aside {
   width: var(--sidebar-w);
@@ -313,6 +397,7 @@ header h2 {
   display: grid;
   grid-template-columns: minmax(400px, 1.2fr) minmax(360px, 1fr);
   overflow: hidden;
+  position: relative;
 }
 
 /* Action Panel (Forms) */

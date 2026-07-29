@@ -396,6 +396,17 @@ function setupEventListeners() {
       }
     });
   }
+  // Sidebar collapse
+  const btnSidebar = document.getElementById('btnSidebarCollapse');
+  if (btnSidebar) {
+    btnSidebar.addEventListener('click', () => toggleSidebarCollapse());
+  }
+  // Preview collapse
+  const btnPreview = document.getElementById('btnPreviewCollapse');
+  if (btnPreview) {
+    btnPreview.addEventListener('click', () => togglePreviewCollapse());
+  }
+  loadSavedCollapseState();
 }
 
 // API Calls
@@ -530,6 +541,45 @@ import {
   fitPreviewViewer, setupPreviewConsoleResize,
   showPreview, logConsole,
 } from '/js/preview.js';
+
+// ── Sidebar & preview collapse ────────────────────────────────────────────
+
+function toggleSidebarCollapse() {
+  const collapsed = document.body.classList.toggle('sidebar-collapsed');
+  const btn = document.getElementById('btnSidebarCollapse');
+  if (btn) {
+    btn.textContent = collapsed ? '▶' : '◀';
+    btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+  }
+  try { localStorage.setItem('mtapi_sidebar_collapsed', collapsed ? '1' : '0'); } catch (_) {}
+  fitPreviewViewer();
+}
+
+function togglePreviewCollapse() {
+  const collapsed = document.body.classList.toggle('preview-collapsed');
+  const btn = document.getElementById('btnPreviewCollapse');
+  if (btn) {
+    btn.textContent = collapsed ? '◀' : '▶';
+    btn.title = collapsed ? 'Expand preview' : 'Collapse preview';
+  }
+  try { localStorage.setItem('mtapi_preview_collapsed', collapsed ? '1' : '0'); } catch (_) {}
+  setTimeout(() => fitPreviewViewer(), 100);
+}
+
+function loadSavedCollapseState() {
+  try {
+    if (localStorage.getItem('mtapi_sidebar_collapsed') === '1') {
+      document.body.classList.add('sidebar-collapsed');
+      const sb = document.getElementById('btnSidebarCollapse');
+      if (sb) { sb.textContent = '▶'; sb.title = 'Expand sidebar'; }
+    }
+    if (localStorage.getItem('mtapi_preview_collapsed') === '1') {
+      document.body.classList.add('preview-collapsed');
+      const pb = document.getElementById('btnPreviewCollapse');
+      if (pb) { pb.textContent = '◀'; pb.title = 'Expand preview'; }
+    }
+  } catch (_) {}
+}
 
 // Flush pool state before leaving
 window.addEventListener('beforeunload', () => {

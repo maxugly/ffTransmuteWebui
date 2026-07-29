@@ -14,6 +14,7 @@
   <!-- Sidebar Nav -->
   <aside>
     <div class="brand">
+      <button class="sidebar-collapse-btn" id="btnSidebarCollapse" title="Collapse sidebar" aria-label="Toggle sidebar">◀</button>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M23 7H1v10h22V7Z"/>
         <path d="M8 7v10"/>
@@ -214,6 +215,10 @@
       <!-- Action Forms Panel -->
       <div class="action-panel" id="actionPanel">
         <!-- Rendered dynamically by javascript -->
+      </div>
+
+      <div class="preview-collapse-handle" id="previewCollapseHandle" title="Toggle preview panel">
+        <button class="preview-collapse-btn" id="btnPreviewCollapse" title="Collapse preview panel" aria-label="Toggle preview">▶</button>
       </div>
 
       <!-- Preview & Console Panel -->
