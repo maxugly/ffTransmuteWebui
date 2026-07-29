@@ -3,6 +3,7 @@ import {
   basename, escapeHtml, formatDurationExact,
   logConsole,
   renderPoolForm, renderPoolGrid,
+  POOL_ZOOM,
 } from '/app.js';
 import { displayOpResult } from '/js/job-control.js';
 

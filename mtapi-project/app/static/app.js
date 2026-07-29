@@ -4230,4 +4230,5 @@ export {
   renderWithoutBgForm, renderStyleTransferForm, renderRifeForm,
   renderQuickTransmuteForm,
   renderWatcherForm, renderPoolForm, renderPoolGrid,
+  POOL_ZOOM,
 };
