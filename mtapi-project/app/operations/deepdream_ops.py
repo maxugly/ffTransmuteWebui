@@ -1,12 +1,19 @@
 """
 DeepDream operation — wraps deepdream_engine for the typed ops registry.
+
+v2 handlers use JobWorkspace + VideoPipeline for dump/encode.
+Legacy handlers use PngFramePipeline (kept as fallback).
 """
 from __future__ import annotations
 
 import asyncio
+import os
+import shutil
 from pathlib import Path
 from typing import Literal
 
+import numpy as np
+from PIL import Image as PILImage
 from pydantic import BaseModel, Field
 
 from ..contract import OperationResult, OperationSpec, register
@@ -173,6 +180,163 @@ def _ensure_ext(path: Path, kind: str) -> Path:
     return path
 
 
+async def _dream_video_v2(
+    p: DeepDreamParams, input_path: Path, out: Path,
+    image_kwargs: dict, job_token, logs, progress_cb,
+) -> OperationResult:
+    """Frame-by-frame dream_video via JobWorkspace + VideoPipeline."""
+    from ..job_workspace import JobWorkspace
+    from ..video_pipeline import dump, encode as vp_encode, probe
+    from .deepdream.dream import dream_image, linear_blend, _optical_flow_seed, _cycle_layer_weights
+    import uuid
+
+    ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="dream_video_")
+    success = False
+    try:
+        dump_info = await dump(ws, input_path)
+        frames = sorted(ws.frames_in.glob("frame_*.png"))
+        if not frames:
+            raise RuntimeError("No frames extracted from video")
+        if p.max_frames and p.max_frames > 0:
+            frames = frames[: int(p.max_frames)]
+
+        fps = dump_info["fps"]
+        use_temporal = (not p.optical_flow) and (0.0 <= p.temporal_blend < 1.0 - 1e-9)
+        model_name = eng._normalize_model_name(image_kwargs.get("model_name"))
+        base_layers = image_kwargs.get("layer_weights") or {}
+        if not base_layers:
+            preset = image_kwargs.get("layer_preset") or "classic"
+            presets = eng.MODEL_PRESETS.get(model_name) or eng.MODEL_PRESETS[eng.DEFAULT_MODEL]
+            base_layers = dict(presets.get(preset) or presets.get("classic") or next(iter(presets.values())))
+
+        seed_dir = ws.root / "seed"
+        seed_dir.mkdir(exist_ok=True)
+
+        last_dream_arr = None
+        last_src_arr = None
+        total = len(frames)
+        to_process = (total + p.frame_step - 1) // p.frame_step if total else 0
+
+        from .. import job_control as jc
+
+        def _run_in_thread():
+            nonlocal last_dream_arr, last_src_arr
+            for idx, fr in enumerate(frames):
+                jc.check_cancelled()
+                out_fr = ws.frames_out / fr.name
+                if idx % p.frame_step != 0:
+                    shutil.copy2(str(fr), str(out_fr))
+                    continue
+
+                curr_src = np.asarray(PILImage.open(fr).convert("RGB"))
+                dream_src = fr
+                if p.optical_flow and last_dream_arr is not None and last_src_arr is not None:
+                    seed = _optical_flow_seed(last_src_arr, last_dream_arr, curr_src)
+                    seed_path = seed_dir / fr.name
+                    PILImage.fromarray(seed).save(seed_path)
+                    dream_src = seed_path
+                elif use_temporal and last_dream_arr is not None:
+                    blended = linear_blend(last_dream_arr, curr_src, p.temporal_blend)
+                    seed_path = seed_dir / fr.name
+                    PILImage.fromarray(blended).save(seed_path)
+                    dream_src = seed_path
+
+                frame_kwargs = dict(image_kwargs)
+                cycled = _cycle_layer_weights(base_layers, idx, p.layer_cycle)
+                frame_kwargs["layer_weights"] = cycled
+
+                done = (idx // p.frame_step) + 1
+                if progress_cb:
+                    progress_cb(
+                        f"[frame {idx + 1}/{total}] dream step",
+                        phase="video-frames", current=done, total=to_process, unit="frames",
+                    )
+
+                dream_image(dream_src, out_fr, progress_cb=None, **frame_kwargs)
+                with PILImage.open(out_fr) as im:
+                    last_dream_arr = np.asarray(im.convert("RGB"))
+                last_src_arr = curr_src
+
+        await asyncio.to_thread(_run_in_thread)
+
+        result_path = await vp_encode(ws, out, fps, mux_audio=p.keep_audio)
+        success = True
+        return OperationResult(
+            ok=True, operation="deepdream", output_path=str(result_path),
+            command=f"dream_video_v2 {input_path.name}", stdout="\n".join(logs),
+        )
+    except Exception as e:
+        return OperationResult(
+            ok=False, operation="deepdream", error=str(e),
+            stdout="\n".join(logs), stderr=str(e),
+        )
+    finally:
+        if not success:
+            ws.cleanup(keep_on_failure=True)
+        else:
+            ws.cleanup(keep_on_failure=False)
+
+
+async def _dream_ouroboros_v2(
+    p: DeepDreamParams, input_path: Path, out: Path,
+    image_kwargs: dict, job_token, logs, progress_cb,
+) -> OperationResult:
+    """Ouroboros via JobWorkspace + VideoPipeline encode."""
+    from ..job_workspace import JobWorkspace
+    from ..video_pipeline import encode as vp_encode
+    from .deepdream.dream import dream_image, transform_frame
+    import uuid
+
+    ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="dream_ouro_")
+    success = False
+    try:
+        seed = ws.root / "seed.png"
+        PILImage.open(input_path).convert("RGB").save(seed)
+
+        from .. import job_control as jc
+
+        def _run_thread():
+            current = seed
+            for i in range(int(p.ouroboros_length)):
+                jc.check_cancelled()
+                out_fr = ws.frames_out / f"frame_{i:06d}.png"
+                if progress_cb:
+                    progress_cb(
+                        f"ouro {i + 1}/{p.ouroboros_length}",
+                        phase="ouroboros", current=i + 1, total=int(p.ouroboros_length), unit="frames",
+                    )
+                dream_image(current, out_fr, progress_cb=None, **image_kwargs)
+
+                if i + 1 < int(p.ouroboros_length) and p.frame_transform and p.frame_transform != "none":
+                    arr = np.asarray(PILImage.open(out_fr).convert("RGB"))
+                    transformed = transform_frame(
+                        arr, mode=p.frame_transform, zoom=p.zoom,
+                        rotation_deg=p.rotation_deg, translate_x=p.translate_x,
+                        translate_y=p.translate_y, fps=float(p.ouroboros_fps),
+                    )
+                    next_in = ws.root / f"in_{i:06d}.png"
+                    PILImage.fromarray(transformed).save(next_in)
+                    current = next_in
+                else:
+                    current = out_fr
+
+        await asyncio.to_thread(_run_thread)
+
+        result_path = await vp_encode(ws, out, float(p.ouroboros_fps), mux_audio=False)
+        success = True
+        return OperationResult(
+            ok=True, operation="deepdream", output_path=str(result_path),
+            command=f"dream_ouroboros_v2 {input_path.name}", stdout="\n".join(logs),
+        )
+    except Exception as e:
+        return OperationResult(
+            ok=False, operation="deepdream", error=str(e),
+            stdout="\n".join(logs), stderr=str(e),
+        )
+    finally:
+        ws.cleanup(keep_on_failure=not success)
+
+
 async def deepdream(p: DeepDreamParams) -> OperationResult:
     input_path = Path(p.input_path).expanduser().resolve()
     if not input_path.is_file():
@@ -296,37 +460,14 @@ async def deepdream(p: DeepDreamParams) -> OperationResult:
 
     try:
         if p.ouroboros:
-            result_path = await asyncio.to_thread(
-                _in_job(
-                    eng.dream_ouroboros,
-                    input_path,
-                    out,
-                    length=p.ouroboros_length,
-                    fps=p.ouroboros_fps,
-                    frame_transform=p.frame_transform,
-                    zoom=p.zoom,
-                    rotation_deg=p.rotation_deg,
-                    translate_x=p.translate_x,
-                    translate_y=p.translate_y,
-                    image_kwargs=image_kwargs,
-                    progress_cb=progress_cb,
-                ),
+            # v2: JobWorkspace + VideoPipeline
+            return await _dream_ouroboros_v2(
+                p, input_path, out, image_kwargs, job_token, logs, progress_cb,
             )
         elif kind == "video":
-            result_path = await asyncio.to_thread(
-                _in_job(
-                    eng.dream_video,
-                    input_path,
-                    out,
-                    frame_step=p.frame_step,
-                    max_frames=p.max_frames,
-                    keep_audio=p.keep_audio,
-                    temporal_blend=p.temporal_blend,
-                    optical_flow=p.optical_flow,
-                    layer_cycle=p.layer_cycle,
-                    image_kwargs=image_kwargs,
-                    progress_cb=progress_cb,
-                ),
+            # v2: JobWorkspace + VideoPipeline
+            return await _dream_video_v2(
+                p, input_path, out, image_kwargs, job_token, logs, progress_cb,
             )
         else:
             result_path = await asyncio.to_thread(
