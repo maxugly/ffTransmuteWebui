@@ -3,9 +3,9 @@ import {
   basename, escapeHtml, formatDurationExact,
   logConsole,
   renderPoolForm, renderPoolGrid,
-  POOL_ZOOM,
 } from '/app.js';
 import { displayOpResult } from '/js/job-control.js';
+import { POOL_ZOOM, POOL_LAYOUT_DEFAULTS } from '/js/pool/constants.js';
 
 let _poolSeqId = 1;
 let _poolSaveTimer = null;
