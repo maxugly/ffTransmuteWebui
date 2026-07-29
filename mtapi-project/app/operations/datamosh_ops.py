@@ -19,8 +19,8 @@ from ..output_dir_ctx import get_output_dir
 from ..shell import run_command, BIN_DIR
 
 CUSTOM_GLITCH_JS = str(BIN_DIR / "custom_glitch.js")
-NO_KEYFRAME_JS = str(BIN_DIR / "no_keyframe.js")
-MELT_JS = str(BIN_DIR / "melt.js")
+NO_KEYFRAME_JS = str(BIN_DIR.parent.parent / "no_keyframe.js")
+MELT_JS = str(BIN_DIR.parent.parent / "melt.js")
 
 
 async def _execute_mosh_pipeline(
