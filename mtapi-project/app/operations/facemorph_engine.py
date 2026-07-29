@@ -116,6 +116,9 @@ def morph_image_list(
     fps: int = 30,
     crf: int = 18,
     keep_frames: bool = False,
+    show_triangles: bool = False,
+    align_faces: bool = False,
+    align_size: int = 1024,
     progress_cb: Callable | None = None,
 ) -> dict[str, Any]:
     """
@@ -164,6 +167,51 @@ def morph_image_list(
         from delaunay_triangulation import make_delaunay
         import batch_morph_dir as bmd
 
+        # ── optional: auto-align faces ────────────────────────────────
+        work_images = list(image_files)
+        tmp_align_dir = None
+        if align_faces:
+            from landmarks_detector import LandmarksDetector
+            from face_alignment import image_align
+
+            tmp_align_dir = Path(_tf.mkdtemp(prefix="mtapi_face_align_"))
+            detector = LandmarksDetector()
+            aligned: list[str] = []
+            skipped_align: list[str] = []
+
+            for i, src in enumerate(work_images):
+                job_control.check_cancelled()
+                name = os.path.basename(src)
+                if progress_cb:
+                    progress_cb(
+                        f"align face {i + 1}/{len(work_images)}: {name}",
+                        phase="align",
+                        current=i + 1,
+                        total=len(work_images),
+                        unit="faces",
+                    )
+                dst = str(tmp_align_dir / f"{i:03d}_{Path(src).stem}_aligned.png")
+                try:
+                    landmarks_gen = detector.get_landmarks(src)
+                    first_landmarks = next(landmarks_gen)
+                    image_align(src, dst, face_landmarks=first_landmarks,
+                                output_size=align_size)
+                    aligned.append(dst)
+                except StopIteration:
+                    skipped_align.append(f"no face: {name}")
+                    aligned.append(src)
+                except Exception as e:
+                    skipped_align.append(f"align fail {name}: {e}")
+                    aligned.append(src)
+
+            if skipped_align and progress_cb:
+                progress_cb(
+                    f"align: {len(work_images) - len(skipped_align)} aligned, "
+                    f"{len(skipped_align)} skipped",
+                    phase="align",
+                )
+            work_images = aligned
+
         frame_offset = 0
         total_frames = 0
         pairs_done = 0
@@ -171,8 +219,8 @@ def morph_image_list(
 
         for i in range(pairs_total):
             job_control.check_cancelled()
-            path_a = image_files[i]
-            path_b = image_files[i + 1]
+            path_a = work_images[i]
+            path_b = work_images[i + 1]
             name_a = os.path.basename(path_a)
             name_b = os.path.basename(path_b)
             if progress_cb:
@@ -217,6 +265,7 @@ def morph_image_list(
             n = bmd.generate_morph_frames(
                 img_a_crop, img_b_crop, pts_a, pts_b, tri, size,
                 frames_per_segment, str(frame_dir), frame_offset, skip_first,
+                show_triangles=show_triangles,
             )
             frame_offset += n
             total_frames += n
@@ -224,6 +273,8 @@ def morph_image_list(
 
         if total_frames < 1:
             pipeline.cleanup()
+            if tmp_align_dir and tmp_align_dir.is_dir():
+                shutil.rmtree(tmp_align_dir, ignore_errors=True)
             return {
                 "ok": False,
                 "error": "No morph frames produced. " + (
@@ -256,6 +307,8 @@ def morph_image_list(
         ]
         result = subprocess.run(ffmpeg_cmd, capture_output=True, text=True)
         if result.returncode != 0 or not output_path.is_file():
+            if tmp_align_dir and tmp_align_dir.is_dir():
+                shutil.rmtree(tmp_align_dir, ignore_errors=True)
             return {
                 "ok": False,
                 "error": (result.stderr or "").strip() or "ffmpeg encode failed",
@@ -273,6 +326,8 @@ def morph_image_list(
         }
         if not keep_frames:
             pipeline.cleanup()
+        if tmp_align_dir and tmp_align_dir.is_dir():
+            shutil.rmtree(tmp_align_dir, ignore_errors=True)
         if progress_cb:
             progress_cb(
                 f"facemorph done → {output_path}",

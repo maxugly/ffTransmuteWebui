@@ -51,9 +51,17 @@ function renderFaceMorphForm() {
       ${knobUnitHtml({ id: 'fmFps', label: 'FPS', value: '30' })}
       ${knobUnitHtml({ id: 'fmCrf', label: 'CRF', value: '18' })}
       ${knobUnitHtml({ id: 'fmKeepFrames', label: 'Keep PNG', value: '0', binary: true, leftCap: 'No', rightCap: 'Yes' })}
+      ${knobUnitHtml({ id: 'fmTriangles', label: 'Triangles', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
       ${knobUnitHtml({ id: 'fmDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
     </div>
     <p class="dream-hint">CRF 0 = lossless (huge/slow). 18 ≈ near-lossless. Sec/pair × pairs ≈ video length.</p>
+
+    <div class="dream-section-title">Pre-processing</div>
+    <div class="knob-bank">
+      ${knobUnitHtml({ id: 'fmAlign', label: 'Align faces', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+      ${knobUnitHtml({ id: 'fmAlignSize', label: 'Size', value: '1024' })}
+    </div>
+    <p class="dream-hint">FFHQ-style face alignment: centers nose, makes eyes horizontal, crops to square. Size = output px (256–4096).</p>
 
     <div class="dream-section-title">DeepDream integration</div>
     <div class="form-group">
@@ -118,6 +126,18 @@ function renderFaceMorphForm() {
   setupBinaryKnob({
     knobId: 'fmDryRunKnob', indicatorId: 'fmDryRunKnobInd', hiddenId: 'fmDryRun',
     leftValue: '0', rightValue: '1', initial: '0',
+  });
+  setupBinaryKnob({
+    knobId: 'fmTrianglesKnob', indicatorId: 'fmTrianglesKnobInd', hiddenId: 'fmTriangles',
+    leftValue: '0', rightValue: '1', initial: '0',
+  });
+  setupBinaryKnob({
+    knobId: 'fmAlignKnob', indicatorId: 'fmAlignKnobInd', hiddenId: 'fmAlign',
+    leftValue: '0', rightValue: '1', initial: '0',
+  });
+  setupContinuousKnob({
+    knobId: 'fmAlignSizeKnob', indicatorId: 'fmAlignSizeKnobInd', valueId: 'fmAlignSizeVal', hiddenId: 'fmAlignSize',
+    min: 256, max: 4096, step: 32, decimals: 0,
   });
   setupContinuousKnob({
     knobId: 'fmDreamItersKnob', indicatorId: 'fmDreamItersKnobInd', valueId: 'fmDreamItersVal', hiddenId: 'fmDreamIters',
@@ -245,6 +265,9 @@ function collectFaceMorphBody() {
     fps: parseInt(document.getElementById('fmFps')?.value || '30', 10),
     crf: parseInt(document.getElementById('fmCrf')?.value || '18', 10),
     keep_frames: document.getElementById('fmKeepFrames')?.value === '1',
+    show_triangles: document.getElementById('fmTriangles')?.value === '1',
+    align_faces: document.getElementById('fmAlign')?.value === '1',
+    align_size: parseInt(document.getElementById('fmAlignSize')?.value || '1024', 10),
     dream_mode,
     dream_model_name: document.getElementById('fmDreamModel')?.value || 'inception_v3',
     dream_layer_preset: document.getElementById('fmDreamPreset')?.value || 'classic',

@@ -41,6 +41,22 @@ class FaceMorphParams(BaseModel):
     fps: int = Field(30, ge=1, le=120, description="Output frames per second")
     crf: int = Field(18, ge=0, le=51, description="x264 CRF (0=lossless, 18=near-lossless)")
     keep_frames: bool = Field(False, description="Keep intermediate morph PNG frames")
+    show_triangles: bool = Field(
+        False,
+        description="Draw Delaunay triangle wireframe on every morph frame",
+    )
+    align_faces: bool = Field(
+        False,
+        description=(
+            "Auto-align faces before morphing (FFHQ-style: center nose, "
+            "horizontal eyes, crop to square). Uses dlib landmarks + "
+            "perspective transform."
+        ),
+    )
+    align_size: int = Field(
+        1024, ge=256, le=4096,
+        description="Output size for aligned face images (square)",
+    )
 
     # DeepDream integration
     dream_mode: DreamMode = Field(
@@ -218,6 +234,9 @@ async def facemorph(p: FaceMorphParams) -> OperationResult:
                 fps=p.fps,
                 crf=p.crf,
                 keep_frames=p.keep_frames,
+                show_triangles=p.show_triangles,
+                align_faces=p.align_faces,
+                align_size=p.align_size,
                 progress_cb=progress_cb,
             ),
         )

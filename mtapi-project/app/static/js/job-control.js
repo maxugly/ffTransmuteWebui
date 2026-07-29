@@ -1,7 +1,7 @@
 import {
   state, elements,
   logConsole, fitPreviewViewer,
-  renderTabForm, bestInput,
+  renderTabForm, bestInput, bestOutput,
   probeGlobalVideo, updateGlobalInputs, updateStatusIndicators,
   showPreview,
 } from '/app.js';
