@@ -211,6 +211,7 @@ async def encode(
     preset: str = "fast",
     codec: str = "libx264",
     pix_fmt: str = "yuv420p",
+    frame_pattern: str = "frame_%06d.png",
 ) -> str:
     """Encode frames_out/*.png to output video. Muxes audio if available.
 
@@ -223,7 +224,7 @@ async def encode(
     out_parent = Path(out_path).parent
     out_parent.mkdir(parents=True, exist_ok=True)
 
-    in_pattern = str(workspace.frames_out / "frame_%06d.png")
+    in_pattern = str(workspace.frames_out / frame_pattern)
 
     argv = [
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",

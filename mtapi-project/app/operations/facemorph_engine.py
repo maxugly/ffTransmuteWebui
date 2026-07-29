@@ -120,10 +120,14 @@ def morph_image_list(
     align_faces: bool = False,
     align_size: int = 1024,
     progress_cb: Callable | None = None,
+    frames_out: Path | None = None,
+    skip_encode: bool = False,
 ) -> dict[str, Any]:
     """
     Morph consecutive pairs in image_files → one video.
-    Returns {ok, output_path, total_frames, pairs, skipped, error?}.
+
+    If *frames_out* is set, write frames there and skip internal encode.
+    This lets the caller use VideoPipeline.encode() for muxing.
     """
     from .. import job_control
 
@@ -136,11 +140,16 @@ def morph_image_list(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     frames_per_segment = max(2, int(float(duration) * int(fps)))
-    import tempfile as _tf
-    from ..png_pipeline import PngFramePipeline
-    pipeline = PngFramePipeline(prefix="mtapi_facemorph_")
-    frame_dir = Path(_tf.mkdtemp(prefix="mtapi_facemorph_"))
-    pipeline._tmpdir = str(frame_dir)
+    if frames_out is not None:
+        frame_dir = frames_out
+        frame_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        import tempfile as _tf
+        from ..png_pipeline import PngFramePipeline
+        pipeline = PngFramePipeline(prefix="mtapi_facemorph_")
+        frame_dir = Path(_tf.mkdtemp(prefix="mtapi_facemorph_"))
+        pipeline._tmpdir = str(frame_dir)
+        pipeline = pipeline
     pairs_total = len(image_files) - 1
 
     if progress_cb:
@@ -272,7 +281,8 @@ def morph_image_list(
             pairs_done += 1
 
         if total_frames < 1:
-            pipeline.cleanup()
+            if frames_out is None:
+                pipeline.cleanup()
             if tmp_align_dir and tmp_align_dir.is_dir():
                 shutil.rmtree(tmp_align_dir, ignore_errors=True)
             return {
@@ -291,6 +301,29 @@ def morph_image_list(
                 total=pairs_total,
                 unit="pairs",
             )
+
+        if skip_encode or frames_out is not None:
+            # Caller will handle encode via VideoPipeline
+            out = {
+                "ok": True,
+                "output_path": str(output_path),
+                "total_frames": total_frames,
+                "pairs": pairs_done,
+                "skipped": skipped,
+                "frame_dir": str(frames_out) if keep_frames else None,
+                "frames_out": str(frames_out) if frames_out else None,
+            }
+            if tmp_align_dir and tmp_align_dir.is_dir():
+                shutil.rmtree(tmp_align_dir, ignore_errors=True)
+            if progress_cb:
+                progress_cb(
+                    f"facemorph frames ready → {output_path}",
+                    phase="done",
+                    current=pairs_done,
+                    total=pairs_total,
+                    unit="pairs",
+                )
+            return out
 
         crf_args = ["-crf", str(int(crf))]
         preset_args = ["-preset", "veryslow"] if int(crf) == 0 else ["-preset", "medium"]
@@ -324,7 +357,7 @@ def morph_image_list(
             "skipped": skipped,
             "frame_dir": str(frame_dir) if keep_frames else None,
         }
-        if not keep_frames:
+        if not keep_frames and frames_out is None:
             pipeline.cleanup()
         if tmp_align_dir and tmp_align_dir.is_dir():
             shutil.rmtree(tmp_align_dir, ignore_errors=True)

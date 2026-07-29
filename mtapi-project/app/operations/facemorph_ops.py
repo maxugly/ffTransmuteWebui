@@ -122,7 +122,205 @@ def _default_output(images: list[str], dream_mode: str) -> Path:
     return first.parent / f"{first.stem}_chain_{tag}.mp4"
 
 
+async def _facemorph_v2(p: FaceMorphParams, images: list[str]) -> OperationResult:
+    """v2 handler using JobWorkspace + VideoPipeline for encode.
+
+    Frame generation stays in facemorph engine; only the encode is migrated.
+    Keeps dream_mode support. The sync morph thread writes to workspace.frames_out,
+    then the async handler encodes with VideoPipeline.encode().
+    """
+    from ..job_workspace import JobWorkspace
+    from ..video_pipeline import encode as vp_encode
+    import uuid
+
+    from ..pathutil import finalize_output_path
+
+    default_path = _default_output(images, p.dream_mode)
+    out = finalize_output_path(
+        p.output_path or str(default_path),
+        source=images[0],
+        default_suffix="_chain_morph",
+        default_ext=".mp4",
+        allowed_exts={".mp4", ".mkv", ".mov", ".webm"},
+    )
+
+    summary = (
+        f"facemorph n={len(images)} duration={p.duration}s fps={p.fps} crf={p.crf} "
+        f"dream_mode={p.dream_mode}"
+    )
+
+    if p.dry_run:
+        return OperationResult(
+            ok=True, operation="facemorph", output_path=str(out),
+            dry_run=True, command=summary,
+            stdout=f"Command: {summary}\nImages:\n" + "\n".join(images) + f"\nOutput: {out}\n",
+        )
+
+    ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="facemorph_")
+    success = False
+    logs: list[str] = [summary]
+    job_token = job_control.current_token()
+
+    def progress_cb(msg: str, **kw):
+        logs.append(msg)
+        try:
+            job_control.report_progress(msg, token=job_token, **kw)
+        except Exception:
+            pass
+        job_control.check_cancelled()
+
+    def _bind_run(fn, *a, **k):
+        def runner():
+            job_control.bind(job_token)
+            return fn(*a, **k)
+        return runner
+
+    try:
+        work_images = list(images)
+        tmp_dream_dir = None
+
+        if p.dream_mode == "faces_first":
+            from . import deepdream as dd
+            tmp_dream_dir = Path(tempfile.mkdtemp(prefix="mtapi_face_dream_"))
+            dreamed: list[str] = []
+            for i, src in enumerate(images):
+                job_control.check_cancelled()
+                progress_cb(
+                    f"dream face {i + 1}/{len(images)}: {Path(src).name}",
+                    phase="dream-faces",
+                    current=i + 1, total=len(images), unit="faces",
+                )
+                dest = tmp_dream_dir / f"{i:03d}_{Path(src).stem}_dream.png"
+                await asyncio.to_thread(
+                    _bind_run(
+                        dd.dream_image, Path(src), dest,
+                        model_name=p.dream_model_name,
+                        layer_preset=p.dream_layer_preset,
+                        iterations=p.dream_iterations,
+                        num_octave=p.dream_octaves, step=p.dream_step,
+                        preview_width=p.dream_preview_width or None,
+                        progress_cb=None,
+                    ),
+                )
+                dreamed.append(str(dest))
+            work_images = dreamed
+
+        morph_out = out if p.dream_mode != "after" else out.with_name(out.stem + "_raw_morph.mp4")
+
+        # Generate frames into workspace.frames_out (using frame_%08d.png pattern
+        # as expected by the facemorph engine)
+        result = await asyncio.to_thread(
+            _bind_run(
+                fme.morph_image_list, work_images, morph_out,
+                duration=p.duration, fps=p.fps, crf=p.crf,
+                keep_frames=p.keep_frames,
+                show_triangles=p.show_triangles,
+                align_faces=p.align_faces, align_size=p.align_size,
+                progress_cb=progress_cb,
+                frames_out=ws.frames_out, skip_encode=True,
+            ),
+        )
+        if not result.get("ok"):
+            return OperationResult(
+                ok=False, operation="facemorph", dry_run=False,
+                command=summary, stdout="\n".join(logs),
+                error=result.get("error") or "facemorph failed",
+            )
+
+        # Encode with VideoPipeline
+        final_path = await vp_encode(
+            ws, morph_out, p.fps,
+            frame_pattern="frame_%08d.png",
+            crf=p.crf, mux_audio=False,
+        )
+        logs.append(f"morph ok: {final_path} ({result.get('total_frames')} frames, {result.get('pairs')} pairs)")
+        if result.get("skipped"):
+            logs.append("skipped: " + "; ".join(result["skipped"][:12]))
+
+        if p.dream_mode == "after":
+            from . import deepdream as dd
+            progress_cb(
+                "DeepDream on morph video…",
+                phase="dream-video", current=0, total=1, unit="pass",
+            )
+            await asyncio.to_thread(
+                _bind_run(
+                    dd.dream_video, Path(final_path), out,
+                    frame_step=1, keep_audio=False,
+                    temporal_blend=p.dream_temporal_blend,
+                    optical_flow=p.dream_optical_flow,
+                    image_kwargs={
+                        "model_name": p.dream_model_name,
+                        "layer_preset": p.dream_layer_preset,
+                        "iterations": p.dream_iterations,
+                        "num_octave": p.dream_octaves, "step": p.dream_step,
+                        "preview_width": p.dream_preview_width or None,
+                    },
+                    progress_cb=progress_cb,
+                ),
+            )
+            if Path(final_path).resolve() != out.resolve() and Path(final_path).is_file():
+                try:
+                    Path(final_path).unlink()
+                except OSError:
+                    pass
+            final_path = str(out)
+            logs.append(f"dream video ok: {final_path}")
+
+        if tmp_dream_dir and tmp_dream_dir.is_dir():
+            shutil.rmtree(tmp_dream_dir, ignore_errors=True)
+
+        success = True
+        return OperationResult(
+            ok=True, operation="facemorph", output_path=str(final_path),
+            dry_run=False, command=summary,
+            stdout="\n".join(logs) + f"\nOutput: {final_path}\n",
+        )
+
+    except job_control.JobCancelled as e:
+        return OperationResult(
+            ok=False, operation="facemorph", dry_run=False,
+            command=summary, stdout="\n".join(logs), error=str(e),
+        )
+    except Exception as e:
+        if "Cancelled by user" in str(e):
+            return OperationResult(
+                ok=False, operation="facemorph", dry_run=False,
+                command=summary, stdout="\n".join(logs),
+                error="Cancelled by user",
+            )
+        return OperationResult(
+            ok=False, operation="facemorph", dry_run=False,
+            command=summary, stdout="\n".join(logs),
+            stderr=str(e), error=str(e),
+        )
+    finally:
+        if not p.keep_frames:
+            ws.cleanup(keep_on_failure=not success)
+
+
 async def facemorph(p: FaceMorphParams) -> OperationResult:
+    images = _collect_images(p, allow_missing=bool(p.dry_run))
+    if p.input_path and not p.dry_run:
+        from ..pathutil import parse_path_list, verify_paths_exist
+        raw = parse_path_list(p.input_path)
+        missing = verify_paths_exist(raw)
+        if missing:
+            return OperationResult(
+                ok=False, operation="facemorph",
+                error=f"Files not found: {', '.join(missing)}",
+                dry_run=p.dry_run,
+            )
+    if len(images) < 2:
+        return OperationResult(
+            ok=False, operation="facemorph",
+            error="Need at least 2 face images (image_dir or image_paths).",
+            dry_run=p.dry_run,
+        )
+    return await _facemorph_v2(p, images)
+
+
+async def facemorph_legacy(p: FaceMorphParams) -> OperationResult:
     images = _collect_images(p, allow_missing=bool(p.dry_run))
     if p.input_path and not p.dry_run:
         from ..pathutil import parse_path_list, verify_paths_exist
