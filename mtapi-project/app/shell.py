@@ -59,16 +59,34 @@ async def run_command(argv: list[str], cwd: str | None = None) -> tuple[int, str
     )
 
     async def _read_stderr() -> str:
-        lines: list[str] = []
+        """Read stderr in chunks, splitting on \n for real-time log output.
+
+        ffmpeg/ffgac/ffedit use \r (carriage return) to update progress
+        lines in-place.  readline() would block waiting for \n that may
+        never arrive, causing memory buildup and potential pipe deadlocks.
+        This chunked reader handles \r-delimited output safely.
+        """
+        buffer = bytearray()
+        collected: list[str] = []
         while True:
-            line = await proc.stderr.readline()  # type: ignore[union-attr]
-            if not line:
+            chunk = await proc.stderr.read(4096)  # type: ignore[union-attr]
+            if not chunk:
                 break
-            decoded = line.decode(errors="replace").rstrip("\n")
-            if decoded.strip():
-                _log.info("[%s] %s", argv[0] if argv else "?", decoded)
-            lines.append(decoded)
-        return "\n".join(lines)
+            buffer.extend(chunk)
+            decoded = buffer.decode(errors="replace")
+            lines = decoded.split("\n")
+            buffer = bytearray(lines.pop().encode(errors="replace")) if lines else bytearray()
+            for line in lines:
+                stripped = line.strip("\r")
+                if stripped.strip():
+                    _log.info("[%s] %s", argv[0] if argv else "?", stripped)
+                collected.append(stripped)
+        if buffer:
+            remaining = buffer.decode(errors="replace").strip("\r\n\0")
+            if remaining.strip():
+                _log.info("[%s] %s", argv[0] if argv else "?", remaining)
+            collected.append(remaining)
+        return "\n".join(collected)
 
     stderr_task = asyncio.create_task(_read_stderr())
     stdout_b = await proc.stdout.read()  # type: ignore[union-attr]
