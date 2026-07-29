@@ -68,7 +68,7 @@ function updateMoshParams() {
             <div class="vector-pad-crosshair-v"></div>
             <div class="vector-pad-knob" id="meltKnob"></div>
           </div>
-          <div class="vector-pad-values" style="flex-direction: column; gap: 8px;">
+          <div class="vector-pad-values">
             <span>Damping: <input type="text" class="pad-value-input" id="padMeltDamp" value="15%"></span>
             <span>V-Drift: <input type="text" class="pad-value-input" id="padMeltDrift" value="5%"></span>
           </div>
