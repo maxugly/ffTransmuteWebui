@@ -72,10 +72,14 @@ function updateMoshParams() {
         </div>
 
         <!-- Smear tail -->
-        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
-          <div class="knob-bank">
-            ${knobUnitHtml({ id: 'moshTail', label: 'Smear tail', value: '18' })}
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;">
+          <span class="knob-unit-label">Smear tail</span>
+          <div class="daw-knob" id="moshTailKnob" style="width:120px;height:120px;margin:2px 0;display:block;">
+            <div class="daw-knob-dial"></div>
+            <div class="daw-knob-indicator" id="moshTailKnobInd" style="height:36px;width:4px;"></div>
           </div>
+          <input type="text" class="daw-knob-value-input" id="moshTailVal" value="18">
+          <input type="hidden" id="moshTail" value="18">
         </div>
       </div>
 
