@@ -1,9 +1,10 @@
 import {
   state, elements,
   basename, escapeHtml, formatDurationExact,
-  logConsole, displayOpResult,
+  logConsole,
   renderPoolForm, renderPoolGrid, renderSequenceBox,
 } from '/app.js';
+import { displayOpResult } from '/js/job-control.js';
 
 let _poolSeqId = 1;
 let _poolSaveTimer = null;

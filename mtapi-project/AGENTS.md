@@ -44,6 +44,20 @@ mtapi-project/
 
 ## 🛠️ 4. Common Agent Tasks & Workflows
 
+### Builder Agents
+
+Two autonomous coding agents available for implementation work. Both read
+AGENTS.md and follow the same rules. Use one per session — do not run both
+on the same file at the same time.
+
+| Agent | CLI | Browser tools | How to launch |
+|-------|-----|---------------|---------------|
+| **CodeWhale** | `codewhale` (TUI) | Playwright MCP (`mcp_mcp_browser_*`) | `codewhale` in terminal, paste prompt |
+| **OpenCode** | `opencode` (TUI) | Playwright MCP | `opencode` in terminal, paste prompt |
+
+Extraction prompts work with either agent. For browser smoke tests, use the
+agent's native Playwright MCP tools — never `web.run` or `web_search`.
+
 ### A. Running the Server
 ```bash
 # Prefer venv
@@ -64,7 +78,25 @@ Always resolve final write paths with `pathutil.unique_output_path` (or
 
 ---
 
-## ⚠️ 5. Known Hazards & Debugging Notes
+## 🔒 5. WebUI Testing (MANDATORY — DO NOT DEVIATE)
+
+**Browser testing MUST use Playwright MCP tools.** The tool names start with
+`mcp_mcp_browser_`: `mcp_mcp_browser_navigate`, `mcp_mcp_browser_console_messages`,
+`mcp_mcp_browser_snapshot`, `mcp_mcp_browser_click`, `mcp_mcp_browser_type`,
+`mcp_mcp_browser_screenshot`.
+
+**NEVER use `web.run`, `web_search`, or `web_extract` to test the WebUI.**
+Those tools block localhost connections. They will silently fail or return empty
+results while making it look like the test passed. Console errors, render
+failures, and broken CSS will all go undetected.
+
+**NEVER fall back to curl + API-only verification when asked to test the WebUI.**
+This is a browser application. The API responding is not the same as the UI
+working. If you cannot access the browser, say so — don't substitute.
+
+---
+
+## ⚠️ 6. Known Hazards & Debugging Notes
 
 - **Working Directory Drift**:
   - `transmute` outputs bare filenames by default. Handlers must calculate the parent directory of `input_path` and pass it as `cwd` to `run_command` so output files land alongside input media.
