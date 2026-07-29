@@ -120,7 +120,7 @@ body.sidebar-collapsed .status-indicator {
 
 /* Preview panel collapsed — handle stays visible at right edge */
 body.preview-collapsed .app-content {
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr !important;
 }
 body.preview-collapsed .preview-panel {
   display: none;
@@ -152,6 +152,39 @@ body.preview-collapsed .preview-collapse-handle .preview-collapse-btn {
   border: none;
   padding: 2px 4px;
   font-size: 0.7rem;
+}
+
+/* ── Panel resize drag handles ───────────────────────────────────────────── */
+
+.sidebar-resize {
+  width: 6px;
+  background: transparent;
+  cursor: col-resize;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  position: relative;
+  z-index: 5;
+}
+.sidebar-resize:hover,
+body.sidebar-resizing .sidebar-resize {
+  background: rgba(59, 130, 246, 0.25);
+}
+body.sidebar-resizing {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+.panel-divider {
+  background: transparent;
+  transition: background 0.15s;
+}
+.panel-divider:hover,
+body.panel-resizing .panel-divider {
+  background: rgba(59, 130, 246, 0.25);
+}
+body.panel-resizing {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 /* Sidebar */

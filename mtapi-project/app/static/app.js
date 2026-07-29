@@ -313,6 +313,7 @@ async function init() {
   setupGlobalTimeline();
   setupEventListeners();
   setupPreviewConsoleResize();
+  setupAllPanelResize();
   await checkHealth();
   await fetchOperations();
   await restorePoolState();
@@ -579,6 +580,138 @@ function loadSavedCollapseState() {
       if (pb) { pb.textContent = '◀'; pb.title = 'Expand preview'; }
     }
   } catch (_) {}
+}
+
+// ── Panel resize drag ─────────────────────────────────────────────────────
+
+function _setupDragResize(el, { axis, onDrag, startVals, onEnd }) {
+  if (!el) return;
+  el.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    el.setPointerCapture(e.pointerId);
+    const startPtr = axis === 'x' ? e.clientX : e.clientY;
+    const start = startVals ? startVals() : {};
+    document.body.classList.add(axis === 'x' ? 'panel-resizing' : 'sidebar-resizing');
+
+    const onMove = (ev) => {
+      const cur = axis === 'x' ? ev.clientX : ev.clientY;
+      onDrag(cur - startPtr, start);
+    };
+    const onUp = () => {
+      el.releasePointerCapture(e.pointerId);
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onUp);
+      el.removeEventListener('pointercancel', onUp);
+      document.body.classList.remove('panel-resizing', 'sidebar-resizing');
+      if (onEnd) onEnd();
+    };
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
+  });
+}
+
+function setupSidebarResize() {
+  const handle = document.getElementById('sidebarResize');
+  const aside = document.querySelector('aside');
+  if (!handle || !aside) return;
+
+  // Restore saved width (apply as inline style so it beats collapsed CSS)
+  try {
+    const saved = parseInt(localStorage.getItem('mtapi_sidebar_w') || '', 10);
+    if (saved >= 56 && saved <= 600) {
+      aside.style.width = saved + 'px';
+      document.documentElement.style.setProperty('--sidebar-w', saved + 'px');
+    }
+  } catch (_) {}
+
+  _setupDragResize(handle, {
+    axis: 'x',
+    onDrag: (deltaX, start) => {
+      const newW = Math.max(120, Math.min(600, start.startWidth + deltaX));
+      aside.style.width = newW + 'px';
+      document.documentElement.style.setProperty('--sidebar-w', newW + 'px');
+    },
+    startVals: () => {
+      const w = aside.getBoundingClientRect().width;
+      return { startWidth: w };
+    },
+    onEnd: () => {
+      const w = aside.getBoundingClientRect().width;
+      try { localStorage.setItem('mtapi_sidebar_w', String(Math.round(w))); } catch (_) {}
+    },
+  });
+}
+
+function setupPanelResize() {
+  const content = document.querySelector('.app-content');
+  if (!content) return;
+
+  // Create divider dynamically so it doesn't interfere with grid
+  const divider = document.createElement('div');
+  divider.className = 'panel-divider';
+  divider.id = 'panelDivider';
+  divider.style.position = 'absolute';
+  divider.style.top = '0';
+  divider.style.bottom = '0';
+  divider.style.width = '6px';
+  divider.style.zIndex = '6';
+  divider.style.cursor = 'col-resize';
+  divider.style.borderLeft = '1px solid var(--panel-border)';
+  content.style.position = 'relative';
+  content.appendChild(divider);
+
+  function updateDividerPos() {
+    const leftPanel = content.children[0];
+    if (!leftPanel || document.body.classList.contains('preview-collapsed')) {
+      divider.style.display = 'none';
+      return;
+    }
+    divider.style.display = '';
+    const leftW = leftPanel.getBoundingClientRect().right - content.getBoundingClientRect().left;
+    divider.style.left = (leftW - 3) + 'px';
+  }
+  updateDividerPos();
+
+  // Restore saved split
+  try {
+    const saved = localStorage.getItem('mtapi_panel_split');
+    if (saved) {
+      content.style.gridTemplateColumns = saved;
+      requestAnimationFrame(updateDividerPos);
+    }
+  } catch (_) {}
+
+  _setupDragResize(divider, {
+    axis: 'x',
+    onDrag: (deltaX, start) => {
+      const rect = content.getBoundingClientRect();
+      if (rect.width <= 0 || document.body.classList.contains('preview-collapsed')) return;
+      const newLeftW = Math.max(300, Math.min(rect.width - 200, start.startLeftW + deltaX - 3));
+      const rightW = rect.width - newLeftW;
+      content.style.gridTemplateColumns = `${newLeftW}px ${rightW}px`;
+      divider.style.left = (newLeftW - 3) + 'px';
+    },
+    startVals: () => {
+      const leftW = content.children[0]?.getBoundingClientRect().width || content.getBoundingClientRect().width * 0.5;
+      return { startLeftW: leftW };
+    },
+    onEnd: () => {
+      const cols = content.style.gridTemplateColumns;
+      try { localStorage.setItem('mtapi_panel_split', cols); } catch (_) {}
+    },
+  });
+
+  window.addEventListener('resize', updateDividerPos);
+  if (typeof ResizeObserver !== 'undefined') {
+    const ro = new ResizeObserver(updateDividerPos);
+    ro.observe(content);
+  }
+}
+
+function setupAllPanelResize() {
+  setupSidebarResize();
+  setupPanelResize();
 }
 
 // Flush pool state before leaving
