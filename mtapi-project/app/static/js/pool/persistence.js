@@ -4,6 +4,8 @@ import {
   renderPoolForm, renderPoolGrid,
 } from '/app.js';
 import { loadPoolItemMeta } from '/js/pool/items.js';
+import { ensurePoolLayout } from '/js/pool/layout.js';
+import { ensureTileInfo } from '/app.js';
 import { basename, escapeHtml, formatDurationExact } from '/js/utils.js';
 import { displayOpResult } from '/js/job-control.js';
 import { POOL_ZOOM, POOL_LAYOUT_DEFAULTS } from '/js/pool/constants.js';

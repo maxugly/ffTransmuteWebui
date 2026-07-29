@@ -38,6 +38,7 @@ import {
   onSeqClipDurationChange, applySeqTokenTimeStyles,
   seqPlay, seqPause, seqStop, seqPrev, seqNext,
 } from '/js/pool/sequence.js';
+import { setupPoolLayoutChrome, applyPoolLayout, bindPoolDragResize } from '/js/pool/layout.js';
 import {
   loadPoolItemMeta, selectPoolItem, removePoolItem, clearPool,
   addPathsToPool, importPoolFiles, importPoolFolder,
@@ -1254,179 +1255,6 @@ function renderPoolForm() {
   }
 }
 
-// ── Resizable / collapsible pool dock ─────────────────────────────────────
-
-function applyPoolLayout() {
-  const L = ensurePoolLayout();
-  const compose = document.getElementById('poolCompose');
-  const focus = document.getElementById('poolFocusPanel');
-  const frame = document.getElementById('poolFocusFrame');
-  const matchResults = document.getElementById('poolMatchResults');
-  const selectionBody = document.getElementById('poolSelectionBody');
-  const seqPanel = document.getElementById('poolSequencePanel');
-  const matchBlock = document.getElementById('poolMatchBlock');
-
-  if (compose) {
-    compose.style.height = `${L.composeHeight}px`;
-    compose.style.flex = `0 0 ${L.composeHeight}px`;
-  }
-  if (focus) {
-    focus.style.width = `${L.focusWidth}px`;
-    focus.style.flex = `0 0 ${L.focusWidth}px`;
-  }
-  if (frame && !L.collapsed.selection) {
-    // 0 / unset → natural aspect-ratio (tight). Manual drag sets pixel height.
-    if (L.selectionHeight && L.selectionHeight > 0) {
-      frame.dataset.manualH = '1';
-      frame.style.setProperty('--sel-h', `${L.selectionHeight}px`);
-      frame.style.height = `${L.selectionHeight}px`;
-    } else {
-      frame.dataset.manualH = '0';
-      frame.style.removeProperty('--sel-h');
-      frame.style.height = '';
-      frame.style.minHeight = '';
-    }
-  }
-  if (matchResults && !L.collapsed.matches) {
-    matchResults.style.flex = '1 1 auto';
-    matchResults.style.minHeight = '80px';
-    matchResults.style.maxHeight = 'none';
-    // Prefer explicit height when set so list can scroll large
-    if (L.matchHeight) {
-      matchResults.style.height = `${L.matchHeight}px`;
-    }
-  }
-
-  // Collapse classes
-  if (seqPanel) seqPanel.classList.toggle('is-collapsed', !!L.collapsed.sequence);
-  if (selectionBody) selectionBody.classList.toggle('is-collapsed', !!L.collapsed.selection);
-  if (matchBlock) matchBlock.classList.toggle('is-collapsed', !!L.collapsed.matches);
-
-  // Chevrons
-  document.querySelectorAll('[data-collapse]').forEach(head => {
-    const key = head.getAttribute('data-collapse');
-    const chev = head.querySelector('.pool-collapse-chevron');
-    const btn = head.querySelector('.pool-collapse-btn');
-    const collapsed = !!L.collapsed[key];
-    if (chev) chev.textContent = collapsed ? '▸' : '▾';
-    if (btn) btn.setAttribute('aria-expanded', String(!collapsed));
-  });
-}
-
-function togglePoolSection(key) {
-  const L = ensurePoolLayout();
-  L.collapsed[key] = !L.collapsed[key];
-  applyPoolLayout();
-  scheduleSavePoolState();
-}
-
-function expandMatchesRoom() {
-  const L = ensurePoolLayout();
-  L.collapsed.selection = true;
-  L.collapsed.matches = false;
-  L.composeHeight = Math.max(L.composeHeight, 360);
-  L.focusWidth = Math.max(L.focusWidth, 380);
-  L.matchHeight = Math.max(L.matchHeight, 240);
-  applyPoolLayout();
-  scheduleSavePoolState();
-}
-
-function setupPoolLayoutChrome() {
-  applyPoolLayout();
-
-  // Collapse toggles — click header or chevron button
-  document.querySelectorAll('[data-collapse]').forEach(head => {
-    const key = head.getAttribute('data-collapse');
-    const onToggle = (e) => {
-      // Don't steal clicks from transport / match controls inside header
-      if (e.target.closest('.seq-transport, .pool-match-controls, #btnExpandMatches, select, input, a')) return;
-      e.preventDefault();
-      togglePoolSection(key);
-    };
-    head.addEventListener('click', onToggle);
-  });
-
-  document.getElementById('btnExpandMatches')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    expandMatchesRoom();
-  });
-
-  // Vertical resize: grid vs compose dock
-  bindPoolDragResize(document.getElementById('poolVResize'), {
-    axis: 'y',
-    onMove: (dy, start) => {
-      const L = ensurePoolLayout();
-      const next = Math.max(140, Math.min(window.innerHeight * 0.75, start.composeHeight - dy));
-      L.composeHeight = Math.round(next);
-      applyPoolLayout();
-    },
-    startVals: () => ({ composeHeight: ensurePoolLayout().composeHeight }),
-  });
-
-  // Horizontal resize: sequence vs focus
-  bindPoolDragResize(document.getElementById('poolHResize'), {
-    axis: 'x',
-    onMove: (dx, start) => {
-      const L = ensurePoolLayout();
-      const compose = document.getElementById('poolCompose');
-      const maxW = compose ? compose.clientWidth - 160 : 600;
-      L.focusWidth = Math.round(Math.max(220, Math.min(maxW, start.focusWidth - dx)));
-      applyPoolLayout();
-    },
-    startVals: () => ({ focusWidth: ensurePoolLayout().focusWidth }),
-  });
-
-  // Selection frame vs matches
-  bindPoolDragResize(document.getElementById('poolSelMatchResize'), {
-    axis: 'y',
-    onMove: (dy, start) => {
-      const L = ensurePoolLayout();
-      if (L.collapsed.selection || L.collapsed.matches) return;
-      const baseH = start.selectionHeight > 0
-        ? start.selectionHeight
-        : (document.getElementById('poolFocusFrame')?.offsetHeight || 96);
-      L.selectionHeight = Math.round(Math.max(48, Math.min(280, baseH + dy)));
-      L.matchHeight = Math.round(Math.max(80, start.matchHeight - dy));
-      applyPoolLayout();
-    },
-    startVals: () => {
-      const L = ensurePoolLayout();
-      const frameEl = document.getElementById('poolFocusFrame');
-      return {
-        selectionHeight: L.selectionHeight > 0 ? L.selectionHeight : (frameEl?.offsetHeight || 0),
-        matchHeight: L.matchHeight,
-      };
-    },
-  });
-}
-
-function bindPoolDragResize(el, { axis, onMove, startVals }) {
-  if (!el) return;
-  el.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    el.setPointerCapture(e.pointerId);
-    const startPtr = axis === 'y' ? e.clientY : e.clientX;
-    const start = startVals();
-    document.body.classList.add('pool-resizing');
-
-    const onMovePtr = (ev) => {
-      const cur = axis === 'y' ? ev.clientY : ev.clientX;
-      const delta = cur - startPtr;
-      onMove(delta, start);
-    };
-    const onUp = () => {
-      el.releasePointerCapture(e.pointerId);
-      el.removeEventListener('pointermove', onMovePtr);
-      el.removeEventListener('pointerup', onUp);
-      el.removeEventListener('pointercancel', onUp);
-      document.body.classList.remove('pool-resizing');
-      scheduleSavePoolState();
-    };
-    el.addEventListener('pointermove', onMovePtr);
-    el.addEventListener('pointerup', onUp);
-    el.addEventListener('pointercancel', onUp);
-  });
-}
 
 function sequencePositions(path) {
   const out = [];
@@ -2552,4 +2380,5 @@ export {
   renderWatcherForm, renderPoolForm, renderPoolGrid,
   checkHealth, addPathsToPool,
   sendPoolPathTo, applyPoolAsInput, formatBytes,
+  ensureTileInfo,
 };
