@@ -53,23 +53,29 @@ function updateMoshParams() {
 
   if (mode === 'melt') {
     html = `
-      <div class="dream-section-title">Smear</div>
-      <div class="knob-bank">
-        ${knobUnitHtml({ id: 'moshTail', label: 'Smear tail', value: '18' })}
-      </div>
-      <p class="dream-hint">Memory length in frames. Higher = longer, gooier drips.</p>
+      <p class="dream-hint" style="margin-bottom: 12px;">Memory length in frames. Higher = longer, gooier drips.</p>
 
-      <!-- Vector Joystick Pad for Melt mode -->
-      <div class="vector-pad-wrapper" style="margin-top: 16px;">
-        <label>Mosh Dynamics (Click & Drag Joystick)</label>
-        <div class="vector-pad" id="meltPad">
-          <div class="vector-pad-crosshair-h"></div>
-          <div class="vector-pad-crosshair-v"></div>
-          <div class="vector-pad-knob" id="meltKnob"></div>
+      <!-- Melt: joystick + controls side-by-side (matches mv_hack layout) -->
+      <div style="display: flex; justify-content: center; gap: 32px; background: rgba(255, 255, 255, 0.015); border: 1px solid var(--panel-border); padding: 20px; border-radius: var(--radius-md);">
+        <!-- Vector Joystick -->
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+          <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted);">Mosh Dynamics (Joystick)</label>
+          <div class="vector-pad" id="meltPad">
+            <div class="vector-pad-crosshair-h"></div>
+            <div class="vector-pad-crosshair-v"></div>
+            <div class="vector-pad-knob" id="meltKnob"></div>
+          </div>
         </div>
-        <div class="vector-pad-values">
-          <span>Damping: <input type="text" class="pad-value-input" id="padMeltDamp" value="15%"></span>
-          <span>V-Drift: <input type="text" class="pad-value-input" id="padMeltDrift" value="5%"></span>
+
+        <!-- Knobs -->
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; justify-content: center;">
+          <div class="knob-bank" style="flex-direction: column; align-items: center; gap: 6px;">
+            ${knobUnitHtml({ id: 'moshTail', label: 'Smear tail', value: '18' })}
+          </div>
+          <div class="vector-pad-values" style="flex-direction: column; align-items: center; gap: 6px;">
+            <span style="font-size: 0.78rem; color: var(--text-muted);">Damping: <input type="text" class="pad-value-input" id="padMeltDamp" value="15%"></span>
+            <span style="font-size: 0.78rem; color: var(--text-muted);">V-Drift: <input type="text" class="pad-value-input" id="padMeltDrift" value="5%"></span>
+          </div>
         </div>
       </div>
 
