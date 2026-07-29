@@ -1,0 +1,119 @@
+
+<h2 class="sr-only">mtapi spec ideas — new and categorized</h2>
+<style>
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; padding: 1rem 0; }
+.card { background: var(--surface-2); border: 0.5px solid var(--border); border-radius: 12px; padding: 1rem 1.25rem; }
+.tag { display: inline-block; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: var(--radius); margin-bottom: 10px; }
+.tag-new { background: var(--bg-success); color: var(--text-success); }
+.tag-keep { background: var(--bg-accent); color: var(--text-accent); }
+.tag-maybe { background: var(--bg-warning); color: var(--text-warning); }
+.tag-drop { background: var(--bg-danger); color: var(--text-danger); }
+.item { font-size: 13px; color: var(--text-primary); margin: 6px 0 2px; font-weight: 500; }
+.desc { font-size: 12px; color: var(--text-secondary); margin: 0 0 6px; line-height: 1.5; }
+.badge { font-size: 10px; color: var(--text-muted); font-style: italic; }
+.section-head { font-size: 13px; font-weight: 500; color: var(--text-secondary); margin: 1.5rem 0 6px; text-transform: uppercase; letter-spacing: 0.06em; }
+</style>
+
+<div class="section-head">Glitch & video effects — add these</div>
+<div class="grid">
+  <div class="card">
+    <span class="tag tag-new">new idea</span>
+    <div class="item">pixel sort</div>
+    <div class="desc">Sort pixels by brightness/hue along scanlines or columns. Pure numpy, no AI, screams on Iris Xe. Classic glitch art staple.</div>
+    <div class="badge">overlap with ffglitch-spec — maybe merge</div>
+  </div>
+  <div class="card">
+    <span class="tag tag-new">new idea</span>
+    <div class="item">datamosh — echo / feedback</div>
+    <div class="desc">Accumulate and alpha-blend prior frames back in. Creates that melting VHS-loop aesthetic without any AI.</div>
+  </div>
+  <div class="card">
+    <span class="tag tag-new">new idea</span>
+    <div class="item">chromatic aberration</div>
+    <div class="desc">Offset R/G/B channels spatially. FFmpeg filtergraph or numpy. CPU-only, trivial, looks devastating on portraits.</div>
+  </div>
+  <div class="card">
+    <span class="tag tag-new">new idea</span>
+    <div class="item">scanline / CRT shader</div>
+    <div class="desc">Horizontal scanline overlay, optional barrel distortion and vignette. Pure image compositing. Low effort, high vibe.</div>
+  </div>
+  <div class="card">
+    <span class="tag tag-new">new idea</span>
+    <div class="item">RGB halftone</div>
+    <div class="desc">CMYK-style dot grid per channel. Looks like offset-printed misregistration. FFmpeg geq or PIL.</div>
+  </div>
+  <div class="card">
+    <span class="tag tag-new">new idea</span>
+    <div class="item">datamosh — slice jitter</div>
+    <div class="desc">Cut image/video into horizontal or vertical slices and offset them randomly. Zero AI, pure ffmpeg crop/overlay math.</div>
+  </div>
+</div>
+
+<div class="section-head">Audio-visual / sync</div>
+<div class="grid">
+  <div class="card">
+    <span class="tag tag-new">new idea</span>
+    <div class="item">beat-sync stutter</div>
+    <div class="desc">Detect onsets via librosa (CPU), cut video to repeat or freeze on transients. Looks edited by someone with taste.</div>
+    <div class="badge">librosa runs fine on this hardware</div>
+  </div>
+  <div class="card">
+    <span class="tag tag-new">new idea</span>
+    <div class="item">waveform burn-in</div>
+    <div class="desc">Render audio waveform or spectrum onto the video frame. FFmpeg's showwaves + overlay. Zero deps.</div>
+  </div>
+  <div class="card">
+    <span class="tag tag-new">new idea</span>
+    <div class="item">loudness-driven zoom</div>
+    <div class="desc">Sample RMS per frame via ffmpeg, map to scale/zoom curve, re-render. Looks reactive without needing a DJ.</div>
+  </div>
+</div>
+
+<div class="section-head">AI ops — realistic on iGPU / OpenVINO</div>
+<div class="grid">
+  <div class="card">
+    <span class="tag tag-keep">already specced</span>
+    <div class="item">inpaint</div>
+    <div class="desc">You're building this. OpenVINO LaMa or MAT. Right call.</div>
+  </div>
+  <div class="card">
+    <span class="tag tag-new">new idea</span>
+    <div class="item">anime / line art extraction</div>
+    <div class="desc">Lightweight edge/line detector (HED or DEXTR via OpenVINO) to pull clean linework from photos or video. Fast, small model.</div>
+  </div>
+  <div class="card">
+    <span class="tag tag-new">new idea</span>
+    <div class="item">palette quantization</div>
+    <div class="desc">Reduce to N colors via k-means or median cut, with optional dithering. Looks like pixel art or risograph. No AI needed, just PIL.</div>
+  </div>
+  <div class="card">
+    <span class="tag tag-maybe">maybe, test first</span>
+    <div class="item">super-res (SwinIR)</div>
+    <div class="desc">Already in your spec list. 2× upscale is plausible on Xe with OpenVINO. 4× will crawl. Limit scope or add a resolution gate.</div>
+  </div>
+  <div class="card">
+    <span class="tag tag-maybe">maybe, test first</span>
+    <div class="item">depth map → tilt-shift</div>
+    <div class="desc">MiDaS small (fast on OpenVINO) to estimate depth, then blur foreground/background separately. Fake miniature effect.</div>
+    <div class="badge">depthmap-spec exists — build on that</div>
+  </div>
+</div>
+
+<div class="section-head">Specs to reconsider or drop</div>
+<div class="grid">
+  <div class="card">
+    <span class="tag tag-drop">not artsy</span>
+    <div class="item">telemetry-spec</div>
+    <div class="desc">System infra, not a creative op. Move it to a separate admin concern, not a spec in the ops registry.</div>
+  </div>
+  <div class="card">
+    <span class="tag tag-drop">hardware wall</span>
+    <div class="item">latentmorph / VQGAN</div>
+    <div class="desc">Latent diffusion on an iGPU without CUDA is going to be a bad time. VQGAN needs serious RAM and will time out on 16GB. Kick these to a "cloud only" future phase.</div>
+  </div>
+  <div class="card">
+    <span class="tag tag-maybe">scope clarify</span>
+    <div class="item">codecview-spec</div>
+    <div class="desc">If this means visualize codec decisions (block types, motion vectors) — that's rad, keep it. If it means "just probe output" — collapse into transmute's README.</div>
+  </div>
+</div>
