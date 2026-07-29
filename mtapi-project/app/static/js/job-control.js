@@ -1,12 +1,14 @@
 import {
   state, elements,
   logConsole, basename, escapeHtml, fitPreviewViewer,
-  collectFaceMorphBody,
-  collectWithoutBgBody, collectStyleTransferBody, collectRifeBody,
   renderTabForm, bestInput,
   probeGlobalVideo, updateGlobalInputs, updateStatusIndicators,
   showPreview,
 } from '/app.js';
+import { collectFaceMorphBody } from '/js/tabs/facemorph.js';
+import { collectWithoutBgBody } from '/js/tabs/withoutbg.js';
+import { collectStyleTransferBody } from '/js/tabs/styletransfer.js';
+import { collectRifeBody } from '/js/tabs/rife.js';
 import { activeTransmuteOp, transmuteOpsDetails, activeMultiMode } from '/js/tabs/transmute.js';
 import { collectDeepDreamBody } from '/js/tabs/deepdream.js';
 // ── Job run / cooperative stop ────────────────────────────────────────────
