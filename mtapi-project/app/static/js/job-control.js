@@ -1,13 +1,14 @@
 import {
   state, elements,
   logConsole, basename, escapeHtml, fitPreviewViewer,
-  collectDeepDreamBody, collectFaceMorphBody,
+  collectFaceMorphBody,
   collectWithoutBgBody, collectStyleTransferBody, collectRifeBody,
   renderTabForm, bestInput,
   probeGlobalVideo, updateGlobalInputs, updateStatusIndicators,
   showPreview,
 } from '/app.js';
 import { activeTransmuteOp, transmuteOpsDetails, activeMultiMode } from '/js/tabs/transmute.js';
+import { collectDeepDreamBody } from '/js/tabs/deepdream.js';
 // ── Job run / cooperative stop ────────────────────────────────────────────
 // Stop is cooperative: we abort the fetch + POST /api/cancel so DeepDream
 // loops exit soon. ffmpeg/transmute mid-process may still finish the current
