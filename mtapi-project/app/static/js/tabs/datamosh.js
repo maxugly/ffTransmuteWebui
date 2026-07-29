@@ -149,9 +149,9 @@ function updateMoshParams() {
         <!-- DAW Rotary Knob -->
         <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
           <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted);">Motion Multiplier</label>
-          <div class="daw-knob" id="mvKnob">
+          <div class="daw-knob" id="mvKnob" style="width:120px;height:120px;margin:2px 0;">
             <div class="daw-knob-dial"></div>
-            <div class="daw-knob-indicator" id="mvKnobIndicator"></div>
+            <div class="daw-knob-indicator" id="mvKnobIndicator" style="height:36px;width:4px;"></div>
           </div>
           <input type="text" class="daw-knob-value-input" id="mvKnobVal" value="1.0x">
         </div>
