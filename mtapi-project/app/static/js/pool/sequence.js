@@ -2,12 +2,11 @@ import {
   state, elements,
   logConsole,
   renderPoolGrid,
-  selectPoolItem,
   sequencePositions,
-  loadPoolItemMeta,
   setPreviewAspect,
   clearPreviewAspect,
 } from '/app.js';
+import { loadPoolItemMeta, selectPoolItem } from '/js/pool/items.js';
 import { isVideoPath, basename, escapeHtml, formatDurationExact } from '/js/utils.js';
 import {
   poolThumbUrl, shortHash, _poolSeqId,
