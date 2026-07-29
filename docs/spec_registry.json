@@ -1,0 +1,275 @@
+[
+    {
+        "file": "deepdream-spec.md",
+        "path": "docs/deepdream-spec.md",
+        "category": "Operation",
+        "status": "Implemented (`deepdream_ops.py` / `deepdream_engine.py`)",
+        "summary": "Google DeepDream implementation using InceptionV3, VGG16, or ResNet50. Supports images and videos. For videos, it supports temporal blending, optical flow (DeepDreamAnim-style), and Ouroboros (feedback loop transformations like zoom/spin/translate)."
+    },
+    {
+        "file": "dynamic-mixing-spec.md",
+        "path": "docs/dynamic-mixing-spec.md",
+        "category": "Core Architecture",
+        "status": "Specification Phase",
+        "summary": "Currently, applying multiple effects (e.g., DeepDream, followed by RIFE interpolation, followed by Datamoshing) requires sequential API calls. Each call dumps a video to frames, processes them, and re-encodes back to a video. This leads to generation loss (multiple re-encodes), massive I/O overhead, and slow processing times. We need a `/ops/pipeline` endpoint that takes a list of filters, decodes the input once, pipes the frames through the filter chain in RAM, and encodes once."
+    },
+    {
+        "file": "facemorph-spec.md",
+        "path": "docs/facemorph-spec.md",
+        "category": "Operation",
+        "status": "Implemented (`facemorph_ops.py` / `facemorph_engine.py`)",
+        "summary": "Chains a series of face images into a smooth transition video using dlib's 68-point facial landmarks. Optionally applies DeepDream to the resulting video, or dreams the faces *before* morphing."
+    },
+    {
+        "file": "model-manager-spec.md",
+        "path": "docs/model-manager-spec.md",
+        "category": "Core Architecture",
+        "status": "Specification Phase",
+        "summary": "Currently, every neural operation loads its own model instance independently. `deepdream_engine` loads Inception, `styletransfer` loads Magenta, and `withoutbg` loads its own weights. If two operations run back-to-back, their respective models unload and reload, which is extremely wasteful in terms of compute, I/O, and time. Furthermore, concurrent operations risk OOM (Out Of Memory) errors because there is no unified GPU memory accounting. The Model Manager centralizes model loading, pooling, and eviction to solve these issues."
+    },
+    {
+        "file": "pipeline-spec.md",
+        "path": "docs/pipeline-spec.md",
+        "category": "Core Architecture",
+        "status": "Specification Phase",
+        "summary": "The `dump -> process -> encode` pattern is currently repeated 5 times across 3 different engines (`deepdream_engine`, `facemorph_engine`, `rife_ops`). Each engine manages its own temporary directory, its own `ffmpeg` subprocess calls, its own cleanup routines, and its own cancellation checks. This introduces severe duplication, inconsistent error handling, and disjointed API boundaries. The unified pipeline eliminates this duplication by providing a single, robust pathway."
+    },
+    {
+        "file": "rife-migration-spec.md",
+        "path": "docs/rife-migration-spec.md",
+        "category": "Core Architecture",
+        "status": "Specification Phase",
+        "summary": "Currently, `rife_ops.py` uses the deprecated `PngFramePipeline`. It performs a custom video dump, runs `rife-ncnn-vulkan` as a single subprocess over an entire directory (`-i frames_in -o frames_out`), and then manually encodes the output while dropping audio (`-an`)."
+    },
+    {
+        "file": "rife-spec.md",
+        "path": "docs/rife-spec.md",
+        "category": "Operation",
+        "status": "Implemented (`rife_ops.py`)",
+        "summary": "RIFE (Real-Time Intermediate Flow Estimation) provides state-of-the-art AI-driven frame interpolation. It is used to generate slow-motion video by synthesizing intermediate frames between existing frames (e.g., doubling or quadrupling the frame rate) while preserving motion smoothness."
+    },
+    {
+        "file": "speed-ramp-spec.md",
+        "path": "docs/speed-ramp-spec.md",
+        "category": "Operation",
+        "status": "Unknown",
+        "summary": "N/A"
+    },
+    {
+        "file": "speedchange-spec.md",
+        "path": "docs/speedchange-spec.md",
+        "category": "Operation",
+        "status": "Unknown",
+        "summary": "N/A"
+    },
+    {
+        "file": "styletransfer-spec.md",
+        "path": "docs/styletransfer-spec.md",
+        "category": "Operation",
+        "status": "Implemented (`styletransfer_ops.py` / `styletransfer_engine.py`)",
+        "summary": "Arbitrary artistic style transfer using the Magenta TF-Hub model. Applies the style of a reference image to a batch of content images."
+    },
+    {
+        "file": "withoutbg-spec.md",
+        "path": "docs/withoutbg-spec.md",
+        "category": "Operation",
+        "status": "Implemented (`withoutbg_ops.py` / `withoutbg_engine.py`)",
+        "summary": "Removes backgrounds from image batches using either local open weights or the withoutbg.com Cloud API."
+    },
+    {
+        "file": "analyzetag-spec.md",
+        "path": "docs/backlog/analyzetag-spec.md",
+        "category": "Backlog - Operation",
+        "status": "DRAFT",
+        "summary": "**Author:** m (Max) via Sprinter"
+    },
+    {
+        "file": "ascii-spec.md",
+        "path": "docs/backlog/ascii-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "N/A"
+    },
+    {
+        "file": "audio-reactive-spec.md",
+        "path": "docs/backlog/audio-reactive-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Spec Drafted (Not Implemented)",
+        "summary": "A suite of effects that manipulate video playback and visuals based on the underlying audio track's musical characteristics (beats, transients, pitch, and loudness). This turns static or linear video into a reactive, music-video-style edit automatically."
+    },
+    {
+        "file": "audioproc-spec.md",
+        "path": "docs/backlog/audioproc-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "N/A"
+    },
+    {
+        "file": "audiowave-spec.md",
+        "path": "docs/backlog/audiowave-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "Overlays a live audio visualizer directly onto a video stream, syncing automatically to the audio track. Perfect for synthwave music videos or podcast clips."
+    },
+    {
+        "file": "civitai-spec.md",
+        "path": "docs/backlog/civitai-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "N/A"
+    },
+    {
+        "file": "codecview-spec.md",
+        "path": "docs/backlog/codecview-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "N/A"
+    },
+    {
+        "file": "colorize-spec.md",
+        "path": "docs/backlog/colorize-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "Use the DDColor-Tiny Dual Decoder model to semantically colorize black and white images or videos. DDColor understands context (sky=blue, grass=green) significantly better than older GAN-based colorizers."
+    },
+    {
+        "file": "depthmap-spec.md",
+        "path": "docs/backlog/depthmap-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "Extract a grayscale depth map from a video using the MiDaS monocular depth estimation network. The result is a video where white is near and black is far, useful for generating masks, 3D parallax effects, or displacement maps."
+    },
+    {
+        "file": "facerestore-spec.md",
+        "path": "docs/backlog/facerestore-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "Uses CodeFormer to reconstruct and enhance facial details from blurry, low-resolution, or damaged images. To preserve system memory (16GB RAM constraint on Intel Xe), the pipeline detects faces first, crops them, restores the crop, and seamlessly pastes them back into the original image."
+    },
+    {
+        "file": "ffglitch-spec.md",
+        "path": "docs/backlog/ffglitch-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "N/A"
+    },
+    {
+        "file": "glitch-spec.md",
+        "path": "docs/backlog/glitch-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "These are pure Algorithmic Glitch operations. They manipulate raw pixel data using mathematics, with zero AI or neural networks. Fast, volatile, and highly aesthetic."
+    },
+    {
+        "file": "global-inputs-spec.md",
+        "path": "docs/backlog/global-inputs-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "N/A"
+    },
+    {
+        "file": "global-media-ui-spec.md",
+        "path": "docs/backlog/global-media-ui-spec.md",
+        "category": "Backlog - Frontend",
+        "status": "Unknown",
+        "summary": "A persistent, global input bar in the WebUI that holds the \"Active Media\" (file path). As the user navigates between different operation tabs (Datamosh, RIFE, Upscale, etc.), the active media travels with them. This eliminates the friction of re-selecting the same file on every tab."
+    },
+    {
+        "file": "inpaint-spec.md",
+        "path": "docs/backlog/inpaint-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "Uses the Large Mask Inpainting (LaMa) model to seamlessly remove objects, text, or scratches from images. For old photo restoration, it combines a lightweight Scratch Detection UNet to automatically generate a damage mask, which is then fed into LaMa."
+    },
+    {
+        "file": "latentmorph-spec.md",
+        "path": "docs/backlog/latentmorph-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "Morphs between two face/portrait images by encoding them both into the StyleGAN2 latent space, performing Spherical Linear Interpolation (Slerp) between their latent vectors, and decoding the intermediate vectors into a smooth video transition."
+    },
+    {
+        "file": "lineart-spec.md",
+        "path": "docs/backlog/lineart-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Spec Drafted (Not Implemented)",
+        "summary": "A lightweight AI operation that pulls clean linework from photos or videos. Unlike simple Canny edge detection, neural edge detectors (like HED or DexiNed) understand context and produce clean, continuous lines suitable for coloring, anime-style filtering, or stylized glitch overlays."
+    },
+    {
+        "file": "lut-spec.md",
+        "path": "docs/backlog/lut-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "N/A"
+    },
+    {
+        "file": "mediaexport-spec.md",
+        "path": "docs/backlog/mediaexport-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "N/A"
+    },
+    {
+        "file": "opticalflow-spec.md",
+        "path": "docs/backlog/opticalflow-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "Generate an RGB-encoded optical flow map from a video, where color (Hue) represents the direction of motion, and intensity/saturation (Value) represents the speed. Useful as a mask source or for datamosh guidance."
+    },
+    {
+        "file": "sd-tiled-upscale-spec.md",
+        "path": "docs/backlog/sd-tiled-upscale-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "Leverages Stable Diffusion (via OpenVINO `optimum-intel`) to not just upsample an image, but to *hallucinate* new fractal-like, complex details into specific regions. Instead of a dumb grid upscale, it uses semantic \"zones\" and local \"tile\" prompts to inject unique, prompt-driven details (e.g., \"micro-clockworks\" or \"petrified crustaceans\") into the image as it scales up."
+    },
+    {
+        "file": "slitscan-spec.md",
+        "path": "docs/backlog/slitscan-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "A pure FFmpeg filter chain that creates eerie time-displacement, motion trails, and temporal ghosting by blending multiple frames across time. Rather than doing heavy optical flow, it relies on temporal mixing (`tmix`) and frame blending (`tblend`) to smear motion non-destructively."
+    },
+    {
+        "file": "swinir-spec.md",
+        "path": "docs/backlog/swinir-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "Use the lightweight SwinIR transformer model to denoise and deblur images without hallucinating details (unlike ESRGAN or Diffusion). It is designed to preserve original content while cleaning up heavy compression artifacts or motion blur."
+    },
+    {
+        "file": "telemetry-spec.md",
+        "path": "docs/backlog/telemetry-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "A real-time hardware monitoring HUD for the WebUI. Because the system runs heavily optimized AI models on an integrated Intel iGPU with shared 16GB RAM, OOM (Out of Memory) crashes or aggressive swap-thrashing are the biggest risks."
+    },
+    {
+        "file": "timelapse-spec.md",
+        "path": "docs/backlog/timelapse-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "N/A"
+    },
+    {
+        "file": "upscale-spec.md",
+        "path": "docs/backlog/upscale-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "Upscale images or video frames using AI. We offer two modes:"
+    },
+    {
+        "file": "videoecho-spec.md",
+        "path": "docs/backlog/videoecho-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "Uses the FFmpeg `lagfun` filter to create phosphorescent light trails, retro CRT ghosting, and \"liquid motion\" by decaying pixel values exponentially over time."
+    },
+    {
+        "file": "vqgan-spec.md",
+        "path": "docs/backlog/vqgan-spec.md",
+        "category": "Backlog - Operation",
+        "status": "Unknown",
+        "summary": "Text-to-Surreal-Image generation using VQGAN (decoder) and CLIP. Because it relies on iterative backpropagation to optimize the latent vector, it produces organic, dream-like hallucinations as it morphs over hundreds of steps."
+    }
+]
