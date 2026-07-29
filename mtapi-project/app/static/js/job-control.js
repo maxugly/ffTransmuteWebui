@@ -6,8 +6,8 @@ import {
   renderTabForm, bestInput,
   probeGlobalVideo, updateGlobalInputs, updateStatusIndicators,
   showPreview,
-  activeTransmuteOp, transmuteOpsDetails, activeMultiMode,
 } from '/app.js';
+import { activeTransmuteOp, transmuteOpsDetails, activeMultiMode } from '/js/tabs/transmute.js';
 // ── Job run / cooperative stop ────────────────────────────────────────────
 // Stop is cooperative: we abort the fetch + POST /api/cancel so DeepDream
 // loops exit soon. ffmpeg/transmute mid-process may still finish the current
