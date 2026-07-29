@@ -209,8 +209,13 @@ async def encode(
     crf: int = 18,
     mux_audio: bool = True,
     preset: str = "fast",
+    codec: str = "libx264",
+    pix_fmt: str = "yuv420p",
 ) -> str:
     """Encode frames_out/*.png to output video. Muxes audio if available.
+
+    codec / pix_fmt are overrideable for non-standard formats
+    (e.g. libvpx-vp9 + yuva420p for WebM with alpha).
 
     Returns the output_path as a string.
     """
@@ -231,14 +236,14 @@ async def encode(
         argv.extend([
             "-i", str(workspace.audio_path),
             "-map", "0:v:0", "-map", "1:a:0?",
-            "-c:v", "libx264", "-preset", preset, "-crf", str(crf),
-            "-pix_fmt", "yuv420p",
+            "-c:v", codec, "-preset", preset, "-crf", str(crf),
+            "-pix_fmt", pix_fmt,
             "-c:a", "aac", "-b:a", "192k", "-shortest",
         ])
     else:
         argv.extend([
-            "-c:v", "libx264", "-preset", preset, "-crf", str(crf),
-            "-pix_fmt", "yuv420p",
+            "-c:v", codec, "-preset", preset, "-crf", str(crf),
+            "-pix_fmt", pix_fmt,
             "-an",
         ])
 

@@ -1,6 +1,12 @@
 """
 withoutBG operation — remove backgrounds (local open weights or Cloud API).
 
+Image mode: batch PNG/WebP output via process_many().
+Video mode: frame-by-frame via VideoPipeline + JobWorkspace →
+  cutout → WebM with VP9 + yuva420p alpha
+  mask → MP4 grayscale
+  background → MP4 RGB
+
 Knobs:
   save_cutout      — RGBA subject with transparent background
   save_mask        — grayscale alpha mask (white = subject)
@@ -16,10 +22,13 @@ from pydantic import BaseModel, Field
 
 from ..contract import OperationResult, OperationSpec, register
 from .. import job_control
+from ..pathutil import finalize_output_path
 from . import withoutbg_engine as wbe
 
 Backend = Literal["local", "api"]
 OutFmt = Literal["png", "webp"]
+
+VIDEO_EXTS = {".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi"}
 
 
 class WithoutBGParams(BaseModel):
@@ -110,7 +119,108 @@ def _collect_images_v2(p: WithoutBGParams) -> list[str]:
     return images
 
 
+async def _withoutbg_video(p: WithoutBGParams, video_path: str) -> OperationResult:
+    """Frame-by-frame background removal for video using VideoPipeline."""
+    from ..job_workspace import JobWorkspace
+    from ..video_pipeline import probe, dump, process, encode, cleanup
+    from PIL import Image as PILImage
+    import uuid
+
+    input_path = Path(video_path).expanduser().resolve()
+    out = finalize_output_path(
+        None,
+        source=input_path,
+        default_suffix="_withoutbg",
+        default_ext=".webm" if p.save_cutout else ".mp4",
+        allowed_exts=VIDEO_EXTS.union({".webm"}),
+        output_dir=p.output_dir or None,
+    )
+
+    summary = (
+        f"withoutbg video {input_path.name} "
+        f"cutout={p.save_cutout} mask={p.save_mask} bg={p.save_background} "
+        f"backend={p.backend}"
+    )
+
+    if p.dry_run:
+        return OperationResult(
+            ok=True, operation="withoutbg", output_path=str(out),
+            dry_run=True, command=summary,
+            stdout=f"{summary}\nWould process {input_path.name} frame-by-frame → {out}\n",
+        )
+
+    info = await probe(input_path)
+    if info["frame_count"] <= 0:
+        return OperationResult(
+            ok=False, operation="withoutbg",
+            error=f"Could not probe video frames", dry_run=False,
+        )
+
+    ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="withoutbg_")
+    success = False
+    logs: list[str] = [summary]
+
+    # Load model once
+    mdl = wbe._get_model(p.backend, api_key=p.api_key)
+
+    async def withoutbg_filter(input_png: Path, output_png: Path, index: int) -> None:
+        original = PILImage.open(input_png).convert("RGB")
+        rgba = mdl.remove_background(str(input_png))
+        if rgba.mode != "RGBA":
+            rgba = rgba.convert("RGBA")
+        if rgba.size != original.size:
+            rgba = rgba.resize(original.size, PILImage.Resampling.BILINEAR)
+
+        if p.save_cutout:
+            rgba.save(str(output_png))
+        elif p.save_mask:
+            mask = wbe._alpha_from_rgba(rgba)
+            mask.save(str(output_png))
+        elif p.save_background:
+            alpha = wbe._alpha_from_rgba(rgba)
+            bg = wbe._background_leftover(original, alpha)
+            bg.save(str(output_png))
+
+    try:
+        dump_info = await dump(ws, input_path)
+        logs.append(f"dump: {dump_info['frame_count']} frames")
+
+        processed = await process(ws, withoutbg_filter)
+        logs.append(f"process: {processed} frames")
+
+        codec = "libvpx-vp9" if p.save_cutout else "libx264"
+        pix_fmt = "yuva420p" if p.save_cutout else "yuv420p"
+        result_path = await encode(
+            ws, out, info["fps"],
+            codec=codec, pix_fmt=pix_fmt, mux_audio=False,
+        )
+        logs.append(f"Output: {result_path}")
+        success = True
+
+        return OperationResult(
+            ok=True, operation="withoutbg", output_path=str(out),
+            dry_run=False, command=summary, stdout="\n".join(logs),
+        )
+
+    except Exception as e:
+        return OperationResult(
+            ok=False, operation="withoutbg", error=str(e),
+            dry_run=False, command=summary, stdout="\n".join(logs), stderr=str(e),
+        )
+
+    finally:
+        await cleanup(ws, keep_on_failure=not success)
+
+
 async def withoutbg_remove(p: WithoutBGParams) -> OperationResult:
+    # ── video path ──
+    if p.input_path:
+        lines = [l.strip() for l in p.input_path.split("\n") if l.strip()]
+        if len(lines) == 1:
+            first = Path(lines[0]).expanduser()
+            if first.suffix.lower() in VIDEO_EXTS and first.is_file():
+                return await _withoutbg_video(p, lines[0])
+
     images = _collect_images_v2(p)
     if not images:
         # Check if paths were provided but missing

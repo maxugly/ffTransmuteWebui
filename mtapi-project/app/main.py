@@ -196,8 +196,8 @@ from .routes import browse
 browse.register(app)
 
 
-from .routes import media
-media.register(app, probe_fn=_probe_media_full)
+from .routes import media as media_routes
+media_routes.register(app, probe_fn=_probe_media_full)
 
 from .routes import pool
 pool.register(app, is_video_fn=_is_video_file)
