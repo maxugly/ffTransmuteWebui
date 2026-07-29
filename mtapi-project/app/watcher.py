@@ -80,8 +80,12 @@ def _load_config() -> None:
         data = json.loads(_CONFIG_PATH.read_text(encoding="utf-8"))
         with _lock:
             _state.enabled = False  # never auto-enable on process start
-            _state.in_dir = str(data.get("in_dir") or "")
-            _state.out_dir = str(data.get("out_dir") or "")
+            in_dir = str(data.get("in_dir") or "")
+            out_dir = str(data.get("out_dir") or "")
+            if in_dir and Path(in_dir).expanduser().is_dir():
+                _state.in_dir = in_dir
+            if out_dir and Path(out_dir).expanduser().is_dir():
+                _state.out_dir = out_dir
             _state.target_width = int(data.get("target_width") or 1920)
             _state.target_height = int(data.get("target_height") or 1080)
             mode = str(data.get("resize_mode") or "letterbox")
@@ -142,7 +146,6 @@ def apply_config(
             if err:
                 _state.last_error = err
                 _state.enabled = False
-                _save_config_unlocked()
                 return _state.public()
             _state.last_error = None
             _state.enabled = True
