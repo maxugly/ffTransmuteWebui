@@ -14,8 +14,7 @@
 - [x] **0.2 ES Module Entry**: `index.html` → `<script type="module" src="/js/main.js">`. ✅  
   *Verify: Cold load → health green → all tabs render → zero console errors.*
 
-- [ ] **0.3 CSS Tokens**: Extract `:root` + dependent resets to `css/base.css`. Link it first.  
-  *Verify: Hard reload → mosh + pool colors/spacing unchanged.*
+- [x] **0.3 CSS Tokens**: Extract `:root` + dependent resets to `css/base.css`. Link it first. ✅  \n  *Verify: Hard reload → mosh + pool colors/spacing unchanged.*
 
 **Phase 0 exit: nested assets work; app is a module; tokens in base.css.**
 
@@ -27,8 +26,7 @@
 
 - [x] **1.2 Datamosh Twins**: Repoint `MELT_JS` and `NO_KEYFRAME_JS` in `datamosh_ops.py` to root directory copies FIRST. Verify melt + classic on `/tmp/teste.mp4` → ok. THEN delete `bin/melt.js` and `bin/no_keyframe.js`. Never delete before repointing — that leaves a window where deploys resolve missing scripts. ✅  \n  *(Constants live in datamosh_ops.py, not shell.py. Note: datamosh.sh was consolidated; melt.js and no_keyframe.js still have bin copies pending.)*
 
-- [x] **1.3 Cancel Audit**: `check_cancelled()` added between ffgac → ffedit → encode in datamosh pipeline. ✅  
-  *Verify: Multi-image run → Stop → next file does not start; Stop during mosh → cancelled status.*
+- [x] **1.3 Cancel Audit**: `check_cancelled()` added between ffgac → ffedit → encode in datamosh pipeline, plus trim segment boundaries. ✅  \n  *Verify: Stop during mosh → cancelled status.*
 
 ---
 
