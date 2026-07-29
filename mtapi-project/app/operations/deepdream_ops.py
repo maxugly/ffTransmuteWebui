@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 
 from ..contract import OperationResult, OperationSpec, register
 from .. import job_control
-from . import deepdream_engine as eng
+from . import deepdream as eng
 
 MediaKind = Literal["auto", "image", "video"]
 LayerPreset = Literal["shallow", "mid", "deep", "classic", "full", "custom"]

@@ -1,10 +1,10 @@
 """
-Backward-compatible shim. All implementation has moved to deepdream/ sub-modules.
+DeepDream engine facade.
 
-Import from .deepdream instead of .deepdream_engine.
+Re-exports the public API from models, dream, and utils sub-modules.
+Import from here instead of deepdream_engine.
 """
-from .deepdream import *  # noqa: F401, F403, E402
-from .deepdream import (  # noqa: F401
+from .models import (  # noqa: F401
     DEFAULT_MODEL,
     FRAME_TRANSFORMS,
     IMAGE_EXTS,
@@ -26,11 +26,15 @@ from .deepdream import (  # noqa: F401
     _preprocess,
     _probe_video,
     _require_tf,
-    detect_media_kind,
+)
+from .dream import (  # noqa: F401
     dream_image,
     dream_ouroboros,
     dream_video,
     linear_blend,
-    resolve_layer_weights,
     transform_frame,
+)
+from .utils import (  # noqa: F401
+    detect_media_kind,
+    resolve_layer_weights,
 )

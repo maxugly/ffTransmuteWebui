@@ -67,6 +67,13 @@ Python pipeline around ffgac / ffedit / custom glitch JS:
 | `app/shell.py` | Subprocess helpers: `run_command`, `parse_line`, `ensure_video_output_path`, `probe_duration` |
 | `app/pathutil.py` | Never-overwrite outputs: `name.ext` → `name_0001.ext`, `name_0002.ext`… Related sets (cutout/mask/bg) share one sequence number |
 | `app/job_control.py` | Job tokens, cancel, progress polling (`X-Job-Token`, `GET /api/job/{token}`) |
+| `app/job_workspace.py` | **New.** Isolated per-job `/tmp/mtapi_jobs/{job_id}/` workspace (frames_in, frames_out, audio, metadata) |
+| `app/video_pipeline.py` | **New.** Unified probe→dump→process→encode pipeline. `filter_fn` is the only thing ops provide |
+| `app/png_pipeline.py` | **Deprecated.** Old pipeline still used by existing engines (deepdream, facemorph, rife, withoutbg, styletransfer). New ops use `VideoPipeline`+`JobWorkspace` |
+
+## Dual-path coexistence
+
+If your op uses `PngFramePipeline`, it's on the **old path**. New ops use `VideoPipeline` + `JobWorkspace`. Phase 4 will migrate engines one at a time (rife → withoutbg → styletransfer → facemorph → deepdream). Old engines remain functional during migration.
 
 ---
 

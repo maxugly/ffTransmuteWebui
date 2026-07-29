@@ -14,9 +14,9 @@ import tempfile
 from pathlib import Path
 from pydantic import BaseModel, Field
 
-from ..contract import OperationResult, OperationSpec, register
-from ..output_dir_ctx import get_output_dir
-from ..shell import run_command, BIN_DIR
+from ...contract import OperationResult, OperationSpec, register
+from ...output_dir_ctx import get_output_dir
+from ...shell import run_command, BIN_DIR
 
 CUSTOM_GLITCH_JS = str(BIN_DIR / "custom_glitch.js")
 NO_KEYFRAME_JS = str(BIN_DIR.parent.parent / "no_keyframe.js")
@@ -36,9 +36,9 @@ async def _execute_mosh_pipeline(
     end_frame: int = 999999,
     dry_run: bool = False,
 ) -> OperationResult:
-    from ..pathutil import unique_output_path
-    from ..probe import probe_duration
-    from .. import job_control
+    from ...pathutil import unique_output_path
+    from ...probe import probe_duration
+    from ... import job_control
 
     mode_names = {0: "melt", 1: "classic", 2: "destruct", 3: "mv_hack", 4: "freeze_mosh"}
     cmd = f"datamosh {mode_names.get(glitch_mode, str(glitch_mode))} params={glitch_params} -> {output_path}"
@@ -466,7 +466,8 @@ async def _trim_and_mosh(
 ) -> OperationResult:
     """Trim a portion of the video, mosh it, then reassemble with clean bookends."""
     import json
-    from ..pathutil import unique_output_path
+    from ...pathutil import unique_output_path
+    from ... import job_control
 
     mode_names = {0: "melt", 1: "classic", 2: "destruct", 3: "mv_hack", 4: "freeze_mosh"}
     cmd = f"datamosh {mode_names.get(glitch_mode, str(glitch_mode))} start={start_frame} end={end_frame} params={glitch_params} -> {output_path}"

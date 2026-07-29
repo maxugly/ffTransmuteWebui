@@ -1,4 +1,10 @@
-"""Shared dump-PNGs → process → re-encode → cleanup pipeline.
+"""Deprecated — use app/video_pipeline.py instead.
+
+This module is kept for backward compatibility with existing engines
+(deepdream, facemorph, rife, withoutbg, styletransfer). New ops should
+use VideoPipeline + JobWorkspace.
+
+Shared dump-PNGs → process → re-encode → cleanup pipeline.
 
 Every neural op does the same three ffmpeg bookends:
 1. dump input to PNG frames

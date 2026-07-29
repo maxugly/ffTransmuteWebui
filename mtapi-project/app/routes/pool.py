@@ -3,18 +3,18 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 
-from .. import media_store
+from .. import media
 
 
 def register(app: FastAPI, is_video_fn) -> None:
     @app.get("/api/pool/state", tags=["meta"])
     async def get_pool_state():
-        return media_store.load_pool_state()
+        return media.load_pool_state()
 
     @app.put("/api/pool/state", tags=["meta"])
     @app.post("/api/pool/state", tags=["meta"])
     async def put_pool_state(body: dict):
-        return await media_store.save_pool_state(body or {})
+        return await media.save_pool_state(body or {})
 
     @app.post("/api/project/save", tags=["meta"])
     async def project_save(body: dict):
@@ -22,19 +22,19 @@ def register(app: FastAPI, is_video_fn) -> None:
         if not path:
             raise HTTPException(status_code=400, detail="path is required")
         name = (body or {}).get("name")
-        return await media_store.save_project_file(path, body or {}, name=name)
+        return await media.save_project_file(path, body or {}, name=name)
 
     @app.get("/api/project/load", tags=["meta"])
     async def project_load(path: str):
-        result = media_store.load_project_file(path)
+        result = media.load_project_file(path)
         if not result.get("ok"):
             raise HTTPException(status_code=400, detail=result.get("error") or "load failed")
-        await media_store.save_pool_state(result)
+        await media.save_pool_state(result)
         return result
 
     @app.get("/api/project/last", tags=["meta"])
     async def project_last():
-        p = media_store.get_last_project_path()
+        p = media.get_last_project_path()
         return {"ok": True, "path": p}
 
     @app.get("/api/pool/match", tags=["meta"])
@@ -47,7 +47,7 @@ def register(app: FastAPI, is_video_fn) -> None:
         path_obj = Path(path).resolve()
         if not path_obj.exists() or not path_obj.is_file():
             raise HTTPException(status_code=404, detail="Query file not found")
-        result = await media_store.match_frames(
+        result = await media.match_frames(
             path_obj,
             mode=mode,
             max_distance=max_distance,

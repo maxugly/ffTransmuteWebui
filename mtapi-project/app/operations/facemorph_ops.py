@@ -192,7 +192,7 @@ async def facemorph(p: FaceMorphParams) -> OperationResult:
 
         # ── optional: dream each face first ──────────────────────────────
         if p.dream_mode == "faces_first":
-            from . import deepdream_engine as dd
+            from . import deepdream as dd
 
             tmp_dream_dir = Path(tempfile.mkdtemp(prefix="mtapi_face_dream_"))
             dreamed: list[str] = []
@@ -257,7 +257,7 @@ async def facemorph(p: FaceMorphParams) -> OperationResult:
 
         # ── optional: deepdream the morph video ──────────────────────────
         if p.dream_mode == "after":
-            from . import deepdream_engine as dd
+            from . import deepdream as dd
 
             progress_cb(
                 "DeepDream on morph video…",

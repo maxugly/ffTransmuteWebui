@@ -4,9 +4,9 @@ datamosh handler — individual mode.
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
-from ..contract import OperationResult, OperationSpec, register
-from ..output_dir_ctx import get_output_dir
-from ..pathutil import finalize_output_path
+from ...contract import OperationResult, OperationSpec, register
+from ...output_dir_ctx import get_output_dir
+from ...pathutil import finalize_output_path
 from .common import _trim_and_mosh, _execute_mosh_pipeline
 
 class DatamoshClassicParams(BaseModel):
@@ -18,7 +18,7 @@ class DatamoshClassicParams(BaseModel):
 
 
 async def datamosh_classic(p: DatamoshClassicParams) -> OperationResult:
-    from ..pathutil import finalize_output_path
+    from ...pathutil import finalize_output_path
     out = p.output_path or str(finalize_output_path(
         p.output_path, source=p.input_path, default_suffix="_classic",
         default_ext=".mp4", allowed_exts={".mp4",".mkv",".avi",".mov",".m4v",".webm"},

@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 from .contract import REGISTRY, OperationResult
 from .shell import check_tools
-from . import media_store
+from . import media
 from . import job_control
 from . import watcher as folder_watcher
 from . import operations  # noqa: F401  (side effect: populates REGISTRY)
@@ -263,7 +263,7 @@ def _make_endpoint(spec):
 
         # Track what we've done against each content-hash identity
         try:
-            await media_store.record_operation(
+            await media.record_operation(
                 _params_input_path(params),
                 operation=spec.id,
                 output_path=result.output_path,
