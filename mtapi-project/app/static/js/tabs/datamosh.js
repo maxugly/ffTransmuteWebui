@@ -237,8 +237,8 @@ function setupVectorPad() {
     const halfW = rect.width / 2;
     const halfH = rect.height / 2;
 
-    const dx = (clientX - rect.left - halfW) / halfW;
-    const dy = (clientY - rect.top - halfH) / halfH;
+    const dx = Math.max(-1, Math.min(1, (clientX - rect.left - halfW) / halfW));
+    const dy = Math.max(-1, Math.min(1, (clientY - rect.top - halfH) / halfH));
 
     updateUIFromCoords(dx, dy);
   }
@@ -331,8 +331,8 @@ function setupMeltPad() {
     const halfW = rect.width / 2;
     const halfH = rect.height / 2;
 
-    const dx = (clientX - rect.left - halfW) / halfW;
-    const dy = (clientY - rect.top - halfH) / halfH;
+    const dx = Math.max(-1, Math.min(1, (clientX - rect.left - halfW) / halfW));
+    const dy = Math.max(-1, Math.min(1, (clientY - rect.top - halfH) / halfH));
 
     const dampVal = Math.round((dx + 1) * 50);
     const driftVal = Math.round(-dy * maxDrift);

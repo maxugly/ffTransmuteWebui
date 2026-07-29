@@ -1779,7 +1779,7 @@ input.timeline-thumb[type="range"]::-moz-range-progress {
   background: rgba(255, 255, 255, 0.08);
 }
 
-.pad-value-input {
+.vector-pad-values .pad-value-input {
   font-family: 'Fira Code', monospace;
   font-size: 0.75rem;
   font-weight: 600;
@@ -1794,7 +1794,7 @@ input.timeline-thumb[type="range"]::-moz-range-progress {
   display: inline-block;
   transition: border-color 0.15s ease, background-color 0.15s ease;
 }
-.pad-value-input:focus {
+.vector-pad-values .pad-value-input:focus {
   border-color: var(--primary);
   background: rgba(255, 255, 255, 0.08);
 }
