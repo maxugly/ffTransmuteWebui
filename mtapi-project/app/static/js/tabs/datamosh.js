@@ -21,10 +21,6 @@ function renderMoshForm() {
       </select>
     </div>
 
-    <p class="field-desc" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">
-      Set input/output paths and frame range in the global bar above.
-    </p>
-
     <!-- Mode Specific Parameters -->
     <div id="moshParamsContainer">
       <!-- Injected dynamically based on selected mode -->
@@ -97,7 +93,6 @@ function updateMoshParams() {
     `;
   } else if (mode === 'hijack') {
     html = `
-      <div class="dream-section-title">Hijack</div>
       <div class="knob-bank">
         ${knobUnitHtml({ id: 'hijackSourceSelect', label: 'Source', value: 'file', binary: true, leftCap: 'Image', rightCap: 'Frame' })}
         ${knobUnitHtml({ id: 'hijackTransitionStyle', label: 'Transition', value: 'smear', binary: true, leftCap: 'Smear', rightCap: 'Freeze' })}
@@ -113,7 +108,6 @@ function updateMoshParams() {
           <input type="text" id="hijackImagePath" placeholder="/absolute/path/to/image.png">
           <button class="btn" onclick="openFileBrowser('hijackImagePath', false, 'file', 'image')">Browse</button>
         </div>
-        <span class="field-desc">Image file to inject as the starting texture.</span>
       </div>
 
       <div class="form-group" id="groupHijackFrame" style="display: none;">
