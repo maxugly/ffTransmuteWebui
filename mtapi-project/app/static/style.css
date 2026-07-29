@@ -1781,14 +1781,14 @@ input.timeline-thumb[type="range"]::-moz-range-progress {
 
 .pad-value-input {
   font-family: 'Fira Code', monospace;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-main);
   background: rgba(255, 255, 255, 0.04);
-  padding: 1px 4px;
+  padding: 1px 3px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--panel-border);
-  width: 55px;
+  width: 40px;
   text-align: center;
   outline: none;
   display: inline-block;

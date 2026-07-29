@@ -214,25 +214,17 @@ function setupVectorPad() {
   const maxVal = 20; // maximum offset mapping at edge of circle
 
   function updateUIFromCoords(dx, dy) {
-    // Clamp inside unit circle
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    let cdx = dx, cdy = dy;
-    if (dist > 1) {
-      cdx /= dist;
-      cdy /= dist;
-    }
+    knob.style.left = `${(dx + 1) * 50}%`;
+    knob.style.top = `${(dy + 1) * 50}%`;
 
-    knob.style.left = `${(cdx + 1) * 50}%`;
-    knob.style.top = `${(cdy + 1) * 50}%`;
-
-    const driftH = Math.round(cdx * maxVal);
-    const driftV = Math.round(-cdy * maxVal);
+    const driftH = Math.round(dx * maxVal);
+    const driftV = Math.round(-dy * maxVal);
 
     if (document.activeElement !== valH) {
-      valH.value = `${Math.round(-cdx * 100)}%`;
+      valH.value = `${Math.round(-dx * 100)}%`;
     }
     if (document.activeElement !== valV) {
-      valV.value = `${Math.round(-cdy * 100)}%`;
+      valV.value = `${Math.round(-dy * 100)}%`;
     }
 
     // Negated horizontal coordinate mapping for backend parity
@@ -339,14 +331,8 @@ function setupMeltPad() {
     const halfW = rect.width / 2;
     const halfH = rect.height / 2;
 
-    let dx = (clientX - rect.left - halfW) / halfW;
-    let dy = (clientY - rect.top - halfH) / halfH;
-
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > 1) {
-      dx /= dist;
-      dy /= dist;
-    }
+    const dx = (clientX - rect.left - halfW) / halfW;
+    const dy = (clientY - rect.top - halfH) / halfH;
 
     const dampVal = Math.round((dx + 1) * 50);
     const driftVal = Math.round(-dy * maxDrift);
