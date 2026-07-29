@@ -57,7 +57,7 @@ function updateMoshParams() {
 
       <!-- Melt: joystick + controls side-by-side (matches mv_hack layout) -->
       <div style="display: flex; justify-content: center; gap: 32px; background: rgba(255, 255, 255, 0.015); border: 1px solid var(--panel-border); padding: 20px; border-radius: var(--radius-md);">
-        <!-- Vector Joystick -->
+        <!-- Vector Joystick + its values -->
         <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
           <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted);">Mosh Dynamics (Joystick)</label>
           <div class="vector-pad" id="meltPad">
@@ -65,16 +65,16 @@ function updateMoshParams() {
             <div class="vector-pad-crosshair-v"></div>
             <div class="vector-pad-knob" id="meltKnob"></div>
           </div>
+          <div class="vector-pad-values">
+            <span>Damping: <input type="text" class="pad-value-input" id="padMeltDamp" value="15%"></span>
+            <span>V-Drift: <input type="text" class="pad-value-input" id="padMeltDrift" value="5%"></span>
+          </div>
         </div>
 
-        <!-- Knobs -->
-        <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; justify-content: center;">
-          <div class="knob-bank" style="flex-direction: column; align-items: center; gap: 6px;">
+        <!-- Smear tail -->
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+          <div class="knob-bank">
             ${knobUnitHtml({ id: 'moshTail', label: 'Smear tail', value: '18' })}
-          </div>
-          <div class="vector-pad-values" style="gap: 10px;">
-            <span style="font-size: 0.78rem; color: var(--text-muted);">Damping: <input type="text" class="pad-value-input" id="padMeltDamp" value="15%"></span>
-            <span style="font-size: 0.78rem; color: var(--text-muted);">V-Drift: <input type="text" class="pad-value-input" id="padMeltDrift" value="5%"></span>
           </div>
         </div>
       </div>
