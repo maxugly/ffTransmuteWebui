@@ -1,15 +1,14 @@
 import {
   state, elements,
-  basename, escapeHtml, formatDurationExact,
   logConsole,
   renderPoolGrid,
   selectPoolItem,
-  isVideoPath,
   sequencePositions,
   loadPoolItemMeta,
   setPreviewAspect,
   clearPreviewAspect,
 } from '/app.js';
+import { isVideoPath, basename, escapeHtml, formatDurationExact } from '/js/utils.js';
 import {
   poolThumbUrl, shortHash, _poolSeqId,
   scheduleSavePoolState, savePoolStateNow, refreshPoolToolbarCounts,

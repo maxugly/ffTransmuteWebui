@@ -1,4 +1,5 @@
-import { state, elements, escapeHtml } from '/app.js';
+import { state, elements } from '/app.js';
+import { escapeHtml } from '/js/utils.js';
 import { setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
 
 // ── Folder Watcher tab ────────────────────────────────────────────────────

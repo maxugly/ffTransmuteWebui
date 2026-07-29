@@ -1,10 +1,11 @@
 import {
   state, elements,
-  logConsole, basename, escapeHtml, fitPreviewViewer,
+  logConsole, fitPreviewViewer,
   renderTabForm, bestInput,
   probeGlobalVideo, updateGlobalInputs, updateStatusIndicators,
   showPreview,
 } from '/app.js';
+import { basename, escapeHtml } from '/js/utils.js';
 import { collectFaceMorphBody } from '/js/tabs/facemorph.js';
 import { collectWithoutBgBody } from '/js/tabs/withoutbg.js';
 import { collectStyleTransferBody } from '/js/tabs/styletransfer.js';

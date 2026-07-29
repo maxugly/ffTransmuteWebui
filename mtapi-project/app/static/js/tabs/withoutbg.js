@@ -1,4 +1,5 @@
-import { state, elements, escapeHtml, basename, resolveGlobalImages } from '/app.js';
+import { state, elements, resolveGlobalImages } from '/app.js';
+import { basename, escapeHtml } from '/js/utils.js';
 import { setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
 
 // ── withoutBG tab (background removal) ───────────────────────────────────

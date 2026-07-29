@@ -1,4 +1,5 @@
-import { state, elements, escapeHtml, basename, logConsole, resolveGlobalImages } from '/app.js';
+import { state, elements, logConsole, resolveGlobalImages } from '/app.js';
+import { basename, escapeHtml } from '/js/utils.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
 
 // ── Face Morph tab (facemorph package + optional DeepDream) ───────────────

@@ -1,4 +1,5 @@
 // State
+import { isVideoPath, basename, formatDurationExact, escapeHtml } from '/js/utils.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
 import { POOL_LAYOUT_DEFAULTS, VIDEO_EXTS, TILE_INFO_FIELDS, POOL_ZOOM } from '/js/pool/constants.js';
 import {
@@ -888,31 +889,6 @@ function setupTimelineSlider(hiddenStartId, hiddenEndId, defaultStart, defaultEn
 }
 
 // ─── Media Pool ───────────────────────────────────────────────────────────
-
-function isVideoPath(path) {
-  if (!path) return false;
-  const lower = path.toLowerCase();
-  return VIDEO_EXTS.some(ext => lower.endsWith(ext));
-}
-
-function basename(path) {
-  if (!path) return '';
-  const i = path.lastIndexOf('/');
-  return i >= 0 ? path.substring(i + 1) : path;
-}
-
-function formatDurationExact(seconds) {
-  if (seconds == null || isNaN(seconds)) return '—';
-  const s = Math.max(0, Number(seconds));
-  // Exact seconds with millis for short clips, 3 decimal places max
-  if (s < 60) return `${s.toFixed(3)}s`;
-  const m = Math.floor(s / 60);
-  const rem = s - m * 60;
-  if (m < 60) return `${m}m ${rem.toFixed(3)}s`;
-  const h = Math.floor(m / 60);
-  const mins = m % 60;
-  return `${h}h ${mins}m ${rem.toFixed(3)}s`;
-}
 
 function renderPoolForm() {
   const count = state.pool.items.length;
@@ -2024,14 +2000,6 @@ function refreshPoolTileOverlays() {
   });
 }
 
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
 async function loadPoolItemMeta(item, idx) {
   try {
     // ensure_thumbs=true: first open hashes + extracts frames; later is a cache hit
@@ -2994,14 +2962,13 @@ export {
   init, switchTab, renderTabForm,
   bestInput, bestOutput, resolveGlobalImage, resolveGlobalImages,
   TAB_ACCEPTS, detectFileType,
-  logConsole, fitPreviewViewer, basename, escapeHtml,
+  logConsole, fitPreviewViewer,
   probeGlobalVideo, updateGlobalInputs, updateStatusIndicators,
   showPreview,
-  selectPoolItem, isVideoPath, sequencePositions,
+  selectPoolItem, sequencePositions,
   loadPoolItemMeta, setPreviewAspect, clearPreviewAspect,
   collectFaceMorphBody,
   collectWithoutBgBody, collectStyleTransferBody, collectRifeBody,
-  formatDurationExact,
   renderFaceMorphForm,
   renderWithoutBgForm, renderStyleTransferForm, renderRifeForm,
   renderQuickTransmuteForm,
