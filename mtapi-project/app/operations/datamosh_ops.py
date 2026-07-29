@@ -33,11 +33,17 @@ async def _execute_mosh_pipeline(
     inject_image_path: str | None = None,
     inject_frame_num: int = 0,
     start_frame: int = 1,
-    end_frame: int = 999999
+    end_frame: int = 999999,
+    dry_run: bool = False,
 ) -> OperationResult:
     from ..pathutil import unique_output_path
     from ..probe import probe_duration
     from .. import job_control
+
+    mode_names = {0: "melt", 1: "classic", 2: "destruct", 3: "mv_hack", 4: "freeze_mosh"}
+    cmd = f"datamosh {mode_names.get(glitch_mode, str(glitch_mode))} params={glitch_params} -> {output_path}"
+    if dry_run:
+        return OperationResult(ok=True, operation=operation, output_path=output_path, dry_run=True, command=cmd, stdout=f"Command: {cmd}\n")
 
     # Validate input file
     if not os.path.exists(input_path):
@@ -456,10 +462,16 @@ async def _trim_and_mosh(
     end_frame: int,
     glitch_mode: int,
     glitch_params: list[int],
+    dry_run: bool = False,
 ) -> OperationResult:
     """Trim a portion of the video, mosh it, then reassemble with clean bookends."""
     import json
     from ..pathutil import unique_output_path
+
+    mode_names = {0: "melt", 1: "classic", 2: "destruct", 3: "mv_hack", 4: "freeze_mosh"}
+    cmd = f"datamosh {mode_names.get(glitch_mode, str(glitch_mode))} start={start_frame} end={end_frame} params={glitch_params} -> {output_path}"
+    if dry_run:
+        return OperationResult(ok=True, operation=operation, output_path=output_path, dry_run=True, command=cmd, stdout=f"Command: {cmd}\n")
 
     # If no trimming needed, delegate directly to the main pipeline
     if start_frame <= 1 and end_frame >= 999999:
@@ -467,6 +479,7 @@ async def _trim_and_mosh(
             operation, input_path, output_path,
             glitch_mode=glitch_mode,
             glitch_params=glitch_params,
+            dry_run=dry_run,
         )
 
     # Probe FPS
@@ -523,6 +536,7 @@ async def _trim_and_mosh(
             operation, tmp_b, tmp_moshed,
             glitch_mode=glitch_mode,
             glitch_params=glitch_params,
+            dry_run=dry_run,
         )
         if not result.ok:
             return result
@@ -617,6 +631,7 @@ class DatamoshMeltParams(BaseModel):
     vdrift: int = Field(1, description="Constant per-frame vertical push")
     start_frame: int = Field(1, ge=1, description="First frame to mosh (1 = from start)")
     end_frame: int = Field(999999, ge=1, description="Last frame to mosh (default = to end)")
+    dry_run: bool = Field(False, description="Show planned command without executing")
 
 
 async def datamosh_melt(p: DatamoshMeltParams) -> OperationResult:
@@ -637,6 +652,7 @@ async def datamosh_melt(p: DatamoshMeltParams) -> OperationResult:
         p.end_frame,
         glitch_mode=0,
         glitch_params=[p.tail, p.hdamp, p.vdrift],
+        dry_run=p.dry_run,
     )
 
 
@@ -656,6 +672,7 @@ class DatamoshClassicParams(BaseModel):
     output_path: str | None = Field(None, description="Where to write the result; auto-named if omitted")
     start_frame: int = Field(1, ge=1, description="First frame to mosh (1 = from start)")
     end_frame: int = Field(999999, ge=1, description="Last frame to mosh (default = to end)")
+    dry_run: bool = Field(False, description="Show planned command without executing")
 
 
 async def datamosh_classic(p: DatamoshClassicParams) -> OperationResult:
@@ -673,6 +690,7 @@ async def datamosh_classic(p: DatamoshClassicParams) -> OperationResult:
         p.end_frame,
         glitch_mode=1,
         glitch_params=[],
+        dry_run=p.dry_run,
     )
 
 
