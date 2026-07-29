@@ -2,7 +2,7 @@ import {
   state, elements,
   basename, escapeHtml, formatDurationExact,
   logConsole,
-  renderPoolForm, renderPoolGrid, renderSequenceBox,
+  renderPoolForm, renderPoolGrid,
 } from '/app.js';
 import { displayOpResult } from '/js/job-control.js';
 
