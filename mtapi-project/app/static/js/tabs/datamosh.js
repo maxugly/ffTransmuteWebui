@@ -72,7 +72,7 @@ function updateMoshParams() {
           <div class="knob-bank" style="flex-direction: column; align-items: center; gap: 6px;">
             ${knobUnitHtml({ id: 'moshTail', label: 'Smear tail', value: '18' })}
           </div>
-          <div class="vector-pad-values" style="flex-direction: column; align-items: center; gap: 6px;">
+          <div class="vector-pad-values" style="gap: 10px;">
             <span style="font-size: 0.78rem; color: var(--text-muted);">Damping: <input type="text" class="pad-value-input" id="padMeltDamp" value="15%"></span>
             <span style="font-size: 0.78rem; color: var(--text-muted);">V-Drift: <input type="text" class="pad-value-input" id="padMeltDrift" value="5%"></span>
           </div>
