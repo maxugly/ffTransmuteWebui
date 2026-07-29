@@ -101,6 +101,7 @@ async def _execute_mosh_pipeline(
 
         # Step 0: Handle Visual Hijack splitting & image prepending
         if inject_mode in ("file", "frame"):
+            job_control.check_cancelled()
             inject_image = inject_image_path
             
             # If extracting a frame from the input video as the source image
@@ -259,6 +260,7 @@ async def _execute_mosh_pipeline(
             
         ffgac_cmd.extend(["-f", "rawvideo", "-y", tmp_prepped])
 
+        job_control.check_cancelled()
         code_ffgac, out_ffgac, err_ffgac = await run_command(ffgac_cmd, cwd=cwd)
         if code_ffgac != 0:
             return OperationResult(
@@ -489,6 +491,7 @@ async def _trim_and_mosh(
 
     tmpdir = tempfile.mkdtemp(prefix="mtapi_trim_")
     try:
+        job_control.check_cancelled()
         # Part A: 0 to start_frame (untouched).  At frame 1 this is a
         # zero-length segment; skip it so concat never sees an empty input.
         tmp_a = None
@@ -501,6 +504,7 @@ async def _trim_and_mosh(
                 return OperationResult(ok=False, operation=operation,
                                        error=f"Part A slice failed: {err_a}")
 
+        job_control.check_cancelled()
         # Part B: start_frame to end_frame (to be moshed)
         tmp_b = os.path.join(tmpdir, "partB.mp4")
         dur_b = end_time - start_time
@@ -512,6 +516,7 @@ async def _trim_and_mosh(
             return OperationResult(ok=False, operation=operation,
                                    error=f"Part B slice failed: {err_b}")
 
+        job_control.check_cancelled()
         # Mosh part B
         tmp_moshed = os.path.join(tmpdir, "partB_moshed.mp4")
         result = await _execute_mosh_pipeline(
@@ -522,6 +527,7 @@ async def _trim_and_mosh(
         if not result.ok:
             return result
 
+        job_control.check_cancelled()
         # Part C: end_frame to end (untouched)
         tmp_c = os.path.join(tmpdir, "partC.mp4")
         ok_c, _ = await _slice_segment(
