@@ -9,7 +9,7 @@ whatever's in the registry.
 """
 from . import (  # noqa: F401
     transmute_ops,
-    datamosh_ops,
+    datamosh,
     deepdream_ops,
     facemorph_ops,
     rife_ops,
