@@ -62,14 +62,16 @@ function updateMoshParams() {
       <!-- Vector Joystick Pad for Melt mode -->
       <div class="vector-pad-wrapper" style="margin-top: 16px;">
         <label>Mosh Dynamics (Click & Drag Joystick)</label>
-        <div class="vector-pad" id="meltPad">
-          <div class="vector-pad-crosshair-h"></div>
-          <div class="vector-pad-crosshair-v"></div>
-          <div class="vector-pad-knob" id="meltKnob"></div>
-        </div>
-        <div class="vector-pad-values">
-          <span>Damping: <input type="text" class="pad-value-input" id="padMeltDamp" value="15%"></span>
-          <span>V-Drift: <input type="text" class="pad-value-input" id="padMeltDrift" value="5%"></span>
+        <div style="display: flex; align-items: center; gap: 20px;">
+          <div class="vector-pad" id="meltPad">
+            <div class="vector-pad-crosshair-h"></div>
+            <div class="vector-pad-crosshair-v"></div>
+            <div class="vector-pad-knob" id="meltKnob"></div>
+          </div>
+          <div class="vector-pad-values" style="flex-direction: column; gap: 8px;">
+            <span>Damping: <input type="text" class="pad-value-input" id="padMeltDamp" value="15%"></span>
+            <span>V-Drift: <input type="text" class="pad-value-input" id="padMeltDrift" value="5%"></span>
+          </div>
         </div>
       </div>
 

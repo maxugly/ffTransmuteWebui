@@ -1760,21 +1760,21 @@ input.timeline-thumb[type="range"]::-moz-range-progress {
 }
 
 /* Editable value fields */
-.daw-knob-value-input {
+input.daw-knob-value-input {
   font-family: 'Fira Code', monospace;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-main);
   background: rgba(255, 255, 255, 0.04);
-  padding: 2px 8px;
+  padding: 1px 3px;
   border-radius: var(--radius-sm);
   border: 1px solid var(--panel-border);
-  width: 65px;
+  width: 44px;
   text-align: center;
   outline: none;
   transition: border-color 0.15s ease, background-color 0.15s ease;
 }
-.daw-knob-value-input:focus {
+input.daw-knob-value-input:focus {
   border-color: var(--primary);
   background: rgba(255, 255, 255, 0.08);
 }
