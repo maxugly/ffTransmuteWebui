@@ -1,6 +1,22 @@
 # Phase 4.1 Spec: RIFE Migration
 
-> **Status:** Specification Phase
+> **Status:** Superseded by `rife-filter-cleanup-spec.md` + `filter-platform-spec.md`  
+> **Implemented:** directory-stage design (not pairwise FilterFn)  
+> **Target:** `app/filters/rife.py`, thin `rife_ops.py`, `pipeline_chain` directory support
+
+---
+
+## Historical note
+
+The pairwise `filter_fn` design below was implemented then replaced: one
+`rife-ncnn-vulkan -i/-o` directory pass is correct for the binary and the
+platform contract (`kind=directory`).
+
+---
+
+# (archived original text)
+
+> **Status:** Superseded  
 > **Target:** `mtapi-project/app/operations/rife_ops.py`
 
 ## 1. What Changes

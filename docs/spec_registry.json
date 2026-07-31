@@ -98,6 +98,13 @@
         "summary": "N/A"
     },
     {
+        "file": "filter-platform-spec.md",
+        "path": "docs/filter-platform-spec.md",
+        "category": "Core Architecture",
+        "status": "Active",
+        "summary": "Filter platform contract: bookends in video_pipeline/convert_presets; stages in app/filters; per_frame vs directory kinds; thin ops; PipelineChain duties. Guides migration away from all-in-one tools."
+    },
+    {
         "file": "frame-scrubber-spec.md",
         "path": "docs/frame-scrubber-spec.md",
         "category": "Frontend",
@@ -196,6 +203,20 @@
         "summary": "This specification introduces a toggle button to collapse/hide the pool grid, allowing the sequencer and preview modules to expand and fill the available height."
     },
     {
+        "file": "resolve-transcode-spec.md",
+        "path": "docs/resolve-transcode-spec.md",
+        "category": "Operation",
+        "status": "Spec ready for implementation",
+        "summary": "Convert / Export tab as user-facing bookends of shared video_pipeline (dump/encode) used by filters and PipelineChain. Encode presets (ProRes, DNxHR, H.264/AVC, HEVC, VP9, AV1, FFV1); durable frame dump/import (PNG pipeline-native + WebP/JPG/TIFF); GIF in. Engine-first in Python; optional transmute -C. Not a second ffmpeg stack."
+    },
+    {
+        "file": "rife-filter-cleanup-spec.md",
+        "path": "docs/rife-filter-cleanup-spec.md",
+        "category": "Core Architecture",
+        "status": "Implementing / Implemented with cleanup",
+        "summary": "RIFE as directory stage: single rife-ncnn-vulkan -i/-o, shared factory for /ops/rife and pipeline, drop pairwise FilterFn and legacy PngFramePipeline path."
+    },
+    {
         "file": "rife-migration-spec.md",
         "path": "docs/rife-migration-spec.md",
         "category": "Core Architecture",
@@ -206,15 +227,8 @@
         "file": "rife-spec.md",
         "path": "docs/rife-spec.md",
         "category": "Operation",
-        "status": "Implemented (`rife_ops.py`)",
-        "summary": "RIFE (Real-Time Intermediate Flow Estimation) provides state-of-the-art AI-driven frame interpolation. It is used to generate slow-motion video by synthesizing intermediate frames between existing frames (e.g., doubling or quadrupling the frame rate) while preserving motion smoothness."
-    },
-    {
-        "file": "resolve-transcode-spec.md",
-        "path": "docs/resolve-transcode-spec.md",
-        "category": "Operation",
-        "status": "Spec ready for implementation",
-        "summary": "Convert / Export tab as user-facing bookends of shared video_pipeline (dump/encode) used by filters and PipelineChain. Encode presets (ProRes, DNxHR, H.264/AVC, HEVC, VP9, AV1, FFV1); durable frame dump/import (PNG pipeline-native + WebP/JPG/TIFF); GIF in. Engine-first in Python; optional transmute -C. Not a second ffmpeg stack."
+        "status": "Implemented (directory stage, app/filters/rife.py)",
+        "summary": "RIFE frame interpolation via ncnn-vulkan directory mode. Thin op + pipeline filter share one factory."
     },
     {
         "file": "sd-tiled-upscale-spec.md",

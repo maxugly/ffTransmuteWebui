@@ -1,22 +1,41 @@
 # RIFE Frame Interpolation (AI Slow-Mo)
 
-> **Status:** Implemented (`rife_ops.py`)
+> **Status:** Implemented as **directory stage** (`app/filters/rife.py` + thin `rife_ops.py`)  
+> **Platform:** See `filter-platform-spec.md`, cleanup notes in `rife-filter-cleanup-spec.md`
 
 ## Overview
-RIFE (Real-Time Intermediate Flow Estimation) provides state-of-the-art AI-driven frame interpolation. It is used to generate slow-motion video by synthesizing intermediate frames between existing frames (e.g., doubling or quadrupling the frame rate) while preserving motion smoothness.
 
-## Pipeline Architecture
-- **Engine**: `rife-ncnn-vulkan` (external binary)
-- **Pattern**: `ffmpeg dump` → `rife-ncnn-vulkan` (directory process) → `ffmpeg encode`
-- **Class**: Uses `PngFramePipeline` for extraction and assembly.
+RIFE (Real-Time Intermediate Flow Estimation) generates intermediate frames for smooth slow-motion / higher FPS. Engine: **`rife-ncnn-vulkan`**.
 
-## Knobs & Parameters
-- `input_path`: Source video file.
-- `multiplier`: Interpolation factor (2x to 8x).
-- `model`: RIFE model variant (`rife-v4.6`, `rife-v4`, `rife-v2.4`, `rife-v2.3`).
-- `tta`: Spatial TTA mode (cleaner but slower).
-- `uhd`: UHD mode for high-res sources.
+## Architecture
 
-## Integration Notes
-- Because it relies on `rife-ncnn-vulkan` which natively processes a directory of frames, this operation aligns perfectly with our standard `PngFramePipeline`.
-- Future migration to `VideoPipeline` filter graphs will simply pass the dumped frames directory to the binary, bypassing internal FFmpeg calls.
+```text
+dump (video_pipeline) → PNG frames_in/
+        ↓
+run_rife_directory  (one binary: -i indir -o outdir -n N*M)
+        ↓
+normalize to frame_%06d.png start 0
+        ↓
+encode (video_pipeline)  fps' = fps * (out_frames / in_frames)
+```
+
+- **Not** a 1:1 `per_frame` FilterFn.
+- **Not** N subprocesses per intermediate step.
+- Same factory used by `POST /ops/rife` and `POST /ops/pipeline` filter `"rife"`.
+
+## Knobs
+
+| param | notes |
+|-------|--------|
+| `input_path` | Source video |
+| `multiplier` | 2–8 |
+| `model` | `rife-v4.6` (default), `rife-v4`, `rife-v2.4`, `rife-v2.3` |
+| `tta` | Spatial TTA (`-x`) |
+| `uhd` | UHD mode (`-u`) |
+| `dry_run` | Print plan only |
+
+## Integration
+
+- Mid-chain format: PNG `frame_%06d.png` start 0 (pipeline-native).
+- Audio muxed when present; duration preserved via fps scale.
+- Binary resolved via `PATH` or `/usr/bin/rife-ncnn-vulkan`.

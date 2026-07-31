@@ -1,6 +1,6 @@
 # Convert / Export — Codecs, Frame Folders, GIF
 
-> **Status:** Spec ready for implementation  
+> **Status:** Implemented (`convert_ops.py`, `convert_presets.py`, engine dump/encode extensions, Convert UI tab)  
 > **Nav home:** new peer tab under **Transmutations** → **Convert / Export**  
 > **Engine home:** `app/video_pipeline.py` + `JobWorkspace` (shared with filters / PipelineChain)  
 > **Not** Single-Clip Ops (geometry / extract / reverse stay there)  

@@ -1,14 +1,13 @@
 """
 Dynamic mixing pipeline — POST /ops/pipeline.
 
-Accepts an ordered list of filters applied to a single input video.
-Each filter is resolved by name from the FILTER_REGISTRY.
-Runs disk-based cascading stages via PipelineChain + JobWorkspace.
+Resolves filters from app.filters.STAGE_REGISTRY (plus local identity/deepdream
+until those move). Supports per_frame and directory stages via PipelineChain.
 """
 from __future__ import annotations
 
-import asyncio
 import shutil
+import uuid
 from pathlib import Path
 from typing import Any, Callable
 
@@ -19,28 +18,25 @@ from .. import job_control
 from ..job_workspace import JobWorkspace
 from ..pipeline_chain import PipelineChain
 from ..video_pipeline import FilterFn
-
-import uuid
-
-
-# ── filter registry ────────────────────────────────────────────────────────
-
-FILTER_REGISTRY: dict[str, Callable[..., FilterFn]] = {}
+from ..filters import get_stage_factory, list_stages
 
 
-def _register_filter(name: str, factory: Callable[..., FilterFn]) -> None:
-    FILTER_REGISTRY[name] = factory
+# Local-only factories still living here until peeled (identity, deepdream).
+# RIFE lives in app.filters.rife and is already in STAGE_REGISTRY.
+
+_LOCAL_REGISTRY: dict[str, Callable[..., Any]] = {}
 
 
-# ── identity filter ────────────────────────────────────────────────────────
+def _register_local(name: str, factory: Callable[..., Any]) -> None:
+    _LOCAL_REGISTRY[name] = factory
+
 
 async def _identity_filter(src: Path, dst: Path, index: int) -> None:
     shutil.copy2(src, dst)
 
-_register_filter("identity", lambda **kw: _identity_filter)
 
+_register_local("identity", lambda **kw: _identity_filter)
 
-# ── deepdream filter ───────────────────────────────────────────────────────
 
 def _make_deepdream_filter(**kw) -> FilterFn:
     from .deepdream.dream import dream_image
@@ -53,7 +49,6 @@ def _make_deepdream_filter(**kw) -> FilterFn:
 
     async def _filter(src: Path, dst: Path, index: int) -> None:
         nonlocal last_arr
-        # temporal blend
         curr = np.asarray(PILImage.open(src).convert("RGB"))
         dream_src = src
         if last_arr is not None and float(kw.get("temporal_blend", 1.0)) < 1.0:
@@ -68,18 +63,20 @@ def _make_deepdream_filter(**kw) -> FilterFn:
     return _filter
 
 
-_register_filter("deepdream", _make_deepdream_filter)
+_register_local("deepdream", _make_deepdream_filter)
 
 
-# ── rife filter ────────────────────────────────────────────────────────────
+def _resolve_factory(name: str) -> Callable[..., Any] | None:
+    return get_stage_factory(name) or _LOCAL_REGISTRY.get(name)
 
-_register_filter("rife", lambda **kw: None)  # placeholder — rife needs special handling
 
+def _available_filters() -> list[str]:
+    names = set(list_stages()) | set(_LOCAL_REGISTRY.keys())
+    return sorted(names)
 
-# ── pipeline params ────────────────────────────────────────────────────────
 
 class PipelineFilter(BaseModel):
-    name: str = Field(..., description="Filter name from FILTER_REGISTRY")
+    name: str = Field(..., description="Filter name from stage registry")
     params: dict[str, Any] = Field(default_factory=dict, description="Filter-specific kwargs")
 
 
@@ -89,8 +86,6 @@ class PipelineParams(BaseModel):
     filters: list[PipelineFilter] = Field(..., description="Ordered list of filters to apply")
     dry_run: bool = Field(False, description="Print planned chain without executing")
 
-
-# ── handler ────────────────────────────────────────────────────────────────
 
 async def pipeline_run(p: PipelineParams) -> OperationResult:
     input_path = Path(p.input_path).expanduser().resolve()
@@ -117,26 +112,32 @@ async def pipeline_run(p: PipelineParams) -> OperationResult:
         return OperationResult(
             ok=True, operation="pipeline", output_path=str(out),
             dry_run=True, command=summary,
-            stdout=f"Chain: {' → '.join(filter_names)}\nOutput: {out}\n",
+            stdout=(
+                f"Chain: {' → '.join(filter_names)}\n"
+                f"Available: {', '.join(_available_filters())}\n"
+                f"Output: {out}\n"
+            ),
         )
 
-    # Resolve filters
-    chain: list[tuple[str, FilterFn]] = []
-    for i, fspec in enumerate(p.filters):
-        factory = FILTER_REGISTRY.get(fspec.name)
+    chain: list[tuple[str, Any]] = []
+    for fspec in p.filters:
+        factory = _resolve_factory(fspec.name)
         if factory is None:
             return OperationResult(
                 ok=False, operation="pipeline",
-                error=f"Unknown filter: '{fspec.name}' (available: {list(FILTER_REGISTRY.keys())})",
+                error=(
+                    f"Unknown filter: '{fspec.name}' "
+                    f"(available: {_available_filters()})"
+                ),
             )
         try:
-            filter_fn = factory(**fspec.params)
+            stage_fn = factory(**fspec.params)
         except Exception as e:
             return OperationResult(
                 ok=False, operation="pipeline",
                 error=f"Failed to create filter '{fspec.name}': {e}",
             )
-        chain.append((fspec.name, filter_fn))
+        chain.append((fspec.name, stage_fn))
 
     ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="chain_")
     success = False
@@ -173,10 +174,10 @@ register(OperationSpec(
     summary="Dynamic mixing pipeline — chain multiple filters",
     description=(
         "Apply an ordered list of filters to a single input video. "
-        "Each filter processes every frame through cascading stage directories. "
-        "Available filters: " + ", ".join(FILTER_REGISTRY.keys()) + "."
+        "Supports per_frame and directory stages (e.g. rife). "
+        "Available: " + ", ".join(_available_filters()) + "."
     ),
     params_model=PipelineParams,
     handler=pipeline_run,
-    tags=["pipeline", "multi", "chain"],
+    tags=["pipeline", "multi", "chain", "filter"],
 ))
