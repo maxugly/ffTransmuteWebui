@@ -81,6 +81,7 @@ Stage kinds:
 | style transfer | `styletransfer_ops.py` + `filters/styletransfer.py` | per_frame (video) | ✅ stable |
 | RIFE | `rife_ops.py` + `filters/rife.py` | directory | ✅ stable |
 | speed ramp | `speedramp_ops.py` + `filters/speedramp.py` | directory remap | ✅ PNG remap (not setpts); audio dropped v1 |
+| zoompan (pan & zoom still→video) | `zoompan_ops.py` | — (ffmpeg crop) | ✅ image + two boxes |
 | raw transmute | `transmute_ops.py` | — | ✅ escape hatch |
 
 `PngFramePipeline` removed (raises). Spec: `docs/filter-platform-spec.md`.

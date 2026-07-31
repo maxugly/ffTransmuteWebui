@@ -32,6 +32,7 @@ import { renderWatcherForm } from '/js/tabs/watcher.js';
 import { renderConvertForm, collectConvertBody } from '/js/tabs/convert.js';
 import { renderImagePoolForm } from '/js/pool/image-pool.js';
 import { renderCutForm } from '/js/tabs/cut.js';
+import { renderZoompanForm, collectZoompanBody } from '/js/tabs/zoompan.js';
 import {
   findPoolItem, displayFocusPath, setPoolHover, clearPoolHover,
   setPoolFocus, updateSelectionHighlights, updatePoolFocusFrame,
@@ -236,6 +237,7 @@ const TAB_ACCEPTS = {
   quick:       'video',
   convert:     'any',
   cut:         'video',
+  zoompan:     'image',
 };
 
 /** Tabs that show the global frame-range row (video pipeline / mosh / convert). */
@@ -540,6 +542,7 @@ function switchTab(tab) {
   if (tab === 'advanced') title = 'Advanced (Raw CLI)';
   if (tab === 'convert') title = 'Convert / Export';
   if (tab === 'cut') title = 'Cut';
+  if (tab === 'zoompan') title = 'Pan & Zoom';
   // Library tabs: drop the big header title (sidebar already shows active item)
   if (tab === 'pool' || tab === 'sequence' || tab === 'images') title = '';
   elements.tabTitle.textContent = title;
@@ -614,6 +617,8 @@ function renderTabForm(tab) {
     renderImagePoolForm();
   } else if (tab === 'cut') {
     renderCutForm();
+  } else if (tab === 'zoompan') {
+    renderZoompanForm();
   }
 }
 import { probeGlobalVideo, setupGlobalTimeline, setupTimelineSlider } from '/js/timeline.js';

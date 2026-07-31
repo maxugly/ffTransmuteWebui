@@ -18,4 +18,5 @@ from . import (  # noqa: F401
     withoutbg_ops,
     styletransfer_ops,
     convert_ops,
+    zoompan_ops,
 )

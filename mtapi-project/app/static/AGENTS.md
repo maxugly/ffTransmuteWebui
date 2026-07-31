@@ -35,6 +35,7 @@ static/
     │   └── image-compare.js  # Shared separate/overlay/A/B dual-image compare
     ├── tabs/               # One module per major op tab
     │   ├── cut.js          # Cut host (uses image-compare; global video + range + refs)
+    │   ├── zoompan.js      # Pan & Zoom still→video (global image + boxes + image-compare)
     │   ├── convert.js
     │   ├── rife.js
     │   ├── deepdream.js
@@ -66,6 +67,7 @@ static/
 | **Image Pool** | `images` | Still library; cut refs / image ops |
 | **Sequence** | `sequence` | Stitch composer (**videos only**) |
 | **Cut** | `cut` | In/Out from **global** range + Ref A/B stills (no encode yet) |
+| **Pan & Zoom** | `zoompan` | Still → video between two AR-locked viewports (`POST /ops/zoompan`) |
 
 **Word rule:** “Media Pool” is deprecated wording. Say **Video Pool** or **Image Pool**.
 
