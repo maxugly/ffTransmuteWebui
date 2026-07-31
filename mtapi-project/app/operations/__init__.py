@@ -17,4 +17,5 @@ from . import (  # noqa: F401
     speedramp_ops,
     withoutbg_ops,
     styletransfer_ops,
+    convert_ops,
 )

@@ -29,6 +29,7 @@ import { renderStyleTransferForm, collectStyleTransferBody } from '/js/tabs/styl
 import { renderRifeForm, collectRifeBody } from '/js/tabs/rife.js';
 import { loadQuickSettings, renderQuickTransmuteForm, runQuickTransmute, quickTransmuteLabel } from '/js/tabs/quick.js';
 import { renderWatcherForm } from '/js/tabs/watcher.js';
+import { renderConvertForm, collectConvertBody } from '/js/tabs/convert.js';
 import {
   findPoolItem, displayFocusPath, setPoolHover, clearPoolHover,
   setPoolFocus, updateSelectionHighlights, updatePoolFocusFrame,
@@ -213,6 +214,7 @@ const TAB_ACCEPTS = {
   rife:        'video',
   advanced:    'video',
   quick:       'video',
+  convert:     'any',
 };
 
 // Initialize
@@ -311,6 +313,7 @@ function resolveGlobalImages() {
 async function init() {
   loadQuickSettings();
   setupGlobalTimeline();
+  setupFrameScrubber();
   setupEventListeners();
   setupPreviewConsoleResize();
   setupAllPanelResize();
@@ -467,13 +470,14 @@ function switchTab(tab) {
   if (tab === 'quick') title = 'Quick Transmute';
   if (tab === 'watcher') title = 'Folder Watcher';
   if (tab === 'advanced') title = 'Advanced (Raw CLI)';
+  if (tab === 'convert') title = 'Convert / Export';
   // Pool tab: drop the big header title (sidebar already shows active item)
-  if (tab === 'pool') title = '';
+  if (tab === 'pool' || tab === 'sequence') title = '';
   elements.tabTitle.textContent = title;
 
   // Hide Run on library / settings-only tabs
   if (elements.btnRun) {
-    elements.btnRun.style.display = (tab === 'pool' || tab === 'quick' || tab === 'watcher') ? 'none' : '';
+    elements.btnRun.style.display = (tab === 'pool' || tab === 'sequence' || tab === 'quick' || tab === 'watcher') ? 'none' : '';
   }
 
   // Stop watcher status polling when leaving the tab
@@ -482,10 +486,10 @@ function switchTab(tab) {
     state.watcher.pollTimer = null;
   }
 
-  // Pool takes most of the workspace
+  // Pool / Sequence take most of the workspace
   const appContent = document.querySelector('.app-content');
   if (appContent) {
-    appContent.classList.toggle('pool-workspace', tab === 'pool');
+    appContent.classList.toggle('pool-workspace', tab === 'pool' || tab === 'sequence');
   }
 
   // Render Form for the Tab
@@ -523,13 +527,18 @@ function renderTabForm(tab) {
     renderWatcherForm();
   } else if (tab === 'advanced') {
     renderAdvancedForm();
+  } else if (tab === 'convert') {
+    renderConvertForm();
   } else if (tab === 'pool') {
     renderPoolForm();
+  } else if (tab === 'sequence') {
+    renderSequenceForm();
   }
 }
 import { probeGlobalVideo, setupGlobalTimeline, setupTimelineSlider } from '/js/timeline.js';
+import { setupFrameScrubber, resetFrameScrubber } from '/js/frame-scrubber.js';
 import {
-  renderPoolForm, renderPoolGrid, sequencePositions,
+  renderPoolForm, renderSequenceForm, renderPoolGrid, sequencePositions,
 } from '/js/pool/grid.js';
 import {
   setPoolZoom, applyPoolZoom, setupTileInfoMenu, refreshPoolTileOverlays,

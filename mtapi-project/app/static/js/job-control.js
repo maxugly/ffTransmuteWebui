@@ -10,6 +10,7 @@ import { collectFaceMorphBody } from '/js/tabs/facemorph.js';
 import { collectWithoutBgBody } from '/js/tabs/withoutbg.js';
 import { collectStyleTransferBody } from '/js/tabs/styletransfer.js';
 import { collectRifeBody } from '/js/tabs/rife.js';
+import { collectConvertBody } from '/js/tabs/convert.js';
 import { activeTransmuteOp, transmuteOpsDetails, activeMultiMode } from '/js/tabs/transmute.js';
 import { collectDeepDreamBody } from '/js/tabs/deepdream.js';
 // ── Job run / cooperative stop ────────────────────────────────────────────
@@ -413,6 +414,11 @@ async function runActiveOperation() {
     if (!rifeBody) return;
     opId = 'rife';
     body = rifeBody;
+  } else if (tab === 'convert') {
+    const convBody = collectConvertBody();
+    if (!convBody) return;
+    opId = 'convert';
+    body = convBody;
   } else if (tab === 'advanced') {
     const input = bestInput('advInput');
     const flagsStr = document.getElementById('advFlags')?.value || '';
