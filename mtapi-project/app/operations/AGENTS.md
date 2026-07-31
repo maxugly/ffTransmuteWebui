@@ -98,7 +98,7 @@ Examples: `transmute_ops.py`, datamosh.
 | styletransfer video | ✅ per_frame; image batch on engine |
 | Convert | ✅ bookends |
 | Pipeline chain | ✅ per_frame + directory |
-| facemorph | ⚠️ multi-input peel next |
-| PngFramePipeline | deprecated — remove remaining callers |
+| facemorph | multi-source morph + encode; dream_after uses filters.deepdream |
+| PngFramePipeline | deprecated — remaining: deepdream.dream_video/ouroboros/preview, facemorph_engine encode |
 
 See `docs/filter-platform-spec.md` §8–9.

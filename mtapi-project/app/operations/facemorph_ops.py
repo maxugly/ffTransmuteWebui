@@ -1,6 +1,9 @@
 """
-Face morph operation — chain face images into a morph video.
-Optional DeepDream post-pass (dream the morph video) or dream-faces-first then morph.
+Face morph — chain face stills into a morph video (multi-source generator).
+
+Writes frames into JobWorkspace + video_pipeline.encode.
+dream_mode=after → deepdream_ops video path (filters.deepdream), not legacy PngFramePipeline.
+faces_first still uses dream_image per still before morph.
 """
 from __future__ import annotations
 

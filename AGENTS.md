@@ -75,7 +75,7 @@ Stage kinds:
 | pipeline (multi-filter chain) | `pipeline_ops.py` | registry | ✅ stable |
 | datamosh (melt, classic, …) | `datamosh` / ops | file-level | ✅ stable |
 | deepdream | `deepdream_ops.py` + `filters/deepdream.py` | per_frame (video) | ✅ stable |
-| facemorph | `facemorph_ops.py` | ⚠️ migrate | ✅ works; multi-input peel next |
+| facemorph | `facemorph_ops.py` | multi-source | ✅ morph+encode; dream_after → filters.deepdream |
 | withoutbg | `withoutbg_ops.py` + `filters/withoutbg.py` | per_frame (video) | ✅ stable |
 | style transfer | `styletransfer_ops.py` + `filters/styletransfer.py` | per_frame (video) | ✅ stable |
 | RIFE | `rife_ops.py` + `filters/rife.py` | directory | ✅ stable |
