@@ -163,6 +163,25 @@
   user-select: none;
 }
 
+/*
+ * CRITICAL: author `display: block|flex` beats the UA [hidden] rule, so a
+ * "hidden" full-bleed layer (esp. .zp-empty at z-index 5) was still painted
+ * and ate all pointer events — boxes looked dead. Force hidden off.
+ */
+.zp-stage [hidden],
+.zp-viewport [hidden],
+.zp-compare-host[hidden],
+.zp-empty[hidden],
+.zp-crop-canvas[hidden],
+.zp-ref-layer[hidden],
+.zp-ab-handle[hidden],
+.zp-layer-labels[hidden],
+.zp-box[hidden],
+.zp-full-img[hidden] {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 .zp-img,
 .zp-full-img {
   display: block;
@@ -172,6 +191,8 @@
   object-position: center;
   pointer-events: none;
   user-select: none;
+  position: relative;
+  z-index: 0;
 }
 
 /* Exact crop (Zoomed In) */
@@ -256,6 +277,8 @@
   padding: 12px;
   text-align: center;
   z-index: 5;
+  /* when visible, still don't steal events from interactive siblings if mis-shown */
+  pointer-events: none;
 }
 
 .zp-ref-row {
@@ -294,7 +317,7 @@
   font-size: 0.78rem;
 }
 
-/* Viewport box overlay */
+/* Viewport box overlay — must sit above image/canvas and receive pointers */
 .zp-box {
   position: absolute;
   box-sizing: border-box;
@@ -302,17 +325,20 @@
   background: rgba(59, 130, 246, 0.12);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.15);
   cursor: move;
-  z-index: 3;
+  z-index: 20;
+  pointer-events: auto;
+  touch-action: none;
 }
 
 .zp-box-handle {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   background: #93c5fd;
   border: 1px solid #1e3a5f;
   border-radius: 2px;
-  z-index: 4;
+  z-index: 21;
+  pointer-events: auto;
 }
 .zp-box-handle.n  { top: -5px; left: 50%; transform: translateX(-50%); cursor: n-resize; }
 .zp-box-handle.s  { bottom: -5px; left: 50%; transform: translateX(-50%); cursor: s-resize; }

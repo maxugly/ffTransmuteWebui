@@ -85,7 +85,7 @@ function ensureZoompan() {
       fps: 24,
       aspect: '16:9',
       viewModeStart: 'full',
-      viewModeEnd: 'zoomed', // end often used for match-to-ref
+      viewModeEnd: 'full', // both start in full so boxes are draggable; Zoomed In is opt-in
       compareTarget: 'end_ref',
       outputWidth: null,
       outputHeight: null,
