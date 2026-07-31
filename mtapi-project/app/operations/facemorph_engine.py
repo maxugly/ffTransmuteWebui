@@ -140,16 +140,14 @@ def morph_image_list(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     frames_per_segment = max(2, int(float(duration) * int(fps)))
+    own_frame_dir = False
     if frames_out is not None:
         frame_dir = frames_out
         frame_dir.mkdir(parents=True, exist_ok=True)
     else:
         import tempfile as _tf
-        from ..png_pipeline import PngFramePipeline
-        pipeline = PngFramePipeline(prefix="mtapi_facemorph_")
         frame_dir = Path(_tf.mkdtemp(prefix="mtapi_facemorph_"))
-        pipeline._tmpdir = str(frame_dir)
-        pipeline = pipeline
+        own_frame_dir = True
     pairs_total = len(image_files) - 1
 
     if progress_cb:
@@ -281,8 +279,8 @@ def morph_image_list(
             pairs_done += 1
 
         if total_frames < 1:
-            if frames_out is None:
-                pipeline.cleanup()
+            if own_frame_dir:
+                shutil.rmtree(frame_dir, ignore_errors=True)
             if tmp_align_dir and tmp_align_dir.is_dir():
                 shutil.rmtree(tmp_align_dir, ignore_errors=True)
             return {
@@ -357,8 +355,8 @@ def morph_image_list(
             "skipped": skipped,
             "frame_dir": str(frame_dir) if keep_frames else None,
         }
-        if not keep_frames and frames_out is None:
-            pipeline.cleanup()
+        if not keep_frames and own_frame_dir:
+            shutil.rmtree(frame_dir, ignore_errors=True)
         if tmp_align_dir and tmp_align_dir.is_dir():
             shutil.rmtree(tmp_align_dir, ignore_errors=True)
         if progress_cb:

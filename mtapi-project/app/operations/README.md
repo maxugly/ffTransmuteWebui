@@ -98,7 +98,7 @@ facemorph — multi-image chain; may need a multi-source stage kind.
 | `app/job_workspace.py` | per-job temp tree |
 | `app/video_pipeline.py` | probe / dump / process / encode |
 | `app/convert_presets.py` | encode & dump presets |
-| `app/png_pipeline.py` | **Deprecated** — do not use for new code |
+| `app/png_pipeline.py` | **Removed** (stub raises); use `video_pipeline` / `JobWorkspace` |
 
 ---
 

@@ -49,7 +49,7 @@ app/
 - **`media/`**: pool, cache, projects  
 
 ### Deprecated
-- **`png_pipeline.py`**: legacy dump/encode — do not use for new features  
+- **`png_pipeline.py`**: removed — constructing `PngFramePipeline` raises; use `video_pipeline`  
 
 ---
 

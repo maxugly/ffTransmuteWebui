@@ -51,8 +51,8 @@ mtapi-project/
    - Mid-chain: PNG `frame_%06d.png`, start **0**.  
    - Stage kinds: `per_frame` | `directory` (see filter-platform-spec).  
    - **Convert** (`/ops/convert`) = bookends UI only — codecs, frames_*, GIF. Not a place to hang neural effects.
-5. **Do not revive `PngFramePipeline` for new code**  
-   - Deprecated. Migrate remaining callers to `video_pipeline` + `JobWorkspace`.
+5. **Do not use `PngFramePipeline`**  
+   - Removed (raises). Use `video_pipeline` + `JobWorkspace`, or `dump_frames_sync` / `encode_frames_sync` for rare sync helpers.
 6. **Absolute paths** for all media I/O.
 
 ---

@@ -550,3 +550,94 @@ def _is_pipeline_pattern(images: list[Path]) -> bool:
 async def cleanup(workspace: JobWorkspace, *, keep_on_failure: bool = True) -> None:
     """Clean workspace on success, keep on failure."""
     workspace.cleanup(keep_on_failure=keep_on_failure, keep_on_success=False)
+
+
+# ── Sync helpers (engines / CLI that cannot await) ─────────────────────────
+# Prefer async dump/encode + JobWorkspace in ops. These exist so legacy sync
+# helpers (e.g. deepdream.dream_video) do not depend on PngFramePipeline.
+
+import subprocess as _subprocess
+
+
+def dump_frames_sync(
+    input_path: str | Path,
+    frames_dir: str | Path,
+    *,
+    frame_pattern: str = "frame_%06d.png",
+    start_number: int = 0,
+    vsync: int = 0,
+    fps: float | None = None,
+    audio: bool = False,
+) -> None:
+    """Synchronous ffmpeg dump into an existing directory."""
+    frames_dir = Path(frames_dir)
+    frames_dir.mkdir(parents=True, exist_ok=True)
+    argv = [
+        "ffmpeg", "-y", "-v", "error",
+        "-i", str(input_path),
+        "-fps_mode", "passthrough" if vsync == 0 else "cfr",
+        "-start_number", str(start_number),
+    ]
+    if not audio:
+        argv.append("-an")
+    if fps is not None:
+        argv.extend(["-r", str(fps)])
+    argv.append(str(frames_dir / frame_pattern))
+    r = _subprocess.run(argv, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(
+            f"ffmpeg dump failed: {(r.stderr or r.stdout or '').strip() or r.returncode}"
+        )
+
+
+def encode_frames_sync(
+    frame_dir: str | Path,
+    output_path: str | Path,
+    fps: float,
+    *,
+    frame_pattern: str = "frame_%06d.png",
+    start_number: int = 0,
+    codec: str = "libx264",
+    preset: str = "medium",
+    crf: int = 18,
+    pix_fmt: str = "yuv420p",
+    audio_from: str | Path | None = None,
+) -> None:
+    """Synchronous ffmpeg encode from a frame directory."""
+    frame_dir = Path(frame_dir)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    argv = [
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+        "-framerate", str(fps),
+        "-start_number", str(start_number),
+        "-i", str(frame_dir / frame_pattern),
+    ]
+    muxed = False
+    if audio_from and Path(audio_from).is_file():
+        has_a = _subprocess.run(
+            [
+                "ffprobe", "-v", "error", "-select_streams", "a",
+                "-show_entries", "stream=index", "-of", "csv=p=0", str(audio_from),
+            ],
+            capture_output=True, text=True,
+        )
+        if has_a.stdout.strip():
+            argv.extend([
+                "-i", str(audio_from),
+                "-map", "0:v:0", "-map", "1:a:0?",
+                "-c:v", codec, "-preset", preset, "-crf", str(crf), "-pix_fmt", pix_fmt,
+                "-c:a", "aac", "-b:a", "192k", "-shortest",
+            ])
+            muxed = True
+    if not muxed:
+        argv.extend([
+            "-an",
+            "-c:v", codec, "-preset", preset, "-crf", str(crf), "-pix_fmt", pix_fmt,
+        ])
+    argv.append(str(output_path))
+    r = _subprocess.run(argv, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(
+            f"ffmpeg encode failed: {(r.stderr or r.stdout or '').strip() or r.returncode}"
+        )

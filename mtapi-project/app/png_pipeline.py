@@ -1,214 +1,39 @@
-"""Deprecated — use app/video_pipeline.py instead.
+"""DEPRECATED — use app.video_pipeline + JobWorkspace.
 
-This module is kept for backward compatibility with existing engines
-(deepdream, facemorph, rife, withoutbg, styletransfer). New ops should
-use VideoPipeline + JobWorkspace.
+This module remains only as a thin compatibility shim:
+  - dump_sync / encode_sync re-export video_pipeline sync helpers
+  - PngFramePipeline raises if used (no new call sites)
 
-Shared dump-PNGs → process → re-encode → cleanup pipeline.
-
-Every neural op does the same three ffmpeg bookends:
-1. dump input to PNG frames
-2. (op-specific processing between dump and encode)
-3. encode processed frames back to video
-
-This class handles steps 1 + 3 + cleanup. The middle step stays in each op.
+Do not import this module in new code.
 """
 from __future__ import annotations
 
-import subprocess
-import shutil
-import tempfile
 from pathlib import Path
+from typing import Any
+
+from .video_pipeline import dump_frames_sync as dump_sync  # noqa: F401
+from .video_pipeline import encode_frames_sync as encode_sync  # noqa: F401
 
 
 class PngFramePipeline:
-    """Dump video to PNGs, then encode PNGs back to video. Do not reuse.
-
-    Usage:
-        pipeline = PngFramePipeline(prefix="rife_")
-        try:
-            frame_dir = await pipeline.dump(input_path, fps=24, vsync=0, start_number=0)
-            # ... op processes frames in frame_dir ...
-            await pipeline.encode(frame_dir, output_path, fps=48, crf=18)
-        finally:
-            pipeline.cleanup()
-    """
+    """Removed. Use JobWorkspace + video_pipeline.dump/process/encode."""
 
     def __init__(self, prefix: str = "mtapi_") -> None:
-        self._prefix = prefix
-        self._tmpdir: str | None = None
+        raise RuntimeError(
+            "PngFramePipeline is removed. Use app.job_workspace.JobWorkspace + "
+            "app.video_pipeline.dump/process/encode (or dump_frames_sync / "
+            "encode_frames_sync for sync helpers). See docs/filter-platform-spec.md."
+        )
+
+    def cleanup(self) -> None:
+        return
 
     @property
     def tmpdir(self) -> Path | None:
-        """The temp directory root (available after dump())."""
-        return Path(self._tmpdir) if self._tmpdir else None
+        return None
 
-    # ── dump ─────────────────────────────────────────────────────────
+    async def dump(self, *args: Any, **kwargs: Any) -> Path:
+        raise RuntimeError("PngFramePipeline.dump is removed")
 
-    async def dump(
-        self,
-        input_path: str | Path,
-        *,
-        fps: float | None = None,
-        vsync: int = 0,
-        start_number: int = 0,
-        frame_pattern: str = "frame_%06d.png",
-        audio: bool = False,
-    ) -> Path:
-        """ffmpeg dump: input → PNG sequence in tempdir. Returns tempdir Path."""
-        from .shell import run_command
-
-        self._tmpdir = tempfile.mkdtemp(prefix=self._prefix)
-        tmp = Path(self._tmpdir)
-        out_pattern = str(tmp / frame_pattern)
-
-        argv: list[str] = [
-            "ffmpeg", "-y",
-            "-i", str(input_path),
-            "-fps_mode", "passthrough" if vsync == 0 else "cfr",
-            "-start_number", str(start_number),
-        ]
-        if not audio:
-            argv.append("-an")
-        if fps is not None:
-            argv.extend(["-r", str(fps)])
-        argv.append(out_pattern)
-
-        code, _, stderr = await run_command(argv)
-        if code != 0:
-            shutil.rmtree(self._tmpdir, ignore_errors=True)
-            raise RuntimeError(
-                f"ffmpeg PNG dump failed (exit {code}): {stderr.strip() or 'no stderr'}"
-            )
-        return tmp
-
-    # ── encode ───────────────────────────────────────────────────────
-
-    async def encode(
-        self,
-        frame_dir: str | Path,
-        output_path: str | Path,
-        fps: float,
-        *,
-        start_number: int = 1,
-        frame_pattern: str = "frame_%06d.png",
-        codec: str = "libx264",
-        preset: str = "fast",
-        crf: int = 18,
-        pix_fmt: str = "yuv420p",
-        audio: bool = False,
-        audio_codec: str = "aac",
-        audio_bitrate: str = "192k",
-    ) -> None:
-        """ffmpeg encode: PNG sequence → video."""
-        from .shell import run_command
-
-        fdir = Path(frame_dir)
-        argv: list[str] = [
-            "ffmpeg", "-y",
-            "-framerate", str(fps),
-            "-start_number", str(start_number),
-            "-i", str(fdir / frame_pattern),
-        ]
-        if not audio:
-            argv.append("-an")
-        argv.extend([
-            "-c:v", codec,
-            "-preset", preset,
-            "-crf", str(crf),
-            "-pix_fmt", pix_fmt,
-        ])
-        if audio:
-            argv.extend(["-c:a", audio_codec, "-b:a", audio_bitrate])
-        argv.append(str(output_path))
-
-        code, _, stderr = await run_command(argv)
-        if code != 0:
-            raise RuntimeError(
-                f"ffmpeg re-encode failed (exit {code}): {stderr.strip() or 'no stderr'}"
-            )
-
-    # ── cleanup ──────────────────────────────────────────────────────
-
-    def cleanup(self) -> None:
-        """Remove tempdir. Idempotent — safe to call multiple times."""
-        if self._tmpdir is not None:
-            shutil.rmtree(self._tmpdir, ignore_errors=True)
-            self._tmpdir = None
-
-
-# ── sync wrappers (for standalone CLI scripts) ─────────────────────────
-
-def dump_sync(
-    input_path: str,
-    tmpdir: str,
-    *,
-    frame_pattern: str = "frame_%06d.png",
-    vsync: int = 0,
-    start_number: int = 0,
-    fps: float | None = None,
-    audio: bool = False,
-) -> None:
-    """Synchronous ffmpeg dump to an existing tempdir. Used by CLI scripts."""
-    argv = [
-        "ffmpeg", "-y", "-v", "error",
-        "-i", input_path,
-        "-fps_mode", "passthrough" if vsync == 0 else "cfr",
-        "-start_number", str(start_number),
-    ]
-    if not audio:
-        argv.append("-an")
-    if fps is not None:
-        argv.extend(["-r", str(fps)])
-    argv.append(str(Path(tmpdir) / frame_pattern))
-    subprocess.run(argv, check=True)
-
-
-def encode_sync(
-    frame_dir: str,
-    output_path: str,
-    fps: float,
-    *,
-    frame_pattern: str = "frame_%06d.png",
-    start_number: int = 1,
-    codec: str = "libx264",
-    preset: str = "medium",
-    crf: int = 18,
-    pix_fmt: str = "yuv420p",
-    audio: bool = False,
-    audio_from: str | None = None,
-) -> None:
-    """Synchronous ffmpeg encode. Used by CLI scripts.
-
-    If *audio_from* is set and the file has an audio stream, it will be muxed
-    into the output (matching deepdream's behaviour).
-    """
-    argv = [
-        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-        "-framerate", str(fps),
-        "-start_number", str(start_number),
-        "-i", str(Path(frame_dir) / frame_pattern),
-    ]
-
-    if audio_from and Path(audio_from).is_file():
-        has_a = subprocess.run(
-            ["ffprobe", "-v", "error", "-select_streams", "a",
-             "-show_entries", "stream=index", "-of", "csv=p=0", audio_from],
-            capture_output=True, text=True,
-        )
-        if has_a.stdout.strip():
-            argv.extend([
-                "-i", str(audio_from),
-                "-map", "0:v:0", "-map", "1:a:0?",
-                "-c:v", codec, "-preset", preset, "-crf", str(crf), "-pix_fmt", pix_fmt,
-                "-c:a", "aac", "-b:a", "192k", "-shortest",
-            ])
-            argv.append(str(output_path))
-            subprocess.run(argv, check=True)
-            return
-
-    if not audio:
-        argv.append("-an")
-    argv.extend(["-c:v", codec, "-preset", preset, "-crf", str(crf), "-pix_fmt", pix_fmt])
-    argv.append(str(output_path))
-    subprocess.run(argv, check=True)
+    async def encode(self, *args: Any, **kwargs: Any) -> str:
+        raise RuntimeError("PngFramePipeline.encode is removed")

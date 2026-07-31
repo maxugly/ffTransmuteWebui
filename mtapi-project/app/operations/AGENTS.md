@@ -99,6 +99,6 @@ Examples: `transmute_ops.py`, datamosh.
 | Convert | ✅ bookends |
 | Pipeline chain | ✅ per_frame + directory |
 | facemorph | multi-source morph + encode; dream_after uses filters.deepdream |
-| PngFramePipeline | deprecated — remaining: deepdream.dream_video/ouroboros/preview, facemorph_engine encode |
+| PngFramePipeline | **removed** (class raises); sync helpers live on `video_pipeline` |
 
 See `docs/filter-platform-spec.md` §8–9.

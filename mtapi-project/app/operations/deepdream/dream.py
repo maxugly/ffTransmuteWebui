@@ -65,10 +65,7 @@ def dream_image(
     input_path = Path(input_path)
     preview_tmp = None
     if preview_width and int(preview_width) > 0:
-        from ...png_pipeline import PngFramePipeline, dump_sync, encode_sync  # noqa: F811
-        pipeline = PngFramePipeline(prefix="mtapi_prev_")
         work = Path(_tf.mkdtemp(prefix="mtapi_prev_"))
-        pipeline._tmpdir = str(work)
         preview_tmp = work
         input_path = _maybe_preview_resize(input_path, int(preview_width), work)
         if progress_cb and input_path.name.startswith("_preview_"):
@@ -266,7 +263,7 @@ def dream_image(
         return output_path
     finally:
         if preview_tmp is not None:
-            pipeline.cleanup()
+            shutil.rmtree(preview_tmp, ignore_errors=True)
 
 
 # ── temporal helpers ───────────────────────────────────────────────────────
@@ -415,6 +412,13 @@ def dream_video(
     image_kwargs: dict[str, Any] | None = None,
     progress_cb=None,
 ) -> Path:
+    """Sync video dream path using video_pipeline dump/encode helpers.
+
+    Prefer deepdream_ops video path (async filters.deepdream) for new callers.
+    """
+    from ...video_pipeline import dump_frames_sync, encode_frames_sync
+    from ... import job_control
+
     input_path = Path(input_path)
     output_path = Path(output_path)
     image_kwargs = dict(image_kwargs or {})
@@ -440,13 +444,10 @@ def dream_video(
     meta = _probe_video(input_path)
     fps = meta.get("fps") or 25.0
 
-    from ...png_pipeline import PngFramePipeline, dump_sync, encode_sync
-    pipeline = PngFramePipeline(prefix="mtapi_dream_")
     work = Path(_tf.mkdtemp(prefix="mtapi_dream_"))
-    pipeline._tmpdir = str(work)
     try:
-        frames_dir = work / "frames"
-        dream_dir = work / "dream"
+        frames_dir = work / "frames_in"
+        dream_dir = work / "frames_out"
         seed_dir = work / "seed"
         frames_dir.mkdir()
         dream_dir.mkdir()
@@ -454,16 +455,16 @@ def dream_video(
 
         if progress_cb:
             progress_cb("extracting frames…", phase="extract", current=0, total=0, unit="frames")
-        dump_sync(str(input_path), str(frames_dir), frame_pattern="f_%06d.png")
+        dump_frames_sync(input_path, frames_dir, frame_pattern="frame_%06d.png", start_number=0)
 
-        frames = sorted(frames_dir.glob("f_*.png"))
+        frames = sorted(frames_dir.glob("frame_*.png"))
         if not frames:
             raise RuntimeError("No frames extracted from video")
 
         if max_frames and max_frames > 0:
+            for fr in frames[int(max_frames):]:
+                fr.unlink(missing_ok=True)
             frames = frames[: int(max_frames)]
-
-        from ... import job_control
 
         last_dream: Path | None = None
         last_dream_arr = None
@@ -536,9 +537,11 @@ def dream_video(
                 total=to_process if total else 0,
                 unit="frames",
             )
-        encode_sync(str(dream_dir), str(output_path), fps,
-                    frame_pattern="f_%06d.png", preset="medium",
-                    audio_from=str(input_path) if keep_audio else None)
+        encode_frames_sync(
+            dream_dir, output_path, fps,
+            frame_pattern="frame_%06d.png", start_number=0, preset="medium",
+            audio_from=str(input_path) if keep_audio else None,
+        )
         if progress_cb:
             progress_cb(
                 "video complete",
@@ -549,7 +552,7 @@ def dream_video(
             )
         return output_path
     finally:
-        pipeline.cleanup()
+        shutil.rmtree(work, ignore_errors=True)
 
 
 # ── dream_ouroboros ────────────────────────────────────────────────────────
@@ -576,18 +579,16 @@ def dream_ouroboros(
     length = max(1, int(length))
     fps = float(fps) if fps and fps > 0 else 30.0
 
-    from ...png_pipeline import PngFramePipeline, dump_sync, encode_sync
-    pipeline = PngFramePipeline(prefix="mtapi_ouro_")
+    from ...video_pipeline import encode_frames_sync
+    from ... import job_control
+
     work = Path(_tf.mkdtemp(prefix="mtapi_ouro_"))
-    pipeline._tmpdir = str(work)
     try:
-        dream_dir = work / "dream"
+        dream_dir = work / "frames_out"
         dream_dir.mkdir()
         seed = work / "seed.png"
         with Image.open(input_path) as im:
             im.convert("RGB").save(seed)
-
-        from ... import job_control
 
         current = seed
         for i in range(length):
@@ -612,7 +613,7 @@ def dream_ouroboros(
                         unit="frames",
                     )
 
-            out_fr = dream_dir / f"f_{i:06d}.png"
+            out_fr = dream_dir / f"frame_{i:06d}.png"
             dream_image(current, out_fr, progress_cb=ouro_inner, **image_kwargs)
 
             if i + 1 < length and frame_transform and frame_transform != "none":
@@ -641,9 +642,10 @@ def dream_ouroboros(
                 total=length,
                 unit="frames",
             )
-        encode_sync(str(dream_dir), str(output_path), fps,
-                    frame_pattern="f_%06d.png", preset="medium",
-                    audio_from=None)
+        encode_frames_sync(
+            dream_dir, output_path, fps,
+            frame_pattern="frame_%06d.png", start_number=0, preset="medium",
+        )
         if progress_cb:
             progress_cb(
                 "ouroboros complete",
@@ -654,4 +656,4 @@ def dream_ouroboros(
             )
         return output_path
     finally:
-        pipeline.cleanup()
+        shutil.rmtree(work, ignore_errors=True)
