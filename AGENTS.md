@@ -36,21 +36,53 @@ Agents operating at this level are responsible for top-level repository integrit
 3. **`mtapi-project`**:
    - Python 3.10+ FastAPI server exposing every operation as a typed HTTP endpoint.
    - Hosts `app/static/index.html` (the web application).
-   - Operations follow a unified pipeline: **dump PNGs → tool → re-encode**. This pattern is used by deepdream, facemorph, withoutbg, style transfer, RIFE, and speed ramp.
+   - **Frame effects** use the filter platform (see below). **Codec / frame-folder I/O** use Convert/Export. **Geometry / datamosh** remain CLI wrappers where appropriate.
+
+### Filter platform (canonical for frame effects)
+
+Authoritative detail: `docs/filter-platform-spec.md`.
+
+```text
+dump (video_pipeline)  →  stage(s) in app/filters/*  →  encode (video_pipeline + convert_presets)
+         ▲                          ▲                              ▲
+    bookends only            effect only                     bookends only
+```
+
+| Layer | Location | Owns |
+|-------|----------|------|
+| Bookends | `app/video_pipeline.py`, `app/convert_presets.py` | probe, dump, load frames, encode presets |
+| Workspace | `app/job_workspace.py` | per-job `frames_in` / `frames_out` / audio |
+| Chain | `app/pipeline_chain.py`, `POST /ops/pipeline` | dump once → stages → encode once |
+| Stages | `app/filters/*` | **only** frame transforms (`per_frame` or `directory`) |
+| Thin ops | `app/operations/*_ops.py` | params + bookends + `OperationResult` |
+| Convert UI | `POST /ops/convert`, Convert / Export tab | user-facing dump/encode only (no filters) |
+
+**Do not** grow new all-in-one ops that each reimplement dump/encode.  
+**Do not** paste filter logic into both `*_ops.py` and `pipeline_ops.py` — one factory in `app/filters/`.
+
+Stage kinds:
+
+- **`per_frame`**: 1:1 `async (in_png, out_png, index)` — DeepDream video, withoutbg (target), style (target)
+- **`directory`**: one call `(src_dir, dst_dir)` — RIFE (whole-folder binary)
+- **File-level** (out of chain): datamosh / ffglitch on encoded bitstreams
 
 ### Operation Registry (active ops)
 
-| op | file | status |
-|----|------|--------|
-| transmute (geometry, extract, join, grid) | `transmute_ops.py` | ✅ stable |
-| datamosh (melt, classic) | `datamosh_ops.py` | ✅ stable |
-| deepdream | `deepdream_ops.py` | ✅ stable |
-| facemorph | `facemorph_ops.py` | ✅ stable |
-| withoutbg | `withoutbg_ops.py` | ✅ stable (video mode spec'd) |
-| style transfer | `styletransfer_ops.py` | ✅ stable |
-| RIFE interpolation | `rife_ops.py` | ✅ stable in 000.000.3.0 |
-| speed ramp | `speedramp_ops.py` + `speedramp_png.py` | ⚠️ in progress |
-| raw transmute | `transmute_ops.py` | ✅ escape hatch |
+| op | file | filter stage | status |
+|----|------|--------------|--------|
+| transmute (geometry, extract, join, grid) | `transmute_ops.py` | — (CLI) | ✅ stable |
+| convert / export (codecs, frames_*, GIF) | `convert_ops.py` + `convert_presets.py` | bookends | ✅ stable |
+| pipeline (multi-filter chain) | `pipeline_ops.py` | registry | ✅ stable |
+| datamosh (melt, classic, …) | `datamosh` / ops | file-level | ✅ stable |
+| deepdream | `deepdream_ops.py` + `filters/deepdream.py` | per_frame (video) | ✅ stable |
+| facemorph | `facemorph_ops.py` | ⚠️ migrate | ✅ works; not yet thin stage |
+| withoutbg | `withoutbg_ops.py` | ⚠️ migrate | ✅ works; peel next |
+| style transfer | `styletransfer_ops.py` | ⚠️ migrate | ✅ works; peel next |
+| RIFE | `rife_ops.py` + `filters/rife.py` | directory | ✅ stable |
+| speed ramp | `speedramp_ops.py` + `speedramp_png.py` | ⚠️ in progress | |
+| raw transmute | `transmute_ops.py` | — | ✅ escape hatch |
+
+Cleanup queue (focus future work): withoutbg → styletransfer → facemorph → delete remaining `PngFramePipeline` uses. Spec: `docs/filter-platform-spec.md` §9.
 
 ---
 
@@ -66,8 +98,10 @@ When modifying files at the root level or coordinating changes across components
    - Subprocess invocations in Python MUST use `create_subprocess_exec` with explicit `argv` lists. NEVER use `shell=True` or string interpolation to execute shell commands.
 4. **No External Framework Dependencies on Frontend**:
    - The WebUI in `mtapi-project/app/static` uses vanilla HTML5, CSS3, and JavaScript (ES6+). Do NOT introduce npm/webpack/React/Tailwind dependencies unless explicitly requested.
-5. **Unified Pipeline Pattern**:
-   - New neural/video ops follow: ffmpeg dump PNGs → tool/engine processes frames → ffmpeg re-encode. Never invent a new I/O pattern.
+5. **Unified Pipeline Pattern (filter platform)**:
+   - Frame effects: **dump → stage(s) → encode** via `video_pipeline` + `app/filters/*`. Mid-chain format: PNG `frame_%06d.png`, start_number **0**.
+   - Never invent a second dump/encode stack inside an op. Convert presets live in `convert_presets.py`.
+   - Geometry stays on `transmute` CLI; Resolve intermediates / delivery codecs / frame folders stay on **Convert**, not ad-hoc ffmpeg in neural ops.
 6. **Version Bumping**:
    - Bump far-right DD in VERSION for each feature (000.000.X.DD). Commit + push per change.
    - Bump third segment (000.000.X.0) for significant releases (new ops, major UI additions).
@@ -89,11 +123,24 @@ When modifying files at the root level or coordinating changes across components
    ```
 
 ### B. Adding a New Operation
-1. Create `mtapi-project/app/operations/<name>_ops.py` following the Pydantic + async handler + register() pattern.
-2. Add import to `mtapi-project/app/operations/__init__.py`.
-3. Add UI entry in `mtapi-project/app/static/app.js`.
-4. Update this AGENTS.md ops registry table.
-5. Bump VERSION (far-right DD).
+
+**Frame effect (neural / per-frame / directory tool)** — preferred path:
+
+1. Add stage factory under `mtapi-project/app/filters/<name>.py` with correct `kind` (`per_frame` or `directory`). Register via `register_stage`.
+2. Thin `*_ops.py`: dump → stage → encode (or call pipeline); return `OperationResult`.
+3. Ensure `/ops/pipeline` can resolve the same factory (no paste).
+4. Import ops module in `operations/__init__.py`; UI tab if needed.
+5. Update this registry table + `docs/filter-platform-spec.md` if new stage kind.
+6. Bump VERSION (far-right DD).
+
+**CLI wrapper (geometry / file-level glitch)** — still valid:
+
+1. `*_ops.py` + Pydantic + `register(OperationSpec)` → shell via `run_command`.
+2. Import in `__init__.py`; UI; registry table; VERSION.
+
+**Bookends only (new codec / dump format)**: extend `convert_presets.py` + Convert UI — not a new neural op.
+
+Canonical docs: `docs/filter-platform-spec.md`, `docs/resolve-transcode-spec.md`, `mtapi-project/app/operations/README.md`.
 
 ### C. Your Role
 

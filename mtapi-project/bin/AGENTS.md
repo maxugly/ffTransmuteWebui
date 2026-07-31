@@ -5,19 +5,20 @@
 
 ---
 
-## 🎯 1. Mission & Operational Rules
+## 1. Mission & Operational Rules
 
-Scripts in this directory interface directly with video processing binaries (`ffmpeg`, `ffgac`, `ffedit`).
+Scripts here interface with `ffmpeg` / ffglitch for **geometry CLI** and related tools.  
+**Frame effects and Convert/Export codecs** live in Python (`app/video_pipeline`, `app/filters`, `app/convert_presets`) — do not reimplement neural dump/encode or ProRes/DNxHR tables in bash unless product asks for offline CLI parity.
 
 Agents modifying binaries in `bin` MUST enforce:
-- **Root scripts are authoritative**: Scripts in `bin/` are for the API. Root scripts are the single source of truth. `bin/datamosh.sh` was removed (consolidated) — the API now uses the root copy directly via `shell.py:DATAMOSH`.
+- **Root scripts are authoritative**: `bin/transmute` must stay in sync with repo-root `transmute` when CLI flags change. Datamosh uses root `datamosh.sh` via `shell.py:DATAMOSH`.
 - **Stdout Protocol Integrity**:
   - `transmute` MUST always output:
     `Output: <target_output_filepath>`
     `Command: <full_ffmpeg_command>`
-    This output format is parsed by Python (`app/shell.py:parse_line`).
+    Parsed by Python (`app/shell.py:parse_line`).
 - **ffglitch Feature Exclusivity**:
-  - In `custom_glitch.js`, requesting multiple features simultaneously in `args.features` (e.g. `['mv', 'q_dct']`) causes `ffedit` to fail. Request ONLY the required feature per execution mode.
+  - In glitch JS, request ONLY the required `args.features` feature per mode (e.g. do not combine incompatible `mv` + `q_dct`).
 
 ---
 

@@ -1,104 +1,118 @@
 # AGENTS.md — mtapi-project Backend & Web Server Agent Directives
 
-> **Scope**: Subdirectory `/home/m/snc/cod/ffTransmuteWebui/mtapi-project`
+> **Scope**: Subdirectory `/home/m/snc/cod/ffTransmuteWebui/mtapi-project`  
 > **Audience**: Autonomous AI Agents working on the FastAPI app, dependencies, and execution entrypoints.
 
 ---
 
-## 🎯 1. Mission & Purpose
+## 1. Mission & Purpose
 
-`mtapi-project` transforms CLI-based video rendering tools into a typed, RESTful HTTP microservice. It serves an interactive single-page Web application, exposes machine-readable OpenAPI specifications (`/openapi.json`), handles asynchronous subprocess execution, and manages a persistent media cache.
+`mtapi-project` transforms CLI video tools and neural/frame pipelines into a typed REST microservice. It serves the vanilla SPA WebUI, OpenAPI (`/openapi.json`), async jobs (cancel/progress), media pool/cache, and the **filter platform** (dump → stages → encode).
 
 ---
 
-## 📁 2. Directory Architecture
+## 2. Directory Architecture
 
 ```
 mtapi-project/
-├── run.py                 # Server startup (uvicorn :24590; sets TFHUB_CACHE_DIR)
-├── requirements.txt       # fastapi, TF, dlib, withoutbg, tensorflow-hub, …
-├── README.md              # API overview
+├── run.py                 # uvicorn :24590; TFHUB_CACHE_DIR etc.
+├── requirements.txt
+├── VERSION                # (repo root VERSION is authoritative for bumps)
 ├── AGENTS.md              # This file
 ├── app/
-│   ├── job_control.py     # Cancel + progress for long ops
-│   ├── pathutil.py        # Sequential never-overwrite output paths
-│   ├── operations/        # transmute, datamosh, deepdream, facemorph, withoutbg, styletransfer
-│   └── static/            # WebUI
-└── bin/                   # transmute, datamosh.sh, ffglitch JS
+│   ├── main.py            # Dynamic /ops/* from REGISTRY; media; static
+│   ├── contract.py        # OperationResult / OperationSpec
+│   ├── shell.py           # run_command (argv only, never shell=True)
+│   ├── video_pipeline.py  # probe, dump, process, encode  ← BOOKENDS
+│   ├── convert_presets.py # Encode/dump presets for Convert + encode()
+│   ├── job_workspace.py   # /tmp/mtapi_jobs/{id}/ frames_in|out
+│   ├── pipeline_chain.py  # Multi-stage chain (per_frame + directory)
+│   ├── filters/           # Stage factories only (rife, deepdream, …)
+│   ├── operations/        # Thin HTTP ops + engines still migrating
+│   ├── media/             # Cache, pool, thumbs, projects
+│   └── static/            # WebUI (tabs: convert, rife, deepdream, pool, …)
+└── bin/                   # transmute copy for API (keep in sync with root)
 ```
 
----
-
-## 🔒 3. Architectural Rules & Invariants
-
-1. **Self-Contained Binaries**:
-   - `app/shell.py` resolves CLI tools from `mtapi-project/bin/` by default (configurable via `MTAPI_BIN_DIR`).
-   - Binaries in `bin/` MUST maintain operational parity with root CLI scripts.
-2. **Unified Response Model**:
-   - Every operation endpoint MUST return an instance of `OperationResult` (`app/contract.py`).
-   - Operational failures (e.g., ffmpeg error, bad input format) MUST return HTTP status `200 OK` with `"ok": false` and error details in `error` / `stderr`. HTTP 4xx/5xx is reserved strictly for malformed client requests or unhandled server crashes.
-3. **No Direct Subprocess Spawning in `main.py`**:
-   - Subprocess creation for operations must be routed through `app/shell.py:run_command` or dedicated operation handlers in `app/operations/`.
+**Read first for frame work:** repo `docs/filter-platform-spec.md` and `docs/resolve-transcode-spec.md`.
 
 ---
 
-## 🛠️ 4. Common Agent Tasks & Workflows
+## 3. Architectural Rules & Invariants
 
-### Builder Agents
+1. **Self-Contained Binaries**  
+   - CLI tools default to `bin/` via `MTAPI_BIN_DIR` / `shell.py`. Keep `bin/transmute` in parity with root when changing transmute.
+2. **Unified Response Model**  
+   - Ops return `OperationResult`. Operational failures: HTTP **200** + `"ok": false`. 4xx/5xx only for bad requests / crashes.
+3. **No subprocess in `main.py`**  
+   - Use `shell.run_command` or op handlers.
+4. **Filter platform (mandatory for new frame effects)**  
+   - Stages live in `app/filters/`. Ops are thin bookends.  
+   - One factory shared by named op and `POST /ops/pipeline`.  
+   - Mid-chain: PNG `frame_%06d.png`, start **0**.  
+   - Stage kinds: `per_frame` | `directory` (see filter-platform-spec).  
+   - **Convert** (`/ops/convert`) = bookends UI only — codecs, frames_*, GIF. Not a place to hang neural effects.
+5. **Do not revive `PngFramePipeline` for new code**  
+   - Deprecated. Migrate remaining callers to `video_pipeline` + `JobWorkspace`.
+6. **Absolute paths** for all media I/O.
 
-Two autonomous coding agents available for implementation work. Both read
-AGENTS.md and follow the same rules. Use one per session — do not run both
-on the same file at the same time.
+---
 
-| Agent | CLI | Browser tools | How to launch |
-|-------|-----|---------------|---------------|
-| **CodeWhale** | `codewhale` (TUI) | Playwright MCP (`mcp_mcp_browser_*`) | `codewhale` in terminal, paste prompt |
-| **OpenCode** | `opencode` (TUI) | Playwright MCP | `opencode` in terminal, paste prompt |
+## 4. Common Agent Tasks
 
-Extraction prompts work with either agent. For browser smoke tests, use the
-agent's native Playwright MCP tools — never `web.run` or `web_search`.
+### Builder agents
 
-### A. Running the Server
+| Agent | CLI | Browser |
+|-------|-----|---------|
+| **CodeWhale** | `codewhale` | Playwright MCP |
+| **OpenCode** | `opencode` | Playwright MCP |
+
+One agent per file at a time. Never use `web_search` / `web.run` for localhost WebUI tests.
+
+### A. Run the server
+
 ```bash
-# Prefer venv
 .venv/bin/python run.py
-
-# Live-reloading development mode
+# or
 .venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 24590
 ```
 
-### B. Checking System Health & Tool Availability
-Call `GET /health` for ffmpeg/ffglitch binaries. Neural ops also need packages in
-`requirements.txt` (and first-run model downloads for withoutbg / TF-Hub style).
+### B. Health
 
-### C. New neural / image ops
-Follow `operations/README.md`: engine + ops + `__init__.py` import + optional UI tab.
-Always resolve final write paths with `pathutil.unique_output_path` (or
-`unique_related_paths` for multi-file outputs).
+`GET /health` — ffmpeg / ffglitch. Neural ops need `requirements.txt` packages.
 
----
+### C. New frame-effect op (preferred)
 
-## 🔒 5. WebUI Testing (MANDATORY — DO NOT DEVIATE)
+1. `app/filters/<name>.py` — `register_stage` + factory (`kind` set on callable).  
+2. Thin `operations/<name>_ops.py` — dump → stage → encode.  
+3. Import in `operations/__init__.py`.  
+4. Optional UI tab under `static/js/tabs/`.  
+5. Smoke `/tmp/teste.mp4` (and pipeline one-stage if registered).  
+6. Bump root `VERSION` far-right DD.
 
-**Browser testing MUST use Playwright MCP tools.** The tool names start with
-`mcp_mcp_browser_`: `mcp_mcp_browser_navigate`, `mcp_mcp_browser_console_messages`,
-`mcp_mcp_browser_snapshot`, `mcp_mcp_browser_click`, `mcp_mcp_browser_type`,
-`mcp_mcp_browser_screenshot`.
+### D. New codec / frame dump format
 
-**NEVER use `web.run`, `web_search`, or `web_extract` to test the WebUI.**
-Those tools block localhost connections. They will silently fail or return empty
-results while making it look like the test passed. Console errors, render
-failures, and broken CSS will all go undetected.
+Extend `convert_presets.py` + Convert tab (`js/tabs/convert.js`). Do not fork ffmpeg recipes in random ops.
 
-**NEVER fall back to curl + API-only verification when asked to test the WebUI.**
-This is a browser application. The API responding is not the same as the UI
-working. If you cannot access the browser, say so — don't substitute.
+### E. Geometry / transmute flag
+
+Root `transmute` + `bin/transmute` sync + `transmute_ops.py` + docs-transmute-README.
 
 ---
 
-## ⚠️ 6. Known Hazards & Debugging Notes
+## 5. WebUI Testing (MANDATORY)
 
-- **Working Directory Drift**:
-  - `transmute` outputs bare filenames by default. Handlers must calculate the parent directory of `input_path` and pass it as `cwd` to `run_command` so output files land alongside input media.
-- **FastAPI Type Inspection**:
-  - Do NOT re-add `from __future__ import annotations` in `app/main.py`. It interferes with Pydantic type reflection in dynamic route generation.
+Use Playwright MCP (`mcp_mcp_browser_*`). **Never** `web.run` / `web_search` for localhost.  
+**Never** claim WebUI DONE from curl alone.
+
+Tabs of note: **Convert / Export**, RIFE, DeepDream, Single-Clip, Pipeline (if exposed), Pool, Watcher.
+
+---
+
+## 6. Known Hazards
+
+- **Working directory drift**: transmute bare filenames need `cwd` = input parent.  
+- **Do not** re-add `from __future__ import annotations` in `main.py`.  
+- **Stale .pyc**: `find mtapi-project -name '__pycache__' -exec rm -rf {} +` after renames.  
+- **RIFE**: directory stage only — do not reintroduce per-intermediate process spawns.  
+- **DeepDream video**: use `filters.deepdream`; image/ouroboros stay special bookends.

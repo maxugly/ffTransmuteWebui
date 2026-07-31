@@ -1,54 +1,102 @@
-# AGENTS.md — Operations Subpackage Agent Directives
+# AGENTS.md — Operations Subpackage
 
-> **Scope**: Subpackage directory `/home/m/snc/cod/ffTransmuteWebui/mtapi-project/app/operations`
-> **Audience**: Autonomous AI Agents adding or modifying API operations, parameter schemas, and CLI tool wrappers.
-
----
-
-## 🎯 1. Mission & Standard Protocols
-
-This directory contains the typed operations bridge. Each tool operation must map clean input parameters (via Pydantic) to shell CLI calls and output standard `OperationResult` models.
+> **Scope**: `mtapi-project/app/operations`  
+> **Audience**: Agents adding/modifying HTTP ops, schemas, engines.
 
 ---
 
-## 📝 2. Step-by-Step Protocol for Adding a New Operation
+## 1. Mission
 
-To add a new tool or operation (e.g., `watermark_ops.py` or a new flag on `transmute`):
+Ops are the **typed HTTP bridge**. Prefer:
 
-1. **Define Pydantic Parameter Model**:
-   ```python
-   class MyOpParams(BaseModel):
-       input_path: str = Field(..., description="Absolute path to input video")
-       output_path: str | None = Field(None, description="Optional output path")
-       dry_run: bool = Field(False, description="If True, print command without executing")
-   ```
-2. **Implement Async Handler**:
-   - Compute `cwd` from `input_path` using `_cwd_for(params.input_path)`.
-   - Ensure `output_path` ends with a valid extension (e.g., via `_ensure_video_output_path`).
-   - Call `run_command(argv, cwd=cwd)`.
-   - Parse `Output:` and `Command:` lines from stdout using `parse_line`.
-   - Construct and return `OperationResult`.
-3. **Register `OperationSpec`**:
-   ```python
-   register(OperationSpec(
-       id="my_op",
-       summary="Short title",
-       description="Detailed description for OpenAPI docs",
-       params_model=MyOpParams,
-       handler=handle_my_op,
-       tags=["My Tool Tag"],
-   ))
-   ```
-4. **Register Module Import**:
-   - Add `from . import my_ops  # noqa: F401` inside `app/operations/__init__.py`.
+```text
+params → validate paths → dump → filters stage(s) → encode → OperationResult
+```
+
+**Not:** each op inventing its own ffmpeg dump/encode forever.
+
+Engines (`deepdream/`, `*_engine.py`) hold heavy model/algorithm code.  
+Stages (`app/filters/`) hold the sequence-facing factory.  
+Ops wire bookends + progress + cancel.
 
 ---
 
-## 🔒 3. Mandatory Safety Requirements
+## 2. Two patterns
 
-1. **Input Path CWD Resolution**:
-   - Tools like `transmute` print bare output filenames (`video_1x1s.mp4`). Without passing `cwd` equal to `os.path.dirname(os.path.abspath(input_path))` to `run_command`, outputs land in the server process startup folder instead of next to the source file.
-2. **Absolute Output Path Normalization**:
-   - Parsed `Output:` strings must be resolved to absolute paths before returning in `OperationResult.output_path`.
-3. **Muxer Extension Safeguard**:
-   - ffmpeg fails when writing to paths without explicit file extensions (e.g., `/tmp/output_123`). Always sanitize output paths with `_ensure_video_output_path`.
+### A. Frame-effect op (default for neural / sequence tools)
+
+1. Factory in `app/filters/<name>.py` with `register_stage` and `kind`.  
+2. Thin handler:
+
+```python
+async def my_op(p: Params) -> OperationResult:
+    ws = JobWorkspace(...)
+    try:
+        info = await dump(ws, input_path)
+        fn = make_my_filter(**p.dict())   # same as pipeline
+        # per_frame:
+        await process(ws, fn, progress_cb=...)
+        # or directory:
+        # await fn(ws.frames_in, ws.frames_out)
+        await encode(ws, out, fps, ...)
+        return OperationResult(ok=True, ...)
+    finally:
+        await cleanup(ws, ...)
+```
+
+3. `register(OperationSpec(...))` + import in `__init__.py`.  
+4. Pipeline must resolve the **same** factory (via `STAGE_REGISTRY`) — **zero paste**.
+
+Examples: `rife_ops.py` + `filters/rife.py`; video path in `deepdream_ops.py` + `filters/deepdream.py`.
+
+### B. CLI / file-level op
+
+1. Pydantic params.  
+2. `run_command(argv, cwd=...)` — never `shell=True`.  
+3. Parse `Output:` / `Command:` when wrapping transmute.  
+4. Absolute `output_path`; `unique_output_path` / `finalize_output_path`.
+
+Examples: `transmute_ops.py`, datamosh.
+
+### C. Convert (bookends only)
+
+`convert_ops.py` + `convert_presets.py` — no filter stages. User-facing dump/encode/GIF/frames.
+
+---
+
+## 3. Adding a new operation (checklist)
+
+- [ ] Stage kind chosen (`per_frame` / `directory` / file-level / bookends-only)  
+- [ ] Factory in `filters/` if frame effect  
+- [ ] Thin `*_ops.py` + `register`  
+- [ ] `__init__.py` import  
+- [ ] No second copy of filter body in `pipeline_ops.py`  
+- [ ] Absolute paths; cancel/progress where long-running  
+- [ ] `/tmp/teste.mp4` smoke; pipeline one-step if registered  
+- [ ] Root `VERSION` DD bump  
+- [ ] Update root `AGENTS.md` ops table if user-visible  
+
+---
+
+## 4. Safety
+
+1. **CWD for transmute** bare outputs → input directory.  
+2. **Extensions** on video outputs (`ensure_video_output_path` / finalize helpers).  
+3. **HTTP 200 + ok:false** for op failures.  
+4. **Do not** reintroduce `PngFramePipeline` for new work.  
+5. **Directory stages** must leave continuous `frame_%06d.png` from 0.
+
+---
+
+## 5. Migration status (focus)
+
+| Area | Status |
+|------|--------|
+| RIFE | ✅ directory stage |
+| DeepDream video | ✅ per_frame stage; image/ouroboros special |
+| Convert | ✅ bookends |
+| Pipeline chain | ✅ per_frame + directory |
+| withoutbg / style / facemorph | ⚠️ still thicker ops — peel to `filters/` next |
+| PngFramePipeline | deprecated — remove remaining callers |
+
+See `docs/filter-platform-spec.md` §8–9.

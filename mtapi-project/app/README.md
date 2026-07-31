@@ -1,6 +1,6 @@
 # app — Core FastAPI Server Package
 
-Python package for `mtapi-project`: dynamic OpenAPI routes, operation contracts, subprocess helpers, media cache, job control, and static WebUI delivery.
+Python package for `mtapi-project`: dynamic OpenAPI routes, operation contracts, filter platform bookends, media cache, job control, and static WebUI.
 
 ---
 
@@ -8,44 +8,53 @@ Python package for `mtapi-project`: dynamic OpenAPI routes, operation contracts,
 
 ```
 app/
-├── main.py           # FastAPI app, /ops/*, media/pool/project APIs, static
-├── contract.py       # OperationResult, OperationSpec, REGISTRY
-├── shell.py          # Async subprocess + binary checks
-├── media_store.py    # BLAKE2b media registry, thumbs, projects, frame export
-├── job_control.py    # Cancel tokens + progress snapshots for long jobs
-├── pathutil.py       # Sequential never-overwrite output paths
-├── operations/       # All POST /ops/* handlers
-└── static/           # WebUI
+├── main.py              # FastAPI, /ops/*, media, static
+├── contract.py          # OperationResult, OperationSpec, REGISTRY
+├── shell.py             # Async subprocess (argv only)
+├── video_pipeline.py    # probe → dump → process → encode
+├── convert_presets.py   # Codec / frames_* recipes
+├── job_workspace.py     # /tmp/mtapi_jobs/{id}/
+├── pipeline_chain.py    # Multi-stage filter chain
+├── filters/             # Stage factories (per_frame | directory)
+├── operations/          # Thin HTTP ops + engines
+├── media/               # Cache, pool, thumbs, projects
+├── job_control.py       # Cancel + progress
+├── pathutil.py          # Never-overwrite outputs
+└── static/              # WebUI
 ```
+
+**Architecture doc for agents:** `AGENTS.md` here and `docs/filter-platform-spec.md` at repo root.
 
 ---
 
 ## Module overview
 
-### `contract.py`
-- `OperationResult`: `ok`, `operation`, `output_path`, `dry_run`, `command`, `stdout`, `stderr`, `error`
-- `OperationSpec` + global `REGISTRY`
+### Bookends
+- **`video_pipeline`**: shared dump/encode; `process` for per_frame filters  
+- **`convert_presets`**: ProRes, DNxHR, H.264/AVC, HEVC, VP9, AV1, FFV1, frames_*  
+- **`job_workspace`**: isolated frames_in / frames_out / audio  
 
-### `main.py`
-- Mounts `POST /ops/{id}` from the registry
-- Media: probe, thumbnail, pool state, project save/load
-- Jobs: `POST /api/cancel`, `GET /api/job/{token}`
-- UI: `/`, `/app.js`, `/style.css`
+### Stages
+- **`filters/`**: RIFE (directory), DeepDream (per_frame), …  
+- **`pipeline_chain`**: dump once → stages → encode once  
 
-### `job_control.py`
-Long-running ops (DeepDream, morph, withoutBG, style transfer) bind a token, report progress, and honor cancel.
+### Ops & HTTP
+- **`operations/`**: register handlers; prefer thin wrappers over all-in-ones  
+- **`contract.py`**: `OperationResult` / `OperationSpec` / `REGISTRY`  
+- **`main.py`**: mounts `POST /ops/{id}` from registry  
 
-### `pathutil.py`
-`unique_output_path` / `unique_related_paths` — first free name stays clean; further runs get `_0001`, `_0002`, … Related files (cutout + mask + bg) share one sequence.
+### Jobs & media
+- **`job_control`**: tokens, cancel, progress  
+- **`pathutil`**: unique output paths  
+- **`media/`**: pool, cache, projects  
 
-### `media_store.py`
-`~/.cache/mtapi/media/` content-addressed store; first/last thumbs; `.ffproject.json` project payloads.
-
-### `shell.py`
-`run_command`, `check_tools` for ffmpeg / ffglitch binaries.
+### Deprecated
+- **`png_pipeline.py`**: legacy dump/encode — do not use for new features  
 
 ---
 
 ## Subpackages
-- [operations README](operations/README.md)
-- [static README](static/README.md)
+
+- [operations README](operations/README.md) · [operations AGENTS](operations/AGENTS.md)  
+- [filters AGENTS](filters/AGENTS.md)  
+- [static README](static/README.md) · [static AGENTS](static/AGENTS.md)  

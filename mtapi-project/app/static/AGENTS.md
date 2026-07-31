@@ -1,56 +1,81 @@
-# AGENTS.md — Static WebUI Frontend Agent Directives
+# AGENTS.md — Static WebUI Frontend
 
-> **Scope**: Static web assets directory `/home/m/snc/cod/ffTransmuteWebui/mtapi-project/app/static`
-> **Audience**: Autonomous AI Agents (CodeWhale, OpenCode) modifying WebUI components, styling, or client JS logic.
-
----
-
-## 🎯 1. Mission & Design Directives
-
-The frontend provides a fast, responsive interface for configuring complex ffmpeg and datamosh pipelines.
-
-Agents editing frontend files MUST adhere to the project's web development standards:
-- **Rich Aesthetics**: Dark mode, glassmorphism accents, crisp typography, and responsive controls.
-- **Zero Build Step**: Native ES6 JS and CSS without Webpack, Vite, React, or Tailwind.
-- **Direct REST Integration**: Interact with `/ops`, `/media/*`, `/health`, and `/openapi.json`.
+> **Scope**: `mtapi-project/app/static`  
+> **Audience**: Agents modifying WebUI, CSS, client JS.
 
 ---
 
-## 🏗️ 2. Component Structure in `app.js`
+## 1. Mission
 
-- `fetchOperations()`: Fetches `/ops` registry schema and constructs operation navigation tabs.
-- `renderForm(opSpec)`: Dynamically generates HTML inputs for `params_model` properties.
-- `executeOp(id, payload)`: Sends POST request, updates execution status UI, and appends outputs to the media pool.
-- `loadWorkspaceMedia()`: Fetches media items from `/media/workspace` and updates the media browser panel.
+Fast, dark, zero-build UI for configuring pipelines, convert/export, pool, and ops.
 
----
-
-## 🔒 3. Front-End Invariants & Best Practices
-
-1. **Path Normalization**:
-   - Always pass full absolute file paths (e.g. `/home/m/...`) in API payloads.
-2. **Handling `"ok": false` Responses**:
-   - The API returns HTTP 200 even for operational failures. Check `data.ok === false` in `app.js` and display `data.error` / `data.stderr` in an error toast or terminal panel.
-3. **Responsive Media Previews**:
-   - Ensure video element sources point to `/media/file?path=...` or `/media/thumb?path=...` endpoints.
+- **Vanilla** HTML5 / CSS3 / ES6 modules — no npm, React, Tailwind, bundlers.  
+- REST: `/ops`, `/ops/{id}`, `/media/*`, `/health`, `/api/*`.  
+- Absolute filesystem paths in all media fields.
 
 ---
 
-## 🔒 4. WebUI Testing — CRITICAL (READ BEFORE ANY BROWSER WORK)
+## 2. Layout
 
-**Browser testing MUST use Playwright MCP tools.** Use these exact tool names:
+```
+static/
+├── index.html           # Shell + sidebar nav (data-tab=…)
+├── app.js               # Tab switch, global inputs, op fetch, run helpers
+├── css/                 # base, layout, forms, pool, …
+└── js/
+    ├── tabs/            # One module per major tab
+    │   ├── convert.js   # Convert / Export (codecs + frames_*)
+    │   ├── transmute.js # Single-clip geometry / extract
+    │   ├── rife.js
+    │   ├── deepdream.js
+    │   ├── watcher.js   # Batch DNxHR ingest (not Convert)
+    │   └── …
+    └── pool/            # Media pool grid, sequence, persistence
+```
 
-  `mcp_mcp_browser_navigate`  `mcp_mcp_browser_snapshot`  `mcp_mcp_browser_click`
-  `mcp_mcp_browser_type`      `mcp_mcp_browser_console_messages`
-  `mcp_mcp_browser_screenshot`  `mcp_mcp_browser_scroll`  `mcp_mcp_browser_press`
+---
 
-**DO NOT use `web.run`, `web_search`, or `web_extract`.** They block localhost.
-They will return empty results. You will falsely believe the test passed while
-the UI is silently broken.
+## 3. Product map (do not blur)
 
-**DO NOT substitute curl + API checks for browser testing.** The API returning
-HTTP 200 does not mean the WebUI works. You must see the DOM, the console, and
-the rendered output in a real browser.
+| Tab / area | Job |
+|------------|-----|
+| **Convert / Export** | Bookends only: ProRes/DNxHR/H.264/HEVC/WebM/AV1/FFV1, frames PNG/WebP/JPG/TIFF, GIF in |
+| **Single-Clip Ops** | Geometry / first-last frame / reverse — **not** full sequence dump or codecs |
+| **RIFE / DeepDream / …** | Named effect ops (server uses filter platform under the hood) |
+| **Folder Watcher** | Auto folder → DNxHR LB + AR fit — batch ingest, not one-clip Convert |
+| **Media Pool** | Library / sequence; may “send to” tabs |
 
-If Playwright MCP is unavailable, STOP and report the blocker. Do not
-substitute. Do not improvise. Do not use `web.run`.
+Wordy labels and tooltips on Convert are intentional (AVC = H.264, etc.).
+
+---
+
+## 4. Front-end rules
+
+1. **Absolute paths** in API bodies.  
+2. API returns HTTP 200 with `ok: false` on op failure — surface `error` / `stderr`.  
+3. Previews via `/media/file?path=…` / thumbs.  
+4. New ops: prefer `js/tabs/<name>.js` + nav item in `index.html` + `switchTab` wiring in `app.js` — not a mega-dropdown dump into transmute.  
+5. Convert targets come from product presets; do not invent ad-hoc codec knobs that bypass `convert_presets` without backend support.
+
+---
+
+## 5. WebUI testing — CRITICAL
+
+**Must** use Playwright MCP (`mcp_mcp_browser_*`).
+
+**Must not** use `web.run` / `web_search` / `web_extract` for localhost.  
+**Must not** claim UI DONE from curl alone.
+
+If Playwright is unavailable, stop and report — do not substitute.
+
+---
+
+## 6. Backend coupling (read-only context)
+
+Effects on the server are moving to:
+
+```text
+dump → app/filters/* → encode
+```
+
+UI does not call dump/encode directly; it POSTs `/ops/{id}` or `/ops/convert` / `/ops/pipeline`. Prefer forms that match thin ops and Convert targets already registered.

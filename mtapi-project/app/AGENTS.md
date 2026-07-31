@@ -1,59 +1,95 @@
 # AGENTS.md — App Package Agent Directives
 
-> **Scope**: Package directory `/home/m/snc/cod/ffTransmuteWebui/mtapi-project/app`
-> **Audience**: Autonomous AI Agents modifying core server logic, routing, media indexing, or execution contracts.
+> **Scope**: `/home/m/snc/cod/ffTransmuteWebui/mtapi-project/app`  
+> **Audience**: Agents modifying server logic, routing, media, contracts, pipeline, filters.
 
 ---
 
-## 🎯 1. Mission & Responsibilities
+## 1. Mission
 
-The `app` package is the engine room of `mtapi-project`. It decouples web routing from CLI execution logic through `contract.REGISTRY`.
-
-Agents working in `app` are responsible for:
-- Maintaining API contract stability.
-- Ensuring safe, non-blocking subprocess management.
-- Guarding against media cache corruption.
-- Serving WebUI assets correctly.
+The `app` package is the engine room: **contracts**, **bookends**, **stages**, **ops**, **media**, **WebUI static**.
 
 ---
 
-## 🏗️ 2. Core Architecture & Inter-Module Flow
+## 2. Architecture
+
+```text
+HTTP / WebUI
+    │  POST /ops/{id}
+    ▼
+contract.REGISTRY  ──►  operations/*_ops.py  (thin)
+                              │
+              ┌───────────────┼───────────────┐
+              ▼               ▼               ▼
+         CLI shell      video_pipeline    filters/*
+         (transmute,    dump / process    per_frame |
+          datamosh)     / encode          directory
+                              │
+                              ▼
+                       job_workspace
+                       convert_presets
+```
 
 ```mermaid
 graph TD
-    A[HTTP Client / WebUI] -->|POST /ops/:id| B[main.py Dynamic Route Handler]
-    B -->|Lookup id| C[contract.REGISTRY]
-    C -->|Dispatch Pydantic Model| D[app/operations/*_ops.py Handler]
-    D -->|Build Argv & CWD| E[shell.py:run_command]
-    E -->|Subprocess Exec| F[bin/transmute or bin/datamosh.sh]
-    F -->|Return Code + Stdout| E
-    E -->|Parse Output & Command| D
-    D -->|Return OperationResult| B
-    B -->|JSON Response| A
+    A[HTTP / WebUI] -->|POST /ops/:id| B[main.py dynamic routes]
+    B --> C[contract.REGISTRY]
+    C --> D[operations/*_ops.py]
+    D -->|geometry / glitch| E[shell.run_command → bin/]
+    D -->|frame effects| F[video_pipeline dump]
+    F --> G[filters stage]
+    G --> H[video_pipeline encode]
+    D -->|convert only| H
+    D --> I[OperationResult]
 ```
 
+| Module | Role |
+|--------|------|
+| `video_pipeline.py` | **Bookends**: probe, dump, process, encode |
+| `convert_presets.py` | Codec / dump target recipes (Convert + encode kwargs) |
+| `job_workspace.py` | Isolated job dirs under `/tmp/mtapi_jobs/` |
+| `pipeline_chain.py` | Multi-stage run; honors `kind=directory` vs per_frame |
+| `filters/` | Stage factories only — **no** dump/encode ownership |
+| `operations/` | HTTP params + thin orchestration + legacy engines |
+| `media/` | Pool, cache, thumbs, projects |
+| `shell.py` | Async subprocess argv lists |
+
+Canonical narrative: repo `docs/filter-platform-spec.md`.
+
 ---
 
-## 🔒 3. Invariants & Rules
+## 3. Invariants
 
-1. **`main.py` Route Autogeneration**:
-   - `main.py` MUST NOT hardcode individual tool endpoints (`/ops/square_crop`, `/ops/datamosh_melt`, etc.). Route registration happens dynamically by walking `contract.REGISTRY`.
-2. **Side-Effect Population**:
-   - Importing `from . import operations` in `main.py` triggers `operations/__init__.py`, which imports all `*_ops.py` files to populate `REGISTRY`. Every new ops module MUST be imported in `app/operations/__init__.py`.
-3. **DO NOT Add `from __future__ import annotations` in `main.py`**:
-   - Postponed evaluation breaks FastAPI's parameter introspection for `spec.params_model`.
-4. **Concurrency Safety in `media_store.py`**:
-   - Multi-threaded disk reads/writes to `~/.cache/mtapi/media/` MUST acquire `_index_lock` or specific `_hash_locks[content_hash]` to prevent JSON corruption during concurrent hash updates.
+1. **`main.py` does not hardcode op routes** — walks `REGISTRY`.  
+2. **New ops modules** must be imported in `operations/__init__.py`.  
+3. **Never** `from __future__ import annotations` in `main.py`.  
+4. **Media index** locks when mutating cache JSON.  
+5. **New frame effects** register a stage in `filters/` and a thin op — not a third dump path.  
+6. **Pipeline and named op share one factory** for each stage name.  
+7. Mid-chain frames: `frame_%06d.png`, start_number **0**.
 
 ---
 
-## 💡 4. Workflows for Agents
+## 4. Workflows
 
-### Adding a New API Feature or System Endpoint
-1. If adding a media/workspace feature (e.g. video slicing preview), implement helper methods in `media_store.py` or `shell.py`.
-2. Add the corresponding FastAPI endpoint in `main.py`.
-3. Test endpoint using curl or FastAPI Swagger UI at `http://localhost:24590/docs`.
+### New filter stage
+1. `filters/<name>.py` → `register_stage("name", factory)`.  
+2. Set `callable.kind` to `"per_frame"` or `"directory"`.  
+3. Thin op uses dump/process/encode or directory runner.  
+4. Smoke test + optional pipeline chain step.
 
-### Modifying the Subprocess Shell Interface
-- Keep `shell.py:run_command` signature clean: `(argv: list[str], cwd: str | None = None) -> tuple[int, str, str]`.
-- Always decode stdout/stderr with `errors="replace"` to prevent UnicodeDecodeError on raw binary output from ffmpeg or ffglitch.
+### Extend Convert
+1. Add preset to `convert_presets.py`.  
+2. Wire `convert_ops` target list / UI optgroup in `static/js/tabs/convert.js`.  
+3. Do not duplicate argv tables in ops.
+
+### CLI-only op
+Use `shell.run_command` + cwd rules for transmute; still `OperationResult`.
+
+---
+
+## 5. Hazards
+
+- Encoding with wrong `start_number` after tools that emit 1-based frames — normalize (see RIFE).  
+- Blocking TF/neural work inside async filters: use `asyncio.to_thread`.  
+- Expanding frame count without `directory` kind breaks 1:1 process assumptions.
