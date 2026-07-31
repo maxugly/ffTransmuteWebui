@@ -82,7 +82,7 @@ Stage kinds:
 | speed ramp | `speedramp_ops.py` + `speedramp_png.py` | ⚠️ in progress | |
 | raw transmute | `transmute_ops.py` | — | ✅ escape hatch |
 
-Cleanup queue: facemorph → delete remaining `PngFramePipeline` uses. Spec: `docs/filter-platform-spec.md` §9.
+`PngFramePipeline` removed (raises). Spec: `docs/filter-platform-spec.md`.
 
 ---
 
