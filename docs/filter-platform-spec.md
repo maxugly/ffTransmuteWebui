@@ -178,9 +178,10 @@ Do not reimplement dump/encode inside filters.
 
 1. **RIFE** — ✅ `directory` stage in `app/filters/rife.py`
 2. **DeepDream** — ✅ video `per_frame` in `app/filters/deepdream.py` (image + ouroboros remain special bookends)
-3. **withoutbg / styletransfer** — same peel
-4. **Facemorph** — multi-input; may need a fourth kind later (`multi_source`) — do not force into 1:1
-5. Delete dead `PngFramePipeline` usages when none remain
+3. **withoutbg** — ✅ video `per_frame` in `app/filters/withoutbg.py` (image batch stays on engine)
+4. **styletransfer** — ✅ video `per_frame` in `app/filters/styletransfer.py` (image batch stays on engine)
+5. **Facemorph** — multi-input; may need a fourth kind later (`multi_source`) — do not force into 1:1
+6. Delete dead `PngFramePipeline` usages when none remain
 
 ---
 

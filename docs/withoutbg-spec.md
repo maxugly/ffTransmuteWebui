@@ -1,22 +1,28 @@
 # WithoutBG (Background Removal)
 
-> **Status:** Implemented (`withoutbg_ops.py` / `withoutbg_engine.py`)
+> **Status:** Implemented — video is a **per_frame** stage (`app/filters/withoutbg.py`)  
+> **Platform:** `filter-platform-spec.md`
 
 ## Overview
-Removes backgrounds from image batches using either local open weights or the withoutbg.com Cloud API.
 
-## Pipeline Architecture
-- **Engine**: Local open weights (ONNX/Torch) or Cloud API.
-- **Pattern**: Pure image processing (batch loop).
-- **Cancel Support**: `job_control.check_cancelled()` between images.
+Removes backgrounds via local open weights or withoutbg.com Cloud API. Images (batch) and video (frame sequence).
 
-## Knobs & Parameters
-- `backend`: `local` or `api`.
-- `save_cutout`: RGBA PNG with transparent BG.
-- `save_mask`: Grayscale alpha mask.
-- `save_background`: Original RGB with inverted alpha (leftover background).
-- `fmt`: Output format (`png` or `webp`).
+## Architecture
 
-## Integration Notes
-- Can process single images or whole directories.
-- Easy to convert to a pure Filter for the dynamic mixing pipeline since it already operates on a frame-by-frame basis without complex temporal dependencies.
+| Mode | Path |
+|------|------|
+| **Video** | `dump` → `filters.withoutbg` → `encode` (cutout → WebM VP9+yuva420p; mask/bg → MP4) |
+| **Image** | `withoutbg_engine.process_many` batch (not a video pipeline stage) |
+
+Pipeline filter name: `withoutbg` (params: `backend`, `api_key`, `mode` or save_* knobs).
+
+## Knobs
+
+- `backend`: `local` \| `api`
+- `save_cutout` / `save_mask` / `save_background`
+- `fmt`: png \| webp (image mode)
+
+## Integration
+
+- Model loaded once per stage factory.
+- Mid-chain PNG for video; alpha cutout encodes to WebM with alpha.

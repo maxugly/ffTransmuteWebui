@@ -1,16 +1,11 @@
 """
 withoutBG operation — remove backgrounds (local open weights or Cloud API).
 
-Image mode: batch PNG/WebP output via process_many().
-Video mode: frame-by-frame via VideoPipeline + JobWorkspace →
-  cutout → WebM with VP9 + yuva420p alpha
-  mask → MP4 grayscale
-  background → MP4 RGB
+Image mode: batch PNG/WebP via process_many().
+Video mode: dump → filters.withoutbg (per_frame) → encode
+  cutout → WebM VP9 + yuva420p; mask/bg → MP4.
 
-Knobs:
-  save_cutout      — RGBA subject with transparent background
-  save_mask        — grayscale alpha mask (white = subject)
-  save_background  — leftover background (original RGB + inverted alpha)
+See docs/filter-platform-spec.md.
 """
 from __future__ import annotations
 
@@ -120,10 +115,10 @@ def _collect_images_v2(p: WithoutBGParams) -> list[str]:
 
 
 async def _withoutbg_video(p: WithoutBGParams, video_path: str) -> OperationResult:
-    """Frame-by-frame background removal for video using VideoPipeline."""
+    """Video path: dump → shared filters.withoutbg → encode."""
     from ..job_workspace import JobWorkspace
     from ..video_pipeline import probe, dump, process, encode, cleanup
-    from PIL import Image as PILImage
+    from ..filters.withoutbg import make_withoutbg_filter
     import uuid
 
     input_path = Path(video_path).expanduser().resolve()
@@ -153,40 +148,26 @@ async def _withoutbg_video(p: WithoutBGParams, video_path: str) -> OperationResu
     if info["frame_count"] <= 0:
         return OperationResult(
             ok=False, operation="withoutbg",
-            error=f"Could not probe video frames", dry_run=False,
+            error="Could not probe video frames", dry_run=False,
         )
 
     ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="withoutbg_")
     success = False
     logs: list[str] = [summary]
 
-    # Load model once
-    mdl = wbe._get_model(p.backend, api_key=p.api_key)
-
-    async def withoutbg_filter(input_png: Path, output_png: Path, index: int) -> None:
-        original = PILImage.open(input_png).convert("RGB")
-        rgba = mdl.remove_background(str(input_png))
-        if rgba.mode != "RGBA":
-            rgba = rgba.convert("RGBA")
-        if rgba.size != original.size:
-            rgba = rgba.resize(original.size, PILImage.Resampling.BILINEAR)
-
-        if p.save_cutout:
-            rgba.save(str(output_png))
-        elif p.save_mask:
-            mask = wbe._alpha_from_rgba(rgba)
-            mask.save(str(output_png))
-        elif p.save_background:
-            alpha = wbe._alpha_from_rgba(rgba)
-            bg = wbe._background_leftover(original, alpha)
-            bg.save(str(output_png))
-
     try:
+        filter_fn = make_withoutbg_filter(
+            backend=p.backend,
+            api_key=p.api_key,
+            save_cutout=p.save_cutout,
+            save_mask=p.save_mask,
+            save_background=p.save_background,
+        )
         dump_info = await dump(ws, input_path)
         logs.append(f"dump: {dump_info['frame_count']} frames")
 
-        processed = await process(ws, withoutbg_filter)
-        logs.append(f"process: {processed} frames")
+        processed = await process(ws, filter_fn)
+        logs.append(f"process: {processed} frames via filters.withoutbg")
 
         codec = "libvpx-vp9" if p.save_cutout else "libx264"
         pix_fmt = "yuva420p" if p.save_cutout else "yuv420p"
@@ -387,5 +368,5 @@ register(OperationSpec(
     ),
     params_model=WithoutBGParams,
     handler=withoutbg_remove,
-    tags=["withoutbg", "image", "matting"],
+    tags=["withoutbg", "image", "matting", "video", "filter"],
 ))

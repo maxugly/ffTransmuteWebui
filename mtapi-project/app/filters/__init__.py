@@ -30,3 +30,5 @@ def list_stages() -> list[str]:
 # Side-effect registration of built-in stages
 from . import rife as _rife  # noqa: E402, F401
 from . import deepdream as _deepdream  # noqa: E402, F401
+from . import withoutbg as _withoutbg  # noqa: E402, F401
+from . import styletransfer as _styletransfer  # noqa: E402, F401

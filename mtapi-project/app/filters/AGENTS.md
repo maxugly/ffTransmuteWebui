@@ -90,5 +90,7 @@ Import the module from `filters/__init__.py` so registration runs at import time
 |------|------|--------|
 | `rife` | directory | `rife.py` |
 | `deepdream` | per_frame | `deepdream.py` |
+| `withoutbg` | per_frame | `withoutbg.py` |
+| `styletransfer` | per_frame | `styletransfer.py` |
 
-Next peels (from ops engines): withoutbg, styletransfer, then facemorph (may need multi-source kind).
+Next: facemorph (may need multi-source kind); remove remaining `PngFramePipeline` callers.

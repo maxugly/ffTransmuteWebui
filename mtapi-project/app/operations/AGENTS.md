@@ -93,10 +93,12 @@ Examples: `transmute_ops.py`, datamosh.
 | Area | Status |
 |------|--------|
 | RIFE | ✅ directory stage |
-| DeepDream video | ✅ per_frame stage; image/ouroboros special |
+| DeepDream video | ✅ per_frame; image/ouroboros special |
+| withoutbg video | ✅ per_frame; image batch on engine |
+| styletransfer video | ✅ per_frame; image batch on engine |
 | Convert | ✅ bookends |
 | Pipeline chain | ✅ per_frame + directory |
-| withoutbg / style / facemorph | ⚠️ still thicker ops — peel to `filters/` next |
+| facemorph | ⚠️ multi-input peel next |
 | PngFramePipeline | deprecated — remove remaining callers |
 
 See `docs/filter-platform-spec.md` §8–9.

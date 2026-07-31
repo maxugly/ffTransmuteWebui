@@ -269,8 +269,8 @@
         "file": "styletransfer-spec.md",
         "path": "docs/styletransfer-spec.md",
         "category": "Operation",
-        "status": "Implemented (`styletransfer_ops.py` / `styletransfer_engine.py`)",
-        "summary": "Arbitrary artistic style transfer using the Magenta TF-Hub model. Applies the style of a reference image to a batch of content images."
+        "status": "Implemented (video per_frame in app/filters/styletransfer.py)",
+        "summary": "Magenta style transfer image batch + video via shared per_frame stage. Pipeline name styletransfer."
     },
     {
         "file": "swinir-spec.md",
@@ -318,7 +318,7 @@
         "file": "withoutbg-spec.md",
         "path": "docs/withoutbg-spec.md",
         "category": "Operation",
-        "status": "Implemented (`withoutbg_ops.py` / `withoutbg_engine.py`)",
-        "summary": "Removes backgrounds from image batches using either local open weights or the withoutbg.com Cloud API."
+        "status": "Implemented (video per_frame in app/filters/withoutbg.py)",
+        "summary": "withoutBG image batch + video via shared per_frame stage. Pipeline name withoutbg."
     }
 ]

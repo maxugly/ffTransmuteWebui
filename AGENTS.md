@@ -75,14 +75,14 @@ Stage kinds:
 | pipeline (multi-filter chain) | `pipeline_ops.py` | registry | ✅ stable |
 | datamosh (melt, classic, …) | `datamosh` / ops | file-level | ✅ stable |
 | deepdream | `deepdream_ops.py` + `filters/deepdream.py` | per_frame (video) | ✅ stable |
-| facemorph | `facemorph_ops.py` | ⚠️ migrate | ✅ works; not yet thin stage |
-| withoutbg | `withoutbg_ops.py` | ⚠️ migrate | ✅ works; peel next |
-| style transfer | `styletransfer_ops.py` | ⚠️ migrate | ✅ works; peel next |
+| facemorph | `facemorph_ops.py` | ⚠️ migrate | ✅ works; multi-input peel next |
+| withoutbg | `withoutbg_ops.py` + `filters/withoutbg.py` | per_frame (video) | ✅ stable |
+| style transfer | `styletransfer_ops.py` + `filters/styletransfer.py` | per_frame (video) | ✅ stable |
 | RIFE | `rife_ops.py` + `filters/rife.py` | directory | ✅ stable |
 | speed ramp | `speedramp_ops.py` + `speedramp_png.py` | ⚠️ in progress | |
 | raw transmute | `transmute_ops.py` | — | ✅ escape hatch |
 
-Cleanup queue (focus future work): withoutbg → styletransfer → facemorph → delete remaining `PngFramePipeline` uses. Spec: `docs/filter-platform-spec.md` §9.
+Cleanup queue: facemorph → delete remaining `PngFramePipeline` uses. Spec: `docs/filter-platform-spec.md` §9.
 
 ---
 

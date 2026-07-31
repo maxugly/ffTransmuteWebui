@@ -1,12 +1,11 @@
 """
-Neural style transfer operation — Magenta arbitrary stylization (TF-Hub).
+Neural style transfer — Magenta arbitrary stylization (TF-Hub).
 
-Image mode: stylize_batch() with one style image → PNG/WebP output.
-Video mode: frame-by-frame via VideoPipeline + JobWorkspace →
-  model + style loaded once, each frame stylized → MP4 output.
+Image mode: stylize_batch() with one style image.
+Video mode: dump → filters.styletransfer (per_frame) → encode
+  (model + style loaded once in the factory).
 
-Simplest non-DeepDream art path: content photo(s) + one style image.
-Outputs are always non-destructive (incremented) and default next to each content file.
+See docs/filter-platform-spec.md.
 """
 from __future__ import annotations
 
@@ -158,12 +157,10 @@ def _dest_for(src: str, p: StyleTransferParams, *, multi: bool) -> Path:
 
 
 async def _styletransfer_video(p: StyleTransferParams, video_path: str) -> OperationResult:
-    """Frame-by-frame style transfer for video using VideoPipeline.
-
-    Model and style image are loaded once; each frame is stylized individually.
-    """
+    """Video path: dump → shared filters.styletransfer → encode."""
     from ..job_workspace import JobWorkspace
     from ..video_pipeline import probe, dump, process, encode, cleanup
+    from ..filters.styletransfer import make_styletransfer_filter
     import uuid
 
     input_path = Path(video_path).expanduser().resolve()
@@ -194,57 +191,25 @@ async def _styletransfer_video(p: StyleTransferParams, video_path: str) -> Opera
     if info["frame_count"] <= 0:
         return OperationResult(
             ok=False, operation="styletransfer",
-            error=f"Could not probe video frames",
+            error="Could not probe video frames",
         )
 
     ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="styletransfer_")
     success = False
     logs: list[str] = [summary]
 
-    # Preload model and style image once
     try:
-        model = ste._get_model()
-    except Exception as e:
-        return OperationResult(
-            ok=False, operation="styletransfer",
-            error=f"Failed to load style transfer model: {e}",
+        filter_fn = make_styletransfer_filter(
+            style_path=str(style_path),
+            strength=p.strength,
+            max_side=p.max_side,
+            style_size=p.style_size,
         )
-
-    import numpy as np
-    import tensorflow as tf
-    from PIL import Image as PILImage
-
-    style_img = ste._load_rgb(style_path)
-    import tensorflow as tf
-    style_tensor = ste._to_tf(style_img, (p.style_size, p.style_size))
-
-    async def styletransfer_filter(input_png: Path, output_png: Path, index: int) -> None:
-        content_img = ste._load_rgb(input_png)
-        content_work = ste._resize_max_side(content_img, int(p.max_side) if p.max_side else 0)
-        c = ste._to_tf(content_work)
-
-        out_tensor = model(tf.constant(c), tf.constant(style_tensor))[0]
-        stylized = np.clip(out_tensor.numpy()[0], 0.0, 1.0)
-
-        if p.strength < 1.0 - 1e-6:
-            base = np.asarray(content_work, dtype=np.float32) / 255.0
-            if base.shape[:2] != stylized.shape[:2]:
-                base_img = content_work.resize(
-                    (stylized.shape[1], stylized.shape[0]),
-                    PILImage.Resampling.LANCZOS,
-                )
-                base = np.asarray(base_img, dtype=np.float32) / 255.0
-            stylized = stylized * p.strength + base * (1.0 - p.strength)
-
-        result = PILImage.fromarray((stylized * 255.0).astype(np.uint8), "RGB")
-        result.save(str(output_png))
-
-    try:
         dump_info = await dump(ws, input_path)
         logs.append(f"dump: {dump_info['frame_count']} frames")
 
-        processed = await process(ws, styletransfer_filter)
-        logs.append(f"process: {processed} frames")
+        processed = await process(ws, filter_fn)
+        logs.append(f"process: {processed} frames via filters.styletransfer")
 
         result_path = await encode(ws, out, info["fps"])
         logs.append(f"Output: {result_path}")
@@ -460,5 +425,5 @@ register(OperationSpec(
     ),
     params_model=StyleTransferParams,
     handler=styletransfer,
-    tags=["styletransfer", "image", "neural"],
+    tags=["styletransfer", "image", "video", "neural", "filter"],
 ))

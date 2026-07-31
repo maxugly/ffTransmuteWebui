@@ -1,20 +1,26 @@
 # Neural Style Transfer
 
-> **Status:** Implemented (`styletransfer_ops.py` / `styletransfer_engine.py`)
+> **Status:** Implemented — video is a **per_frame** stage (`app/filters/styletransfer.py`)  
+> **Platform:** `filter-platform-spec.md`
 
 ## Overview
-Arbitrary artistic style transfer using the Magenta TF-Hub model. Applies the style of a reference image to a batch of content images.
 
-## Pipeline Architecture
-- **Engine**: TensorFlow Hub Magenta Arbitrary Image Stylization model.
-- **Pattern**: Image batch loop. Model is warmed up once via `preload()`.
-- **Cancel Support**: Yes, between images.
+Magenta TF-Hub arbitrary stylization: content image(s) or video + one style reference.
 
-## Knobs & Parameters
-- `style_path`: Reference style image.
-- `strength`: 0.0 to 1.0 interpolation with original content.
-- `max_side`: Max resolution to limit RAM usage.
+## Architecture
 
-## Integration Notes
-- Outputs default next to the source files, preventing destructive overwrites.
-- Like `deepdream`, relies on TensorFlow and needs to be migrated to the `ModelManager` to avoid GPU OOM when chained.
+| Mode | Path |
+|------|------|
+| **Video** | `dump` → `filters.styletransfer` → `encode` (model + style loaded once in factory) |
+| **Image** | `styletransfer_engine.stylize_batch` |
+
+Pipeline filter name: `styletransfer` (requires `style_path`; optional `strength`, `max_side`, `style_size`).
+
+## Knobs
+
+- `style_path`, `strength` (0–1), `max_side`, `style_size`
+
+## Integration
+
+- Blocking TF inference runs in `asyncio.to_thread` inside the filter.
+- ModelManager still future work for multi-neural chains / VRAM.

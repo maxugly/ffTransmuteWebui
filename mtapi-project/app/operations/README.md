@@ -47,6 +47,8 @@ app/pipeline_chain.py  # Multi-stage runner
 |----|-------|------|
 | rife | `filters/rife.py` | directory |
 | deepdream (video) | `filters/deepdream.py` | per_frame |
+| withoutbg (video) | `filters/withoutbg.py` | per_frame |
+| styletransfer (video) | `filters/styletransfer.py` | per_frame |
 | convert | — | bookends only |
 | pipeline | registry | mix |
 
@@ -56,7 +58,7 @@ app/pipeline_chain.py  # Multi-stage runner
 
 ### Still thick (migration queue)
 
-withoutbg, styletransfer, facemorph — work, but still own more than a pure stage. Peel using RIFE/DeepDream as templates.
+facemorph — multi-image chain; may need a multi-source stage kind.
 
 ---
 
