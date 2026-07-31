@@ -23,6 +23,7 @@ static/
 ├── app.js               # Tab switch, global inputs, op fetch, run helpers
 ├── css/                 # base, layout, forms, pool, …
 └── js/
+    ├── frame-scrubber.js # Global frame-range thumbnail preview
     ├── tabs/            # One module per major tab
     │   ├── convert.js   # Convert / Export (codecs + frames_*)
     │   ├── transmute.js # Single-clip geometry / extract

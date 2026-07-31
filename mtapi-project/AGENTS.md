@@ -17,7 +17,6 @@
 mtapi-project/
 ├── run.py                 # uvicorn :24590; TFHUB_CACHE_DIR etc.
 ├── requirements.txt
-├── VERSION                # (repo root VERSION is authoritative for bumps)
 ├── AGENTS.md              # This file
 ├── app/
 │   ├── main.py            # Dynamic /ops/* from REGISTRY; media; static

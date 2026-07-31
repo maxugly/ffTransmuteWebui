@@ -30,6 +30,6 @@ Agents can test script execution standalone via CLI:
 # Test transmute dry run
 ./bin/transmute /path/to/clip.mp4 -s -d
 
-# Test datamosh melt execution
-./bin/datamosh.sh melt /path/to/clip.mp4 /path/to/output.mp4 30 5
+# Test datamosh melt execution (datamosh.sh lives at repo root, not bin/)
+./datamosh.sh melt /path/to/clip.mp4 /path/to/output.mp4 30 5
 ```
