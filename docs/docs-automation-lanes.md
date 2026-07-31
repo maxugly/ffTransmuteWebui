@@ -1,7 +1,7 @@
 # Automation Lanes — Future Spec
 
-> Pinned 2026-07-23. Do not implement until explicitly requested.
-> This is a design scratchpad, not a commitment.
+> Pinned 2026-07-23. **Superseded for implementation by** `docs/parameter-automation-spec.md`.  
+> Keep as historical scratchpad only.
 
 ## Concept
 

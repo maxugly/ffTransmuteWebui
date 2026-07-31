@@ -35,6 +35,13 @@
         "summary": "Overlays a live audio visualizer directly onto a video stream, syncing automatically to the audio track. Perfect for synthwave music videos or podcast clips."
     },
     {
+        "file": "automation-spec.md",
+        "path": "docs/automation-spec.md",
+        "category": "Core Architecture",
+        "status": "UI brainstorm (see parameter-automation-spec.md)",
+        "summary": "Original freehand automation envelope vision. Implement via parameter-automation-spec.md."
+    },
+    {
         "file": "civitai-spec.md",
         "path": "docs/backlog/civitai-spec.md",
         "category": "Backlog - Operation",
@@ -187,6 +194,13 @@
         "category": "Backlog - Operation",
         "status": "Unknown",
         "summary": "Generate an RGB-encoded optical flow map from a video, where color (Hue) represents the direction of motion, and intensity/saturation (Value) represents the speed. Useful as a mask source or for datamosh guidance."
+    },
+    {
+        "file": "parameter-automation-spec.md",
+        "path": "docs/parameter-automation-spec.md",
+        "category": "Core Architecture",
+        "status": "Spec ready for phased implementation",
+        "summary": "Render-time freehand parameter envelopes for per_frame filters. Normalized t/v; styletransfer strength first; filter-platform factory sampling; no directory-stage or setpts automation. Supersedes automation-spec.md for builders."
     },
     {
         "file": "pipeline-spec.md",
