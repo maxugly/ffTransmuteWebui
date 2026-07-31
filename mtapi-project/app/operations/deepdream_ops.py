@@ -1,14 +1,15 @@
 """
-DeepDream operation — wraps deepdream_engine for the typed ops registry.
+DeepDream operation — thin bookends + engine.
 
-v2 handlers use JobWorkspace + VideoPipeline for dump/encode.
-Legacy handlers use PngFramePipeline (kept as fallback).
+Video path: dump → app.filters.deepdream (per_frame) → encode.
+Image path: eng.dream_image once.
+Ouroboros: special feedback loop (not a pipeline stage of source video).
+
+See docs/filter-platform-spec.md.
 """
 from __future__ import annotations
 
 import asyncio
-import os
-import shutil
 from pathlib import Path
 from typing import Literal
 
@@ -184,10 +185,10 @@ async def _dream_video_v2(
     p: DeepDreamParams, input_path: Path, out: Path,
     image_kwargs: dict, job_token, logs, progress_cb,
 ) -> OperationResult:
-    """Frame-by-frame dream_video via JobWorkspace + VideoPipeline."""
+    """Video dream: dump → shared deepdream per_frame stage → encode."""
     from ..job_workspace import JobWorkspace
-    from ..video_pipeline import dump, encode as vp_encode, probe
-    from .deepdream.dream import dream_image, linear_blend, _optical_flow_seed, _cycle_layer_weights
+    from ..video_pipeline import dump, process, encode as vp_encode, cleanup
+    from ..filters.deepdream import make_deepdream_filter
     import uuid
 
     ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="dream_video_")
@@ -197,73 +198,45 @@ async def _dream_video_v2(
         frames = sorted(ws.frames_in.glob("frame_*.png"))
         if not frames:
             raise RuntimeError("No frames extracted from video")
-        if p.max_frames and p.max_frames > 0:
+
+        # Optional smoke-test cap: drop trailing frames so process sees only N
+        if p.max_frames and p.max_frames > 0 and len(frames) > int(p.max_frames):
+            for fr in frames[int(p.max_frames):]:
+                fr.unlink(missing_ok=True)
             frames = frames[: int(p.max_frames)]
+            logs.append(f"max_frames={p.max_frames} (kept {len(frames)} frames)")
 
         fps = dump_info["fps"]
-        use_temporal = (not p.optical_flow) and (0.0 <= p.temporal_blend < 1.0 - 1e-9)
-        model_name = eng._normalize_model_name(image_kwargs.get("model_name"))
-        base_layers = image_kwargs.get("layer_weights") or {}
-        if not base_layers:
-            preset = image_kwargs.get("layer_preset") or "classic"
-            presets = eng.MODEL_PRESETS.get(model_name) or eng.MODEL_PRESETS[eng.DEFAULT_MODEL]
-            base_layers = dict(presets.get(preset) or presets.get("classic") or next(iter(presets.values())))
-
-        seed_dir = ws.root / "seed"
-        seed_dir.mkdir(exist_ok=True)
-
-        last_dream_arr = None
-        last_src_arr = None
         total = len(frames)
         to_process = (total + p.frame_step - 1) // p.frame_step if total else 0
 
-        from .. import job_control as jc
+        filter_fn = make_deepdream_filter(
+            **image_kwargs,
+            temporal_blend=p.temporal_blend,
+            optical_flow=p.optical_flow,
+            layer_cycle=p.layer_cycle,
+            frame_step=p.frame_step,
+        )
 
-        def _run_in_thread():
-            nonlocal last_dream_arr, last_src_arr
-            for idx, fr in enumerate(frames):
-                jc.check_cancelled()
-                out_fr = ws.frames_out / fr.name
-                if idx % p.frame_step != 0:
-                    shutil.copy2(str(fr), str(out_fr))
-                    continue
+        def _progress(current: int, total_n: int) -> None:
+            if progress_cb:
+                progress_cb(
+                    f"[frame {current}/{total_n}] dream",
+                    phase="video-frames",
+                    current=current,
+                    total=to_process or total_n,
+                    unit="frames",
+                )
 
-                curr_src = np.asarray(PILImage.open(fr).convert("RGB"))
-                dream_src = fr
-                if p.optical_flow and last_dream_arr is not None and last_src_arr is not None:
-                    seed = _optical_flow_seed(last_src_arr, last_dream_arr, curr_src)
-                    seed_path = seed_dir / fr.name
-                    PILImage.fromarray(seed).save(seed_path)
-                    dream_src = seed_path
-                elif use_temporal and last_dream_arr is not None:
-                    blended = linear_blend(last_dream_arr, curr_src, p.temporal_blend)
-                    seed_path = seed_dir / fr.name
-                    PILImage.fromarray(blended).save(seed_path)
-                    dream_src = seed_path
-
-                frame_kwargs = dict(image_kwargs)
-                cycled = _cycle_layer_weights(base_layers, idx, p.layer_cycle)
-                frame_kwargs["layer_weights"] = cycled
-
-                done = (idx // p.frame_step) + 1
-                if progress_cb:
-                    progress_cb(
-                        f"[frame {idx + 1}/{total}] dream step",
-                        phase="video-frames", current=done, total=to_process, unit="frames",
-                    )
-
-                dream_image(dream_src, out_fr, progress_cb=None, **frame_kwargs)
-                with PILImage.open(out_fr) as im:
-                    last_dream_arr = np.asarray(im.convert("RGB"))
-                last_src_arr = curr_src
-
-        await asyncio.to_thread(_run_in_thread)
+        processed = await process(ws, filter_fn, progress_cb=_progress)
+        logs.append(f"process: {processed} frames via filters.deepdream")
 
         result_path = await vp_encode(ws, out, fps, mux_audio=p.keep_audio)
         success = True
         return OperationResult(
             ok=True, operation="deepdream", output_path=str(result_path),
-            command=f"dream_video_v2 {input_path.name}", stdout="\n".join(logs),
+            command=f"dream_video filter {input_path.name}",
+            stdout="\n".join(logs),
         )
     except Exception as e:
         return OperationResult(
@@ -271,10 +244,7 @@ async def _dream_video_v2(
             stdout="\n".join(logs), stderr=str(e),
         )
     finally:
-        if not success:
-            ws.cleanup(keep_on_failure=True)
-        else:
-            ws.cleanup(keep_on_failure=False)
+        await cleanup(ws, keep_on_failure=not success)
 
 
 async def _dream_ouroboros_v2(
@@ -529,5 +499,5 @@ register(OperationSpec(
     ),
     params_model=DeepDreamParams,
     handler=deepdream,
-    tags=["deepdream", "generative", "image", "video", "ouroboros"],
+    tags=["deepdream", "generative", "image", "video", "ouroboros", "filter"],
 ))

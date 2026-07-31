@@ -176,8 +176,8 @@ Do not reimplement dump/encode inside filters.
 
 ## 9. Priority order (cleanup queue)
 
-1. **RIFE** — expanding `directory` stage; worst contract violation + duplicate + timeline bug (`rife-filter-cleanup-spec.md`)
-2. **DeepDream** — true `per_frame` candidate; pull factory out of `pipeline_ops`
+1. **RIFE** — ✅ `directory` stage in `app/filters/rife.py`
+2. **DeepDream** — ✅ video `per_frame` in `app/filters/deepdream.py` (image + ouroboros remain special bookends)
 3. **withoutbg / styletransfer** — same peel
 4. **Facemorph** — multi-input; may need a fourth kind later (`multi_source`) — do not force into 1:1
 5. Delete dead `PngFramePipeline` usages when none remain

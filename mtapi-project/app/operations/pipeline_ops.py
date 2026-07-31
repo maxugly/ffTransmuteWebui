@@ -1,8 +1,8 @@
 """
 Dynamic mixing pipeline — POST /ops/pipeline.
 
-Resolves filters from app.filters.STAGE_REGISTRY (plus local identity/deepdream
-until those move). Supports per_frame and directory stages via PipelineChain.
+Resolves stages from app.filters.STAGE_REGISTRY (plus local identity until
+that moves). Supports per_frame and directory stages via PipelineChain.
 """
 from __future__ import annotations
 
@@ -17,13 +17,10 @@ from ..contract import OperationResult, OperationSpec, register
 from .. import job_control
 from ..job_workspace import JobWorkspace
 from ..pipeline_chain import PipelineChain
-from ..video_pipeline import FilterFn
 from ..filters import get_stage_factory, list_stages
 
 
-# Local-only factories still living here until peeled (identity, deepdream).
-# RIFE lives in app.filters.rife and is already in STAGE_REGISTRY.
-
+# identity stays local (trivial). deepdream + rife live in app.filters.
 _LOCAL_REGISTRY: dict[str, Callable[..., Any]] = {}
 
 
@@ -36,34 +33,6 @@ async def _identity_filter(src: Path, dst: Path, index: int) -> None:
 
 
 _register_local("identity", lambda **kw: _identity_filter)
-
-
-def _make_deepdream_filter(**kw) -> FilterFn:
-    from .deepdream.dream import dream_image
-    import numpy as np
-    from PIL import Image as PILImage
-
-    image_kwargs = {k: v for k, v in kw.items() if k not in ("temporal_blend", "optical_flow")}
-
-    last_arr = None
-
-    async def _filter(src: Path, dst: Path, index: int) -> None:
-        nonlocal last_arr
-        curr = np.asarray(PILImage.open(src).convert("RGB"))
-        dream_src = src
-        if last_arr is not None and float(kw.get("temporal_blend", 1.0)) < 1.0:
-            from .deepdream.dream import linear_blend
-            blended = linear_blend(last_arr, curr, float(kw.get("temporal_blend", 0.85)))
-            seed = dst.parent / f"_seed_{index:06d}.png"
-            PILImage.fromarray(blended).save(seed)
-            dream_src = seed
-        dream_image(dream_src, dst, progress_cb=None, **image_kwargs)
-        last_arr = np.asarray(PILImage.open(dst).convert("RGB"))
-
-    return _filter
-
-
-_register_local("deepdream", _make_deepdream_filter)
 
 
 def _resolve_factory(name: str) -> Callable[..., Any] | None:

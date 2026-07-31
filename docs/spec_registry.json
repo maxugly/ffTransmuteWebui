@@ -59,8 +59,8 @@
         "file": "deepdream-spec.md",
         "path": "docs/deepdream-spec.md",
         "category": "Operation",
-        "status": "Implemented (`deepdream_ops.py` / `deepdream_engine.py`)",
-        "summary": "Google DeepDream implementation using InceptionV3, VGG16, or ResNet50. Supports images and videos. For videos, it supports temporal blending, optical flow (DeepDreamAnim-style), and Ouroboros (feedback loop transformations like zoom/spin/translate)."
+        "status": "Implemented (video per_frame filter in app/filters/deepdream.py)",
+        "summary": "DeepDream video path uses shared per_frame stage; image and ouroboros remain special bookends. Pipeline filter name deepdream."
     },
     {
         "file": "depthmap-spec.md",
