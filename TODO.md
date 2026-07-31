@@ -1,8 +1,28 @@
 # TODO-final — The Filter Graph Execution Plan
 
-> **Author**: tom (final arbiter) · **Date**: 2026-07-27  
-> **Inputs**: `TODO-agy-v3.md`, `TODO-grok-v2.md`, `todo-agy-v3-rebuttal.md`  
-> **Rule**: One commit per item. Verify before proceeding. Tree is truth for "done?". This file is truth for order.
+> **Author**: tom (final arbiter) · **Originally**: 2026-07-27  
+> **Updated**: 2026-07-31 — phases 3–5 largely **done**; see **Current status** below  
+> **Rule**: One commit per item. Verify before proceeding. Tree is truth for "done?".  
+> **Live architecture**: `docs/filter-platform-spec.md`, `ROADMAP.md`, root `AGENTS.md`
+
+---
+
+## ✅ Current status (2026-07-31)
+
+| Area | State |
+|------|--------|
+| JobWorkspace + video_pipeline | ✅ |
+| Filters: rife (directory), deepdream / withoutbg / styletransfer (per_frame) | ✅ |
+| `POST /ops/pipeline` + PipelineChain | ✅ |
+| Convert / Export (codecs, frames_*, GIF) | ✅ |
+| `PngFramePipeline` | ✅ **removed** (stub raises) |
+| Multi-Pass UI tab | ⏳ backend ready; UI queue still open |
+| Model Manager | ⏳ deferred |
+| Facemorph multi-source registry kind | ⏳ optional |
+
+**Do next (suggested):** Multi-Pass UI → Model Manager when chaining heavy nets → backlog ops on filter platform.
+
+Sections below retain the original plan as a **historical checklist**. Items marked ✅ were completed in later work even if the checkbox was not always updated in-line.
 
 ---
 
@@ -107,42 +127,32 @@
 
 ## ⚙️ Phase 3: Unified Pipeline Core
 
-*After Track M facade (M.0–M.3) is stable. Does not require Track F complete.*
-
-- [ ] **3.1 JobWorkspace**: Create `app/job_workspace.py` handling `/tmp/mtapi_jobs/{job_id}/` (frames_in, frames_out, audio, metadata.json). Pilot on one op.  
-  *Verify: failure keeps workspace when flagged; success cleans (configurable).*
-
-- [ ] **3.2 VideoPipeline Core**: Evolve `PngFramePipeline` → probe → dump → loop hook → encode → mux.  
-  *Verify: Pass `/tmp/teste.mp4` through an identity pass (copies frames unchanged). Video + audio return intact.*
-
-- [ ] **3.3 Dual-path doc**: Old loops remain until Phase 4 migrates. Note in ops README.
+- [x] **3.1 JobWorkspace** — `app/job_workspace.py` ✅  
+- [x] **3.2 VideoPipeline** — `app/video_pipeline.py` (probe/dump/process/encode + sync helpers). **Not** an evolution that keeps PngFramePipeline; that class was **removed**. ✅  
+- [x] **3.3 Dual-path doc** — superseded by filter-platform + ops AGENTS (filter path is default). ✅  
 
 ---
 
 ## 🔄 Phase 4: Op-to-Filter Conversion
 
-*Migrate engines. Keep old paths alive until cutover is complete. One engine per commit series.*
+| # | op | status |
+|---|-----|--------|
+| 4.1 | `rife` | ✅ directory stage `app/filters/rife.py` |
+| 4.2 | `withoutbg` | ✅ video per_frame `app/filters/withoutbg.py` |
+| 4.3 | `styletransfer` | ✅ video per_frame `app/filters/styletransfer.py` |
+| 4.4 | `facemorph` | ⚠️ multi-source morph + encode; dream_after → filters.deepdream (not a 1:1 video filter) |
+| 4.5 | `deepdream` | ✅ video per_frame `app/filters/deepdream.py`; image/ouroboros special bookends |
 
-| # | op | risk | why |
-|---|-----|------|-----|
-| 4.1 | `rife_ops` | Low | Already PngFramePipeline-shaped |
-| 4.2 | `withoutbg` | Low | Pure image |
-| 4.3 | `styletransfer` | Low | Pure image |
-| 4.4 | `facemorph` | Medium | dlib |
-| 4.5 | `deepdream` | High | Temporal/ouroboros |
-
-*Model Manager: build only when two heavy models are actively sharing a process chain.*  
-*Verify per engine: WebUI or curl test asset green; cancel mid-batch still works.*
+*Model Manager: still deferred until two heavy models share a chain.*  
+*PngFramePipeline: removed 2026-07-31.*
 
 ---
 
 ## 🧠 Phase 5: Dynamic Mixing
 
-- [ ] **5.1 `POST /ops/pipeline`**: Backend endpoint accepting JSON array of filters. Decodes once, processes through RAM, encodes once.  
-  *Verify: `[identity]` and one real filter on test clip.*
-
-- [ ] **5.2 Multi-Pass UI**: Frontend queue to stack operations and post to pipeline. **Requires Track F far enough for a new tab** (`run.js` modular).  
-  *Verify: Two-step queue runs, zero console errors.*
+- [x] **5.1 `POST /ops/pipeline`** — `pipeline_ops` + `PipelineChain` (disk cascade; per_frame + directory). ✅  
+  *Note: disk-based stages, not full-video RAM arrays (see dynamic-mixing-spec).*  
+- [ ] **5.2 Multi-Pass UI** — Frontend queue to stack filters and POST pipeline. **Open.**
 
 ---
 
@@ -178,16 +188,16 @@
 - Datamosh: common pipeline first, then thin modes — mandatory
 - Old engines coexist during Filter migration — mandatory
 - One commit per item; verify before next — mandatory
-- Destination: JobWorkspace → VideoPipeline → Filters → Model Manager → `/ops/pipeline` + Multi-Pass
+- Destination: JobWorkspace → VideoPipeline → Filters → Model Manager → `/ops/pipeline` + Multi-Pass  
+  (**largely reached** except Model Manager + Multi-Pass UI)
 
 ---
 
-## Single-Builder Default Schedule
+## Single-Builder Default Schedule (updated)
 
 ```
-Phase 0 → Phase 1 → Track F → Track D → Track M
-    → Phase 3 (pipeline core)
-    → Phase 4 (filters: rife → withoutbg → styletransfer → facemorph → deepdream)
-    → Phase 5 (dynamic mixing)
-    → Phase 6 (features)
+✅ Phase 0–4 core + filter peels + pipeline backend + Convert
+→ 5.2 Multi-Pass UI
+→ Model Manager (when needed)
+→ Phase 6 backlog features (on filter platform)
 ```

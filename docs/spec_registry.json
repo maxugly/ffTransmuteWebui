@@ -73,8 +73,8 @@
         "file": "dynamic-mixing-spec.md",
         "path": "docs/dynamic-mixing-spec.md",
         "category": "Core Architecture",
-        "status": "Implemented",
-        "summary": "Currently, applying multiple effects (e.g., DeepDream, followed by RIFE interpolation, followed by Datamoshing) requires sequential API calls. Each call dumps a video to frames, processes them, and re-encodes back to a video. This leads to generation loss (multiple re-encodes), massive I/O overhead, and slow processing times. We need a `/ops/pipeline` endpoint that takes a list of filters, decodes the input once, pipes the frames through the filter chain in RAM, and encodes once."
+        "status": "Backend implemented; Multi-Pass UI open",
+        "summary": "POST /ops/pipeline disk cascade via PipelineChain + filter registry. Multi-Pass WebUI still open."
     },
     {
         "file": "facemorph-spec.md",
@@ -101,8 +101,8 @@
         "file": "filter-platform-spec.md",
         "path": "docs/filter-platform-spec.md",
         "category": "Core Architecture",
-        "status": "Active",
-        "summary": "Filter platform contract: bookends in video_pipeline/convert_presets; stages in app/filters; per_frame vs directory kinds; thin ops; PipelineChain duties. Guides migration away from all-in-one tools."
+        "status": "Active (PngFramePipeline removed)",
+        "summary": "Bookends vs stages; per_frame and directory kinds; thin ops; Convert bookends; migration complete for main neural video paths."
     },
     {
         "file": "frame-scrubber-spec.md",
@@ -192,8 +192,8 @@
         "file": "pipeline-spec.md",
         "path": "docs/pipeline-spec.md",
         "category": "Core Architecture",
-        "status": "Specification Phase",
-        "summary": "The `dump -> process -> encode` pattern is currently repeated 5 times across 3 different engines (`deepdream_engine`, `facemorph_engine`, `rife_ops`). Each engine manages its own temporary directory, its own `ffmpeg` subprocess calls, its own cleanup routines, and its own cancellation checks. This introduces severe duplication, inconsistent error handling, and disjointed API boundaries. The unified pipeline eliminates this duplication by providing a single, robust pathway."
+        "status": "Implemented (video_pipeline + JobWorkspace; PngFramePipeline removed)",
+        "summary": "Unified probe/dump/process/encode bookends. Stages live in app/filters. See filter-platform-spec.md."
     },
     {
         "file": "pool-toggle-spec.md",
@@ -213,8 +213,8 @@
         "file": "rife-filter-cleanup-spec.md",
         "path": "docs/rife-filter-cleanup-spec.md",
         "category": "Core Architecture",
-        "status": "Implementing / Implemented with cleanup",
-        "summary": "RIFE as directory stage: single rife-ncnn-vulkan -i/-o, shared factory for /ops/rife and pipeline, drop pairwise FilterFn and legacy PngFramePipeline path."
+        "status": "Implemented",
+        "summary": "RIFE directory stage; legacy pairwise path removed."
     },
     {
         "file": "rife-migration-spec.md",

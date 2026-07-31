@@ -1,9 +1,11 @@
 # Unified Video Pipeline & JobWorkspace
 
-> **Status:** Specification Phase
+> **Status:** Implemented (`app/video_pipeline.py`, `app/job_workspace.py`)  
+> **Superseded narrative:** Stages now live in `app/filters/*` — see `filter-platform-spec.md`.  
+> `PngFramePipeline` is **removed** (not “evolved in place”).
 
 ## 1. What This Replaces
-The `dump -> process -> encode` pattern is currently repeated 5 times across 3 different engines (`deepdream_engine`, `facemorph_engine`, `rife_ops`). Each engine manages its own temporary directory, its own `ffmpeg` subprocess calls, its own cleanup routines, and its own cancellation checks. This introduces severe duplication, inconsistent error handling, and disjointed API boundaries. The unified pipeline eliminates this duplication by providing a single, robust pathway.
+The `dump -> process -> encode` pattern was repeated across engines. Each managed its own ffmpeg, tempdirs, and cleanup. The unified pipeline provides a single pathway; ops supply stages (filters), not private dump/encode stacks.
 
 ## 2. JobWorkspace (`app/job_workspace.py`)
 Creates and manages isolated workspace directories at `/tmp/mtapi_jobs/{job_id}/`.
@@ -22,7 +24,7 @@ Creates and manages isolated workspace directories at `/tmp/mtapi_jobs/{job_id}/
 - Cleanup behavior is configurable.
 
 ## 3. VideoPipeline (`app/video_pipeline.py`)
-Evolves `PngFramePipeline` into a unified class with four distinct stages:
+Bookend module (functions, not a class hierarchy):
 
 **A. Probe**
 `probe(input_path)` -> Returns a dictionary containing `fps`, `duration`, `frame_count`, `audio_stream` (boolean or codec info), and dimensions.

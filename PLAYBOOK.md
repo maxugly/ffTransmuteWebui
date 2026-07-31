@@ -1,8 +1,8 @@
 # Playbook — How We Modularized ffTransmuteWebui
 
 > A record of what we did, how we did it, what broke, and what we learned.
-> 
-> Written: 2026-07-27. Update as we go.
+>
+> Written: 2026-07-27. **Updated: 2026-07-31** (filter platform + PngFramePipeline removal).
 
 ---
 
@@ -72,24 +72,33 @@ it and picks what to work on. No login, no API, no ceremony.
 | datamosh twins | deleted bin/ copy, API uses root | 1 |
 | static route extraction | 3 endpoints → `app/routes/static.py` | 1 |
 
-### PNG Pipeline Consolidation
+### Pipeline consolidation (historical → current)
 
-| op | approach | notes |
-|----|----------|-------|
-| rife_ops | full swap to PngFramePipeline | simplest, cleanest. 120→70 lines |
-| speedramp_png | sync wrappers dump_sync/encode_sync | |
-| facemorph_engine | tempdir + cleanup only | encode stays (custom scale filter, sync subprocess) |
-| styletransfer | SKIPPED — no ffmpeg pipeline to consolidate | pure image-in/image-out with PIL |
-| deepdream_engine | in progress | audio_from support needed in encode_sync |
+| era | approach |
+|-----|----------|
+| 2026-07 | `PngFramePipeline` shared dump/encode for some neural ops |
+| 2026-07 late | `JobWorkspace` + `video_pipeline` async dump/process/encode |
+| 2026-07-31 | **Filter platform**: stages in `app/filters/*`; `PngFramePipeline` **removed** (raises). Sync helpers: `dump_frames_sync` / `encode_frames_sync` on `video_pipeline` |
 
-### New Features
+| op | current shape |
+|----|----------------|
+| rife | directory stage `filters/rife.py` + thin op |
+| deepdream video | per_frame `filters/deepdream.py` + thin op |
+| withoutbg video | per_frame `filters/withoutbg.py` |
+| styletransfer video | per_frame `filters/styletransfer.py` |
+| convert | bookends only (`convert_presets`) |
+| pipeline | `POST /ops/pipeline` + PipelineChain |
+| facemorph | multi-source morph → workspace frames → encode; dream_after → filters.deepdream |
 
-| item | what | status |
-|------|------|--------|
-| RIFE op | resurrected + WebUI tab | ✅ done |
-| Global inputs bar | 4-input UI in index.html | ✅ UI built |
-| CivitAI spec | agy writing `docs/civitai-spec.md` | in progress |
-| CodeWhale constitution | `.codewhale/constitution.json` | ✅ done |
+### Later features (selected)
+
+| item | status |
+|------|--------|
+| RIFE / DeepDream / Convert tabs | ✅ |
+| Filter platform + pipeline backend | ✅ |
+| Multi-Pass UI queue | ⏳ open |
+| Model Manager | ⏳ deferred |
+| CivitAI etc. | backlog specs |
 
 ---
 

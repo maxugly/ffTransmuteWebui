@@ -1,6 +1,6 @@
 # ffTransmuteWebui
 
-A local one-stop video/image workshop: lossless geometry (`transmute`), datamosh, media pool/projects, plus neural tools (DeepDream, face morph, withoutBG, style transfer) behind a typed FastAPI server and dark-mode WebUI.
+A local one-stop video/image workshop: lossless geometry (`transmute`), datamosh, media pool/projects, Convert/Export codecs, plus neural tools (DeepDream, face morph, withoutBG, style transfer, RIFE) behind a typed FastAPI server and dark-mode WebUI.
 
 ---
 
@@ -11,7 +11,9 @@ Two layers:
 1. **Core CLI** (`transmute`, `datamosh.sh`, ffglitch JS) — ffmpeg-centric, minimal deps  
 2. **mtapi + WebUI** (`mtapi-project/`) — typed `POST /ops/*`, media pool, job cancel/progress, sequential output names so re-runs never overwrite
 
-**WebUI tabs include:** Datamosh, DeepDream, Face Morph, withoutBG, Style Transfer, single-clip transmute, join/grid, Quick Transmute (`fit`), Media Pool, Folder Watcher (ingest → DNxHR), raw CLI.
+**Frame effects** use a shared **filter platform**: dump → `app/filters/*` stages → encode (`docs/filter-platform-spec.md`). **Convert / Export** is the user-facing bookends tab (ProRes, DNxHR, H.264/AVC, HEVC, frame folders, GIF).
+
+**WebUI tabs include:** Datamosh, DeepDream, Face Morph, withoutBG, Style Transfer, RIFE, Convert/Export, single-clip transmute, join/grid, Quick Transmute, Media Pool, Folder Watcher (ingest → DNxHR), raw CLI.
 
 ---
 
@@ -28,9 +30,11 @@ ffTransmuteWebui/
 ├── VERSIONING.md                # Humble versioning scheme explanation
 ├── VERSION                      # Single-line version source of truth
 ├── mtapi-project/               # FastAPI backend & WebUI project directory
-│   ├── app/                     # Python app package (routes, contracts, media store)
-│   │   ├── operations/          # Typed operation handlers (transmute, datamosh)
-│   │   └── static/              # Frontend web application (index.html, app.js, style.css)
+│   ├── app/                     # Python app package (routes, contracts, media, pipeline)
+│   │   ├── filters/             # Frame stages (per_frame | directory)
+│   │   ├── operations/          # Thin HTTP ops + engines
+│   │   ├── video_pipeline.py    # dump / process / encode bookends
+│   │   └── static/              # WebUI (tabs, pool, convert)
 │   ├── bin/                     # Embedded binary wrappers and ffglitch JS scripts
 │   ├── run.py                   # Server startup script
 │   └── requirements.txt         # Python dependencies

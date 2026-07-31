@@ -1,85 +1,69 @@
-# Roadmap — Phase 2: Filter Graph Architecture
+# Roadmap — Filter Platform (current)
 
-> Vision document. This is the destination — what we're building toward.
-> Execution plan: TODO.md. Progress tracking: AUDIT.md.
-
----
-
-## The Problem
-
-Every neural/video op recycles the same lifecycle: ffmpeg probe + extract
-frames → Python loop processes frames → ffmpeg re-encode → cleanup tempdir.
-Ops can't be chained. Each manages its own ffmpeg, tempdirs, and models.
-
-## The Target
-
-Move from "Monolithic Operations" to "Filter Graph / Pipeline."
-
-Operations become Filters exposing `process_frame(image_array)`. The
-VideoPipeline handles video I/O once. Chaining becomes a JSON array:
-
-```json
-POST /ops/pipeline
-{ "steps": [{"op": "withoutbg"}, {"op": "deepdream", "blend": 0.5}] }
-```
-
-## The Pieces
-
-### 1. Unified Pipeline Engine (Phase 3)
-Evolve PngFramePipeline into a VideoPipeline that owns decode→frame-loop→encode.
-Ops stop knowing about videos or tempdirs.
-
-### 2. Op-to-Filter Conversion (Phase 4)
-Migrate engines one at a time. Each becomes a pure filter. Old engines coexist
-until all are migrated. Order: rife → withoutbg → styletransfer → facemorph → deepdream.
-
-### 3. Model Manager (Phase 4, deferred)
-LRU cache for PyTorch/TF/dlib weights. Built when two heavy models share a chain.
-Ops request weights through the manager — never load GPU memory directly.
-
-### 4. Standardized Job Workspace (Phase 3.1)
-Replace scattered mktemp with `/tmp/mtapi_jobs/{job_id}/` containing
-frames_in/, frames_out/, audio.aac, metadata.json. Failed jobs preserve
-workspace for debugging.
-
-### 5. Dynamic Mixing (Phase 5)
-POST /ops/pipeline endpoint. VideoPipeline decodes once, streams through
-filter chain in RAM, encodes once. Multi-Pass UI tab for queuing filters.
-
-### 6. UI Evolution (Phase 5.2)
-Multi-Pass tab → stack operations, reorder, hit run. Future: node-based
-editor (Blender compositor / ComfyUI style).
+> Living destination doc. Execution detail: `TODO.md`. Agent rules: `AGENTS.md`.  
+> Architecture contract: `docs/filter-platform-spec.md`.  
+> Updated: 2026-07-31
 
 ---
 
-## The Path (from final plan)
+## Where we are
 
-```
-Phase 0    Infrastructure safety (nested routing, ES modules, CSS tokens)
-Phase 1    Easy wins (melt twins, cancel audit)
-Track F    Frontend modularization (style.css → app.js split)
-Track D    Datamosh split (5 mosh modes → per-file handlers)
-Track M    Media facade + split (cache → thumbnails → pool → projects)
-Phase 3    VideoPipeline + JobWorkspace
-Phase 4    Op-to-Filter conversion (rife → withoutbg → styletransfer → facemorph → deepdream)
-Phase 5    Dynamic mixing (POST /ops/pipeline + Multi-Pass UI)
-Phase 6    New features (CivitAI, ASCII, FFglitch, speed ramp, rubberband)
+Frame effects are **not** all-in-one dump/encode ops anymore. The stack is:
+
+```text
+dump (video_pipeline) → stage(s) in app/filters/* → encode (video_pipeline + convert_presets)
 ```
 
-## Progress
-
-| phase | status |
-|-------|--------|
-| 0.1 nested static routes | ✅ done |
-| 0.2 ES module entry | next |
-| 1.2 datamosh twins | ✅ done |
-| everything else | pending |
+| Layer | Location | Status |
+|-------|----------|--------|
+| Bookends | `video_pipeline`, `convert_presets`, `JobWorkspace` | ✅ |
+| Stages | `app/filters/` (`per_frame` \| `directory`) | ✅ rife, deepdream, withoutbg, styletransfer |
+| Chain | `pipeline_chain`, `POST /ops/pipeline` | ✅ disk cascade |
+| Convert / Export | `/ops/convert` + WebUI tab | ✅ codecs + frames_* + GIF |
+| Thin ops | `*_ops.py` | ✅ for migrated video paths |
+| `PngFramePipeline` | `png_pipeline.py` stub | ✅ **removed** (raises) |
 
 ---
 
-## Rules
+## Target (unchanged intent)
 
-- One commit per item. Verify before next.
-- Frontend before backend engines. CSS before JS.
-- Facade before internal split. Old paths coexist during migration.
-- Model Manager deferred until needed. Don't build infrastructure without a caller.
+1. **Filters** only transform frame sequences on disk.  
+2. **Bookends** own ffmpeg I/O and codecs.  
+3. **Pipeline** dumps once, runs stages, encodes once.  
+4. **Convert** is user-facing bookends (Resolve intermediates, delivery, frame folders).  
+5. **File-level** tools (datamosh) stay outside the PNG chain.  
+6. **Model Manager** (deferred) when multi-neural chains share VRAM.
+
+---
+
+## Path completed (historical)
+
+```
+Phase 0–2   infrastructure, frontend modules, datamosh package, media facade work
+Phase 3     VideoPipeline + JobWorkspace
+Phase 4     Op-to-filter: rife (directory), deepdream/withoutbg/styletransfer (per_frame)
+Phase 4.x   PngFramePipeline removal; Convert/Export
+Phase 5     POST /ops/pipeline + PipelineChain (disk stages)
+```
+
+---
+
+## Remaining focus
+
+| Priority | Item | Notes |
+|----------|------|--------|
+| P1 | Multi-Pass UI tab | Backend pipeline exists; frontend queue still light |
+| P1 | Model Manager | When chaining two heavy TF/neural stages |
+| P2 | Facemorph multi-source stage kind | Morph is multi-still → frames; optional formal registry kind |
+| P2 | scrub remaining `dream_video` call paths | Sync helper kept; prefer async filter path |
+| P3 | Backlog ops | `docs/backlog/*` (ASCII, CivitAI, etc.) on filter platform |
+| P3 | Planning doc hygiene | Keep this file + TODO current; archive stale debate docs |
+
+---
+
+## Rules for agents
+
+- New frame effects → `app/filters/` + thin op. Never reintroduce `PngFramePipeline`.  
+- New codecs / frame dumps → `convert_presets` + Convert tab.  
+- Geometry → `transmute` CLI. Glitch → datamosh (file-level).  
+- One commit per working slice; smoke `/tmp/teste.mp4`.

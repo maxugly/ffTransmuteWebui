@@ -1,8 +1,8 @@
 # RIFE Filter Cleanup
 
-> **Status:** Ready to implement  
+> **Status:** Implemented (2026-07-31) — `app/filters/rife.py`, thin `rife_ops.py`  
 > **Depends on:** `filter-platform-spec.md` (stage kinds), existing `video_pipeline`  
-> **Replaces / supersedes:** pairwise “fake FilterFn” design in `rife-migration-spec.md` for the process loop; keeps audio/fps goals
+> **Replaces / supersedes:** pairwise “fake FilterFn” design in `rife-migration-spec.md`
 
 ---
 

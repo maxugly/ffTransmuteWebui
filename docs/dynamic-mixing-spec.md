@@ -1,12 +1,13 @@
 # Dynamic Mixing Pipeline (Phase 5)
 
-> **Status:** Specification Phase (Rewrite)
-> **Category:** Core Architecture
+> **Status:** Backend **implemented** (`POST /ops/pipeline`, `pipeline_chain.py`, `app/filters/*`)  
+> **Open:** Multi-Pass WebUI queue (see `TODO.md` §5.2)  
+> **Category:** Core Architecture  
+> **Also see:** `filter-platform-spec.md`
 
 ## 1. Overview
-Currently, applying multiple effects (e.g., DeepDream, followed by RIFE interpolation, followed by Datamoshing) requires the user to run each operation sequentially, downloading or re-selecting intermediate videos. 
-
-The Dynamic Mixing Pipeline allows clients to send an array of operations (a "chain") to a single endpoint. The backend processes the video through all specified filters in a single job, encoding the final video only once. Crucially, **this architecture is strictly disk-based** to respect memory constraints; no full video arrays are ever held in RAM.
+Applying multiple effects used to mean sequential ops and re-encodes.  
+`POST /ops/pipeline` accepts an ordered list of filters; the backend dumps once, runs disk stages, encodes once. **Disk-based** (PNG stages) — not full-video RAM arrays.
 
 ## 2. Architecture & Constraints
 

@@ -1,33 +1,41 @@
 # Sprint Status — ffTransmuteWebui
 
-> Updated: 2026-07-27 · Simplified tracking (no formal protocol)
+> Updated: 2026-07-31 · Filter platform era
 
-## Done
+## Architecture (done)
 
-| # | What | Status | Note |
-|---|------|--------|------|
-| F1 | style.css split | ✅ done | 6 files |
-| F2 | pool.js split | ✅ done | 3 files |
-| F3 | delete app.js | ✅ done | module-only runtime |
-| M2b | RIFE interpolation | ✅ done | rife_ops.py + WebUI tab |
-| M2c | withoutbg video | ✅ done | |
-| M3 | curve math verified | ✅ done | |
-| M8 | JS switchover | ✅ done | index.html → modules |
-| M9 | codecview op | ✅ done | Vectors tab |
+| What | Status | Note |
+|------|--------|------|
+| JobWorkspace + video_pipeline | ✅ | bookends |
+| app/filters stages | ✅ | rife, deepdream, withoutbg, styletransfer |
+| POST /ops/pipeline | ✅ | disk cascade |
+| Convert / Export | ✅ | codecs + frames_* + GIF |
+| PngFramePipeline removed | ✅ | stub raises |
+| AGENTS.md tree aligned | ✅ | root → filters |
 
-## In Progress / Pending
+## Frontend modularization (earlier)
 
-| # | What | Status | Note |
-|---|------|--------|------|
-| M4 | spin-down end-to-end | ⏳ pending | |
-| M5 | QA review | ⏳ pending | |
-| M6 | rubberband spec | ⏳ pending | |
-| M10 | post-sprint audit | 📋 pending | |
+| What | Status |
+|------|--------|
+| CSS / JS modules, pool split | ✅ largely |
+| Convert tab | ✅ |
+| Multi-Pass pipeline UI | ⏳ pending |
 
-## Dead / Paused
+## Open / next
 
-| # | What | Status | Note |
-|---|------|--------|------|
-| M1 | setpts curve | ☠️ dead | abandoned |
-| M2 | PNG frame-remap | ⏸️ paused | returns with optical-flow |
-| M7 | grok pipeline auto | ⏸️ paused | AIIM experiment shelved |
+| What | Status | Note |
+|------|--------|------|
+| Multi-Pass UI | ⏳ | backend ready |
+| Model Manager | ⏳ | when chaining heavy nets |
+| Facemorph multi-source registry kind | ⏳ optional | |
+| Backlog ops (ASCII, CivitAI, …) | backlog | on filter platform |
+| Speed ramp E2E | ⚠️ in progress | product |
+
+## Dead / archived ideas
+
+| What | Note |
+|------|------|
+| setpts curve ramp | abandoned (see speed-ramp-debug) |
+| Keep evolving PngFramePipeline | **do not** — removed |
+
+Canonical: `docs/filter-platform-spec.md`, `ROADMAP.md`, `TODO.md` (current status banner).

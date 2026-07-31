@@ -1,5 +1,10 @@
 # Project Audit — 2026-07-29 (post-modularization)
 
+> **Snapshot date: 2026-07-29.** Line counts and some module paths are **historical**.  
+> **As of 2026-07-31:** filter platform is live; `PngFramePipeline` is **removed**; prefer  
+> `docs/filter-platform-spec.md`, `ROADMAP.md`, and `AGENTS.md` for current structure.  
+> Do not use the table rows below as “what to build next” without checking the tree.
+
 > 21,487 lines of project source (excluding .venv, .git, __pycache__)
 > 68 files total · 21,382 → 21,487 (+105: import/export boilerplate + UI fixes)
 
@@ -50,7 +55,7 @@
 | pathutil.py | 346 | output path naming, collision avoidance, path list parsing | — | 3/10 |
 | main.py | 299 | app creation, middleware, ops loop, startup | routes, operations, media_store | 3/10 |
 | job_control.py | 232 | cancel tokens, progress reporting | — | 3/10 |
-| png_pipeline.py | 208 | shared dump/encode/cleanup for neural ops | shell | 3/10 |
+| png_pipeline.py | (was 208) | **REMOVED 2026-07-31** — stub raises; use video_pipeline | — | n/a |
 | probe.py | 119 | unified ffprobe (fps, duration, dims, frames) | shell | 2/10 |
 | shell.py | 114 | subprocess runner, stdout streaming, tool checks | — | 2/10 |
 | contract.py | 51 | OperationResult, OperationSpec, registry | — | 1/10 |
@@ -60,17 +65,17 @@
 
 | file | lines | purpose | depends on | monolith |
 |---|---|---|---|---|
-| deepdream_engine.py | 1,069 | gradient ascent, temporal blending, ouroboros, model loading | TF, PIL, png_pipeline | **8/10** — pipeline extracted, still 1K lines of dream logic |
+| deepdream/ + deepdream_ops | (split) | ascent + filters.deepdream per_frame | TF, video_pipeline | video path thin; engine helpers remain |
 | datamosh_ops.py | 800 | melt, classic, hijack, destruct, mv_hack — 5 mosh modes | shell, bin/ | **7/10** — five handlers, shared helpers |
 | deepdream_ops.py | 392 | deepdream handler, param model, UI wiring | deepdream_engine, contract | 4/10 |
 | transmute_ops.py | 352 | crop, stretch, extract, join, grid, fit, raw — 8 sub-ops | shell, pathutil | 5/10 |
-| facemorph_engine.py | 350 | dlib landmarks, delaunay, batch morph | dlib, PIL, png_pipeline | 4/10 |
+| facemorph_engine.py | ~350 | dlib landmarks, delaunay, batch morph | dlib, PIL, JobWorkspace encode | multi-source |
 | facemorph_ops.py | 350 | handler + UI wiring | facemorph_engine | 4/10 — mirror of engine |
 | styletransfer_ops.py | 345 | handler, content collection, output naming | styletransfer_engine | 3/10 |
 | withoutbg_engine.py | 344 | background removal, frame processing | PIL, withoutbg | 4/10 |
 | styletransfer_engine.py | 294 | TF-Hub model loading, image stylization | TF, PIL | 4/10 |
 | withoutbg_ops.py | 281 | handler, multi-file support, output modes | withoutbg_engine | 4/10 |
-| rife_ops.py | 201 | handler, ffprobe, rife-ncnn-vulkan subprocess | shell, png_pipeline | 2/10 |
+| rife_ops.py + filters/rife.py | thin | directory stage + bookends | rife-ncnn-vulkan, video_pipeline | 2/10 |
 | speedramp_ops.py | 187 | handler, curve math | pathutil | 3/10 |
 
 ## Routes (`mtapi-project/app/routes/`)
@@ -118,8 +123,9 @@
 | pool logic | 0 | 7 files (3,344 lines) |
 | shared utilities | 0 | 4 files (893 lines) |
 
-**Attack order (next):**
-1. style.css — CSS component split (F.3-F.??)
-2. media_store.py — split cache from pool from projects (Phase 6 Track M)
-3. deepdream_engine.py — split model loading, ascent loop, temporal blending, ouroboros (Phase 4.5)
-4. datamosh_ops.py — split per mosh mode (Phase 2 Track D)
+**Attack order (next) — updated 2026-07-31:**
+1. Multi-Pass UI for `/ops/pipeline` (backend done)
+2. Model Manager when chaining heavy neural stages
+3. Optional facemorph multi-source registry kind
+4. media_store / CSS leftover splits if still painful (see tree)
+5. Backlog ops on filter platform
