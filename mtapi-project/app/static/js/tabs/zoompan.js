@@ -5,11 +5,10 @@
  * Reference (optional): second still for scene-match alignment (Image Pool / Browse).
  *
  * Zoomed Out  = full source + draggable AR-locked box
- * Zoomed In   = **exactly** the box contents (canvas crop from full /api/image)
+ * Zoomed In   = pixels inside the box (canvas crop from UI-sized thumb — safe/fast)
  *
- * Compare (image-compare toolbar state):
- *   separate — edit Start/Last (+ show Ref card)
- *   overlay / A/B — stack crop vs reference (or Start vs Last if no ref)
+ * UI never draws full multi‑megapixel bitmaps on the main thread. Layout is
+ * rAF-coalesced so zoom mode toggles cannot stack and freeze the tab.
  *
  * Spec: docs/zoompan-spec.md
  */
@@ -43,6 +42,9 @@ const COMPARE_TARGETS = {
 };
 
 const ZP_COMPARE_PREFIX = 'zp';
+/** Cap on-canvas UI work so mode switches stay snappy */
+const UI_CROP_MAX_CSS = 420;
+const UI_CROP_MAX_DPR = 1.25;
 
 /** @type {{ destroy: () => void } | null} */
 let _compareCtl = null;
@@ -50,13 +52,25 @@ let _imgListenersBound = false;
 let _imgRefreshTimer = null;
 let _resizeBound = false;
 
-/** Full-res source & ref images for accurate crops */
+/** UI-sized source/ref (thumbnail API) — never full camera originals in canvas */
 const _srcImg = new Image();
 const _refImg = new Image();
 _srcImg.decoding = 'async';
 _refImg.decoding = 'async';
-let _srcLoadGen = 0;
-let _refLoadGen = 0;
+_srcImg.loading = 'eager';
+_refImg.loading = 'eager';
+
+/** rAF layout coalescing */
+let _layoutRaf = 0;
+/** @type {Set<string>} */
+const _layoutSides = new Set();
+let _layoutWantCompare = false;
+let _compareTimer = 0;
+let _layoutGen = 0;
+/** @type {Record<string, number>} */
+const _placeGen = { start: 0, end: 0 };
+/** @type {Map<string, string>} */
+const _cropUrlCache = new Map();
 
 function ensureZoompan() {
   if (!state.zoompan) {
@@ -106,6 +120,77 @@ function fullImageUrl(path) {
 
 function thumbUrl(path) {
   return `/api/thumbnail?path=${encodeURIComponent(path)}&which=first&_t=${encodeURIComponent(path)}`;
+}
+
+/** Display URL for UI (always thumb — cheap decode). */
+function displayUrl(path) {
+  return thumbUrl(path);
+}
+
+/**
+ * Coalesce layout work onto one animation frame.
+ * @param {string|string[]|null} sides  'start' | 'end' | both
+ * @param {{ compare?: boolean }} [opts]
+ */
+function scheduleLayout(sides, opts) {
+  opts = opts || {};
+  if (sides == null || sides === 'both') {
+    _layoutSides.add('start');
+    _layoutSides.add('end');
+  } else if (Array.isArray(sides)) {
+    sides.forEach((s) => _layoutSides.add(s));
+  } else {
+    _layoutSides.add(sides);
+  }
+  if (opts.compare) _layoutWantCompare = true;
+  if (_layoutRaf) return;
+  const gen = _layoutGen;
+  _layoutRaf = requestAnimationFrame(() => {
+    _layoutRaf = 0;
+    if (gen !== _layoutGen) return; // form was torn down / re-rendered
+    const todo = Array.from(_layoutSides);
+    _layoutSides.clear();
+    const wantCmp = _layoutWantCompare;
+    _layoutWantCompare = false;
+    try {
+      todo.forEach((s) => {
+        try { _layoutSide(s); } catch (err) {
+          console.error('[ZOOMPAN] layoutSide', s, err);
+        }
+      });
+    } catch (err) {
+      console.error('[ZOOMPAN] layout', err);
+    }
+    if (wantCmp) scheduleCompareHost();
+  });
+}
+
+function scheduleCompareHost() {
+  if (_compareTimer) clearTimeout(_compareTimer);
+  _compareTimer = setTimeout(() => {
+    _compareTimer = 0;
+    try { _refreshCompareHost(); } catch (err) {
+      console.error('[ZOOMPAN] compare host', err);
+    }
+  }, 80);
+}
+
+function invalidateCropCache() {
+  _cropUrlCache.clear();
+}
+
+function bumpLayoutGen() {
+  _layoutGen += 1;
+  if (_layoutRaf) {
+    cancelAnimationFrame(_layoutRaf);
+    _layoutRaf = 0;
+  }
+  _layoutSides.clear();
+  _layoutWantCompare = false;
+  if (_compareTimer) {
+    clearTimeout(_compareTimer);
+    _compareTimer = 0;
+  }
 }
 
 function aspectRatio() {
@@ -171,30 +256,40 @@ async function probeImagePixels(path) {
   return null;
 }
 
-function loadFullImage(imgEl, path) {
-  return new Promise((resolve, reject) => {
+function loadDisplayImage(imgEl, path) {
+  return new Promise((resolve) => {
     if (!path) {
-      imgEl.removeAttribute('src');
+      try { imgEl.removeAttribute('src'); } catch (_) { /* ignore */ }
+      delete imgEl.dataset.path;
       resolve(false);
       return;
     }
-    const url = fullImageUrl(path);
-    if (imgEl.src && imgEl.complete && imgEl.naturalWidth && imgEl.dataset.path === path) {
+    const url = displayUrl(path);
+    if (imgEl.dataset.path === path && imgEl.complete && imgEl.naturalWidth > 0) {
       resolve(true);
       return;
     }
-    const onLoad = () => {
-      imgEl.removeEventListener('error', onErr);
-      imgEl.dataset.path = path;
-      resolve(true);
+    let settled = false;
+    const done = (ok) => {
+      if (settled) return;
+      settled = true;
+      if (ok) imgEl.dataset.path = path;
+      resolve(ok);
     };
-    const onErr = () => {
-      imgEl.removeEventListener('load', onLoad);
-      reject(new Error('Failed to load ' + path));
-    };
-    imgEl.addEventListener('load', onLoad, { once: true });
-    imgEl.addEventListener('error', onErr, { once: true });
-    imgEl.src = url;
+    // Hard timeout so a hung decode never freezes the tab forever
+    const t = setTimeout(() => done(imgEl.complete && imgEl.naturalWidth > 0), 4000);
+    imgEl.addEventListener('load', () => { clearTimeout(t); done(true); }, { once: true });
+    imgEl.addEventListener('error', () => { clearTimeout(t); done(false); }, { once: true });
+    try {
+      imgEl.src = url;
+    } catch (_) {
+      clearTimeout(t);
+      done(false);
+    }
+    if (imgEl.complete && imgEl.naturalWidth > 0 && imgEl.dataset.path === path) {
+      clearTimeout(t);
+      done(true);
+    }
   });
 }
 
@@ -271,6 +366,8 @@ function viewportCardHtml(side, label, viewMode) {
 
 async function renderZoompanForm() {
   _bindGlobalImageListener();
+  bumpLayoutGen();
+  invalidateCropCache();
   if (_compareCtl) {
     try { _compareCtl.destroy(); } catch (_) { /* ignore */ }
     _compareCtl = null;
@@ -301,9 +398,11 @@ async function renderZoompanForm() {
           z._loadedPath = path;
           z.startBox = null;
           z.endBox = null;
+          invalidateCropCache();
         }
       }
-      await loadFullImage(_srcImg, path);
+      // UI bitmap only (thumb). Full res stays on the server for encode.
+      await loadDisplayImage(_srcImg, path);
     } catch (err) {
       logConsole(`[ZOOMPAN]: source load failed — ${err.message}`, 'error');
     }
@@ -313,19 +412,17 @@ async function renderZoompanForm() {
     z.startBox = null;
     z.endBox = null;
     z._loadedPath = null;
-    _srcImg.removeAttribute('src');
-    delete _srcImg.dataset.path;
+    await loadDisplayImage(_srcImg, null);
   }
 
   if (z.refPath) {
     try {
-      await loadFullImage(_refImg, z.refPath);
+      await loadDisplayImage(_refImg, z.refPath);
     } catch (err) {
       logConsole(`[ZOOMPAN]: ref load failed — ${err.message}`, 'error');
     }
   } else {
-    _refImg.removeAttribute('src');
-    delete _refImg.dataset.path;
+    await loadDisplayImage(_refImg, null);
   }
 
   ensureBoxes();
@@ -468,23 +565,28 @@ function _bindZoompanForm() {
 
   document.getElementById('zpCompareTarget')?.addEventListener('change', (e) => {
     z.compareTarget = e.target.value;
-    _refreshAllLayouts();
+    invalidateCropCache();
+    scheduleLayout('both', { compare: true });
   });
 
   document.querySelectorAll('.zp-view-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
       const side = btn.getAttribute('data-side');
       const mode = btn.getAttribute('data-mode');
+      if (!side || !mode) return;
+      const cur = side === 'start' ? z.viewModeStart : z.viewModeEnd;
+      if (cur === mode) return; // no-op re-click
       if (side === 'start') z.viewModeStart = mode;
       else z.viewModeEnd = mode;
-      // avoid full re-render: update buttons + layout
       document.querySelectorAll(`.zp-view-btn[data-side="${side}"]`).forEach((b) => {
         b.classList.toggle('active', b.getAttribute('data-mode') === mode);
       });
       const vp = document.getElementById(side === 'start' ? 'zpViewStart' : 'zpViewEnd');
       if (vp) vp.setAttribute('data-view', mode);
-      _layoutSide(side);
-      _refreshCompareHost();
+      // Cheap: one side only, compare host debounced (not sync toDataURL)
+      scheduleLayout(side, { compare: true });
     });
   });
 
@@ -502,8 +604,8 @@ function _bindZoompanForm() {
       if (side === 'start') z.startBox = clamped;
       else z.endBox = clamped;
       _syncBoxInputs(side);
-      _layoutSide(side);
-      _refreshCompareHost();
+      invalidateCropCache();
+      scheduleLayout(side, { compare: true });
     };
     ['X', 'Y', 'W'].forEach((k) => {
       document.getElementById(`${pre}${k}`)?.addEventListener('change', commit);
@@ -584,18 +686,21 @@ function _bindZoompanForm() {
       document.getElementById('zpCompareView'),
     ],
     onModeChange: () => {
-      // live switch without full re-probe
-      _refreshAllLayouts();
+      // Separate/overlay/ab — layout only, no full form rebuild
+      invalidateCropCache();
+      scheduleLayout('both', { compare: true });
     },
   });
 
-  // When opacity/ab changes, also refresh custom ref layers
+  // Opacity / A/B slider: update CSS layers only (no canvas redraw / toDataURL)
   const slider = document.getElementById(`${ZP_COMPARE_PREFIX}CompareSlider`);
   if (slider && !slider.dataset.zpExtra) {
     slider.dataset.zpExtra = '1';
     slider.addEventListener('input', () => {
-      _layoutSide('start');
-      _layoutSide('end');
+      _applyRefLayerCss('start');
+      _applyRefLayerCss('end');
+      // host compare uses paintCompareView — light debounce
+      scheduleCompareHost();
     });
   }
 }
@@ -638,38 +743,49 @@ function _imageContentRect(stage, img) {
 }
 
 /**
- * Draw box region of full-res source onto canvas, filling the stage (contain).
+ * Draw box region onto canvas (UI thumb source). Caps pixel work hard.
  */
 function _drawExactCrop(canvas, box) {
   const z = ensureZoompan();
   if (!canvas || !box || !_srcImg.naturalWidth || !z.imageW) return false;
   const stage = canvas.parentElement;
   if (!stage) return false;
-  const sw = stage.clientWidth;
-  const sh = stage.clientHeight;
+  let sw = stage.clientWidth;
+  let sh = stage.clientHeight;
   if (sw < 2 || sh < 2) return false;
 
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  canvas.width = Math.round(sw * dpr);
-  canvas.height = Math.round(sh * dpr);
-  canvas.style.width = `${sw}px`;
-  canvas.style.height = `${sh}px`;
+  // Cap CSS size we actually rasterize
+  const cap = UI_CROP_MAX_CSS;
+  if (sw > cap || sh > cap) {
+    const sc = Math.min(cap / sw, cap / sh);
+    sw = Math.max(2, Math.round(sw * sc));
+    sh = Math.max(2, Math.round(sh * sc));
+  }
 
-  const ctx = canvas.getContext('2d');
+  const dpr = Math.min(UI_CROP_MAX_DPR, window.devicePixelRatio || 1);
+  const bw = Math.round(sw * dpr);
+  const bh = Math.round(sh * dpr);
+  // Skip resize if identical (avoids clearing GPU memory every toggle)
+  if (canvas.width !== bw || canvas.height !== bh) {
+    canvas.width = bw;
+    canvas.height = bh;
+  }
+  canvas.style.width = '100%';
+  canvas.style.height = '100%';
+
+  const ctx = canvas.getContext('2d', { alpha: false });
+  if (!ctx) return false;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, sw, sh);
   ctx.fillStyle = '#0a0e16';
   ctx.fillRect(0, 0, sw, sh);
 
-  // Source crop in full-image pixels (probe size). Map onto natural if mismatch.
   const nw = _srcImg.naturalWidth;
   const nh = _srcImg.naturalHeight;
   const sx = (box.x / z.imageW) * nw;
   const sy = (box.y / z.imageH) * nh;
-  const sww = (box.w / z.imageW) * nw;
-  const shh = (box.h / z.imageH) * nh;
+  const sww = Math.max(1, (box.w / z.imageW) * nw);
+  const shh = Math.max(1, (box.h / z.imageH) * nh);
 
-  // Contain crop into stage
   const scale = Math.min(sw / box.w, sh / box.h);
   const dw = box.w * scale;
   const dh = box.h * scale;
@@ -678,11 +794,38 @@ function _drawExactCrop(canvas, box) {
 
   try {
     ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
+    ctx.imageSmoothingQuality = 'medium';
     ctx.drawImage(_srcImg, sx, sy, sww, shh, dx, dy, dw, dh);
     return true;
   } catch (_) {
     return false;
+  }
+}
+
+/** Update ref opacity / wipe without redrawing crop canvas. */
+function _applyRefLayerCss(side) {
+  const z = ensureZoompan();
+  const stage = document.getElementById(side === 'start' ? 'zpStageStart' : 'zpStageEnd');
+  if (!stage || !stage.classList.contains('has-ref-overlay')) return;
+  const refLayer = stage.querySelector('.zp-ref-layer');
+  const abHandle = stage.querySelector('.zp-ab-handle');
+  const labels = stage.querySelector('.zp-layer-labels');
+  const mode = z.mode || 'separate';
+  if (!refLayer || refLayer.hidden) return;
+  if (mode === 'overlay') {
+    refLayer.style.opacity = String(Math.min(100, Math.max(0, z.overlayOpacity)) / 100);
+    refLayer.style.clipPath = '';
+    if (abHandle) abHandle.hidden = true;
+    if (labels) labels.hidden = true;
+  } else if (mode === 'ab') {
+    const p = Math.min(100, Math.max(0, z.abPosition));
+    refLayer.style.opacity = '1';
+    refLayer.style.clipPath = `inset(0 0 0 ${p}%)`;
+    if (abHandle) {
+      abHandle.hidden = false;
+      abHandle.style.left = `${p}%`;
+    }
+    if (labels) labels.hidden = false;
   }
 }
 
@@ -715,7 +858,7 @@ function _layoutSide(side) {
 
   stage.classList.toggle('is-zoomed', viewMode === 'zoomed');
   stage.classList.toggle('is-full', viewMode === 'full');
-  stage.classList.toggle('has-ref-overlay', false);
+  stage.classList.remove('has-ref-overlay');
 
   if (!z.imagePath || !z.imageW) {
     if (fullImg) fullImg.hidden = true;
@@ -736,33 +879,35 @@ function _layoutSide(side) {
     if (labels) labels.hidden = true;
     if (fullImg) {
       fullImg.hidden = false;
-      // Prefer full image for accurate box mapping once loaded
-      const prefer = (_srcImg.complete && _srcImg.naturalWidth)
-        ? fullImageUrl(z.imagePath)
-        : thumbUrl(z.imagePath);
+      // Always thumb for UI — never swap to multi‑MB /api/image mid-toggle
+      const prefer = displayUrl(z.imagePath);
       if (fullImg.dataset.src !== prefer) {
         fullImg.dataset.src = prefer;
         fullImg.src = prefer;
       }
-      fullImg.style.cssText = 'width:100%;height:100%;object-fit:contain;object-position:center;display:block;';
+      fullImg.style.cssText = 'width:100%;height:100%;object-fit:contain;object-position:center;display:block;pointer-events:none;';
     }
     if (boxEl && box && fullImg) {
+      const gen = ++_placeGen[side];
       const place = () => {
+        if (gen !== _placeGen[side]) return;
+        const zz = ensureZoompan();
+        if ((side === 'start' ? zz.viewModeStart : zz.viewModeEnd) !== 'full') return;
         boxEl.hidden = false;
         const r = _imageContentRect(stage, fullImg);
         if (!r || r.dw < 1) return;
-        boxEl.style.left = `${r.ox + (box.x / z.imageW) * r.dw}px`;
-        boxEl.style.top = `${r.oy + (box.y / z.imageH) * r.dh}px`;
-        boxEl.style.width = `${(box.w / z.imageW) * r.dw}px`;
-        boxEl.style.height = `${(box.h / z.imageH) * r.dh}px`;
+        boxEl.style.left = `${r.ox + (box.x / zz.imageW) * r.dw}px`;
+        boxEl.style.top = `${r.oy + (box.y / zz.imageH) * r.dh}px`;
+        boxEl.style.width = `${(box.w / zz.imageW) * r.dw}px`;
+        boxEl.style.height = `${(box.h / zz.imageH) * r.dh}px`;
       };
       if (fullImg.complete && fullImg.naturalWidth) place();
-      else fullImg.onload = place;
+      else fullImg.addEventListener('load', place, { once: true });
     }
     return;
   }
 
-  // ── Zoomed In: exact box contents ─────────────────────────────────────
+  // ── Zoomed In: box contents (UI thumb crop) ───────────────────────────
   if (fullImg) fullImg.hidden = true;
   if (boxEl) boxEl.hidden = true;
   if (canvas) {
@@ -770,45 +915,28 @@ function _layoutSide(side) {
     _drawExactCrop(canvas, box);
   }
 
-  const useRef = _sideUsesRefOverlay(side) && _refImg.complete && _refImg.naturalWidth;
+  const useRef = _sideUsesRefOverlay(side) && _refImg.complete && _refImg.naturalWidth > 0;
   if (refLayer) {
     if (useRef) {
       stage.classList.add('has-ref-overlay');
       refLayer.hidden = false;
+      const refDisp = displayUrl(z.refPath);
       if (refLayer.dataset.path !== z.refPath) {
         refLayer.dataset.path = z.refPath;
-        refLayer.src = fullImageUrl(z.refPath);
+        refLayer.src = refDisp;
       }
       refLayer.classList.toggle('mode-overlay', mode === 'overlay');
       refLayer.classList.toggle('mode-ab', mode === 'ab');
-      if (mode === 'overlay') {
-        const o = Math.min(100, Math.max(0, z.overlayOpacity)) / 100;
-        refLayer.style.opacity = String(o);
-        refLayer.style.clipPath = '';
-      } else if (mode === 'ab') {
-        refLayer.style.opacity = '1';
-        const p = Math.min(100, Math.max(0, z.abPosition));
-        refLayer.style.clipPath = `inset(0 0 0 ${p}%)`;
-      }
+      _applyRefLayerCss(side);
     } else {
       refLayer.hidden = true;
       refLayer.style.opacity = '';
       refLayer.style.clipPath = '';
+      if (abHandle) abHandle.hidden = true;
+      if (labels) labels.hidden = true;
     }
-  }
-  if (abHandle) {
-    if (useRef && mode === 'ab') {
-      abHandle.hidden = false;
-      abHandle.style.left = `${Math.min(100, Math.max(0, z.abPosition))}%`;
-    } else {
-      abHandle.hidden = true;
-    }
-  }
-  if (labels) {
-    labels.hidden = !(useRef && mode === 'ab');
   }
 
-  // A/B drag on zoomed stage when ref overlay
   if (useRef && mode === 'ab') {
     _bindAbOnStage(stage);
   }
@@ -846,20 +974,19 @@ function _setAbFromClientX(stage, clientX) {
   const rect = stage.getBoundingClientRect();
   if (rect.width <= 0) return;
   const v = Math.min(100, Math.max(0, Math.round(((clientX - rect.left) / rect.width) * 100)));
+  if (v === z.abPosition) return;
   z.abPosition = v;
   const slider = document.getElementById(`${ZP_COMPARE_PREFIX}CompareSlider`);
   if (slider) slider.value = String(v);
   const valEl = document.getElementById(`${ZP_COMPARE_PREFIX}CompareSliderVal`);
   if (valEl) valEl.textContent = `${v}%`;
-  _layoutSide('start');
-  _layoutSide('end');
-  _refreshCompareHost();
+  // CSS only — never redraw canvas / toDataURL while dragging
+  _applyRefLayerCss('start');
+  _applyRefLayerCss('end');
 }
 
 function _refreshAllLayouts() {
-  _layoutSide('start');
-  _layoutSide('end');
-  _refreshCompareHost();
+  scheduleLayout('both', { compare: true });
 }
 
 /**
@@ -942,44 +1069,59 @@ function _cropDataUrl(side) {
   const box = side === 'start' ? z.startBox : z.endBox;
   if (!box || !_srcImg.naturalWidth || !z.imageW) return '';
 
+  const key = [
+    side,
+    z.imagePath || '',
+    Math.round(box.x), Math.round(box.y), Math.round(box.w), Math.round(box.h),
+  ].join('|');
+  if (_cropUrlCache.has(key)) return _cropUrlCache.get(key);
+
   const nw = _srcImg.naturalWidth;
   const nh = _srcImg.naturalHeight;
   const sx = (box.x / z.imageW) * nw;
   const sy = (box.y / z.imageH) * nh;
-  const sw = (box.w / z.imageW) * nw;
-  const sh = (box.h / z.imageH) * nh;
+  const sw = Math.max(1, (box.w / z.imageW) * nw);
+  const sh = Math.max(1, (box.h / z.imageH) * nh);
 
-  const maxSide = 720;
-  const sc = Math.min(1, maxSide / Math.max(box.w, box.h));
+  const maxSide = 320; // host compare only — keep tiny
+  const sc = Math.min(1, maxSide / Math.max(box.w, box.h, 1));
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(2, Math.round(box.w * sc));
   canvas.height = Math.max(2, Math.round(box.h * sc));
   const ctx = canvas.getContext('2d');
+  let url = '';
   try {
     ctx.drawImage(_srcImg, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.9);
+    url = canvas.toDataURL('image/jpeg', 0.75);
   } catch (_) {
-    return '';
+    url = '';
   }
+  if (url) {
+    if (_cropUrlCache.size > 12) _cropUrlCache.clear();
+    _cropUrlCache.set(key, url);
+  }
+  return url;
 }
 
 async function _paintAllViewports() {
-  const z = ensureZoompan();
-  // Ensure full imgs get a source for full mode
   for (const side of ['start', 'end']) {
     _bindBoxInteraction(side);
-    _layoutSide(side);
   }
-  _refreshCompareHost();
+  scheduleLayout('both', { compare: true });
 
   if (!_resizeBound) {
     _resizeBound = true;
+    let resizeT = 0;
     window.addEventListener('resize', () => {
       if (state.activeTab !== 'zoompan') return;
-      _refreshAllLayouts();
+      if (resizeT) clearTimeout(resizeT);
+      resizeT = setTimeout(() => {
+        resizeT = 0;
+        invalidateCropCache();
+        scheduleLayout('both', { compare: true });
+      }, 120);
     });
   }
-  requestAnimationFrame(() => _refreshAllLayouts());
 }
 
 function _bindBoxInteraction(side) {
@@ -1002,7 +1144,9 @@ function _bindBoxInteraction(side) {
     if (side === 'start') zz.startBox = c;
     else zz.endBox = c;
     _syncBoxInputs(side);
-    _layoutSide(side);
+    invalidateCropCache();
+    // During drag: only this side, skip expensive compare host until pointerup
+    scheduleLayout(side, { compare: false });
   }
 
   function clientToImage(clientX, clientY) {
@@ -1070,9 +1214,8 @@ function _bindBoxInteraction(side) {
     if (!drag) return;
     drag = null;
     try { boxEl.releasePointerCapture(e.pointerId); } catch (_) { /* ignore */ }
-    // Re-layout zoomed peers + compare (exact crop updates)
-    _layoutSide(side === 'start' ? 'end' : 'start');
-    _refreshCompareHost();
+    invalidateCropCache();
+    scheduleLayout('both', { compare: true });
   }
   boxEl.addEventListener('pointerup', endDrag);
   boxEl.addEventListener('pointercancel', endDrag);
@@ -1087,7 +1230,7 @@ function _bindBoxInteraction(side) {
     if (!b) return;
     const pt = clientToImage(e.clientX, e.clientY);
     setBox({ x: pt.x - b.w / 2, y: pt.y - b.h / 2, w: b.w, h: b.h });
-    _refreshCompareHost();
+    scheduleLayout(side, { compare: true });
   });
 }
 
