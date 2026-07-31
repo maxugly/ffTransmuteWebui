@@ -1256,14 +1256,49 @@ function collectZoompanBody() {
   if (durEl) z.durationSec = Math.min(600, Math.max(0.1, parseFloat(durEl.value) || 5));
   if (fpsEl) z.fps = Math.min(120, Math.max(1, parseFloat(fpsEl.value) || 24));
 
+  // Fresh plain objects (never share refs) + numeric coerce
+  const start_box = {
+    x: +z.startBox.x, y: +z.startBox.y,
+    w: +z.startBox.w, h: +z.startBox.h,
+  };
+  const end_box = {
+    x: +z.endBox.x, y: +z.endBox.y,
+    w: +z.endBox.w, h: +z.endBox.h,
+  };
+
+  const nearlySame =
+    Math.abs(start_box.x - end_box.x) < 1 &&
+    Math.abs(start_box.y - end_box.y) < 1 &&
+    Math.abs(start_box.w - end_box.w) < 1 &&
+    Math.abs(start_box.h - end_box.h) < 1;
+  if (nearlySame) {
+    const ok = confirm(
+      'Start and Last viewports are almost the same — the video will look static.\n\n' +
+      'In Zoomed Out, move/resize the Last box so it differs from Start, then Run again.\n\n' +
+      'Encode anyway?'
+    );
+    if (!ok) return null;
+  }
+
+  const nFrames = Math.max(2, Math.round(z.durationSec * z.fps));
+  logConsole(
+    `[ZOOMPAN]: ${nFrames}f @ ${z.fps}fps  ` +
+    `start=(${start_box.x.toFixed(0)},${start_box.y.toFixed(0)},${start_box.w.toFixed(0)}×${start_box.h.toFixed(0)}) → ` +
+    `end=(${end_box.x.toFixed(0)},${end_box.y.toFixed(0)},${end_box.w.toFixed(0)}×${end_box.h.toFixed(0)})`
+  );
+
+  // Output size: max of the two boxes so neither side is upscaled past source crop
+  const outW = Math.round(Math.max(start_box.w, end_box.w));
+  const outH = Math.round(Math.max(start_box.h, end_box.h));
+
   return {
     input_path: path,
-    start_box: { x: z.startBox.x, y: z.startBox.y, w: z.startBox.w, h: z.startBox.h },
-    end_box: { x: z.endBox.x, y: z.endBox.y, w: z.endBox.w, h: z.endBox.h },
+    start_box,
+    end_box,
     duration_sec: z.durationSec,
     fps: z.fps,
-    output_width: Math.round(z.startBox.w),
-    output_height: Math.round(z.startBox.h),
+    output_width: outW,
+    output_height: outH,
     output_path: null,
     dry_run: false,
   };

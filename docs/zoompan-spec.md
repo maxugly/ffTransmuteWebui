@@ -68,30 +68,23 @@ Create a new operation (e.g., `app/operations/zoompan_ops.py`) or register it wi
 }
 ```
 
-### 3.2 FFMPEG Execution
+### 3.2 Frame generation (as-built)
 
-Use `shell.py` (`run_command`) to invoke `ffmpeg`.
-The `zoompan` filter in ffmpeg is notoriously tricky because it defaults to `1280x720` and sometimes resets resolution. 
-A more robust alternative to `zoompan` for high-quality static image panning is to scale the image up drastically and use the `crop` filter with interpolated expressions, OR use `zoompan` carefully.
+**Do not** rely on ffmpeg `crop` expressions with animated `w/h/x/y` or the
+`zoompan` filter for product motion — both are finicky and often freeze on
+the first crop.
 
-**Recommended `zoompan` expression:**
-Interpolate `z`, `x`, and `y` based on the frame number `on` (or time `time`) relative to `total_frames`.
+**As-built pipeline (`zoompan_ops.py`):**
 
-*Example Math:*
-- Total Frames = `duration_sec * fps`
-- Start Zoom: `z1 = iw / start_w`
-- End Zoom: `z2 = iw / end_w`
-- `z = z1 + (z2 - z1) * (on / total_frames)`
-- `x = x1 + (x2 - x1) * (on / total_frames)`
-- `y = y1 + (y2 - y1) * (on / total_frames)`
+1. `N = max(2, round(duration_sec * fps))`
+2. For each frame `i = 0 … N-1`:
+   - `p = i / (N - 1)`  → first frame = start box, last = end box
+   - box = linear lerp of `(x,y,w,h)` start → end, clamped to image
+   - Pillow: `crop` → LANCZOS `resize` to even `output_width × output_height`
+   - write `frame_%06d.png`
+3. `ffmpeg -framerate FPS -i frame_%06d.png -c:v libx264 -pix_fmt yuv420p out.mp4`
 
-*Example ffmpeg command:*
-```bash
-ffmpeg -y -loop 1 -framerate 24 -i input.png \
-  -vf "zoompan=z='...':x='...':y='...':d=120:s=1920x1080:fps=24" \
-  -frames:v 120 -c:v libx264 -pix_fmt yuv420p output.mp4
-```
-*(Note: Care must be taken with the `s=` parameter to match the target output resolution).*
+Warn in the result if start≈end (static video).
 
 ---
 
