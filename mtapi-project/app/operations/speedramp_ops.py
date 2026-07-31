@@ -1,25 +1,24 @@
 """
-Speed ramp — continuous variable-speed ramp via ffmpeg setpts/asetpts.
+Speed ramp — exponential spin-up / spin-down via PNG frame remap.
 
-Single clip in, exponential speed curve, two directions:
-  spin_down = starts fast (4x), winds down to slow (1/3x)
-  spin_up   = starts slow (1/3x), winds up to fast (4x)
+dump → filters.speedramp (directory remap) → encode
+No ffmpeg setpts (unreliable). Audio dropped for v1 (remap changes timeline).
 
-Does NOT go through the transmute bash script — pure ffmpeg directly
-via shell.run_command. No looping: if input is too short for the
-requested parameters, output is proportionally shorter.
+See docs/speed-ramp-spec.md and docs/filter-platform-spec.md.
 """
 from __future__ import annotations
 
 import math
 import os
+import uuid
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from ..contract import OperationResult, OperationSpec, register
 from ..pathutil import unique_output_path
-from ..shell import ensure_video_output_path, probe_duration, run_command
+from ..shell import ensure_video_output_path
 
 
 class SpeedRampParams(BaseModel):
@@ -27,12 +26,12 @@ class SpeedRampParams(BaseModel):
     output_path: str | None = Field(None, description="Output path; auto-named if omitted")
     direction: Literal["spin_up", "spin_down"] = Field(
         "spin_down",
-        description="spin_down = fast→slow (4x→⅓x), spin_up = slow→fast (⅓x→4x)",
+        description="spin_down = fast→slow, spin_up = slow→fast (UI defaults)",
     )
     duration: float = Field(5.0, gt=0, le=300, description="Target output duration in seconds")
     start_speed: float = Field(4.0, gt=0.01, le=50, description="Speed multiplier at start of ramp")
     end_speed: float = Field(0.333, gt=0.01, le=50, description="Speed multiplier at end of ramp")
-    dry_run: bool = Field(False, description="Print command only")
+    dry_run: bool = Field(False, description="Print plan only")
 
 
 def _auto_name(input_path: str, direction: str, duration: float) -> str:
@@ -54,134 +53,116 @@ def _resolve_output(p: SpeedRampParams) -> str:
 
 
 async def speed_ramp(p: SpeedRampParams) -> OperationResult:
-    """Apply a continuous exponential speed ramp to a single clip."""
-    S, E = p.start_speed, p.end_speed
-    if p.direction == "spin_up":
-        if S == 4.0 and E == 0.333:
-            S, E = 0.333, 4.0
-        else:
-            S, E = p.end_speed, p.start_speed
+    """Frame-remap speed ramp via shared filter platform bookends."""
+    from ..job_workspace import JobWorkspace
+    from ..video_pipeline import probe, dump, encode, cleanup
+    from ..filters.speedramp import compute_curve, run_speedramp_directory
 
-    if S <= 0 or E <= 0 or S == E:
-        return OperationResult(ok=False, operation="speed_ramp",
-                               error="start_speed and end_speed must be > 0 and different")
-
-    input_dur = await probe_duration(p.input_path)
-    if input_dur <= 0:
-        return OperationResult(ok=False, operation="speed_ramp",
-                               error="Could not determine input duration")
-
-    # Exponential curve: T_in = A * (1 - exp(-k * T_out))  for spin_down
-    #                  T_in = A * (exp(k * T_out) - 1)     for spin_up
-    # where A = S/k, and k determines the rate.
-    #
-    # The setpts filter needs the INVERSE: T_out = f(T_in).
-    # For spin_down: T_out = -log(1 - T_in/A) / k
-    # For spin_up:   T_out =  log(1 + T_in/A) / k
-
-    if p.direction == "spin_down":
-        k = math.log(S / E) / p.duration
-        A = S / k
-        T_needed = A * (1 - math.exp(-k * p.duration))
-        expr_v = f"-log(1-PTS*TB/{A})/({k}*TB)"
-    else:
-        k = math.log(E / S) / p.duration
-        A = S / k
-        T_needed = A * (math.exp(k * p.duration) - 1)
-        expr_v = f"log(1+PTS*TB/{A})/({k}*TB)"
-    expr_a = expr_v
-
-    # If input is too short for the requested curve, auto-derive end_speed
-    # so the ramp consumes exactly the available footage.
-    derived_e = None
-    if input_dur >= T_needed:
-        actual_out = p.duration
-    else:
-        # Solve for k where T_needed = input_dur with S and D fixed.
-        # T_needed = (S - E)*D / ln(S/E) = input_dur  (spin_down)
-        # Binary search for E such that the integral equals input_dur.
-        lo, hi = (1e-8, S - 1e-8) if p.direction == "spin_down" else (S + 1e-8, 50.0)
-        for _ in range(60):
-            mid = (lo + hi) / 2
-            ratio = S / mid if p.direction == "spin_down" else mid / S
-            if ratio <= 1:
-                lo = mid; continue
-            T_est = (abs(S - mid) * p.duration) / math.log(ratio)
-            if T_est < input_dur:
-                lo = mid
-            else:
-                hi = mid
-        derived_e = (lo + hi) / 2
-        k2 = math.log(S / derived_e) / p.duration if p.direction == "spin_down" else math.log(derived_e / S) / p.duration
-        A2 = S / k2
-        actual_out = p.duration
-        if p.direction == "spin_down":
-            expr_v = f"-log(1-PTS*TB/{A2})/({k2}*TB)"
-        else:
-            expr_v = f"log(1+PTS*TB/{A2})/({k2}*TB)"
-        expr_a = expr_v
-
-    # Probe source fps for output frame rate (match source, capped)
-    source_fps = await _probe_fps(p.input_path)
-    out_fps = int(max(source_fps, 1))
+    input_path = Path(p.input_path).expanduser().resolve()
+    if not input_path.is_file():
+        return OperationResult(
+            ok=False, operation="speed_ramp",
+            error=f"Input not found: {input_path}", dry_run=p.dry_run,
+        )
 
     output = _resolve_output(p)
+    summary = (
+        f"speed_ramp {p.direction} {p.start_speed}×→{p.end_speed}× "
+        f"duration={p.duration}s (PNG remap)"
+    )
 
-    argv = [
-        "ffmpeg", "-y",
-        "-vsync", "0",
-        "-i", p.input_path,
-        "-filter:v", f"setpts='{expr_v}',fps={out_fps}",
-        "-filter:a", f"asetpts='{expr_a}'",
-        "-shortest",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-        "-c:a", "aac", "-b:a", "128k",
-        output,
-    ]
+    info = await probe(str(input_path))
+    fps = float(info.get("fps") or 24.0)
+    input_dur = float(info.get("duration") or 0.0)
+    if input_dur <= 0 or fps <= 0:
+        return OperationResult(
+            ok=False, operation="speed_ramp",
+            error=f"Could not probe input (dur={input_dur}, fps={fps})",
+            dry_run=p.dry_run,
+        )
 
-    cmd_str = " ".join(argv)
+    try:
+        curve = compute_curve(
+            p.direction, p.duration, p.start_speed, p.end_speed, input_dur, fps,
+        )
+    except ValueError as e:
+        return OperationResult(ok=False, operation="speed_ramp", error=str(e), dry_run=p.dry_run)
+
+    plan = (
+        f"{summary}\n"
+        f"Input: {input_dur:.2f}s @ {fps:.3g}fps\n"
+        f"Curve: {curve['effective_start_speed']:.4g}×→{curve['effective_end_speed']:.4g}× "
+        f"(scale={curve['scale']:.4g}"
+        f"{', short-source adjust' if curve['end_speed_adjusted'] else ''})\n"
+        f"Input needed: {curve['total_input_needed']:.2f}s / available {input_dur:.2f}s\n"
+        f"Output frames: {curve['output_frames']} (~{curve['output_frames']/fps:.2f}s)\n"
+        f"Path: dump → remap → encode (audio dropped)\n"
+        f"Output: {output}\n"
+    )
 
     if p.dry_run:
         return OperationResult(
-            ok=True, operation="speed_ramp",
-            dry_run=True, command=cmd_str, output_path=output,
-            stdout=(
-                f"Command: {cmd_str}\n"
-                f"Output: {output}\n"
-                f"Input: {input_dur:.2f}s  Target: {p.duration:.1f}s"
-                + (f"  Derived end_speed: {derived_e:.4f}x" if derived_e else f"  Source needed: {T_needed:.2f}s")
-                + f"  FPS: {out_fps}"
-            ),
+            ok=True, operation="speed_ramp", output_path=output,
+            dry_run=True, command=summary, stdout=plan,
         )
 
-    code, out, err = await run_command(argv)
-    ok = code == 0
-    return OperationResult(
-        ok=ok, operation="speed_ramp",
-        output_path=output if ok else None,
-        dry_run=False, command=cmd_str,
-        stdout=out, stderr=err,
-        error=(err.strip() or f"ffmpeg exited {code}") if not ok else None,
-    )
+    ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="speedramp_")
+    success = False
+    logs = [plan.rstrip()]
 
+    try:
+        dump_info = await dump(ws, str(input_path))
+        logs.append(f"dump: {dump_info['frame_count']} frames")
 
-# TODO: remove — use app.probe.probe_fps directly
-async def _probe_fps(path: str) -> float:
-    from ..probe import probe_fps
-    return await probe_fps(path, default=30.0)
+        meta = run_speedramp_directory(
+            ws.frames_in,
+            ws.frames_out,
+            direction=p.direction,
+            duration=p.duration,
+            start_speed=p.start_speed,
+            end_speed=p.end_speed,
+            input_dur=input_dur,
+            fps=fps,
+        )
+        logs.append(
+            f"remap: {meta['output_frames']} out frames "
+            f"({meta['unique_sources']} unique sources)"
+        )
+
+        out_fps = fps
+        # Duration-preserving fps if frame count changed vs naive duration*fps
+        if meta["output_frames"] > 0 and p.duration > 0:
+            out_fps = meta["output_frames"] / p.duration
+
+        result_path = await encode(
+            ws, output, out_fps, mux_audio=False, crf=18, preset="fast",
+        )
+        logs.append(f"Output: {result_path} @ {out_fps:.4g} fps (no audio)")
+        success = True
+
+        return OperationResult(
+            ok=True, operation="speed_ramp", output_path=str(result_path),
+            dry_run=False, command=summary, stdout="\n".join(logs),
+        )
+    except Exception as e:
+        return OperationResult(
+            ok=False, operation="speed_ramp", error=str(e),
+            dry_run=False, command=summary, stdout="\n".join(logs), stderr=str(e),
+        )
+    finally:
+        await cleanup(ws, keep_on_failure=not success)
 
 
 register(OperationSpec(
     id="speed_ramp",
     summary="Speed ramp (spin-up / spin-down) with exponential curve",
     description=(
-        "Applies a continuous variable-speed ramp to a single clip. "
-        "Speed changes exponentially from start_speed to end_speed over "
-        "the target duration. Spin-down = record winding down (4x→⅓x). "
-        "Spin-up = record winding up (⅓x→4x). Audio pitch follows the speed curve. "
-        "No looping — output is shorter if input is insufficient."
+        "Continuous exponential speed ramp via PNG frame remap (not setpts). "
+        "spin_down = fast→slow (record winding down); spin_up = slow→fast. "
+        "dump → remap → encode. Audio dropped in v1. "
+        "Same curve as filters.speedramp / speedramp_png CLI."
     ),
     params_model=SpeedRampParams,
     handler=speed_ramp,
-    tags=["transmute", "speed"],
+    tags=["speed", "filter", "remap"],
 ))

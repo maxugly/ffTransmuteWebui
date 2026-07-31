@@ -186,8 +186,9 @@ Do not reimplement dump/encode inside filters.
 2. **DeepDream** — ✅ video `per_frame` in `app/filters/deepdream.py` (image + ouroboros remain special bookends)
 3. **withoutbg** — ✅ video `per_frame` in `app/filters/withoutbg.py` (image batch stays on engine)
 4. **styletransfer** — ✅ video `per_frame` in `app/filters/styletransfer.py` (image batch stays on engine)
-5. **Facemorph** — multi-source morph + encode; dream_after → filters.deepdream
-6. **PngFramePipeline** — ✅ removed (stub raises); sync I/O on `video_pipeline.dump_frames_sync` / `encode_frames_sync`
+5. **speedramp** — ✅ directory remap `app/filters/speedramp.py` (not setpts)
+6. **Facemorph** — multi-source morph + encode; dream_after → filters.deepdream
+7. **PngFramePipeline** — ✅ removed (stub raises); sync I/O on `video_pipeline.dump_frames_sync` / `encode_frames_sync`
 
 ---
 

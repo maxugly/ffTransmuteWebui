@@ -92,5 +92,6 @@ Import the module from `filters/__init__.py` so registration runs at import time
 | `deepdream` | per_frame | `deepdream.py` |
 | `withoutbg` | per_frame | `withoutbg.py` |
 | `styletransfer` | per_frame | `styletransfer.py` |
+| `speedramp` | directory | `speedramp.py` (frame remap spin-up/down) |
 
 `PngFramePipeline` is gone (raises if constructed). Sync dump/encode: `video_pipeline.dump_frames_sync` / `encode_frames_sync`.

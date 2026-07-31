@@ -255,8 +255,8 @@
         "file": "speed-ramp-spec.md",
         "path": "docs/speed-ramp-spec.md",
         "category": "Operation",
-        "status": "Unknown",
-        "summary": "N/A"
+        "status": "Implemented (PNG remap filters.speedramp)",
+        "summary": "Exponential spin-up/down via dump\u2192frame remap\u2192encode. Not setpts. Audio dropped v1. CLI speedramp_png shares curve."
     },
     {
         "file": "speedchange-spec.md",

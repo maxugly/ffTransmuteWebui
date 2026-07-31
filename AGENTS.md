@@ -79,7 +79,7 @@ Stage kinds:
 | withoutbg | `withoutbg_ops.py` + `filters/withoutbg.py` | per_frame (video) | ✅ stable |
 | style transfer | `styletransfer_ops.py` + `filters/styletransfer.py` | per_frame (video) | ✅ stable |
 | RIFE | `rife_ops.py` + `filters/rife.py` | directory | ✅ stable |
-| speed ramp | `speedramp_ops.py` + `speedramp_png.py` | ⚠️ in progress | |
+| speed ramp | `speedramp_ops.py` + `filters/speedramp.py` | directory remap | ✅ PNG remap (not setpts); audio dropped v1 |
 | raw transmute | `transmute_ops.py` | — | ✅ escape hatch |
 
 `PngFramePipeline` removed (raises). Spec: `docs/filter-platform-spec.md`.
