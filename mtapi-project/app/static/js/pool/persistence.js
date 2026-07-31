@@ -13,6 +13,11 @@ import { displayOpResult } from '/js/job-control.js';
 import { POOL_ZOOM, POOL_LAYOUT_DEFAULTS } from '/js/pool/constants.js';
 
 let _poolSeqId = 1;
+
+function nextSeqId() {
+  return _poolSeqId++;
+}
+
 let _poolSaveTimer = null;
 let _poolPersistReady = false; // don't save until restore finishes
 
@@ -104,7 +109,7 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
       if (!Number.isFinite(td) || td <= 0) td = null;
     }
     return {
-      id: _poolSeqId++,
+      id: nextSeqId(),
       path: s.path,
       name: s.name || basename(s.path),
       targetDuration: td,
@@ -547,6 +552,7 @@ function buildPoolMetaHtml(item) {
 
 export {
   _poolSeqId, _poolSaveTimer, _poolPersistReady,
+  nextSeqId,
   scheduleSavePoolState, buildPoolStatePayload,
   projectLabel, markProjectDirty, updateProjectNameUI,
   applyPoolData, projectNew, projectOpen, projectSave,

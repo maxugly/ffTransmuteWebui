@@ -15,6 +15,7 @@ from .config import (  # noqa: F401
     POOL_STATE_PATH,
     _ensure_dirs,
     _extract_ver_path,
+    _frames_dir,
     _hash_dir,
     _hash_locks,
     _hash_locks_guard,

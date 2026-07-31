@@ -60,6 +60,13 @@ async function loadPoolItemMeta(item, idx) {
   if (item.hash) scheduleSavePoolState();
 }
 
+function scrollToSelected() {
+  const path = state.pool.selectedPath;
+  if (!path) return;
+  const card = Array.from(document.querySelectorAll('.pool-card')).find(c => c.dataset.path === path);
+  if (card?.scrollIntoView) card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
 function selectPoolItem(path) {
   if (!path) return;
   state.pool.selectedPath = path;
@@ -85,8 +92,7 @@ function selectPoolItem(path) {
   updateSeqClipSettings();
   scheduleSavePoolState();
 
-  const card = Array.from(document.querySelectorAll('.pool-card')).find(c => c.dataset.path === path);
-  if (card?.scrollIntoView) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  scrollToSelected();
   const tok = Array.from(document.querySelectorAll('.seq-token')).find(t => t.dataset.path === path);
   if (tok?.scrollIntoView) tok.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
 
@@ -109,8 +115,10 @@ function selectPoolItem(path) {
         </select>
         <button class="btn btn-primary" id="btnPoolUse" type="button">Apply</button>
       </div>
+      <button class="btn pool-jump-btn" id="btnJumpSelected" type="button" title="Jump to selected clip in grid">!</button>
     `;
     document.getElementById('btnPoolUse')?.addEventListener('click', applyPoolAsInput);
+    document.getElementById('btnJumpSelected')?.addEventListener('click', scrollToSelected);
   }
 }
 
@@ -189,7 +197,13 @@ async function importPoolFiles() {
       return;
     }
     addPathsToPool(paths);
-    if (state.activeTab === 'pool') renderPoolForm();
+    if (state.activeTab === 'pool') {
+      renderPoolForm();
+      const lastAdded = state.pool.items[state.pool.items.length - 1];
+      if (lastAdded) selectPoolItem(lastAdded.path);
+    } else if (state.activeTab === 'sequence') {
+      import('/js/pool/grid.js').then(m => { m.renderSequenceForm(); });
+    }
   } catch (err) {
     logConsole(`[POOL ERROR]: ${err.message}`, 'error');
     alert(`Could not open file picker: ${err.message}`);
@@ -230,7 +244,15 @@ async function importPoolFolder() {
       }
     });
     logConsole(`[POOL]: Folder import from ${dir} (${state.pool.items.length - before} new)`);
-    if (state.activeTab === 'pool') renderPoolForm();
+    if (state.activeTab === 'pool') {
+      renderPoolForm();
+      if (before < state.pool.items.length) {
+        const lastAdded = state.pool.items[state.pool.items.length - 1];
+        if (lastAdded) selectPoolItem(lastAdded.path);
+      }
+    } else if (state.activeTab === 'sequence') {
+      import('/js/pool/grid.js').then(m => { m.renderSequenceForm(); });
+    }
   } catch (err) {
     logConsole(`[POOL ERROR]: ${err.message}`, 'error');
     alert(`Folder import failed: ${err.message}`);
@@ -415,5 +437,5 @@ function applyPoolAsInput() {
 export {
   loadPoolItemMeta, selectPoolItem, removePoolItem, clearPool,
   addPathsToPool, importPoolFiles, importPoolFolder, WORKSPACE_HINT,
-  sendPoolPathTo, savePoolFramePng, applyPoolAsInput,
+  sendPoolPathTo, savePoolFramePng, applyPoolAsInput, scrollToSelected,
 };

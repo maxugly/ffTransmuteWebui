@@ -13,21 +13,22 @@ async function probeGlobalVideo(path) {
     const res = await fetch(`/api/probe?path=${encodeURIComponent(path)}`);
     if (!res.ok) return;
     const data = await res.json();
-    if (data.ok && data.frames) {
-      gi.totalFrames = data.frames;
-      gi.frameEnd = data.frames;
-      if (gi.frameStart < 1 || gi.frameStart > data.frames) gi.frameStart = 1;
+    if (data.ok && data.true_frames) {
+      var frames = data.true_frames;
+      gi.totalFrames = frames;
+      gi.frameEnd = frames;
+      if (gi.frameStart < 1 || gi.frameStart > frames) gi.frameStart = 1;
 
       var totalEl = document.getElementById('giTotalFrames');
-      if (totalEl) totalEl.textContent = data.frames;
+      if (totalEl) totalEl.textContent = frames;
 
       var startEl = document.getElementById('giTimelineStart');
       var endEl   = document.getElementById('giTimelineEnd');
       var valS    = document.getElementById('giValStartFrame');
       var valE    = document.getElementById('giValEndFrame');
       if (startEl && endEl) {
-        startEl.max = data.frames;
-        endEl.max = data.frames;
+        startEl.max = frames;
+        endEl.max = frames;
         startEl.value = gi.frameStart;
         endEl.value   = gi.frameEnd;
         if (valS) valS.value = gi.frameStart;

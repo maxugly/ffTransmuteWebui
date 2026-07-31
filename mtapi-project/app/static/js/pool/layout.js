@@ -8,7 +8,7 @@ function ensurePoolLayout() {
   if (!state.pool.layout) state.pool.layout = { ...POOL_LAYOUT_DEFAULTS, collapsed: { ...POOL_LAYOUT_DEFAULTS.collapsed } };
   const L = state.pool.layout;
   L.collapsed = L.collapsed || { ...POOL_LAYOUT_DEFAULTS.collapsed };
-  for (const k of ['sequence', 'selection', 'matches']) {
+  for (const k of ['sequence', 'selection', 'matches', 'pool']) {
     if (L.collapsed[k] === undefined) L.collapsed[k] = false;
   }
   return L;
@@ -25,8 +25,13 @@ function applyPoolLayout() {
   const matchBlock = document.getElementById('poolMatchBlock');
 
   if (compose) {
-    compose.style.height = `${L.composeHeight}px`;
-    compose.style.flex = `0 0 ${L.composeHeight}px`;
+    if (L.collapsed.pool) {
+      compose.style.flex = '1 1 auto';
+      compose.style.height = '';
+    } else {
+      compose.style.height = `${L.composeHeight}px`;
+      compose.style.flex = `0 0 ${L.composeHeight}px`;
+    }
   }
   if (focus) {
     focus.style.width = `${L.focusWidth}px`;
@@ -56,6 +61,17 @@ function applyPoolLayout() {
   if (seqPanel) seqPanel.classList.toggle('is-collapsed', !!L.collapsed.sequence);
   if (selectionBody) selectionBody.classList.toggle('is-collapsed', !!L.collapsed.selection);
   if (matchBlock) matchBlock.classList.toggle('is-collapsed', !!L.collapsed.matches);
+
+  const gridWrap = document.querySelector('.pool-grid-wrap');
+  if (gridWrap) gridWrap.classList.toggle('is-collapsed', !!L.collapsed.pool);
+
+  const poolTop = document.querySelector('.pool-top');
+  if (poolTop) poolTop.classList.toggle('pool-collapsed', !!L.collapsed.pool);
+
+  const toggleBtn = document.getElementById('btnTogglePool');
+  if (toggleBtn) {
+    toggleBtn.innerHTML = L.collapsed.pool ? '\u25C9 Show Pool' : '\u25C7 Hide Pool';
+  }
 
   document.querySelectorAll('[data-collapse]').forEach(head => {
     const key = head.getAttribute('data-collapse');

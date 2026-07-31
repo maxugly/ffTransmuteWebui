@@ -59,6 +59,11 @@ def _phash_path(content_hash: str, which: str) -> Path:
     return _hash_dir(content_hash) / f"{which}.phash"
 
 
+def _frames_dir(content_hash: str) -> Path:
+    """Directory for full-video frame-strip thumbnails (Frame Scrubber)."""
+    return _hash_dir(content_hash) / "frames"
+
+
 def _extract_ver_path(content_hash: str, which: str) -> Path:
     return _hash_dir(content_hash) / f"{which}.extract_v"
 

@@ -9,7 +9,7 @@ import {
 import { loadPoolItemMeta, selectPoolItem } from '/js/pool/items.js';
 import { isVideoPath, basename, escapeHtml, formatDurationExact } from '/js/utils.js';
 import {
-  poolThumbUrl, shortHash, _poolSeqId,
+  poolThumbUrl, shortHash, nextSeqId,
   scheduleSavePoolState, savePoolStateNow, refreshPoolToolbarCounts,
 } from '/js/pool/persistence.js';
 
@@ -207,7 +207,7 @@ function addPathToSequence(path, insertAt = null) {
   const item = findPoolItem(path);
   const name = item?.name || basename(path);
   const entry = {
-    id: _poolSeqId++,
+    id: nextSeqId(),
     path,
     name,
     targetDuration: null, // seconds; null = native length
@@ -269,6 +269,18 @@ function renderSequenceBox() {
     return;
   }
 
+  // Compute total effective duration for proportional token widths
+  let totalDuration = 0;
+  const durations = state.pool.sequence.map(entry => {
+    if (entry.targetDuration != null && Number.isFinite(entry.targetDuration) && entry.targetDuration > 0) {
+      return entry.targetDuration;
+    }
+    const native = findPoolItem(entry.path)?.meta?.duration;
+    if (native != null && native > 0) return native;
+    return 1.0;
+  });
+  totalDuration = durations.reduce((a, b) => a + b, 0);
+
   box.innerHTML = '';
   const playIdx = state.pool.playback.playing || state.pool.playback.index >= 0
     ? state.pool.playback.index
@@ -293,6 +305,12 @@ function renderSequenceBox() {
       <span class="seq-token-dur${speedInfo.stretched ? ' timed' : ''}">${speedInfo.durLabel}</span>
       <button type="button" class="seq-token-x" title="Remove">&cross;</button>
     `;
+
+    // Proportional width based on effective duration
+    const ratio = totalDuration > 0
+      ? (durations[idx] / totalDuration) * 100
+      : (100 / state.pool.sequence.length);
+    tok.style.flexBasis = ratio.toFixed(2) + '%';
 
     // Color the TIME text for beat-sync at a glance (not just token chrome)
     const durEl = tok.querySelector('.seq-token-dur');
@@ -371,6 +389,7 @@ function updateSeqTransportUI() {
   const moveLeft = document.getElementById('btnSeqMoveLeft');
   const moveRight = document.getElementById('btnSeqMoveRight');
   const moveLast = document.getElementById('btnSeqMoveLast');
+  const removeBtn = document.getElementById('btnSeqRemove');
 
   if (playBtn) playBtn.disabled = n === 0;
   if (prevBtn) prevBtn.disabled = n === 0;
@@ -389,6 +408,7 @@ function updateSeqTransportUI() {
   if (moveLeft) moveLeft.disabled = !canReorder || selIdx === 0;
   if (moveRight) moveRight.disabled = !canReorder || selIdx >= n - 1;
   if (moveLast) moveLast.disabled = !canReorder || selIdx >= n - 1;
+  if (removeBtn) removeBtn.disabled = selIdx < 0;
 
   if (status) {
     if (n === 0) {

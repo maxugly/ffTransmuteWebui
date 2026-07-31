@@ -1,49 +1,68 @@
-# Phase 5 — Dynamic Mixing Pipeline
+# Dynamic Mixing Pipeline (Phase 5)
 
-> **Status:** Specification Phase
+> **Status:** Specification Phase (Rewrite)
+> **Category:** Core Architecture
 
-## 1. Problem
-Currently, applying multiple effects (e.g., DeepDream, followed by RIFE interpolation, followed by Datamoshing) requires sequential API calls. Each call dumps a video to frames, processes them, and re-encodes back to a video. This leads to generation loss (multiple re-encodes), massive I/O overhead, and slow processing times. We need a `/ops/pipeline` endpoint that takes a list of filters, decodes the input once, pipes the frames through the filter chain in RAM, and encodes once.
+## 1. Overview
+Currently, applying multiple effects (e.g., DeepDream, followed by RIFE interpolation, followed by Datamoshing) requires the user to run each operation sequentially, downloading or re-selecting intermediate videos. 
 
-## 2. Key Design Decisions
+The Dynamic Mixing Pipeline allows clients to send an array of operations (a "chain") to a single endpoint. The backend processes the video through all specified filters in a single job, encoding the final video only once. Crucially, **this architecture is strictly disk-based** to respect memory constraints; no full video arrays are ever held in RAM.
 
-### 2.1. Each filter passes frame paths or in-memory arrays?
-**Decision:** In-memory arrays (e.g., numpy arrays, PIL Images, or raw byte buffers).
-*Rationale:* The core requirement is "no intermediate files between stages" and processing "through RAM". Passing file paths would require writing intermediate frames to disk for every stage of the chain. Filter functions in the pipeline must be refactored or wrapped to accept and return in-memory frame representations. 
+## 2. Architecture & Constraints
 
-### 2.2. How to chain `filter_fn` functions dynamically?
-**Decision:** A unified `PipelineChain` runner that composes the `filter_fn` of each requested operation using an Async Generator pattern.
-*Rationale:* Instead of calling a single `filter_fn(input_png, output_png)`, the `process` stage will load the dumped PNG into memory, pass the in-memory array through `filter_1`, pass its output to `filter_2`, etc., and finally write the result to `output_png` for the final encode step. Because filters like RIFE change the frame count, each filter should be structured as an asynchronous generator `async def filter(frame) -> AsyncGenerator[Frame, None]`.
+### 2.1 Disk-Based Cascading Workspaces
+We cannot hold video frame arrays in memory (no numpy arrays, no PIL buffers kept between frames). The chain operates strictly on disk by cascading PNG sequences through stage directories inside a single `JobWorkspace`.
 
-### 2.3. Progress: per-filter or per-frame granularity?
-**Decision:** Per-frame granularity (with filter context).
-*Rationale:* The existing `VideoPipeline` reports progress per frame. For a continuous pipeline, progress should represent `frames_written / total_expected_frames`. We can augment this by reporting which filter is currently bottlenecking or processing, but the top-level progress must remain frame-based to provide a smooth progress bar. Note that dynamic frame rates (e.g. from RIFE) mean the `total_expected_frames` must be recalculated midway.
+**Workspace Structure:**
+```text
+/tmp/mtapi_jobs/{job_id}/
+├── stage_0/   (frames_in from initial ffmpeg dump)
+├── stage_1/   (output of filter 1, input to filter 2)
+├── stage_2/   (output of filter 2, input to filter 3)
+├── stage_N/   (final output)
+└── audio.ext  (extracted audio)
+```
 
-### 2.4. Error: one filter fails → abort chain or skip?
-**Decision:** Abort chain.
-*Rationale:* Video manipulation pipelines usually depend on the specific sequence of visual transformations. Skipping a failed filter (e.g., skipping background removal) would result in a completely different, unexpected output that the user did not intend. Aborting early saves compute, prevents corrupted outputs, and alerts the user to the specific failure.
+### 2.2 Processing Flow (No Generators)
+We drop the async generator pattern entirely. Instead, the chain relies on a simple directory-based for-loop. We reuse the Phase 4 `filter_fn` signature:
+```python
+async def filter_fn(input_png: Path, output_png: Path, index: int) -> None
+```
+For each stage `N`, the pipeline:
+1. Iterates over `stage_{N-1}/*.png`.
+2. Calls `filter_fn(input_png, output_png, index)`.
+3. Writes the output to `stage_{N}/`.
+4. Frees memory (only ONE frame is loaded into RAM at a time).
 
-## 3. Approach & Pattern to Follow
-1. **Endpoint Generation:** Create `POST /ops/pipeline` that accepts a JSON body with a list of operation IDs and their respective parameters. Example: 
-   `{"input_path": "/tmp/teste.mp4", "filters": [{"name": "deepdream", "params": {...}}, {"name": "rife", "params": {...}}]}`
-2. **Unified Filter Interface:** Define an `InMemoryFilter` interface that all ops must adapt to. `async def process_frame(frame: np.ndarray, index: int, context: dict) -> AsyncGenerator[np.ndarray, None]`.
-3. **Pipeline Runner Modification:** Extend `VideoPipeline` (from Phase 4) to support a `chain_process` method. It reads `frames_in/*.png` one by one, decodes to RAM, passes through the generator chain, and writes to `frames_out/`.
-4. **CLI Wrapping / Datamoshing:** For tools like `datamosh.sh` that operate on full video files (MPEG-2 glitching), we face a conflict. True datamoshing relies on inter-frame compression artifacts, which cannot be applied to isolated in-memory PNG frames. The pipeline must handle this by either grouping frame-level filters in memory, then performing a final encode, and passing the encoded video to file-level scripts like `datamosh.sh` as an implicit post-processing step.
+### 2.3 Progress Reporting
+Progress is reported per-stage. The pipeline tracks `frames_processed / total_frames` for the current stage, and reports which stage is currently active (e.g., `Stage 2/3: DeepDream (45/90)`).
 
-## 4. Files to Touch
-- **NEW:** `mtapi-project/app/operations/pipeline_ops.py` (Endpoint and filter chain logic)
-- **NEW:** `mtapi-project/app/pipeline_chain.py` (The RAM-based processing loop)
-- **TOUCH:** `mtapi-project/app/video_pipeline.py` (Adapt to support RAM chaining)
-- **TOUCH:** `mtapi-project/app/operations/__init__.py` (Register the new endpoint)
-- **TOUCH:** Existing ops (`deepdream_ops.py`, `rife_ops.py`, etc.) to expose in-memory filter interfaces.
+## 3. PipelineChain (`app/pipeline_chain.py`)
+A new orchestrator class that wraps `JobWorkspace`.
+- Accepts a list of `filter_fns` and their names.
+- **Dumps Once:** Extracts frames from the input video to `stage_0/`.
+- **Chains Iteratively:** Runs a standard `for` loop over each filter, passing the previous stage's directory as input and a new stage directory as output.
+- **Encodes Once:** Only the final stage directory (`stage_N/`) is encoded back into an `.mp4`.
+- **Cancellation:** Checks `job_control.check_cancelled()` between individual frames AND between full stages.
 
-## 5. Pitfalls
-- **Memory Leaks:** Storing too many frames in RAM (especially with high-res video or memory-heavy ops like DeepDream) will OOM the server. Strict frame-by-frame GC is required.
-- **CLI Tool Mismatch:** `datamosh.sh` expects a `.mp4` video file, not an in-memory frame. To include datamosh in a frame-based pipeline, it needs to run as a post-encode step. If the user specifies `[deepdream, datamosh, withoutbg]`, it would require an intermediate encode/decode step anyway, violating the "encode once" rule. We must explicitly define "video-level" vs "frame-level" filters in the spec.
-- **Frame Rate Changes (RIFE):** RIFE doubles or quadruples frames. The pipeline chain must handle 1-to-N frame mappings gracefully, meaning downstream filters will process 2x or 4x more frames.
+## 4. Files to Create
+- **NEW:** `app/pipeline_chain.py` (~150 lines) - Handles cascading directories and loops.
+- **NEW:** `app/operations/pipeline_ops.py` (~100 lines) - Exposes `POST /ops/pipeline` accepting a JSON array of operations.
 
-## 6. Verification Steps
-1. Create a chain request with `[deepdream, withoutbg]` and verify that the output video contains deeply dreamed foreground subjects with transparent/black backgrounds.
-2. Check disk I/O metrics to ensure no intermediate PNGs are created between the deepdream and withoutbg steps (only `frames_in` and `frames_out` should exist).
-3. Verify that if a filter fails (e.g., invalid parameters passed to `rife`), the entire pipeline halts cleanly, the error is returned in the API response, and the `job_workspace` is preserved for debugging.
-4. Pass `/tmp/teste.mp4` through a 3-filter chain in the WebUI and ensure progress updates reflect the per-frame progression without JS console errors.
+## 5. Tradeoffs & Special Cases
+
+### Memory Constraint & Disk I/O
+Because we only load one PNG frame at a time, RAM stays low and OOM crashes are prevented. The tradeoff is heavy disk I/O, as each intermediate stage writes a full PNG sequence to disk. This is an acceptable tradeoff for system stability. (Model weights caching across stages is out of scope here and handled by the Model Manager phase).
+
+### Boundary Operations (Datamosh & ffglitch)
+`PipelineChain` handles **frame-level filters only** (identity, deepdream, rife, withoutbg, styletransfer, facemorph). 
+
+Datamosh and ffglitch (Phase 6.3 pixel sort) are **FILE-LEVEL** operations. They act on encoded MPEG-2/MP4 data, not raw PNG sequences, and thus cannot be mid-chain filters. 
+
+These operations compose at the UX layer, not the codec layer: run the frame pipeline first, then datamosh the resulting video separately as a post-encode step. No bridge is needed. `PipelineChain` is correct and complete for its scope.
+
+## 6. Acceptance Criteria
+- **AC-1:** Given a chain of `[identity, identity]`, When processed, Then the final output video matches a single identity pass.
+- **AC-2:** Given a chain of `[deepdream, rife]`, When run on a 90-frame video, Then the pipeline produces 180 frames with the dream effect applied and smooth motion interpolation.
+- **AC-3:** Given an active chain, When cancelled mid-chain, Then the workspace directories are kept intact on disk and the job reports an error/cancelled status.
+- **AC-4:** Given a completed job, When inspecting disk usage, Then intermediate stage directories exist during processing, but only the final `frames_out` (or final encoded video) dictates the output structure, with cleanup applying normally.

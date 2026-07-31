@@ -15,14 +15,14 @@ import {
   setPoolFocus, updateSelectionHighlights, updatePoolFocusFrame,
   setupSequenceDropZone, addPathToSequence, clearSequence,
   renderSequenceBox, updateSeqTransportUI, findSelectedSeqIndex,
-  moveSelectedInSequence, updateSeqClipSettings,
+  moveSelectedInSequence, removeSequenceAt, updateSeqClipSettings,
   onSeqClipDurationChange, applySeqTokenTimeStyles,
   seqPlay, seqPause, seqStop, seqPrev, seqNext,
 } from '/js/pool/sequence.js';
 import {
   loadPoolItemMeta, selectPoolItem, removePoolItem, clearPool,
   addPathsToPool, importPoolFiles, importPoolFolder,
-  sendPoolPathTo, applyPoolAsInput,
+  sendPoolPathTo, applyPoolAsInput, scrollToSelected,
 } from '/js/pool/items.js';
 import { quickTransmuteLabel } from '/js/tabs/quick.js';
 import {
@@ -37,200 +37,14 @@ import {
 
 function renderPoolForm() {
   const count = state.pool.items.length;
-  const seqCount = state.pool.sequence.length;
   const selected = state.pool.selectedPath;
-  const rec = state.pool.reconcile || 'pad';
-  const outVal = state.pool.outputPath || '';
-
-  const L = ensurePoolLayout();
-  const col = L.collapsed;
 
   const html = `
     <div class="pool-workspace-inner">
       <div class="pool-top">
-        <div class="pool-toolbar">
-          <div class="pool-toolbar-actions">
-            <div class="pool-project-group">
-              <button type="button" class="btn" id="btnProjectNew" title="New empty project">New</button>
-              <button type="button" class="btn" id="btnProjectOpen" title="Open .ffproject.json">Open…</button>
-              <button type="button" class="btn btn-primary" id="btnProjectSave" title="Save project">Save</button>
-              <button type="button" class="btn" id="btnProjectSaveAs" title="Save project as…">Save As…</button>
-              <span class="pool-project-name" id="poolProjectName" title="${escapeHtml(state.project.path || '')}">${escapeHtml(projectLabel())}</span>
-            </div>
-
-            <button class="btn btn-primary" id="btnPoolImportFiles" type="button">+ Files</button>
-            <button class="btn" id="btnPoolImportFolder" type="button">+ Folder</button>
-            <button class="btn" id="btnPoolClear" type="button" ${count === 0 ? 'disabled' : ''}>Clear Pool</button>
-            <button class="btn" id="btnSeqClear" type="button" ${seqCount === 0 ? 'disabled' : ''}>Clear Sequence</button>
-
-            <div class="pool-zoom-group" title="Tile size">
-              <button type="button" class="btn pool-zoom-btn" id="btnZoomMin" title="Minimum size">min</button>
-              <button type="button" class="btn pool-zoom-btn" id="btnZoomOut" title="Zoom out">−</button>
-              <button type="button" class="btn pool-zoom-btn pool-zoom-reset" id="btnZoomReset" title="Reset size (default)">reset</button>
-              <button type="button" class="btn pool-zoom-btn" id="btnZoomIn" title="Zoom in">+</button>
-              <button type="button" class="btn pool-zoom-btn" id="btnZoomMax" title="Maximum size">max</button>
-            </div>
-
-            <div class="pool-info-menu-wrap">
-              <button type="button" class="btn" id="btnTileInfoMenu" title="Choose tile overlay fields">Info ▾</button>
-              <div class="pool-info-menu" id="tileInfoMenu" hidden>
-                <div class="pool-info-menu-title">Show on tiles</div>
-                <div class="pool-info-menu-actions">
-                  <button type="button" class="btn pool-info-mini" id="btnTileInfoAll">All</button>
-                  <button type="button" class="btn pool-info-mini" id="btnTileInfoNone">None</button>
-                </div>
-                <div class="pool-info-checks" id="tileInfoChecks"></div>
-              </div>
-            </div>
-          </div>
-          <div class="pool-toolbar-meta">
-            <span class="pool-count">${count} in pool · ${seqCount} in sequence</span>
-            ${selected ? `
-              <div class="pool-use-wrap">
-                <label for="poolUseTarget" class="pool-use-label">Use as input</label>
-                <select id="poolUseTarget" class="pool-use-select">
-                  <option value="">— target —</option>
-                  <option value="sequence">Add to sequence</option>
-                  <option value="mosh">Datamosh input</option>
-                  <option value="transmute">Transmute input</option>
-                  <option value="multi">Add to Multi clips</option>
-                  <option value="advanced">Advanced input</option>
-                </select>
-                <button class="btn btn-primary" id="btnPoolUse" type="button">Apply</button>
-              </div>
-            ` : ''}
-          </div>
-        </div>
-
+        ${_poolToolbarHtml(count, selected)}
         <div class="pool-grid-wrap">
           <div class="pool-grid" id="poolGrid"></div>
-        </div>
-      </div>
-
-      <div class="pool-v-resize" id="poolVResize" title="Drag to resize dock"></div>
-
-      <div class="pool-compose" id="poolCompose">
-        <div class="pool-sequence-panel${col.sequence ? ' is-collapsed' : ''}" id="poolSequencePanel">
-          <div class="pool-section-head" data-collapse="sequence">
-            <button type="button" class="pool-collapse-btn" title="Collapse / expand sequence" aria-expanded="${!col.sequence}">
-              <span class="pool-collapse-chevron">${col.sequence ? '▸' : '▾'}</span>
-            </button>
-            <span class="pool-section-title">Sequence</span>
-            <div class="seq-transport" id="seqTransport" onclick="event.stopPropagation()">
-              <button type="button" class="btn seq-ctrl" id="btnSeqPrev" title="Previous clip" ${seqCount === 0 ? 'disabled' : ''}>⏮</button>
-              <button type="button" class="btn seq-ctrl seq-ctrl-play" id="btnSeqPlay" title="Play sequence" ${seqCount === 0 ? 'disabled' : ''}>▶</button>
-              <button type="button" class="btn seq-ctrl" id="btnSeqPause" title="Pause" disabled>⏸</button>
-              <button type="button" class="btn seq-ctrl" id="btnSeqStop" title="Stop" disabled>■</button>
-              <button type="button" class="btn seq-ctrl" id="btnSeqNext" title="Next clip" ${seqCount === 0 ? 'disabled' : ''}>⏭</button>
-              <button type="button" class="btn seq-ctrl ${state.pool.playback.loop ? 'active' : ''}" id="btnSeqLoop" title="Loop sequence" ${seqCount === 0 ? 'disabled' : ''}>🔁</button>
-              <span class="seq-play-status" id="seqPlayStatus">—</span>
-              <span class="seq-reorder-sep" aria-hidden="true"></span>
-              <button type="button" class="btn seq-ctrl seq-reorder" id="btnSeqMoveFirst" title="Move selected to start" disabled>&lt;&lt;</button>
-              <button type="button" class="btn seq-ctrl seq-reorder" id="btnSeqMoveLeft" title="Move selected earlier" disabled>&lt;</button>
-              <button type="button" class="btn seq-ctrl seq-reorder" id="btnSeqMoveRight" title="Move selected later" disabled>&gt;</button>
-              <button type="button" class="btn seq-ctrl seq-reorder" id="btnSeqMoveLast" title="Move selected to end" disabled>&gt;&gt;</button>
-            </div>
-          </div>
-          <div class="pool-section-body" data-section="sequence">
-            <div class="pool-sequence-box" id="poolSequenceBox" tabindex="0"></div>
-            <div class="seq-clip-settings" id="seqClipSettings" hidden>
-              <span class="seq-clip-settings-label">Selected clip</span>
-              <span class="seq-clip-settings-name" id="seqClipName">—</span>
-              <label class="pool-opt-label" title="Stretch or compress this clip to a target length in the stitch">Time (s)
-                <input type="number" id="seqClipDuration" min="0.05" step="0.05" placeholder="native" class="seq-clip-dur-input">
-              </label>
-              <button type="button" class="btn pool-info-mini" id="btnSeqClipDurClear" title="Use original duration">Native</button>
-              <span class="seq-clip-settings-hint" id="seqClipDurHint"></span>
-            </div>
-            <div class="pool-sequence-bar">
-              <div class="pool-sequence-opts">
-                <label class="pool-opt-label" title="How clips are scaled onto the canvas">Fit
-                  <select id="poolReconcile">
-                    <option value="pad" ${rec === 'pad' ? 'selected' : ''}>Pad (scale up, letterbox if AR differs)</option>
-                    <option value="crop" ${rec === 'crop' ? 'selected' : ''}>Crop (scale up, center-crop if AR differs)</option>
-                    <option value="stretch" ${rec === 'stretch' ? 'selected' : ''}>Stretch (warp AR)</option>
-                  </select>
-                </label>
-                <label class="pool-opt-label" title="Target canvas aspect ratio">AR
-                  <select id="poolAspect">
-                    <option value="auto" ${(state.pool.aspect || 'auto') === 'auto' ? 'selected' : ''}>Auto</option>
-                    <option value="1:1" ${state.pool.aspect === '1:1' ? 'selected' : ''}>1:1</option>
-                    <option value="16:9" ${state.pool.aspect === '16:9' ? 'selected' : ''}>16:9</option>
-                    <option value="9:16" ${state.pool.aspect === '9:16' ? 'selected' : ''}>9:16</option>
-                    <option value="3:2" ${state.pool.aspect === '3:2' ? 'selected' : ''}>3:2</option>
-                    <option value="2:3" ${state.pool.aspect === '2:3' ? 'selected' : ''}>2:3</option>
-                    <option value="4:3" ${state.pool.aspect === '4:3' ? 'selected' : ''}>4:3</option>
-                    <option value="3:4" ${state.pool.aspect === '3:4' ? 'selected' : ''}>3:4</option>
-                    <option value="custom" ${state.pool.aspect === 'custom' ? 'selected' : ''}>Custom…</option>
-                  </select>
-                </label>
-                <input type="text" id="poolAspectCustom" class="pool-aspect-custom"
-                  placeholder="W:H or WxH" title="Custom aspect e.g. 5:4 or 1080x1920"
-                  value="${escapeHtml(state.pool.aspectCustom || '')}"
-                  style="display:${state.pool.aspect === 'custom' ? 'inline-block' : 'none'}; width: 100px;">
-                <div class="input-row pool-out-row">
-                  <input type="text" id="poolOutput" placeholder="Output path (blank = auto .mp4)" value="${escapeHtml(outVal)}">
-                  <button class="btn" type="button" id="btnPoolOutBrowse">Save As</button>
-                </div>
-              </div>
-              <button class="btn btn-primary pool-stitch-btn" id="btnPoolStitch" type="button" ${seqCount < 2 ? 'disabled' : ''}>
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
-                  <polygon points="5 3 19 12 5 21 5 3"/>
-                </svg>
-                Stitch Sequence
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div class="pool-h-resize" id="poolHResize" title="Drag to resize panels"></div>
-
-        <div class="pool-focus-panel" id="poolFocusPanel">
-          <div class="pool-focus-header">
-            <div class="pool-section-head pool-section-head-inline" data-collapse="selection">
-              <button type="button" class="pool-collapse-btn" title="Collapse / expand selection frames" aria-expanded="${!col.selection}">
-                <span class="pool-collapse-chevron">${col.selection ? '▸' : '▾'}</span>
-              </button>
-              <span class="pool-section-title">Selection</span>
-            </div>
-            <div class="pool-match-controls">
-              <label class="pool-match-label" title="pHash Hamming distance (0 = exact under hash)">
-                ≤
-                <input type="range" id="matchDistance" min="0" max="24" value="${state.pool.matchMaxDistance}" step="1">
-                <span id="matchDistanceVal">${state.pool.matchMaxDistance}</span>
-              </label>
-              <select id="matchMode" class="pool-match-mode" title="Match direction">
-                <option value="next" ${state.pool.matchMode === 'next' ? 'selected' : ''}>Next (last→first)</option>
-                <option value="prev" ${state.pool.matchMode === 'prev' ? 'selected' : ''}>Prev (first→last)</option>
-                <option value="both" ${state.pool.matchMode === 'both' ? 'selected' : ''}>Both</option>
-              </select>
-              <button type="button" class="btn btn-primary pool-match-btn" id="btnFindNext" ${selected ? '' : 'disabled'} title="Compare selection frame to pool via pHash">
-                Find matches
-              </button>
-            </div>
-          </div>
-
-          <div class="pool-section-body${col.selection ? ' is-collapsed' : ''}" data-section="selection" id="poolSelectionBody">
-            <div class="pool-focus-frame" id="poolFocusFrame">
-              <div class="pool-focus-empty">Hover or click a clip</div>
-            </div>
-          </div>
-
-          <div class="pool-sel-match-resize" id="poolSelMatchResize" title="Drag to resize selection vs matches"></div>
-
-          <div class="pool-match-block${col.matches ? ' is-collapsed' : ''}" id="poolMatchBlock">
-            <div class="pool-section-head" data-collapse="matches">
-              <button type="button" class="pool-collapse-btn" title="Collapse / expand matches" aria-expanded="${!col.matches}">
-                <span class="pool-collapse-chevron">${col.matches ? '▸' : '▾'}</span>
-              </button>
-              <span class="pool-section-title">Matches</span>
-              <span class="pool-match-count-badge" id="matchCountBadge"></span>
-              <button type="button" class="btn pool-info-mini" id="btnExpandMatches" title="Give matches more room (collapse selection, grow dock)">Expand</button>
-            </div>
-            <div class="pool-section-body" data-section="matches">
-              <div class="pool-match-results" id="poolMatchResults" hidden></div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -239,6 +53,82 @@ function renderPoolForm() {
   elements.actionPanel.innerHTML = html;
   elements.actionPanel.classList.add('pool-active');
 
+  _bindPoolToolbar();
+  zoomBindings();
+  _bindTileInfoMenu();
+
+  applyPoolZoom();
+  renderPoolGrid();
+  updateSelectionHighlights();
+}
+
+function _poolToolbarHtml(count, selected, seqCount) {
+  const hasSeq = seqCount != null;
+  const projectLabelVal = projectLabel();
+  return `
+    <div class="pool-toolbar">
+      <div class="pool-toolbar-actions">
+        <div class="pool-project-group">
+          <button type="button" class="btn" id="btnProjectNew" title="New empty project">New</button>
+          <button type="button" class="btn" id="btnProjectOpen" title="Open .ffproject.json">Open…</button>
+          <button type="button" class="btn btn-primary" id="btnProjectSave" title="Save project">Save</button>
+          <button type="button" class="btn" id="btnProjectSaveAs" title="Save project as…">Save As…</button>
+          <span class="pool-project-name" id="poolProjectName" title="${escapeHtml(state.project.path || '')}">${escapeHtml(projectLabelVal)}</span>
+        </div>
+
+        <button class="btn btn-primary" id="btnPoolImportFiles" type="button">+ Files</button>
+        <button class="btn" id="btnPoolImportFolder" type="button">+ Folder</button>
+        <button class="btn" id="btnPoolClear" type="button" ${count === 0 ? 'disabled' : ''}>Clear Pool</button>
+        ${hasSeq ? `<button class="btn" id="btnSeqClear" type="button" ${seqCount === 0 ? 'disabled' : ''}>Clear Sequence</button>` : ''}
+        ${hasSeq ? `<button class="btn pool-toggle-btn" id="btnTogglePool" type="button" title="Show / hide clip grid">${_poolToggleLabel()}</button>` : ''}
+
+        <div class="pool-zoom-group" title="Tile size">
+          <button type="button" class="btn pool-zoom-btn" id="btnZoomMin" title="Minimum size">min</button>
+          <button type="button" class="btn pool-zoom-btn" id="btnZoomOut" title="Zoom out">−</button>
+          <button type="button" class="btn pool-zoom-btn pool-zoom-reset" id="btnZoomReset" title="Reset size (default)">reset</button>
+          <button type="button" class="btn pool-zoom-btn" id="btnZoomIn" title="Zoom in">+</button>
+          <button type="button" class="btn pool-zoom-btn" id="btnZoomMax" title="Maximum size">max</button>
+        </div>
+
+        <div class="pool-info-menu-wrap">
+          <button type="button" class="btn" id="btnTileInfoMenu" title="Choose tile overlay fields">Info ▾</button>
+          <div class="pool-info-menu" id="tileInfoMenu" hidden>
+            <div class="pool-info-menu-title">Show on tiles</div>
+            <div class="pool-info-menu-actions">
+              <button type="button" class="btn pool-info-mini" id="btnTileInfoAll">All</button>
+              <button type="button" class="btn pool-info-mini" id="btnTileInfoNone">None</button>
+            </div>
+            <div class="pool-info-checks" id="tileInfoChecks"></div>
+          </div>
+        </div>
+      </div>
+      <div class="pool-toolbar-meta">
+        <span class="pool-count">${count} in pool${hasSeq ? ' · ' + seqCount + ' in sequence' : ''}</span>
+        ${selected ? `
+          <div class="pool-use-wrap">
+            <label for="poolUseTarget" class="pool-use-label">Use as input</label>
+            <select id="poolUseTarget" class="pool-use-select">
+              <option value="">— target —</option>
+              <option value="sequence">Add to sequence</option>
+              <option value="mosh">Datamosh input</option>
+              <option value="transmute">Transmute input</option>
+              <option value="multi">Add to Multi clips</option>
+              <option value="advanced">Advanced input</option>
+            </select>
+            <button class="btn btn-primary" id="btnPoolUse" type="button">Apply</button>
+          </div>
+          <button class="btn pool-jump-btn" id="btnJumpSelected" type="button" title="Jump to selected clip in grid">!</button>
+        ` : ''}
+      </div>
+    </div>`;
+}
+
+function _poolToggleLabel() {
+  const L = ensurePoolLayout();
+  return L.collapsed.pool ? '\u25C9 Show Pool' : '\u25C7 Hide Pool';
+}
+
+function _bindPoolToolbar() {
   document.getElementById('btnProjectNew')?.addEventListener('click', projectNew);
   document.getElementById('btnProjectOpen')?.addEventListener('click', projectOpen);
   document.getElementById('btnProjectSave')?.addEventListener('click', () => projectSave(false));
@@ -248,7 +138,24 @@ function renderPoolForm() {
   document.getElementById('btnPoolImportFolder')?.addEventListener('click', importPoolFolder);
   document.getElementById('btnPoolClear')?.addEventListener('click', clearPool);
   document.getElementById('btnSeqClear')?.addEventListener('click', clearSequence);
+  document.getElementById('btnTogglePool')?.addEventListener('click', () => togglePoolSection('pool'));
   document.getElementById('btnPoolUse')?.addEventListener('click', applyPoolAsInput);
+  document.getElementById('btnJumpSelected')?.addEventListener('click', scrollToSelected);
+}
+
+function _bindTileInfoMenu() {
+  setupTileInfoMenu();
+}
+
+function zoomBindings() {
+  document.getElementById('btnZoomMin')?.addEventListener('click', () => setPoolZoom(POOL_ZOOM.min));
+  document.getElementById('btnZoomOut')?.addEventListener('click', () => setPoolZoom(state.pool.tileZoom - POOL_ZOOM.step));
+  document.getElementById('btnZoomReset')?.addEventListener('click', () => setPoolZoom(POOL_ZOOM.reset));
+  document.getElementById('btnZoomIn')?.addEventListener('click', () => setPoolZoom(state.pool.tileZoom + POOL_ZOOM.step));
+  document.getElementById('btnZoomMax')?.addEventListener('click', () => setPoolZoom(POOL_ZOOM.max));
+}
+
+function _bindSequencePanel() {
   document.getElementById('btnPoolStitch')?.addEventListener('click', stitchPoolSequence);
   document.getElementById('btnPoolOutBrowse')?.addEventListener('click', () => {
     window.openFileBrowser('poolOutput', false, 'file_save');
@@ -272,14 +179,6 @@ function renderPoolForm() {
     scheduleSavePoolState();
   });
 
-  // Zoom controls
-  document.getElementById('btnZoomMin')?.addEventListener('click', () => setPoolZoom(POOL_ZOOM.min));
-  document.getElementById('btnZoomOut')?.addEventListener('click', () => setPoolZoom(state.pool.tileZoom - POOL_ZOOM.step));
-  document.getElementById('btnZoomReset')?.addEventListener('click', () => setPoolZoom(POOL_ZOOM.reset));
-  document.getElementById('btnZoomIn')?.addEventListener('click', () => setPoolZoom(state.pool.tileZoom + POOL_ZOOM.step));
-  document.getElementById('btnZoomMax')?.addEventListener('click', () => setPoolZoom(POOL_ZOOM.max));
-
-  // Frame match controls
   document.getElementById('matchDistance')?.addEventListener('input', (e) => {
     state.pool.matchMaxDistance = parseInt(e.target.value, 10) || 0;
     const val = document.getElementById('matchDistanceVal');
@@ -290,10 +189,6 @@ function renderPoolForm() {
   });
   document.getElementById('btnFindNext')?.addEventListener('click', runPoolMatch);
 
-  // Tile info menu
-  setupTileInfoMenu();
-
-  // Sequence transport
   document.getElementById('btnSeqPlay')?.addEventListener('click', seqPlay);
   document.getElementById('btnSeqPause')?.addEventListener('click', seqPause);
   document.getElementById('btnSeqStop')?.addEventListener('click', seqStop);
@@ -320,6 +215,11 @@ function renderPoolForm() {
     e.stopPropagation();
     moveSelectedInSequence('end');
   });
+  document.getElementById('btnSeqRemove')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const idx = findSelectedSeqIndex();
+    if (idx >= 0) removeSequenceAt(idx);
+  });
 
   const durInput = document.getElementById('seqClipDuration');
   durInput?.addEventListener('change', onSeqClipDurationChange);
@@ -329,14 +229,10 @@ function renderPoolForm() {
     const idx = findSelectedSeqIndex();
     if (idx < 0) return;
     const raw = durInput.value.trim();
-    if (!raw) {
-      state.pool.sequence[idx].targetDuration = null;
-    } else {
-      const v = parseFloat(raw);
-      if (Number.isFinite(v) && v > 0) {
-        state.pool.sequence[idx].targetDuration = v;
-        state.pool.selectedSeqId = state.pool.sequence[idx].id;
-      }
+    const v = parseFloat(raw);
+    if (Number.isFinite(v) && v > 0) {
+      state.pool.sequence[idx].targetDuration = v;
+      state.pool.selectedSeqId = state.pool.sequence[idx].id;
     }
     applySeqTokenTimeStyles();
     const hint = document.getElementById('seqClipDurHint');
@@ -375,6 +271,173 @@ function renderPoolForm() {
     scheduleSavePoolState();
     logConsole(`[SEQ]: Cleared time stretch for ${state.pool.sequence[idx].name}`);
   });
+}
+
+function _composeHtml() {
+  const seqCount = state.pool.sequence.length;
+  const rec = state.pool.reconcile || 'pad';
+  const outVal = state.pool.outputPath || '';
+  const L = ensurePoolLayout();
+  const col = L.collapsed;
+
+  return `
+    <div class="pool-compose" id="poolCompose">
+      <div class="pool-sequence-panel${col.sequence ? ' is-collapsed' : ''}" id="poolSequencePanel">
+        <div class="pool-section-head" data-collapse="sequence">
+          <button type="button" class="pool-collapse-btn" title="Collapse / expand sequence" aria-expanded="${!col.sequence}">
+            <span class="pool-collapse-chevron">${col.sequence ? '▸' : '▾'}</span>
+          </button>
+          <span class="pool-section-title">Sequence</span>
+          <div class="seq-transport" id="seqTransport" onclick="event.stopPropagation()">
+            <button type="button" class="btn seq-ctrl" id="btnSeqPrev" title="Previous clip" ${seqCount === 0 ? 'disabled' : ''}>⏮</button>
+            <button type="button" class="btn seq-ctrl seq-ctrl-play" id="btnSeqPlay" title="Play sequence" ${seqCount === 0 ? 'disabled' : ''}>▶</button>
+            <button type="button" class="btn seq-ctrl" id="btnSeqPause" title="Pause" disabled>⏸</button>
+            <button type="button" class="btn seq-ctrl" id="btnSeqStop" title="Stop" disabled>■</button>
+            <button type="button" class="btn seq-ctrl" id="btnSeqNext" title="Next clip" ${seqCount === 0 ? 'disabled' : ''}>⏭</button>
+            <button type="button" class="btn seq-ctrl ${state.pool.playback.loop ? 'active' : ''}" id="btnSeqLoop" title="Loop sequence" ${seqCount === 0 ? 'disabled' : ''}>🔁</button>
+            <span class="seq-play-status" id="seqPlayStatus">—</span>
+            <span class="seq-reorder-sep" aria-hidden="true"></span>
+            <button type="button" class="btn seq-ctrl seq-reorder" id="btnSeqMoveFirst" title="Move selected to start" disabled>&lt;&lt;</button>
+            <button type="button" class="btn seq-ctrl seq-reorder" id="btnSeqMoveLeft" title="Move selected earlier" disabled>&lt;</button>
+            <button type="button" class="btn seq-ctrl seq-reorder" id="btnSeqMoveRight" title="Move selected later" disabled>&gt;</button>
+            <button type="button" class="btn seq-ctrl seq-reorder" id="btnSeqMoveLast" title="Move selected to end" disabled>&gt;&gt;</button>
+            <span class="seq-reorder-sep" aria-hidden="true"></span>
+            <button type="button" class="btn seq-ctrl seq-remove" id="btnSeqRemove" title="Remove selected from sequence" disabled>&minus;</button>
+          </div>
+        </div>
+        <div class="pool-section-body" data-section="sequence">
+          <div class="pool-sequence-box" id="poolSequenceBox" tabindex="0"></div>
+          <div class="seq-clip-settings" id="seqClipSettings" hidden>
+            <span class="seq-clip-settings-label">Selected clip</span>
+            <span class="seq-clip-settings-name" id="seqClipName">—</span>
+            <label class="pool-opt-label" title="Stretch or compress this clip to a target length in the stitch">Time (s)
+              <input type="number" id="seqClipDuration" min="0.05" step="0.05" placeholder="native" class="seq-clip-dur-input">
+            </label>
+            <button type="button" class="btn pool-info-mini" id="btnSeqClipDurClear" title="Use original duration">Native</button>
+            <span class="seq-clip-settings-hint" id="seqClipDurHint"></span>
+          </div>
+          <div class="pool-sequence-bar">
+            <div class="pool-sequence-opts">
+              <label class="pool-opt-label" title="How clips are scaled onto the canvas">Fit
+                <select id="poolReconcile">
+                  <option value="pad" ${rec === 'pad' ? 'selected' : ''}>Pad (scale up, letterbox if AR differs)</option>
+                  <option value="crop" ${rec === 'crop' ? 'selected' : ''}>Crop (scale up, center-crop if AR differs)</option>
+                  <option value="stretch" ${rec === 'stretch' ? 'selected' : ''}>Stretch (warp AR)</option>
+                </select>
+              </label>
+              <label class="pool-opt-label" title="Target canvas aspect ratio">AR
+                <select id="poolAspect">
+                  <option value="auto" ${(state.pool.aspect || 'auto') === 'auto' ? 'selected' : ''}>Auto</option>
+                  <option value="1:1" ${state.pool.aspect === '1:1' ? 'selected' : ''}>1:1</option>
+                  <option value="16:9" ${state.pool.aspect === '16:9' ? 'selected' : ''}>16:9</option>
+                  <option value="9:16" ${state.pool.aspect === '9:16' ? 'selected' : ''}>9:16</option>
+                  <option value="3:2" ${state.pool.aspect === '3:2' ? 'selected' : ''}>3:2</option>
+                  <option value="2:3" ${state.pool.aspect === '2:3' ? 'selected' : ''}>2:3</option>
+                  <option value="4:3" ${state.pool.aspect === '4:3' ? 'selected' : ''}>4:3</option>
+                  <option value="3:4" ${state.pool.aspect === '3:4' ? 'selected' : ''}>3:4</option>
+                  <option value="custom" ${state.pool.aspect === 'custom' ? 'selected' : ''}>Custom…</option>
+                </select>
+              </label>
+              <input type="text" id="poolAspectCustom" class="pool-aspect-custom"
+                placeholder="W:H or WxH" title="Custom aspect e.g. 5:4 or 1080x1920"
+                value="${escapeHtml(state.pool.aspectCustom || '')}"
+                style="display:${state.pool.aspect === 'custom' ? 'inline-block' : 'none'}; width: 100px;">
+              <div class="input-row pool-out-row">
+                <input type="text" id="poolOutput" placeholder="Output path (blank = auto .mp4)" value="${escapeHtml(outVal)}">
+                <button class="btn" type="button" id="btnPoolOutBrowse">Save As</button>
+              </div>
+            </div>
+            <button class="btn btn-primary pool-stitch-btn" id="btnPoolStitch" type="button" ${seqCount < 2 ? 'disabled' : ''}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+              Stitch Sequence
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="pool-h-resize" id="poolHResize" title="Drag to resize panels"></div>
+
+      <div class="pool-focus-panel" id="poolFocusPanel">
+        <div class="pool-focus-header">
+          <div class="pool-section-head pool-section-head-inline" data-collapse="selection">
+            <button type="button" class="pool-collapse-btn" title="Collapse / expand selection frames" aria-expanded="${!col.selection}">
+              <span class="pool-collapse-chevron">${col.selection ? '▸' : '▾'}</span>
+            </button>
+            <span class="pool-section-title">Selection</span>
+          </div>
+          <div class="pool-match-controls">
+            <label class="pool-match-label" title="pHash Hamming distance (0 = exact under hash)">
+              ≤
+              <input type="range" id="matchDistance" min="0" max="24" value="${state.pool.matchMaxDistance}" step="1">
+              <span id="matchDistanceVal">${state.pool.matchMaxDistance}</span>
+            </label>
+            <select id="matchMode" class="pool-match-mode" title="Match direction">
+              <option value="next" ${state.pool.matchMode === 'next' ? 'selected' : ''}>Next (last→first)</option>
+              <option value="prev" ${state.pool.matchMode === 'prev' ? 'selected' : ''}>Prev (first→last)</option>
+              <option value="both" ${state.pool.matchMode === 'both' ? 'selected' : ''}>Both</option>
+            </select>
+            <button type="button" class="btn btn-primary pool-match-btn" id="btnFindNext" ${state.pool.selectedPath ? '' : 'disabled'} title="Compare selection frame to pool via pHash">
+              Find matches
+            </button>
+          </div>
+        </div>
+
+        <div class="pool-section-body${col.selection ? ' is-collapsed' : ''}" data-section="selection" id="poolSelectionBody">
+          <div class="pool-focus-frame" id="poolFocusFrame">
+            <div class="pool-focus-empty">Hover or click a clip</div>
+          </div>
+        </div>
+
+        <div class="pool-sel-match-resize" id="poolSelMatchResize" title="Drag to resize selection vs matches"></div>
+
+        <div class="pool-match-block${col.matches ? ' is-collapsed' : ''}" id="poolMatchBlock">
+          <div class="pool-section-head" data-collapse="matches">
+            <button type="button" class="pool-collapse-btn" title="Collapse / expand matches" aria-expanded="${!col.matches}">
+              <span class="pool-collapse-chevron">${col.matches ? '▸' : '▾'}</span>
+            </button>
+            <span class="pool-section-title">Matches</span>
+            <span class="pool-match-count-badge" id="matchCountBadge"></span>
+            <button type="button" class="btn pool-info-mini" id="btnExpandMatches" title="Give matches more room (collapse selection, grow dock)">Expand</button>
+          </div>
+          <div class="pool-section-body" data-section="matches">
+            <div class="pool-match-results" id="poolMatchResults" hidden></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderSequenceForm() {
+  const count = state.pool.items.length;
+  const seqCount = state.pool.sequence.length;
+  const selected = state.pool.selectedPath;
+  const L = ensurePoolLayout();
+  const col = L.collapsed;
+
+  const html = `
+    <div class="pool-workspace-inner">
+      <div class="pool-top">
+        ${_poolToolbarHtml(count, selected, seqCount)}
+        <div class="pool-grid-wrap${col.pool ? ' is-collapsed' : ''}">
+          <div class="pool-grid" id="poolGrid"></div>
+        </div>
+      </div>
+
+      <div class="pool-v-resize${col.pool ? ' is-collapsed' : ''}" id="poolVResize" title="Drag to resize dock"></div>
+
+      ${_composeHtml()}
+    </div>
+  `;
+
+  elements.actionPanel.innerHTML = html;
+  elements.actionPanel.classList.add('pool-active');
+
+  _bindPoolToolbar();
+  _bindSequencePanel();
+  _bindTileInfoMenu();
+  zoomBindings();
 
   setupSequenceDropZone();
   updateSeqClipSettings();
@@ -389,7 +452,6 @@ function renderPoolForm() {
     renderMatchResults(state.pool.matchResults);
   }
 }
-
 
 function sequencePositions(path) {
   const out = [];
@@ -586,7 +648,6 @@ function renderPoolGrid() {
       menu.className = 'pool-send-menu pool-send-menu-portal';
       menu._sourceCard = card;
       menu.style.position = 'fixed';
-      menu.style.top = (rect.bottom + 3) + 'px';
       menu.style.right = (window.innerWidth - rect.right) + 'px';
       menu.style.zIndex = '99999';
       menu.innerHTML = `
@@ -603,6 +664,17 @@ function renderPoolGrid() {
         <button type="button" class="pool-send-item" data-send="save_first_png">Save first frame PNG…</button>
         <button type="button" class="pool-send-item" data-send="save_last_png">Save last frame PNG…</button>
       `;
+      document.body.appendChild(menu);
+
+      // Clamp position to viewport
+      const pad = 6;
+      const menuRect = menu.getBoundingClientRect();
+      let top = rect.bottom + 3;
+      if (top + menuRect.height > window.innerHeight - pad) {
+        top = rect.top - menuRect.height - 3;
+      }
+      if (top < pad) top = pad;
+      menu.style.top = `${top}px`;
 
       menu.querySelectorAll('.pool-send-item').forEach(opt => {
         opt.addEventListener('click', (ev) => {
@@ -624,8 +696,6 @@ function renderPoolGrid() {
         }
       };
       setTimeout(() => document.addEventListener('click', dismiss, true), 0);
-
-      document.body.appendChild(menu);
     });
     sendWrap?.addEventListener('mousedown', (e) => e.stopPropagation());
     sendWrap?.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -820,6 +890,6 @@ function renderMatchResults(data) {
 }
 
 export {
-  renderPoolForm, renderPoolGrid, sequencePositions,
+  renderPoolForm, renderSequenceForm, renderPoolGrid, sequencePositions,
   showClipInfoOverlay, runPoolMatch, renderMatchResults,
 };

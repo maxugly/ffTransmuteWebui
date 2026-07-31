@@ -3,7 +3,7 @@ const POOL_LAYOUT_DEFAULTS = {
   focusWidth: 340,
   selectionHeight: 0, // 0 = auto (aspect-ratio 32/9 for dual frames)
   matchHeight: 180,
-  collapsed: { sequence: false, selection: false, matches: false },
+  collapsed: { sequence: false, selection: false, matches: false, pool: false },
 };
 
 const VIDEO_EXTS = ['.mp4', '.m4v', '.mov', '.avi', '.mkv', '.webm', '.mpeg', '.mpg', '.wmv', '.flv', '.ts', '.mts', '.m2ts'];

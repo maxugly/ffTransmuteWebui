@@ -1,10 +1,13 @@
-"""Media-related routes: video, image, probe, media_info, thumbnail, export_frame."""
+"""Media-related routes: video, image, probe, media_info, thumbnail, export_frame, frame-strip."""
+import asyncio
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from .. import media
+from .. import job_control
+from .. import shell
 
 
 def register(app: FastAPI, probe_fn) -> None:
@@ -104,3 +107,94 @@ def register(app: FastAPI, probe_fn) -> None:
     @app.get("/api/media_cache", tags=["meta"])
     async def media_cache_info():
         return {"ok": True, **media.media_cache_stats()}
+
+    # ── frame strip ──────────────────────────────────────────────────────────
+
+    FRAME_LIMIT = 500
+
+    def _frame_strip_dir(content_hash: str) -> Path:
+        return media._frames_dir(content_hash)
+
+    def _frame_strip_exists(content_hash: str, frame_count: int) -> bool:
+        d = _frame_strip_dir(content_hash)
+        last = d / f"frame_{frame_count:06d}.jpg"
+        return last.exists()
+
+    @app.post("/media/frame-strip", tags=["meta"])
+    async def create_frame_strip(body: dict):
+        path = (body or {}).get("path")
+        if not path:
+            raise HTTPException(status_code=400, detail="path is required")
+        path_obj = Path(path).expanduser().resolve()
+        if not path_obj.is_file():
+            raise HTTPException(status_code=404, detail="File not found")
+
+        content_hash, _ = await media.resolve_hash(path_obj)
+
+        info = await probe_fn(path_obj)
+        frame_count = int(info.get("frames") or 0)
+        if frame_count <= 0:
+            return JSONResponse(
+                {"ok": False, "error": "Could not determine frame count"},
+                status_code=200,
+            )
+
+        if frame_count > FRAME_LIMIT:
+            return JSONResponse(
+                {
+                    "ok": False,
+                    "error": f"Video has {frame_count} frames (limit: {FRAME_LIMIT})",
+                    "frame_count": frame_count,
+                },
+                status_code=200,
+            )
+
+        d = _frame_strip_dir(content_hash)
+        if _frame_strip_exists(content_hash, frame_count):
+            prefix = f"/media/frame-strip/{content_hash}"
+            frame_urls = [f"{prefix}/frame_{i:06d}.jpg" for i in range(1, frame_count + 1)]
+            return JSONResponse({
+                "ok": True,
+                "hash": content_hash,
+                "frame_count": frame_count,
+                "frame_urls": frame_urls,
+                "cached": True,
+            })
+
+        d.mkdir(parents=True, exist_ok=True)
+        in_pattern = str(d / "frame_%06d.jpg")
+        scale_w = 120
+
+        argv = [
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-i", str(path_obj),
+            "-vf", f"scale={scale_w}:-1",
+            "-q:v", "5",
+            "-start_number", "1",
+            in_pattern,
+        ]
+
+        job_control.check_cancelled()
+        code, _stdout, stderr = await shell.run_command(argv)
+        if code != 0:
+            return JSONResponse({
+                "ok": False,
+                "error": f"ffmpeg frame extraction failed: {stderr.strip() or f'exit code {code}'}",
+            })
+
+        prefix = f"/media/frame-strip/{content_hash}"
+        frame_urls = [f"{prefix}/frame_{i:06d}.jpg" for i in range(1, frame_count + 1)]
+        return JSONResponse({
+            "ok": True,
+            "hash": content_hash,
+            "frame_count": frame_count,
+            "frame_urls": frame_urls,
+            "cached": False,
+        })
+
+    @app.get("/media/frame-strip/{content_hash}/{filename:path}", tags=["meta"])
+    async def serve_frame_strip(content_hash: str, filename: str):
+        fp = _frame_strip_dir(content_hash) / filename
+        if not fp.is_file():
+            raise HTTPException(status_code=404, detail="Frame not found")
+        return FileResponse(str(fp), media_type="image/jpeg")
