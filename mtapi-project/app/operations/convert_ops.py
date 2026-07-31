@@ -51,6 +51,8 @@ class ConvertParams(BaseModel):
         ge=1.0, le=120.0,
         description="Effective FPS for image-folder import; ignored for video sources",
     )
+    start_frame: int = Field(1, ge=0, description="First source frame for video/GIF (1-based inclusive)")
+    end_frame: int = Field(999999, ge=0, description="Last source frame for video/GIF (1-based inclusive)")
     dry_run: bool = Field(False, description="Print command without executing")
 
 
@@ -165,6 +167,8 @@ async def convert(p: ConvertParams) -> OperationResult:
                 ws, input_path,
                 image_format=dp.extension,
                 out_dir=out,
+                start_frame=p.start_frame,
+                end_frame=p.end_frame,
             )
             success = True
             logs.append(f"Dumped {dump_info['frame_count']} frames to {out}")
@@ -207,7 +211,11 @@ async def convert(p: ConvertParams) -> OperationResult:
         if kind in ("video", "gif") and is_video_encode_target(p.target):
             ep = ENCODE_PRESETS[p.target]
 
-            dump_info = await dump(ws, input_path)
+            dump_info = await dump(
+                ws, input_path,
+                start_frame=p.start_frame,
+                end_frame=p.end_frame,
+            )
             src_dir = ws.frames_in
 
             result_path = await encode(

@@ -109,6 +109,8 @@ async def dump(
     *,
     image_format: str = "png",
     out_dir: str | Path | None = None,
+    start_frame: int = 1,
+    end_frame: int = 999999,
 ) -> dict[str, Any]:
     """Dump input video/GIF to frames as image sequence.
 
@@ -118,13 +120,19 @@ async def dump(
         image_format: png | webp | jpg | tiff. Default png.
         out_dir: If set, write frames to this durable directory instead of
                  workspace.frames_in. For Convert/Export durable dumps.
+        start_frame: First frame to dump, **1-based inclusive** (1 = first frame).
+        end_frame: Last frame to dump, **1-based inclusive**. Large value (e.g.
+                   999999) means through end of clip.
 
-    Returns {frame_count, fps, audio_path, pattern, start_number}.
-    Frame pattern is always frame_%06d.<ext>, start_number 0.
+    Returns {frame_count, fps, audio_path, pattern, start_number, start_frame, end_frame}.
+    Frame pattern is always frame_%06d.<ext>, start_number 0 (output renumbered).
     """
     workspace.create()
     sp = str(Path(input_path).resolve())
     info = await probe(sp)
+    fps = float(info.get("fps") or 25.0)
+    if fps <= 0:
+        fps = 25.0
 
     ext = image_format.lower()
     if ext == "tiff":
@@ -137,13 +145,32 @@ async def dump(
     frames_dir.mkdir(parents=True, exist_ok=True)
     out_pattern = str(frames_dir / f"frame_%06d.{ext}")
 
+    sf = int(start_frame) if start_frame is not None else 1
+    ef = int(end_frame) if end_frame is not None else 999999
+    if sf < 1:
+        sf = 1
+    if ef < sf:
+        ef = sf
+
+    # 0-based inclusive indices for ffmpeg select filter (n is 0-based)
+    n0 = sf - 1
+    full_clip = sf <= 1 and ef >= 999999
+    n1: int | None = None if full_clip else max(n0, ef - 1)
+
     argv = [
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
         "-i", sp,
-        "-fps_mode", "passthrough",
-        "-start_number", "0",
-        "-an",
     ]
+    if n1 is not None:
+        # Frame-accurate range; renumber timestamps so encode sees a clean sequence
+        argv.extend([
+            "-vf", f"select='between(n\\,{n0}\\,{n1})',setpts=PTS-STARTPTS",
+            "-vsync", "vfr",
+        ])
+    else:
+        argv.extend(["-fps_mode", "passthrough"])
+
+    argv.extend(["-start_number", "0", "-an"])
     if image_format == "webp":
         argv.extend(["-quality", "90"])
     elif image_format == "jpg":
@@ -159,11 +186,23 @@ async def dump(
     audio_path: str | None = None
     if info.get("has_audio") and not out_dir:
         ap = workspace.root / f"audio{_audio_ext(sp)}"
-        acode, _, astderr = await run_command([
-            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-            "-i", sp, "-vn", "-acodec", "copy",
-            str(ap),
-        ])
+        if n1 is not None:
+            start_t = n0 / fps
+            end_t = (n1 + 1) / fps
+            a_argv = [
+                "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                "-i", sp,
+                "-ss", f"{start_t:.6f}",
+                "-to", f"{end_t:.6f}",
+                "-vn", "-acodec", "copy",
+                str(ap),
+            ]
+        else:
+            a_argv = [
+                "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                "-i", sp, "-vn", "-acodec", "copy", str(ap),
+            ]
+        acode, _, _ = await run_command(a_argv)
         if acode == 0 and ap.exists() and ap.stat().st_size > 0:
             audio_path = str(ap)
             workspace.audio_path = ap
@@ -180,6 +219,8 @@ async def dump(
         "dumped_at": time.time(),
         "image_format": ext,
         "out_dir": str(frames_dir) if out_dir else None,
+        "start_frame": sf,
+        "end_frame": ef if n1 is not None else None,
     })
 
     return {
@@ -188,6 +229,8 @@ async def dump(
         "audio_path": audio_path,
         "pattern": f"frame_%06d.{ext}",
         "start_number": 0,
+        "start_frame": sf,
+        "end_frame": ef if n1 is not None else None,
     }
 
 

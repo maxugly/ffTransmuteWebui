@@ -19,9 +19,6 @@ async function probeGlobalVideo(path) {
       gi.frameEnd = frames;
       if (gi.frameStart < 1 || gi.frameStart > frames) gi.frameStart = 1;
 
-      var totalEl = document.getElementById('giTotalFrames');
-      if (totalEl) totalEl.textContent = frames;
-
       var startEl = document.getElementById('giTimelineStart');
       var endEl   = document.getElementById('giTimelineEnd');
       var valS    = document.getElementById('giValStartFrame');
@@ -33,7 +30,7 @@ async function probeGlobalVideo(path) {
         endEl.value   = gi.frameEnd;
         if (valS) valS.value = gi.frameStart;
         if (valE) valE.value = gi.frameEnd;
-        startEl.dispatchEvent(new Event('input'));
+        startEl.dispatchEvent(new Event('input')); // updates selected count + bar
       }
     }
   } catch (err) {
@@ -79,6 +76,14 @@ function setupGlobalTimeline() {
 
     window.globalInputs.frameStart = s;
     window.globalInputs.frameEnd   = e;
+
+    // Show selected span as primary count; full clip length in title
+    var totalEl = document.getElementById('giTotalFrames');
+    if (totalEl) {
+      var selected = Math.max(1, e - s + 1);
+      totalEl.textContent = selected;
+      totalEl.title = selected + ' selected of ' + m + ' in clip';
+    }
   }
 
   startEl.addEventListener('input', sync);

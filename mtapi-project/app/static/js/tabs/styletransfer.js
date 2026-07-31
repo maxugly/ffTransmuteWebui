@@ -1,5 +1,5 @@
 import { state, elements, resolveGlobalImages } from '/app.js';
-import { basename, escapeHtml } from '/js/utils.js';
+import { basename, escapeHtml, withFrameRange, isVideoPath } from '/js/utils.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
 
 // ── Style Transfer tab (Magenta arbitrary stylization) ───────────────────
@@ -181,12 +181,12 @@ function collectStyleTransferBody() {
   state.styleTransfer.stylePath = style_path;
   const output = document.getElementById('stOutput')?.value?.trim() || null;
   const output_dir = document.getElementById('stOutputDir')?.value?.trim() || null;
-  // Always send content_paths so folders expand server-side the same as multi-select
-  return {
-    content_path: null,
-    content_paths: contents,
+  // Single video content → content_path (video path on server)
+  const singleVideo = contents.length === 1 && isVideoPath(contents[0]);
+  return withFrameRange({
+    content_path: singleVideo ? contents[0] : null,
+    content_paths: singleVideo ? null : contents,
     style_path,
-    // Save As only applies as a file target when one content file (not a folder)
     output_path: output || null,
     output_dir: output_dir || null,
     strength: parseFloat(document.getElementById('stStrength')?.value || '1'),
@@ -194,7 +194,7 @@ function collectStyleTransferBody() {
     style_size: 256,
     suffix: '_styled',
     dry_run: document.getElementById('stDryRun')?.value === '1',
-  };
+  });
 }
 
 export { renderStyleTransferForm, collectStyleTransferBody };

@@ -66,7 +66,8 @@ Canonical narrative: repo `docs/filter-platform-spec.md`.
 4. **Media index** locks when mutating cache JSON.  
 5. **New frame effects** register a stage in `filters/` and a thin op — not a third dump path.  
 6. **Pipeline and named op share one factory** for each stage name.  
-7. Mid-chain frames: `frame_%06d.png`, start_number **0**.
+7. Mid-chain frames: `frame_%06d.png`, start_number **0**.  
+8. **Frame range:** Global UI sends 1-based inclusive `start_frame` / `end_frame` (datamosh convention). Ops that dump video must accept those fields and pass them to `video_pipeline.dump(...)`. Full clip = `1` / `999999`.
 
 ---
 

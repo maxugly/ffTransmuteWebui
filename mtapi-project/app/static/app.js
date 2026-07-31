@@ -217,6 +217,16 @@ const TAB_ACCEPTS = {
   convert:     'any',
 };
 
+/** Tabs that show the global frame-range row (video pipeline / mosh / convert). */
+const FRAME_RANGE_TABS = new Set([
+  'mosh', 'deepdream', 'rife', 'convert', 'transmute',
+  'styletransfer', 'withoutbg', 'facemorph', 'multi', 'advanced',
+]);
+
+function tabUsesFrameRange(tab) {
+  return FRAME_RANGE_TABS.has(tab);
+}
+
 // Initialize
 // ── Global path helpers ──────────────────────────────────────────────────
 
@@ -246,17 +256,22 @@ function _syncTabInputFromGlobal() {
   const tab = state.activeTab;
   const gi = window.globalInputs;
 
-  // Show/hide global frame row
+  // Show/hide global frame row on ops that can honor start_frame/end_frame
   var framesRow = document.getElementById('giFramesRow');
-  if (framesRow) framesRow.style.display = (tab === 'mosh') ? '' : 'none';
+  if (framesRow) framesRow.style.display = tabUsesFrameRange(tab) ? '' : 'none';
 
-  if (tab === 'mosh' && gi.video.trim()) {
-    var lines = gi.video.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
-    if (lines.length) {
-      var probePath = lines[0];
-      if (probePath !== gi._lastProbedPath) {
-        probeGlobalVideo(probePath);
-      }
+  // Probe first video path so range max/total stay current
+  if (tabUsesFrameRange(tab)) {
+    var probePath = '';
+    if (gi.video.trim()) {
+      var lines = gi.video.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+      if (lines.length) probePath = lines[0];
+    }
+    if (!probePath && gi.image.trim() && detectFileType(gi.image.trim()) === 'video') {
+      probePath = gi.image.trim();
+    }
+    if (probePath && probePath !== gi._lastProbedPath) {
+      probeGlobalVideo(probePath);
     }
   }
 }
@@ -497,7 +512,9 @@ function switchTab(tab) {
   updateStatusIndicators();
   // Show/hide global frame row per tab
   var framesRow = document.getElementById('giFramesRow');
-  if (framesRow) framesRow.style.display = (tab === 'mosh') ? '' : 'none';
+  if (framesRow) framesRow.style.display = tabUsesFrameRange(tab) ? '' : 'none';
+  // Re-sync probe when switching onto a range-aware tab
+  _syncTabInputFromGlobal();
 }
 
 // Render Specific Tab Forms

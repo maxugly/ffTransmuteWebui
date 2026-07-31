@@ -31,6 +31,8 @@ class SpeedRampParams(BaseModel):
     duration: float = Field(5.0, gt=0, le=300, description="Target output duration in seconds")
     start_speed: float = Field(4.0, gt=0.01, le=50, description="Speed multiplier at start of ramp")
     end_speed: float = Field(0.333, gt=0.01, le=50, description="Speed multiplier at end of ramp")
+    start_frame: int = Field(1, ge=0, description="First source frame (1-based inclusive)")
+    end_frame: int = Field(999999, ge=0, description="Last source frame (1-based inclusive)")
     dry_run: bool = Field(False, description="Print plan only")
 
 
@@ -111,8 +113,15 @@ async def speed_ramp(p: SpeedRampParams) -> OperationResult:
     logs = [plan.rstrip()]
 
     try:
-        dump_info = await dump(ws, str(input_path))
-        logs.append(f"dump: {dump_info['frame_count']} frames")
+        dump_info = await dump(
+            ws, str(input_path), start_frame=p.start_frame, end_frame=p.end_frame,
+        )
+        logs.append(
+            f"dump: {dump_info['frame_count']} frames "
+            f"(src {p.start_frame}–{p.end_frame if p.end_frame < 999999 else 'end'})"
+        )
+        # Remap curve uses dumped span as the source timeline
+        span_dur = dump_info["frame_count"] / fps if fps > 0 else input_dur
 
         meta = run_speedramp_directory(
             ws.frames_in,
@@ -121,7 +130,7 @@ async def speed_ramp(p: SpeedRampParams) -> OperationResult:
             duration=p.duration,
             start_speed=p.start_speed,
             end_speed=p.end_speed,
-            input_dur=input_dur,
+            input_dur=span_dur,
             fps=fps,
         )
         logs.append(

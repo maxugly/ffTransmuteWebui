@@ -1,5 +1,5 @@
 import { state, elements, resolveGlobalImages } from '/app.js';
-import { basename, escapeHtml } from '/js/utils.js';
+import { basename, escapeHtml, withFrameRange, isVideoPath } from '/js/utils.js';
 import { setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
 
 // ── withoutBG tab (background removal) ───────────────────────────────────
@@ -185,8 +185,10 @@ function collectWithoutBgBody() {
     return null;
   }
   const apiKey = document.getElementById('wbgApiKey')?.value?.trim() || null;
-  return {
-    image_paths: images.length ? images : null,
+  const singleVideo = images.length === 1 && isVideoPath(images[0]);
+  return withFrameRange({
+    input_path: singleVideo ? images[0] : null,
+    image_paths: singleVideo ? null : (images.length ? images : null),
     image_dir: images.length ? null : (state.withoutbg.folder || null),
     output_dir: document.getElementById('wbgOutputDir')?.value?.trim() || null,
     backend: document.getElementById('wbgBackend')?.value || 'local',
@@ -198,7 +200,7 @@ function collectWithoutBgBody() {
     suffix: '',
     fmt: document.getElementById('wbgFmt')?.value || 'png',
     dry_run: document.getElementById('wbgDryRun')?.value === '1',
-  };
+  });
 }
 
 export { renderWithoutBgForm, collectWithoutBgBody };

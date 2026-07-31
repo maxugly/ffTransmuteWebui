@@ -158,6 +158,8 @@ class DeepDreamParams(BaseModel):
         description="Vertical pixels per frame at 30fps (translate: + = down; +x+y = top-left→bottom-right)",
     )
 
+    start_frame: int = Field(1, ge=0, description="First source frame for video (1-based inclusive)")
+    end_frame: int = Field(999999, ge=0, description="Last source frame for video (1-based inclusive)")
     dry_run: bool = False
 
 
@@ -194,10 +196,16 @@ async def _dream_video_v2(
     ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="dream_video_")
     success = False
     try:
-        dump_info = await dump(ws, input_path)
+        dump_info = await dump(
+            ws, input_path, start_frame=p.start_frame, end_frame=p.end_frame,
+        )
         frames = sorted(ws.frames_in.glob("frame_*.png"))
         if not frames:
             raise RuntimeError("No frames extracted from video")
+        logs.append(
+            f"dump: {len(frames)} frames "
+            f"(src {p.start_frame}–{p.end_frame if p.end_frame < 999999 else 'end'})"
+        )
 
         # Optional smoke-test cap: drop trailing frames so process sees only N
         if p.max_frames and p.max_frames > 0 and len(frames) > int(p.max_frames):

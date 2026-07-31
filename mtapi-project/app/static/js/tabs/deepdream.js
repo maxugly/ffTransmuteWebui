@@ -1,5 +1,6 @@
 import { state, elements, bestInput, logConsole } from '/app.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { withFrameRange } from '/js/utils.js';
 
 // ── DeepDream tab ─────────────────────────────────────────────────────────
 
@@ -439,7 +440,7 @@ function collectDeepDreamBody() {
     if (name && Number.isFinite(w) && w > 0) custom_layer_weights[name] = w;
   });
 
-  return {
+  return withFrameRange({
     input_path: input,
     output_path: output,
     media_kind,
@@ -471,7 +472,7 @@ function collectDeepDreamBody() {
     translate_x: parseFloat(document.getElementById('dreamTx')?.value || '5'),
     translate_y: parseFloat(document.getElementById('dreamTy')?.value || '5'),
     dry_run: document.getElementById('dreamDryRun')?.value === '1',
-  };
+  });
 }
 
 export { DREAM_MODELS, renderDeepDreamForm, collectDeepDreamBody };

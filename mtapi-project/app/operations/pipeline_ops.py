@@ -53,6 +53,8 @@ class PipelineParams(BaseModel):
     input_path: str = Field(..., description="Source video path")
     output_path: str | None = Field(None, description="Output path; auto-named if omitted")
     filters: list[PipelineFilter] = Field(..., description="Ordered list of filters to apply")
+    start_frame: int = Field(1, ge=0, description="First source frame (1-based inclusive)")
+    end_frame: int = Field(999999, ge=0, description="Last source frame (1-based inclusive)")
     dry_run: bool = Field(False, description="Print planned chain without executing")
 
 
@@ -120,7 +122,10 @@ async def pipeline_run(p: PipelineParams) -> OperationResult:
     try:
         pipe = PipelineChain(ws, chain)
         result_path = await pipe.run(
-            input_path, out, progress_cb=progress_cb,
+            input_path, out,
+            progress_cb=progress_cb,
+            start_frame=p.start_frame,
+            end_frame=p.end_frame,
         )
         success = True
         logs.append(f"Output: {result_path}")

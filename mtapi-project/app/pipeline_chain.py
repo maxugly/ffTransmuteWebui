@@ -55,6 +55,8 @@ class PipelineChain:
         fps: float = 0.0,
         mux_audio: bool = True,
         progress_cb: Callable[..., Any] | None = None,
+        start_frame: int = 1,
+        end_frame: int = 999999,
     ) -> str:
         """dump → stages → encode. Returns output_path."""
         input_path = Path(input_path).resolve()
@@ -62,7 +64,10 @@ class PipelineChain:
         if stage_count == 0:
             raise RuntimeError("PipelineChain requires at least one filter")
 
-        dump_info = await dump(self.workspace, input_path)
+        dump_info = await dump(
+            self.workspace, input_path,
+            start_frame=start_frame, end_frame=end_frame,
+        )
         if fps <= 0:
             fps = float(dump_info["fps"])
 

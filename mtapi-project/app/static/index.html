@@ -214,7 +214,7 @@
           <button class="btn" id="btnGiPathOutBrowse" title="Pick output directory">Browse</button>
           <span class="gi-status" id="giPathOutStatus" title=""></span>
         </div>
-        <!-- Row 5: Frame range (visible for datamosh tabs; hidden otherwise) -->
+        <!-- Row 5: Frame range (mosh + video-pipeline tabs: rife, deepdream, convert, …) -->
         <div class="global-row" data-input="frames" id="giFramesRow" style="display:none">
           <label>Frame range:</label>
           <div class="timeline-container" style="flex:1; min-width:0; height:24px; position:relative; margin-bottom:0;">
@@ -227,7 +227,7 @@
             <input type="text" class="timeline-value-input" id="giValStartFrame" value="1">
             –
             <input type="text" class="timeline-value-input" id="giValEndFrame" value="100">
-            / <span id="giTotalFrames">100</span>
+            / <span id="giTotalFrames" title="Selected frame count">100</span>
           </span>
           <button class="btn-scrub" id="btnFrameScrub" title="Generate frame thumbnails for hover preview">[+]</button>
         </div>

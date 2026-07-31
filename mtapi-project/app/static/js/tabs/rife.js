@@ -1,5 +1,6 @@
 import { elements, bestInput } from '/app.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { withFrameRange } from '/js/utils.js';
 
 // ── RIFE tab (AI frame interpolation) ─────────────────────────────────────
 
@@ -100,7 +101,7 @@ function collectRifeBody() {
   const uhd = document.getElementById('rifeUhd')?.value === '1';
   const dryRun = document.getElementById('rifeDryRun')?.value === '1';
 
-  return {
+  return withFrameRange({
     input_path: input,
     output_path: output,
     multiplier,
@@ -108,7 +109,7 @@ function collectRifeBody() {
     tta,
     uhd,
     dry_run: dryRun,
-  };
+  });
 }
 
 export { renderRifeForm, collectRifeBody };

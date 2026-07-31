@@ -28,6 +28,8 @@ class RifeParams(BaseModel):
         "rife-v4.6", description="RIFE model variant. v4.6 is newest/cleanest.")
     tta: bool = Field(False, description="Spatial TTA mode — cleaner but slower")
     uhd: bool = Field(False, description="UHD mode for high-res sources")
+    start_frame: int = Field(1, ge=0, description="First source frame (1-based inclusive)")
+    end_frame: int = Field(999999, ge=0, description="Last source frame (1-based inclusive)")
     dry_run: bool = Field(False, description="Print command only")
 
 
@@ -95,8 +97,13 @@ async def rife_interpolate(p: RifeParams) -> OperationResult:
     logs: list[str] = [summary]
 
     try:
-        dump_info = await dump(ws, input_path)
-        logs.append(f"dump: {dump_info['frame_count']} frames @ {dump_info['fps']} fps")
+        dump_info = await dump(
+            ws, input_path, start_frame=p.start_frame, end_frame=p.end_frame,
+        )
+        logs.append(
+            f"dump: {dump_info['frame_count']} frames @ {dump_info['fps']} fps "
+            f"(src {p.start_frame}–{p.end_frame if p.end_frame < 999999 else 'end'})"
+        )
 
         from .. import job_control
         job_control.report_progress(

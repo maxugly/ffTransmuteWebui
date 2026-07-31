@@ -83,6 +83,8 @@ class WithoutBGParams(BaseModel):
         "png",
         description="Cutout / background format (mask is always PNG). Prefer png/webp for alpha.",
     )
+    start_frame: int = Field(1, ge=0, description="First source frame for video (1-based inclusive)")
+    end_frame: int = Field(999999, ge=0, description="Last source frame for video (1-based inclusive)")
     dry_run: bool = False
 
 
@@ -163,8 +165,13 @@ async def _withoutbg_video(p: WithoutBGParams, video_path: str) -> OperationResu
             save_mask=p.save_mask,
             save_background=p.save_background,
         )
-        dump_info = await dump(ws, input_path)
-        logs.append(f"dump: {dump_info['frame_count']} frames")
+        dump_info = await dump(
+            ws, input_path, start_frame=p.start_frame, end_frame=p.end_frame,
+        )
+        logs.append(
+            f"dump: {dump_info['frame_count']} frames "
+            f"(src {p.start_frame}–{p.end_frame if p.end_frame < 999999 else 'end'})"
+        )
 
         processed = await process(ws, filter_fn)
         logs.append(f"process: {processed} frames via filters.withoutbg")

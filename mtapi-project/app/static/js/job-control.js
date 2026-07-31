@@ -338,7 +338,9 @@ async function runActiveOperation() {
     body = {
       input_path: input,
       output_path: output,
-      dry_run: dryRun
+      dry_run: dryRun,
+      start_frame: window.globalInputs.frameStart || 1,
+      end_frame: window.globalInputs.frameEnd || 999999,
     };
 
     // Add extra params if needed
@@ -364,6 +366,8 @@ async function runActiveOperation() {
         end_speed: parseFloat(document.getElementById('rampEndSpeed')?.value) || 0.333,
         curve_shape: document.getElementById('rampCurveShape')?.value || 'exponential',
         loop_mode: document.getElementById('rampLoopMode')?.value || 'auto',
+        start_frame: window.globalInputs.frameStart || 1,
+        end_frame: window.globalInputs.frameEnd || 999999,
       };
     }
   } else if (tab === 'multi') {

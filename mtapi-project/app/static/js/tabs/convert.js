@@ -1,4 +1,5 @@
 import { state, elements, bestInput, logConsole } from '/app.js';
+import { withFrameRange } from '/js/utils.js';
 
 const PRESETS_BY_GROUP = {
   intermediate: [
@@ -200,13 +201,13 @@ function collectConvertBody() {
     return null;
   }
 
-  return {
+  return withFrameRange({
     input_path: input,
     target: target,
     output_path: output,
     fps: fps,
     dry_run: dryRun,
-  };
+  });
 }
 
 export { renderConvertForm, collectConvertBody };

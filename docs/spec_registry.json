@@ -112,6 +112,13 @@
         "summary": "Bookends vs stages; per_frame and directory kinds; thin ops; Convert bookends; migration complete for main neural video paths."
     },
     {
+        "file": "frame-range-spec.md",
+        "path": "docs/frame-range-spec.md",
+        "category": "Core Architecture",
+        "status": "Implemented",
+        "summary": "Global frame range on video-pipeline tabs; dump() trims via select=between; start_frame/end_frame on neural/convert/pipeline/speed_ramp params. 1-based inclusive like datamosh."
+    },
+    {
         "file": "frame-scrubber-spec.md",
         "path": "docs/frame-scrubber-spec.md",
         "category": "Frontend",

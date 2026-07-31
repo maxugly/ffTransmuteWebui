@@ -32,4 +32,18 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-export { isVideoPath, basename, formatDurationExact, escapeHtml };
+/** Global timeline selection (1-based inclusive). Used by video-pipeline ops. */
+function globalFrameRange() {
+  const gi = window.globalInputs || {};
+  let s = parseInt(gi.frameStart, 10);
+  let e = parseInt(gi.frameEnd, 10);
+  if (!Number.isFinite(s) || s < 1) s = 1;
+  if (!Number.isFinite(e) || e < s) e = 999999;
+  return { start_frame: s, end_frame: e };
+}
+
+function withFrameRange(body) {
+  return Object.assign({}, body, globalFrameRange());
+}
+
+export { isVideoPath, basename, formatDurationExact, escapeHtml, globalFrameRange, withFrameRange };
