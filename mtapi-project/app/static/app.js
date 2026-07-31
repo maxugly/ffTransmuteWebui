@@ -102,6 +102,7 @@ let state = {
     items: [], // { path, name, size?, meta?, hash? }
     selectedPath: null, // sticky selection (click) — syncs library ↔ sequence
     selectedSeqId: null, // precise sequence entry id when a token is selected
+    filterQuery: '', // live fuzzy filter for pool grid (pool + sequence tabs)
     hoverPath: null,    // temporary hover only (does not change selection)
     loading: false,
     // Sequence composer: ordered clips to stitch

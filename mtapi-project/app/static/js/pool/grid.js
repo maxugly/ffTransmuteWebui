@@ -65,6 +65,7 @@ function renderPoolForm() {
 function _poolToolbarHtml(count, selected, seqCount) {
   const hasSeq = seqCount != null;
   const projectLabelVal = projectLabel();
+  const q = state.pool.filterQuery || '';
   return `
     <div class="pool-toolbar">
       <div class="pool-toolbar-actions">
@@ -75,6 +76,11 @@ function _poolToolbarHtml(count, selected, seqCount) {
           <button type="button" class="btn" id="btnProjectSaveAs" title="Save project as…">Save As…</button>
           <span class="pool-project-name" id="poolProjectName" title="${escapeHtml(state.project.path || '')}">${escapeHtml(projectLabelVal)}</span>
         </div>
+
+        <input type="search" class="pool-filter-input" id="poolFilterInput"
+          placeholder="Filter pool…" value="${escapeHtml(q)}"
+          title="Instant fuzzy filter (name, path, codec, hash…)"
+          autocomplete="off" spellcheck="false">
 
         <button class="btn btn-primary" id="btnPoolImportFiles" type="button">+ Files</button>
         <button class="btn" id="btnPoolImportFolder" type="button">+ Folder</button>
@@ -141,6 +147,85 @@ function _bindPoolToolbar() {
   document.getElementById('btnTogglePool')?.addEventListener('click', () => togglePoolSection('pool'));
   document.getElementById('btnPoolUse')?.addEventListener('click', applyPoolAsInput);
   document.getElementById('btnJumpSelected')?.addEventListener('click', scrollToSelected);
+
+  const filterEl = document.getElementById('poolFilterInput');
+  if (filterEl) {
+    filterEl.value = state.pool.filterQuery || '';
+    filterEl.addEventListener('input', () => {
+      state.pool.filterQuery = filterEl.value;
+      renderPoolGrid();
+      _updatePoolFilterCount();
+    });
+    filterEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        filterEl.value = '';
+        state.pool.filterQuery = '';
+        renderPoolGrid();
+        _updatePoolFilterCount();
+        e.preventDefault();
+      }
+    });
+  }
+}
+
+/** Substring or simple subsequence fuzzy match (case-insensitive). */
+function fuzzyMatch(query, text) {
+  if (!query) return true;
+  const q = String(query).toLowerCase().trim();
+  if (!q) return true;
+  const t = String(text || '').toLowerCase();
+  if (!t) return false;
+  if (t.includes(q)) return true;
+  // space-separated tokens: all must match somewhere
+  const tokens = q.split(/\s+/).filter(Boolean);
+  if (tokens.length > 1) {
+    return tokens.every((tok) => t.includes(tok) || _fuzzySubseq(tok, t));
+  }
+  return _fuzzySubseq(q, t);
+}
+
+function _fuzzySubseq(q, t) {
+  let qi = 0;
+  for (let i = 0; i < t.length && qi < q.length; i++) {
+    if (t[i] === q[qi]) qi++;
+  }
+  return qi === q.length;
+}
+
+function poolItemSearchText(item) {
+  const m = item.meta || {};
+  return [
+    item.name,
+    item.path,
+    item.hash,
+    m.hash,
+    m.video_codec,
+    m.audio_codec,
+    m.width && m.height ? `${m.width}x${m.height}` : '',
+    m.fps != null ? String(m.fps) : '',
+  ].filter(Boolean).join(' ');
+}
+
+function filteredPoolItems() {
+  const q = state.pool.filterQuery || '';
+  const items = state.pool.items || [];
+  if (!String(q).trim()) return items.slice();
+  return items.filter((it) => fuzzyMatch(q, poolItemSearchText(it)));
+}
+
+function _updatePoolFilterCount() {
+  const el = document.querySelector('.pool-count');
+  if (!el) return;
+  const total = state.pool.items.length;
+  const shown = filteredPoolItems().length;
+  const seqCount = state.pool.sequence?.length;
+  const hasSeq = document.getElementById('btnSeqClear') != null;
+  const q = (state.pool.filterQuery || '').trim();
+  let text = q
+    ? `${shown} shown · ${total} in pool`
+    : `${total} in pool`;
+  if (hasSeq) text += ` · ${seqCount || 0} in sequence`;
+  el.textContent = text;
 }
 
 function _bindTileInfoMenu() {
@@ -533,18 +618,33 @@ function renderPoolGrid() {
         <p class="pool-empty-hint">Import files/folder, then drag cards into the sequence strip.</p>
       </div>
     `;
+    _updatePoolFilterCount();
+    return;
+  }
+
+  const items = filteredPoolItems();
+  if (items.length === 0) {
+    const q = escapeHtml(state.pool.filterQuery || '');
+    grid.innerHTML = `
+      <div class="pool-empty">
+        <p>No clips match <strong>${q}</strong>.</p>
+        <p class="pool-empty-hint">Clear the filter (Esc) or try a shorter fuzzy query.</p>
+      </div>
+    `;
+    _updatePoolFilterCount();
     return;
   }
 
   grid.innerHTML = '';
-  state.pool.items.forEach((item, idx) => {
+  items.forEach((item) => {
+    const idx = state.pool.items.indexOf(item);
     const card = document.createElement('article');
     const isSelected = state.pool.selectedPath === item.path;
     const isHovered = state.pool.hoverPath === item.path;
     const seqPos = sequencePositions(item.path);
     card.className = `pool-card${isSelected ? ' selected' : ''}${isHovered ? ' hovered' : ''}${seqPos.length > 0 ? ' seq-active' : ''}`;
     card.dataset.path = item.path;
-    card.dataset.idx = String(idx);
+    card.dataset.idx = String(idx >= 0 ? idx : 0);
     card.draggable = true;
     card.title = 'Drag into sequence to stitch';
 
@@ -719,6 +819,7 @@ function renderPoolGrid() {
       loadPoolItemMeta(item, idx);
     }
   });
+  _updatePoolFilterCount();
 }
 
 // ── Frame match (pHash next-clip finder) ──────────────────────────────────

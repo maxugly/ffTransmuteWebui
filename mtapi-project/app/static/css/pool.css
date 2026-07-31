@@ -24,6 +24,27 @@
   align-items: center;
 }
 
+.pool-filter-input {
+  min-width: 10rem;
+  max-width: 18rem;
+  flex: 1 1 10rem;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 0.8rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--panel-border, rgba(255,255,255,0.12));
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--text, #e8e8e8);
+  outline: none;
+}
+.pool-filter-input::placeholder {
+  color: var(--text-muted, #888);
+}
+.pool-filter-input:focus {
+  border-color: rgba(168, 85, 247, 0.55);
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.18);
+}
+
 .pool-toolbar-meta {
   display: flex;
   flex-wrap: wrap;
