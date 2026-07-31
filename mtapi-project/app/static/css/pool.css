@@ -1,5 +1,6 @@
 /* ═══════════════════════════════════════════
-   Media Pool — tight dual-frame cards
+   Video Pool — tight dual-frame cards
+   (+ Image Pool single-frame, Cut workspace)
    ═══════════════════════════════════════════ */
 
 .action-panel.pool-active {
@@ -2030,4 +2031,202 @@ body.pool-resizing video {
   font-size: 0.8rem;
   line-height: 1.4;
   word-break: break-word;
+}
+
+/* ═══════════════════════════════════════════
+   Image Pool — single-frame still cards
+   ═══════════════════════════════════════════ */
+
+.img-pool-single {
+  grid-template-columns: 1fr !important;
+}
+
+.img-pool-single .pool-frame + .pool-frame {
+  display: none;
+}
+
+.img-pool-send-menu,
+.pool-context-menu.img-pool-send-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: 4px;
+  background: var(--panel-bg, #121822);
+  border: 1px solid var(--panel-border, #2a3344);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+
+.img-pool-send-menu button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text, #e8eef8);
+  text-align: left;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.img-pool-send-menu button:hover {
+  background: rgba(59, 130, 246, 0.18);
+  color: #fff;
+}
+
+/* ═══════════════════════════════════════════
+   Cut workspace
+   ═══════════════════════════════════════════ */
+
+.cut-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 960px;
+}
+
+.cut-video-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cut-field-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cut-path-input {
+  flex: 1 1 240px;
+  min-width: 180px;
+}
+
+.cut-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: baseline;
+  font-size: 0.8rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.cut-video-name {
+  font-family: 'Fira Code', ui-monospace, monospace;
+  color: var(--text, #e8eef8);
+}
+
+.cut-global-path {
+  font-family: 'Fira Code', ui-monospace, monospace;
+  font-size: 0.82rem;
+  color: var(--text, #e8eef8);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border, #2a3344);
+  background: rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cut-range-hint {
+  font-family: 'Fira Code', ui-monospace, monospace;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
+.cut-frames-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 720px) {
+  .cut-frames-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cut-frame-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--panel-border, #2a3344);
+  background: rgba(10, 14, 22, 0.55);
+}
+
+.cut-frame-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted, #94a3b8);
+}
+
+.cut-frame-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #0a0e16;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cut-frame-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.cut-frame-preview img.broken {
+  opacity: 0.3;
+}
+
+.cut-frame-empty {
+  font-size: 0.82rem;
+  color: var(--text-muted, #64748b);
+  padding: 12px;
+  text-align: center;
+}
+
+.cut-ref-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cut-ref-actions .btn-sm,
+.btn.btn-sm {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+}
+
+.cut-ref-path {
+  font-family: 'Fira Code', ui-monospace, monospace;
+  font-size: 0.72rem;
+  color: var(--text-muted, #94a3b8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cut-footer-hint {
+  font-size: 0.82rem;
+  color: var(--text-muted, #94a3b8);
+  line-height: 1.45;
+  border-top: 1px solid var(--panel-border, #2a3344);
+  padding-top: 12px;
+}
+
+.cut-footer-hint p {
+  margin: 0;
 }

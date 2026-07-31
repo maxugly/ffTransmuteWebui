@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import MEDIA_ROOT
-from .pool import _normalize_pool_payload, save_pool_state
+from .pool import _normalize_media_entries, _normalize_pool_payload, save_pool_state
 
 log = logging.getLogger("mtapi.media_store")
 
@@ -63,6 +63,7 @@ async def save_project_file(
         "path": str(path),
         "name": proj_name,
         "item_count": len(pool["items"]),
+        "image_count": len(pool.get("images") or []),
         "sequence_count": len(pool["sequence"]),
         "updated_at": doc["updated_at"],
     }
@@ -90,33 +91,12 @@ def load_project_file(project_path: str | Path) -> dict[str, Any]:
     else:
         return {"ok": False, "error": "Unrecognized project file format"}
 
-    items_in = pool_raw.get("items") or []
-    seq_in = pool_raw.get("sequence") or []
-    items_out = []
-    seen = set()
-    missing = []
-    for it in items_in:
-        if not isinstance(it, dict):
-            continue
-        p = it.get("path")
-        if not p:
-            continue
-        pth = Path(p)
-        if not pth.is_file():
-            missing.append(p)
-            continue
-        key = str(pth.resolve())
-        if key in seen:
-            continue
-        seen.add(key)
-        items_out.append({
-            "path": key,
-            "name": it.get("name") or pth.name,
-            "hash": it.get("hash"),
-            "size": it.get("size"),
-        })
+    missing: list[str] = []
+    items_out = _normalize_media_entries(pool_raw.get("items"), missing=missing)
+    images_out = _normalize_media_entries(pool_raw.get("images"), missing=missing)
+
     sequence_out = []
-    for it in seq_in:
+    for it in pool_raw.get("sequence") or []:
         if isinstance(it, str):
             p = it
             name_e = Path(p).name
@@ -146,6 +126,9 @@ def load_project_file(project_path: str | Path) -> dict[str, Any]:
     selected = pool_raw.get("selected_path")
     if selected and not Path(selected).is_file():
         selected = None
+    selected_image = pool_raw.get("selected_image_path")
+    if selected_image and not Path(selected_image).is_file():
+        selected_image = None
     tile_zoom = pool_raw.get("tile_zoom", 200)
     try:
         tile_zoom = int(tile_zoom)
@@ -166,8 +149,10 @@ def load_project_file(project_path: str | Path) -> dict[str, Any]:
         "updated_at": updated,
         "version": pool_raw.get("version", 1),
         "items": items_out,
+        "images": images_out,
         "sequence": sequence_out,
         "selected_path": selected,
+        "selected_image_path": selected_image,
         "reconcile": pool_raw.get("reconcile") or "pad",
         "aspect": pool_raw.get("aspect") or "auto",
         "aspect_custom": pool_raw.get("aspect_custom") or "",
@@ -177,6 +162,7 @@ def load_project_file(project_path: str | Path) -> dict[str, Any]:
         "layout": pool_raw.get("layout") if isinstance(pool_raw.get("layout"), dict) else None,
         "missing": missing,
         "item_count": len(items_out),
+        "image_count": len(images_out),
         "sequence_count": len(sequence_out),
     }
 

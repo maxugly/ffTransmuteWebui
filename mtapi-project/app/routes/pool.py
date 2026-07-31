@@ -6,7 +6,17 @@ from fastapi import FastAPI, HTTPException
 from .. import media
 
 
-def register(app: FastAPI, is_video_fn) -> None:
+# Still-image extensions for Image Pool folder scan (mirrors frontend IMAGE_EXTS).
+IMAGE_EXTENSIONS = {
+    ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff", ".ppm", ".pgm",
+}
+
+
+def register(app: FastAPI, is_video_fn, is_image_fn=None) -> None:
+    def _is_image(path: Path) -> bool:
+        if is_image_fn is not None:
+            return bool(is_image_fn(path))
+        return path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
     @app.get("/api/pool/state", tags=["meta"])
     async def get_pool_state():
         return media.load_pool_state()
@@ -59,33 +69,56 @@ def register(app: FastAPI, is_video_fn) -> None:
         return result
 
     @app.get("/api/pool/scan", tags=["meta"])
-    async def pool_scan(path: str, recursive: bool = False):
+    async def pool_scan(path: str, recursive: bool = False, kind: str = "video"):
+        """Scan a directory for media.
+
+        kind: ``video`` (default, backward-compat), ``image``, or ``all``.
+        Always returns ``videos``; when kind is image/all also returns ``images``.
+        """
         path_obj = Path(path).resolve()
         if not path_obj.exists() or not path_obj.is_dir():
             raise HTTPException(status_code=404, detail="Directory not found")
+        kind = (kind or "video").lower().strip()
+        if kind not in ("video", "image", "all"):
+            kind = "video"
+        want_video = kind in ("video", "all")
+        want_image = kind in ("image", "all")
         videos = []
+        images = []
         try:
             iterator = path_obj.rglob("*") if recursive else path_obj.iterdir()
             for item in iterator:
                 if item.name.startswith("."):
                     continue
                 try:
-                    if not is_video_fn(item):
+                    if not item.is_file():
                         continue
                     st = item.stat()
-                    videos.append({
+                    entry = {
                         "name": item.name,
                         "path": str(item.resolve()),
                         "size": st.st_size,
-                    })
+                    }
+                    if want_video and is_video_fn(item):
+                        videos.append(entry)
+                    elif want_image and _is_image(item):
+                        images.append(entry)
                 except Exception:
                     continue
             videos.sort(key=lambda v: v["name"].lower())
-            return {
+            images.sort(key=lambda v: v["name"].lower())
+            payload = {
                 "ok": True,
                 "directory": str(path_obj),
-                "count": len(videos),
+                "kind": kind,
+                "count": len(videos) if kind == "video" else (len(images) if kind == "image" else len(videos) + len(images)),
                 "videos": videos,
             }
+            if want_image or kind == "all":
+                payload["images"] = images
+                payload["image_count"] = len(images)
+            if want_video:
+                payload["video_count"] = len(videos)
+            return payload
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))

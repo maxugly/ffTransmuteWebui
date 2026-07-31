@@ -102,12 +102,13 @@ function selectPoolItem(path) {
   const toolbarMeta = document.querySelector('.pool-toolbar-meta');
   if (toolbarMeta) {
     toolbarMeta.innerHTML = `
-      <span class="pool-count">${state.pool.items.length} in pool · ${state.pool.sequence.length} in sequence</span>
+      <span class="pool-count">${state.pool.items.length} in video pool · ${state.pool.sequence.length} in sequence</span>
       <div class="pool-use-wrap">
         <label for="poolUseTarget" class="pool-use-label">Use as input</label>
         <select id="poolUseTarget" class="pool-use-select">
           <option value="">— target —</option>
           <option value="sequence">Add to sequence</option>
+          <option value="cut">Cut (global video + range)</option>
           <option value="mosh">Datamosh input</option>
           <option value="transmute">Transmute input</option>
           <option value="multi">Add to Multi clips</option>
@@ -313,6 +314,22 @@ function sendPoolPathTo(path, target) {
     addMultiClipPath(path);
     logConsole(`[POOL]: Sent to multi clips → ${path}`);
     switchTab('multi');
+    return;
+  }
+
+  // Cut uses global Video bar only (no private path field)
+  if (target === 'cut') {
+    const gi = document.getElementById('giVideo');
+    if (gi) {
+      gi.value = path;
+      gi.dispatchEvent(new Event('input'));
+    }
+    window.globalInputs.video = path;
+    // force re-probe so frame range matches this clip
+    window.globalInputs._lastProbedPath = null;
+    window.globalInputs._probeOk = false;
+    logConsole(`[POOL]: Sent to Cut (global video) → ${path}`);
+    switchTab('cut');
     return;
   }
 

@@ -28,12 +28,13 @@ mtapi-project/
 │   ├── pipeline_chain.py  # Multi-stage chain (per_frame + directory)
 │   ├── filters/           # Stage factories only (rife, deepdream, …)
 │   ├── operations/        # Thin HTTP ops + engines still migrating
-│   ├── media/             # Cache, pool, thumbs, projects
-│   └── static/            # WebUI (tabs: convert, rife, deepdream, pool, …)
+│   ├── media/             # Cache, dual pool (video+images), thumbs, projects
+│   └── static/            # WebUI (tabs: convert, rife, deepdream, Video/Image Pool, Cut, …)
 └── bin/                   # transmute copy for API (keep in sync with root)
 ```
 
-**Read first for frame work:** repo `docs/filter-platform-spec.md` and `docs/resolve-transcode-spec.md`.
+**Read first for frame work:** repo `docs/filter-platform-spec.md` and `docs/resolve-transcode-spec.md`.  
+**Read first for libraries / Cut:** repo `docs/video-image-pools-spec.md` (as-built handoff).
 
 ---
 
@@ -97,14 +98,37 @@ Extend `convert_presets.py` + Convert tab (`js/tabs/convert.js`). Do not fork ff
 
 Root `transmute` + `bin/transmute` sync + `transmute_ops.py` + docs-transmute-README.
 
+### F. Dual media libraries (Video Pool + Image Pool) + Cut
+
+Canonical doc: **`docs/video-image-pools-spec.md`**.
+
+| Concern | Backend | Frontend |
+|---------|---------|----------|
+| Video library | `items[]` in pool/project JSON | `state.pool`, `js/pool/grid.js` |
+| Image library | `images[]` | `state.imagePool`, `js/pool/image-pool.js` |
+| Session | `~/.cache/mtapi/pool_state.json` | `persistence.js` |
+| Project | `*.ffproject.json` | same payload; quiet-save with session |
+| Range frame thumb | `GET /api/thumbnail?frame=N` | Cut In/Out previews |
+| Absolute first/last | `?which=first\|last` | Video Pool cards only |
+| Folder scan | `/api/pool/scan?kind=video\|image\|all` | import folder buttons |
+
+**Invariants:**
+
+1. Do not mix stills into video pool items or videos into image pool.  
+2. Cut has **no** private video path — global `Video file(s)` + frame range only.  
+3. Open project must be dual-saved when pool state changes (else Image Pool dies on F5).  
+4. Cut encode is **not** implemented yet; use filter-platform dump+encode when you add it.
+
 ---
 
 ## 5. WebUI Testing (MANDATORY)
 
-Use Playwright MCP (`mcp_mcp_browser_*`). **Never** `web.run` / `web_search` for localhost.  
+Use Playwright MCP (`mcp_mcp_browser_*`) when available.  
+If MCP is missing, use local Playwright + Chromium (`~/.cache/ms-playwright`) — still browser-test.  
+**Never** `web.run` / `web_search` for localhost.  
 **Never** claim WebUI DONE from curl alone.
 
-Tabs of note: **Convert / Export**, RIFE, DeepDream, Single-Clip, Pipeline (if exposed), Pool, Watcher.
+Tabs of note: **Convert / Export**, RIFE, DeepDream, Single-Clip, **Video Pool**, **Image Pool**, **Cut**, Sequence, Watcher.
 
 ---
 
@@ -114,4 +138,7 @@ Tabs of note: **Convert / Export**, RIFE, DeepDream, Single-Clip, Pipeline (if e
 - **Do not** re-add `from __future__ import annotations` in `main.py`.  
 - **Stale .pyc**: `find mtapi-project -name '__pycache__' -exec rm -rf {} +` after renames.  
 - **RIFE**: directory stage only — do not reintroduce per-intermediate process spawns.  
-- **DeepDream video**: use `filters.deepdream`; image/ouroboros stay special bookends.
+- **DeepDream video**: use `filters.deepdream`; image/ouroboros stay special bookends.  
+- **Pool F5 empty images**: project preferred over session without `images[]` — dual-save project (see handoff).  
+- **Frame range stuck at 100**: probe never ran; video must be in global bar (`probeGlobalVideo`).  
+- **Thumbnail cache**: range frames live under `by_hash/{hash}/range_thumbs/` — keep GC with hash dir.

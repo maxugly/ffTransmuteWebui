@@ -33,7 +33,7 @@ import {
   setupTileInfoMenu, showPoolContextMenu,
 } from '/app.js';
 
-// ─── Media Pool ───────────────────────────────────────────────────────────
+// ─── Video Pool ───────────────────────────────────────────────────────────
 
 function renderPoolForm() {
   const count = state.pool.items.length;
@@ -78,13 +78,13 @@ function _poolToolbarHtml(count, selected, seqCount) {
         </div>
 
         <input type="search" class="pool-filter-input" id="poolFilterInput"
-          placeholder="Filter pool…" value="${escapeHtml(q)}"
+          placeholder="Filter video pool…" value="${escapeHtml(q)}"
           title="Instant fuzzy filter (name, path, codec, hash…)"
           autocomplete="off" spellcheck="false">
 
         <button class="btn btn-primary" id="btnPoolImportFiles" type="button">+ Files</button>
         <button class="btn" id="btnPoolImportFolder" type="button">+ Folder</button>
-        <button class="btn" id="btnPoolClear" type="button" ${count === 0 ? 'disabled' : ''}>Clear Pool</button>
+        <button class="btn" id="btnPoolClear" type="button" ${count === 0 ? 'disabled' : ''}>Clear Video Pool</button>
         ${hasSeq ? `<button class="btn" id="btnSeqClear" type="button" ${seqCount === 0 ? 'disabled' : ''}>Clear Sequence</button>` : ''}
         ${hasSeq ? `<button class="btn pool-toggle-btn" id="btnTogglePool" type="button" title="Show / hide clip grid">${_poolToggleLabel()}</button>` : ''}
 
@@ -109,13 +109,14 @@ function _poolToolbarHtml(count, selected, seqCount) {
         </div>
       </div>
       <div class="pool-toolbar-meta">
-        <span class="pool-count">${count} in pool${hasSeq ? ' · ' + seqCount + ' in sequence' : ''}</span>
+        <span class="pool-count">${count} in video pool${hasSeq ? ' · ' + seqCount + ' in sequence' : ''}</span>
         ${selected ? `
           <div class="pool-use-wrap">
             <label for="poolUseTarget" class="pool-use-label">Use as input</label>
             <select id="poolUseTarget" class="pool-use-select">
               <option value="">— target —</option>
               <option value="sequence">Add to sequence</option>
+              <option value="cut">Cut (global video + range)</option>
               <option value="mosh">Datamosh input</option>
               <option value="transmute">Transmute input</option>
               <option value="multi">Add to Multi clips</option>
@@ -222,8 +223,8 @@ function _updatePoolFilterCount() {
   const hasSeq = document.getElementById('btnSeqClear') != null;
   const q = (state.pool.filterQuery || '').trim();
   let text = q
-    ? `${shown} shown · ${total} in pool`
-    : `${total} in pool`;
+    ? `${shown} shown · ${total} in video pool`
+    : `${total} in video pool`;
   if (hasSeq) text += ` · ${seqCount || 0} in sequence`;
   el.textContent = text;
 }

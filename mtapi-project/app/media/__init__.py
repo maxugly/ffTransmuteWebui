@@ -51,6 +51,8 @@ from .thumbnails import (  # noqa: F401
     ensure_thumbs,
     export_frame_png,
     extract_frame,
+    extract_frame_at,
+    get_frame_thumb_file,
     get_thumb_file,
     hamming_distance_hex,
     load_phash,

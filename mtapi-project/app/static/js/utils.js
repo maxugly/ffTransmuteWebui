@@ -1,9 +1,15 @@
-import { VIDEO_EXTS } from '/js/pool/constants.js';
+import { VIDEO_EXTS, IMAGE_EXTS } from '/js/pool/constants.js';
 
 function isVideoPath(path) {
   if (!path) return false;
   const lower = path.toLowerCase();
   return VIDEO_EXTS.some(ext => lower.endsWith(ext));
+}
+
+function isImagePath(path) {
+  if (!path) return false;
+  const lower = path.toLowerCase();
+  return IMAGE_EXTS.some(ext => lower.endsWith(ext));
 }
 
 function basename(path) {
@@ -46,4 +52,4 @@ function withFrameRange(body) {
   return Object.assign({}, body, globalFrameRange());
 }
 
-export { isVideoPath, basename, formatDurationExact, escapeHtml, globalFrameRange, withFrameRange };
+export { isVideoPath, isImagePath, basename, formatDurationExact, escapeHtml, globalFrameRange, withFrameRange };

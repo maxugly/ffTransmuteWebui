@@ -47,7 +47,7 @@ For testing the core `VideoPipeline` and backend orchestration without risking c
 Before bumping a major version or completing a complex phase (e.g., Phase 4 Pipeline migration):
 1. Start the server from a clean state.
 2. Run the Playwright smoke test on at least **3 different operations** (e.g., `rife`, `withoutbg`, and `transmute`) to ensure shared code changes didn't break unrelated tabs.
-3. Verify the Media Pool auto-imports the new files correctly.
+3. Verify the Video Pool auto-imports new video outputs correctly (stills → Image Pool when that path is wired).
 4. Verify the terminal outputs do not show silent subprocess crashes.
 
 ## 4. Per-Extraction Node `--check`

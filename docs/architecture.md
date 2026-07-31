@@ -48,9 +48,9 @@ Handles the persistence, tracking, and organization of generated media.
 - **`cache.py`**: Core caching logic.
 - **`config.py`**: Media configuration constants.
 - **`match.py` / `open.py`**: File matching and local opening utilities.
-- **`pool.py`**: Manages the media pool (auto-importing outputs).
-- **`projects.py`**: Project workspace groupings.
-- **`thumbnails.py`**: Asynchronous thumbnail generation using `ffmpeg`.
+- **`pool.py`**: Session pool state — **videos** (`items[]`) + **stills** (`images[]`) + sequence (v2 JSON).
+- **`projects.py`**: Named `.ffproject.json` files (same payload; preferred on restore).
+- **`thumbnails.py`**: Absolute first/last + **per-frame** range thumbs (`range_thumbs/`) via `ffmpeg`.
 
 ---
 
@@ -98,9 +98,14 @@ Vanilla HTML5/CSS3/ES6 single-page application. No build step (Webpack/React).
   - `utils.js`: Helper functions.
 - **UI Components (`js/ui/`)**:
   - `knobs.js`: Custom interactive UI elements.
-- **Media Pool (`js/pool/`)**:
-  - `chrome.js`, `constants.js`, `grid.js`, `items.js`, `layout.js`, `persistence.js`, `sequence.js`.
-  - Handles the visual grid, drag-and-drop, and state persistence of media assets.
+- **Libraries (`js/pool/`)**:
+  - `grid.js` / `items.js` / `sequence.js` — **Video Pool** + sequence stitch.
+  - `image-pool.js` — **Image Pool** (stills only).
+  - `persistence.js` — session + project JSON v2 (`items` + `images`).
+  - `constants.js` — `VIDEO_EXTS` / `IMAGE_EXTS`; `chrome.js`, `layout.js`.
+  - As-built: `docs/video-image-pools-spec.md`.
 - **Operation Tabs (`js/tabs/`)**:
-  - `datamosh.js`, `deepdream.js`, `facemorph.js`, `quick.js`, `rife.js`, `styletransfer.js`, `transmute.js`, `watcher.js`, `withoutbg.js`.
+  - `cut.js` — Cut workspace (global video + frame range + ref stills; no encode yet).
+  - `datamosh.js`, `deepdream.js`, `facemorph.js`, `quick.js`, `rife.js`, `styletransfer.js`, `transmute.js`, `watcher.js`, `withoutbg.js`, `convert.js`.
   - Each file binds the form inputs for a specific operation tab to the corresponding API endpoint.
+- **Global timeline (`js/timeline.js`)**: Probe + frame-range sliders; events `mtapi:frame-range` / `mtapi:video-probed`.

@@ -115,8 +115,8 @@
         "file": "frame-range-spec.md",
         "path": "docs/frame-range-spec.md",
         "category": "Core Architecture",
-        "status": "Implemented",
-        "summary": "Global frame range on video-pipeline tabs; dump() trims via select=between; start_frame/end_frame on neural/convert/pipeline/speed_ramp params. 1-based inclusive like datamosh."
+        "status": "Implemented (includes Cut tab)",
+        "summary": "Global frame range on video-pipeline tabs; dump() trims via select=between; start_frame/end_frame on neural/convert/pipeline/speed_ramp params. 1-based inclusive like datamosh. Cut uses global range + per-frame thumbs (frame=N)."
     },
     {
         "file": "frame-scrubber-spec.md",
@@ -341,5 +341,12 @@
         "category": "Operation",
         "status": "Implemented (video per_frame in app/filters/withoutbg.py)",
         "summary": "withoutBG image batch + video via shared per_frame stage. Pipeline name withoutbg."
+    },
+    {
+        "file": "video-image-pools-spec.md",
+        "path": "docs/video-image-pools-spec.md",
+        "category": "Core Architecture / WebUI",
+        "status": "Implemented (as-built handoff 000.000.4.25)",
+        "summary": "Dual libraries: Video Pool (items[]) + Image Pool (images[]), project/session persistence v2, Cut tab uses global video+frame range with /api/thumbnail?frame=N for In/Out. No private Cut path picker. Future: pause\u2192image pool, cut encode."
     }
 ]

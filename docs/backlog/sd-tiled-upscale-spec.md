@@ -31,3 +31,14 @@ Leverages Stable Diffusion (via OpenVINO `optimum-intel`) to not just upsample a
 - Found under "Hallucination" tab as "SD Tiled Upscale".
 - Inputs for the base prompt and SD strength.
 - (Future) Interactive grid to type sub-prompts for specific zones.
+
+## Fast Generative Models (Text-to-Image)
+These models are architecturally distinct from Stable Diffusion (often using GANs or distilled transformers) and are significantly lighter. 
+
+- **FLUX.2 [klein] 4B**: Released in early 2026, this is a 4-billion parameter model explicitly designed for speed and low VRAM.
+  - **Performance**: Can generate 1024px images in 3–5 seconds on modern hardware; on an iGPU with INT4/INT8 quantization, it is one of the few "high-quality" transformers feasible.
+  - **Usage**: Available in GGUF format for llama.cpp-style image generators or via OpenVINO if converted.
+- **PixArt-Sigma**: A lightweight diffusion transformer that often requires less VRAM (~6GB) than SDXL.
+  - **Benefit**: Excellent prompt adherence with a smaller footprint. Look for the PixArt-Alpha or Sigma quantized versions.
+- **LAFITE (Language-free GAN)**: A GAN-based model (~75M parameters) that is drastically smaller than diffusion models.
+  - **Use Case**: Extremely fast generation (milliseconds to seconds) on CPU/iGPU. It doesn't require text prompts (uses random noise or simple class labels), making it perfect for "dreaming" random abstract concepts quickly.

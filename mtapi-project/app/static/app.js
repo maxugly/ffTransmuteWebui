@@ -30,6 +30,8 @@ import { renderRifeForm, collectRifeBody } from '/js/tabs/rife.js';
 import { loadQuickSettings, renderQuickTransmuteForm, runQuickTransmute, quickTransmuteLabel } from '/js/tabs/quick.js';
 import { renderWatcherForm } from '/js/tabs/watcher.js';
 import { renderConvertForm, collectConvertBody } from '/js/tabs/convert.js';
+import { renderImagePoolForm } from '/js/pool/image-pool.js';
+import { renderCutForm } from '/js/tabs/cut.js';
 import {
   findPoolItem, displayFocusPath, setPoolHover, clearPoolHover,
   setPoolFocus, updateSelectionHighlights, updatePoolFocusFrame,
@@ -99,7 +101,7 @@ let state = {
     pollTimer: null,
   },
   pool: {
-    items: [], // { path, name, size?, meta?, hash? }
+    items: [], // { path, name, size?, meta?, hash? }  — Video Pool
     selectedPath: null, // sticky selection (click) — syncs library ↔ sequence
     selectedSeqId: null, // precise sequence entry id when a token is selected
     filterQuery: '', // live fuzzy filter for pool grid (pool + sequence tabs)
@@ -141,7 +143,20 @@ let state = {
         matches: false,
       },
     },
-  }
+  },
+  // Image Pool — stills only (separate from Video Pool)
+  imagePool: {
+    items: [], // { path, name, size?, meta?, hash? }
+    selectedPath: null,
+    filterQuery: '',
+    loading: false,
+  },
+  // Cut workspace: clip endpoints + two reference stills
+  cut: {
+    videoPath: null,  // defaults to global video / pool selection
+    refA: null,       // absolute image path
+    refB: null,
+  },
 };
 
 
@@ -216,12 +231,14 @@ const TAB_ACCEPTS = {
   advanced:    'video',
   quick:       'video',
   convert:     'any',
+  cut:         'video',
 };
 
 /** Tabs that show the global frame-range row (video pipeline / mosh / convert). */
 const FRAME_RANGE_TABS = new Set([
   'mosh', 'deepdream', 'rife', 'convert', 'transmute',
   'styletransfer', 'withoutbg', 'facemorph', 'multi', 'advanced',
+  'cut', // cut workspace shows global range next to first/last
 ]);
 
 function tabUsesFrameRange(tab) {
@@ -244,10 +261,18 @@ function detectFileType(path) {
 // ── Global inputs sync ──────────────────────────────────────────────────
 
 function updateGlobalInputs() {
+  const prevVideo = window.globalInputs.video;
   window.globalInputs.video   = document.getElementById('giVideo')?.value || '';
   window.globalInputs.image   = document.getElementById('giImage')?.value || '';
   window.globalInputs.pathIn  = document.getElementById('giPathIn')?.value || '';
   window.globalInputs.pathOut = document.getElementById('giPathOut')?.value || '';
+  // New first-line video → invalidate probe cache so range re-probes
+  const first = (window.globalInputs.video || '').split('\n').map(l => l.trim()).find(Boolean) || '';
+  const prevFirst = (prevVideo || '').split('\n').map(l => l.trim()).find(Boolean) || '';
+  if (first !== prevFirst) {
+    window.globalInputs._lastProbedPath = null;
+    window.globalInputs._probeOk = false;
+  }
   updateStatusIndicators();
   // Sync per-tab local fields from global inputs + show/hide frame row
   _syncTabInputFromGlobal();
@@ -510,13 +535,17 @@ function switchTab(tab) {
   if (tab === 'watcher') title = 'Folder Watcher';
   if (tab === 'advanced') title = 'Advanced (Raw CLI)';
   if (tab === 'convert') title = 'Convert / Export';
-  // Pool tab: drop the big header title (sidebar already shows active item)
-  if (tab === 'pool' || tab === 'sequence') title = '';
+  if (tab === 'cut') title = 'Cut';
+  // Library tabs: drop the big header title (sidebar already shows active item)
+  if (tab === 'pool' || tab === 'sequence' || tab === 'images') title = '';
   elements.tabTitle.textContent = title;
 
-  // Hide Run on library / settings-only tabs
+  // Hide Run on library / settings-only tabs (Cut has no encode yet)
   if (elements.btnRun) {
-    elements.btnRun.style.display = (tab === 'pool' || tab === 'sequence' || tab === 'quick' || tab === 'watcher') ? 'none' : '';
+    elements.btnRun.style.display = (
+      tab === 'pool' || tab === 'sequence' || tab === 'images' || tab === 'cut'
+      || tab === 'quick' || tab === 'watcher'
+    ) ? 'none' : '';
   }
 
   // Stop watcher status polling when leaving the tab
@@ -525,10 +554,13 @@ function switchTab(tab) {
     state.watcher.pollTimer = null;
   }
 
-  // Pool / Sequence take most of the workspace
+  // Pool / Sequence / Image Pool take most of the workspace
   const appContent = document.querySelector('.app-content');
   if (appContent) {
-    appContent.classList.toggle('pool-workspace', tab === 'pool' || tab === 'sequence');
+    appContent.classList.toggle(
+      'pool-workspace',
+      tab === 'pool' || tab === 'sequence' || tab === 'images'
+    );
   }
 
   // Render Form for the Tab
@@ -574,6 +606,10 @@ function renderTabForm(tab) {
     renderPoolForm();
   } else if (tab === 'sequence') {
     renderSequenceForm();
+  } else if (tab === 'images') {
+    renderImagePoolForm();
+  } else if (tab === 'cut') {
+    renderCutForm();
   }
 }
 import { probeGlobalVideo, setupGlobalTimeline, setupTimelineSlider } from '/js/timeline.js';

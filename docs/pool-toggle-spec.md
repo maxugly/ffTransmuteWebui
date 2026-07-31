@@ -1,4 +1,6 @@
-# Media Pool Toggle (Sequencer-only view)
+# Video Pool Toggle (Sequencer-only view)
+
+> **Note:** UI label is **Video Pool** (`data-tab="pool"`). Older text said “Media Pool”.
 
 > **Status:** Specification Phase
 > **Category:** Frontend

@@ -347,3 +347,120 @@ async def get_thumb_file(content_hash: str, which: str, source_path: Path | None
                 save_record(rec)
             return tp
     return None
+
+
+def _frame_n_thumb_path(content_hash: str, frame_1based: int) -> Path:
+    """Cache path for a specific 1-based frame thumbnail."""
+    n = max(1, int(frame_1based))
+    return _hash_dir(content_hash) / "range_thumbs" / f"frame_{n:06d}.jpg"
+
+
+async def extract_frame_at(
+    path: Path,
+    out_path: Path,
+    frame_1based: int,
+    *,
+    fps: float | None = None,
+) -> bool:
+    """Extract a single 1-based display frame as JPEG.
+
+    Uses a fast ``-ss`` seek when *fps* is known, then falls back to an exact
+    ``select=eq(n,…)`` decode if the seek fails.
+    """
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    n = max(1, int(frame_1based))
+    n0 = n - 1  # 0-based for ffmpeg select
+    scale = "scale=480:-2"
+
+    async def _run(cmd: list[str]) -> bool:
+        if out_path.exists():
+            try:
+                out_path.unlink()
+            except OSError:
+                pass
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, err = await proc.communicate()
+        ok = proc.returncode == 0 and out_path.exists() and out_path.stat().st_size > 0
+        if not ok and err:
+            log.debug(
+                "extract_frame_at failed frame=%s: %s\n%s",
+                n,
+                " ".join(cmd[:10]),
+                err.decode(errors="replace")[:400],
+            )
+        return ok
+
+    attempts: list[list[str]] = []
+    # Fast approximate seek (input-side) when fps known
+    if fps is not None and fps > 0:
+        t = max(0.0, n0 / float(fps))
+        attempts.append([
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-ss", f"{t:.6f}",
+            "-i", str(path),
+            "-frames:v", "1",
+            "-vf", scale,
+            "-q:v", "4",
+            str(out_path),
+        ])
+        # Output-side seek is slower but more accurate near keyframes
+        attempts.append([
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-i", str(path),
+            "-ss", f"{t:.6f}",
+            "-frames:v", "1",
+            "-vf", scale,
+            "-q:v", "4",
+            str(out_path),
+        ])
+    # Exact frame index (slow on long clips, always correct)
+    attempts.append([
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+        "-i", str(path),
+        "-vf", f"select=eq(n\\,{n0}),{scale}",
+        "-vsync", "vfr",
+        "-frames:v", "1",
+        "-q:v", "4",
+        str(out_path),
+    ])
+
+    for cmd in attempts:
+        if await _run(cmd):
+            return True
+    return False
+
+
+async def get_frame_thumb_file(
+    content_hash: str,
+    frame_1based: int,
+    source_path: Path | None = None,
+    *,
+    fps: float | None = None,
+) -> Path | None:
+    """Return JPEG for 1-based frame N, caching under by_hash/.../range_thumbs/."""
+    n = max(1, int(frame_1based))
+    # Reuse permanent first/last cache when applicable
+    if n == 1:
+        return await get_thumb_file(content_hash, "first", source_path=source_path)
+
+    tp = _frame_n_thumb_path(content_hash, n)
+    if tp.exists() and tp.stat().st_size > 0:
+        return tp
+    if source_path is None or not source_path.is_file():
+        return None
+
+    # Probe fps from record if not provided
+    if fps is None:
+        rec = load_record(content_hash)
+        if rec:
+            try:
+                fps = float(rec.get("fps") or 0) or None
+            except (TypeError, ValueError):
+                fps = None
+
+    ok = await extract_frame_at(source_path, tp, n, fps=fps)
+    return tp if ok else None

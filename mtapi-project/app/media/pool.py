@@ -21,10 +21,12 @@ _pool_state_lock = asyncio.Lock()
 
 def _default_pool_state() -> dict[str, Any]:
     return {
-        "version": 1,
+        "version": 2,
         "items": [],
+        "images": [],
         "sequence": [],
         "selected_path": None,
+        "selected_image_path": None,
         "reconcile": "pad",
         "aspect": "auto",
         "aspect_custom": "",
@@ -34,6 +36,38 @@ def _default_pool_state() -> dict[str, Any]:
         "layout": None,
         "updated_at": None,
     }
+
+
+def _normalize_media_entries(
+    raw_list: list | None,
+    *,
+    missing: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Dedupe path entries that still exist on disk (videos or images)."""
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    miss = missing if missing is not None else []
+    for it in raw_list or []:
+        if not isinstance(it, dict):
+            continue
+        p = it.get("path")
+        if not p:
+            continue
+        path = Path(p)
+        if not path.is_file():
+            miss.append(p)
+            continue
+        key = str(path.resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append({
+            "path": key,
+            "name": it.get("name") or path.name,
+            "hash": it.get("hash"),
+            "size": it.get("size"),
+        })
+    return out
 
 
 def load_pool_state() -> dict[str, Any]:
@@ -47,35 +81,12 @@ def load_pool_state() -> dict[str, Any]:
         log.warning("pool state load failed: %s", e)
         return {**state, "ok": False, "error": str(e), "restored": False}
 
-    items_in = raw.get("items") or []
-    seq_in = raw.get("sequence") or []
-    items_out = []
-    seen = set()
-    missing = []
-
-    for it in items_in:
-        if not isinstance(it, dict):
-            continue
-        p = it.get("path")
-        if not p:
-            continue
-        path = Path(p)
-        if not path.is_file():
-            missing.append(p)
-            continue
-        key = str(path.resolve())
-        if key in seen:
-            continue
-        seen.add(key)
-        items_out.append({
-            "path": key,
-            "name": it.get("name") or path.name,
-            "hash": it.get("hash"),
-            "size": it.get("size"),
-        })
+    missing: list[str] = []
+    items_out = _normalize_media_entries(raw.get("items"), missing=missing)
+    images_out = _normalize_media_entries(raw.get("images"), missing=missing)
 
     sequence_out = []
-    for it in seq_in:
+    for it in raw.get("sequence") or []:
         if isinstance(it, str):
             p = it
             name = Path(p).name
@@ -106,6 +117,9 @@ def load_pool_state() -> dict[str, Any]:
     selected = raw.get("selected_path")
     if selected and not Path(selected).is_file():
         selected = None
+    selected_image = raw.get("selected_image_path")
+    if selected_image and not Path(selected_image).is_file():
+        selected_image = None
 
     tile_zoom = raw.get("tile_zoom", 200)
     try:
@@ -118,8 +132,10 @@ def load_pool_state() -> dict[str, Any]:
         "restored": True,
         "version": raw.get("version", 1),
         "items": items_out,
+        "images": images_out,
         "sequence": sequence_out,
         "selected_path": selected,
+        "selected_image_path": selected_image,
         "reconcile": raw.get("reconcile") or "pad",
         "aspect": raw.get("aspect") or "auto",
         "aspect_custom": raw.get("aspect_custom") or "",
@@ -146,10 +162,12 @@ def _normalize_pool_payload(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(layout, dict):
         layout = None
     return {
-        "version": int(payload.get("version") or 1),
+        "version": int(payload.get("version") or 2),
         "items": payload.get("items") or [],
+        "images": payload.get("images") or [],
         "sequence": payload.get("sequence") or [],
         "selected_path": payload.get("selected_path"),
+        "selected_image_path": payload.get("selected_image_path"),
         "reconcile": payload.get("reconcile") or "pad",
         "aspect": payload.get("aspect") or "auto",
         "aspect_custom": payload.get("aspect_custom") or "",
@@ -172,6 +190,7 @@ async def save_pool_state(payload: dict[str, Any]) -> dict[str, Any]:
             "ok": True,
             "path": str(POOL_STATE_PATH),
             "item_count": len(data["items"]),
+            "image_count": len(data["images"]),
             "sequence_count": len(data["sequence"]),
             "updated_at": data["updated_at"],
         }

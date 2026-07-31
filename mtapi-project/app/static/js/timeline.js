@@ -3,21 +3,41 @@ import { state } from '/app.js';
 
 // ── Global video probe → populates global frame range ─────────────────────
 
-async function probeGlobalVideo(path) {
+/**
+ * Probe a video for true frame count and wire the global range sliders.
+ * @param {string} path
+ * @param {{ force?: boolean }} [opts]  force=true re-probes even if path unchanged
+ */
+async function probeGlobalVideo(path, opts) {
   if (!path) return;
+  opts = opts || {};
   var gi = window.globalInputs;
-  if (path === gi._lastProbedPath) return;
+  // Skip only when we already successfully probed this exact path
+  if (!opts.force && path === gi._lastProbedPath && gi._probeOk) {
+    try {
+      document.dispatchEvent(new CustomEvent('mtapi:video-probed', {
+        detail: { path: path, frames: gi.totalFrames, cached: true },
+      }));
+    } catch (_) { /* ignore */ }
+    return;
+  }
   gi._lastProbedPath = path;
+  gi._probeOk = false;
 
   try {
     const res = await fetch(`/api/probe?path=${encodeURIComponent(path)}`);
-    if (!res.ok) return;
+    if (!res.ok) {
+      console.error('probe failed HTTP', res.status, path);
+      return;
+    }
     const data = await res.json();
     if (data.ok && data.true_frames) {
       var frames = data.true_frames;
       gi.totalFrames = frames;
+      gi._probeOk = true;
+      // Reset range to full clip on new probe so In/Out match the file
+      gi.frameStart = 1;
       gi.frameEnd = frames;
-      if (gi.frameStart < 1 || gi.frameStart > frames) gi.frameStart = 1;
 
       var startEl = document.getElementById('giTimelineStart');
       var endEl   = document.getElementById('giTimelineEnd');
@@ -32,6 +52,13 @@ async function probeGlobalVideo(path) {
         if (valE) valE.value = gi.frameEnd;
         startEl.dispatchEvent(new Event('input')); // updates selected count + bar
       }
+      try {
+        document.dispatchEvent(new CustomEvent('mtapi:video-probed', {
+          detail: { path: path, frames: frames, cached: false },
+        }));
+      } catch (_) { /* ignore */ }
+    } else {
+      console.error('probe returned no true_frames', data);
     }
   } catch (err) {
     console.error("Failed to probe video:", err);
@@ -84,6 +111,13 @@ function setupGlobalTimeline() {
       totalEl.textContent = selected;
       totalEl.title = selected + ' selected of ' + m + ' in clip';
     }
+
+    // Notify Cut / other listeners that the working range moved
+    try {
+      document.dispatchEvent(new CustomEvent('mtapi:frame-range', {
+        detail: { start: s, end: e, total: m },
+      }));
+    } catch (_) { /* ignore */ }
   }
 
   startEl.addEventListener('input', sync);

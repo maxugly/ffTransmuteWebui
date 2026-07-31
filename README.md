@@ -1,6 +1,6 @@
 # ffTransmuteWebui
 
-A local one-stop video/image workshop: lossless geometry (`transmute`), datamosh, media pool/projects, Convert/Export codecs, plus neural tools (DeepDream, face morph, withoutBG, style transfer, RIFE) behind a typed FastAPI server and dark-mode WebUI.
+A local one-stop video/image workshop: lossless geometry (`transmute`), datamosh, Video/Image Pool projects, Convert/Export codecs, plus neural tools (DeepDream, face morph, withoutBG, style transfer, RIFE) behind a typed FastAPI server and dark-mode WebUI.
 
 ---
 
@@ -9,11 +9,13 @@ A local one-stop video/image workshop: lossless geometry (`transmute`), datamosh
 Two layers:
 
 1. **Core CLI** (`transmute`, `datamosh.sh`, ffglitch JS) — ffmpeg-centric, minimal deps  
-2. **mtapi + WebUI** (`mtapi-project/`) — typed `POST /ops/*`, media pool, job cancel/progress, sequential output names so re-runs never overwrite
+2. **mtapi + WebUI** (`mtapi-project/`) — typed `POST /ops/*`, dual media libraries (Video Pool + Image Pool), job cancel/progress, sequential output names so re-runs never overwrite
 
 **Frame effects** use a shared **filter platform**: dump → `app/filters/*` stages → encode (`docs/filter-platform-spec.md`). **Convert / Export** is the user-facing bookends tab (ProRes, DNxHR, H.264/AVC, HEVC, frame folders, GIF).
 
-**WebUI tabs include:** Datamosh, DeepDream, Face Morph, withoutBG, Style Transfer, RIFE, Convert/Export, single-clip transmute, join/grid, Quick Transmute, Media Pool, Folder Watcher (ingest → DNxHR), raw CLI.
+**WebUI tabs include:** Datamosh, DeepDream, Face Morph, withoutBG, Style Transfer, RIFE, Convert/Export, single-clip transmute, join/grid, Quick Transmute, **Video Pool**, **Image Pool**, Sequence, **Cut**, Folder Watcher (ingest → DNxHR), raw CLI.
+
+Libraries / Cut handoff: `docs/video-image-pools-spec.md`.
 
 ---
 

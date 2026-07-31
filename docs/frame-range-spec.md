@@ -37,9 +37,35 @@ Datamosh already honored range via its own trim path.
 
 ## Tabs with range row
 
-`mosh`, `deepdream`, `rife`, `convert`, `transmute`, `styletransfer`, `withoutbg`, `facemorph`, `multi`, `advanced`
+`mosh`, `deepdream`, `rife`, `convert`, `transmute`, `styletransfer`, `withoutbg`, `facemorph`, `multi`, `advanced`, **`cut`**
 
-(Not pool/sequence/watcher/quick.)
+(Not: `pool` / Video Pool, `images` / Image Pool, `sequence`, `watcher`, `quick`.)
+
+Source of truth for the set: `FRAME_RANGE_TABS` in `mtapi-project/app/static/app.js`.
+
+---
+
+## Probe + events (frontend)
+
+| Piece | Location |
+|-------|----------|
+| Probe | `GET /api/probe` → `true_frames` |
+| Client | `js/timeline.js` → `probeGlobalVideo(path, { force? })` |
+| State | `window.globalInputs.frameStart/frameEnd/totalFrames`, `_probeOk` |
+| Events | `mtapi:frame-range` on slider move; `mtapi:video-probed` after probe |
+| Default trap | Until probe succeeds, UI defaults look like **100** frames — not real |
+
+Changing the first line of global Video invalidates probe cache (`updateGlobalInputs` in `app.js`).
+
+### Cut / range previews
+
+Cut In/Out images use **working range**, not absolute file endpoints:
+
+```text
+GET /api/thumbnail?path=…&frame=N   # 1-based; see video-image-pools-spec.md
+```
+
+Absolute first/last (`which=first|last`) remain for Video Pool dual-frame cards only.
 
 ---
 
@@ -51,4 +77,8 @@ rife start=1 end=8 multiplier=2 → 8→16 frames
 convert h264 start=5 end=16 → 12 frames encoded
 ```
 
-UI: open RIFE/DeepDream/Convert → frame row visible; drag range → selected count updates.
+UI:
+
+1. Open RIFE/DeepDream/Convert/Cut → frame row visible.  
+2. Set global Video to `/tmp/teste.mp4` → probe → max ≈ 48 (not stuck at 100).  
+3. Drag range → selected count updates; on Cut, In/Out thumbs follow `frame=N`.

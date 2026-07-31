@@ -35,7 +35,14 @@ function scheduleSavePoolState() {
 
 function buildPoolStatePayload() {
   return {
+    version: 2,
     items: state.pool.items.map(i => ({
+      path: i.path,
+      name: i.name || basename(i.path),
+      hash: i.hash || null,
+      size: i.size ?? null,
+    })),
+    images: (state.imagePool?.items || []).map(i => ({
       path: i.path,
       name: i.name || basename(i.path),
       hash: i.hash || null,
@@ -53,6 +60,7 @@ function buildPoolStatePayload() {
       };
     }),
     selected_path: state.pool.selectedPath,
+    selected_image_path: state.imagePool?.selectedPath || null,
     reconcile: state.pool.reconcile || 'pad',
     aspect: state.pool.aspect || 'auto',
     aspect_custom: state.pool.aspectCustom || '',
@@ -94,6 +102,7 @@ function updateProjectNameUI() {
 function applyPoolData(data, { asProject = false, projectPath = null, projectName = null } = {}) {
   const items = data.items || [];
   const sequence = data.sequence || [];
+  const images = data.images || [];
 
   state.pool.items = items.map(it => ({
     path: it.path,
@@ -123,6 +132,23 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
   state.pool.aspect = data.aspect || 'auto';
   state.pool.aspectCustom = data.aspect_custom || '';
   state.pool.outputPath = data.output_path || '';
+
+  // Image Pool (v2; missing images → [])
+  if (!state.imagePool) {
+    state.imagePool = { items: [], selectedPath: null, filterQuery: '', loading: false };
+  }
+  state.imagePool.items = images.map(it => ({
+    path: it.path,
+    name: it.name || basename(it.path),
+    hash: it.hash || null,
+    size: it.size ?? null,
+    meta: null,
+  }));
+  state.imagePool.selectedPath = data.selected_image_path || null;
+  if (state.imagePool.selectedPath) {
+    const stillThere = state.imagePool.items.some(i => i.path === state.imagePool.selectedPath);
+    if (!stillThere) state.imagePool.selectedPath = null;
+  }
 
   if (typeof data.tile_zoom === 'number' && !isNaN(data.tile_zoom)) {
     state.pool.tileZoom = Math.max(POOL_ZOOM.min, Math.min(POOL_ZOOM.max, data.tile_zoom));
@@ -164,10 +190,29 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
   state.pool.items.forEach((item, idx) => {
     loadPoolItemMeta(item, idx);
   });
+  // Image thumbs/meta (lazy; image-pool module loads deeper meta when tab opens)
+  state.imagePool.items.forEach((item) => {
+    if (!item.hash) {
+      // soft probe for hash so thumbs can use permanent cache key
+      fetch(`/api/media_info?path=${encodeURIComponent(item.path)}&ensure_thumbs=true`)
+        .then(r => r.json())
+        .then(data => {
+          if (data && data.ok) {
+            item.meta = data;
+            item.hash = data.hash || item.hash;
+            if (data.size != null) item.size = data.size;
+            if (data.name) item.name = data.name;
+            scheduleSavePoolState();
+          }
+        })
+        .catch(() => {});
+    }
+  });
 }
 
 async function projectNew() {
-  if (state.project.dirty || state.pool.items.length || state.pool.sequence.length) {
+  const hasImages = (state.imagePool?.items || []).length > 0;
+  if (state.project.dirty || state.pool.items.length || state.pool.sequence.length || hasImages) {
     if (!confirm('Start a new project? Unsaved changes will be lost (session autosave still has last autosave).')) {
       return;
     }
@@ -181,9 +226,22 @@ async function projectNew() {
   state.pool.focusPath = null;
   state.pool.matchResults = null;
   state.pool.outputPath = '';
+  if (state.imagePool) {
+    state.imagePool.items = [];
+    state.imagePool.selectedPath = null;
+    state.imagePool.filterQuery = '';
+  }
+  if (state.cut) {
+    state.cut.videoPath = null;
+    state.cut.refA = null;
+    state.cut.refB = null;
+  }
   state.project = { path: null, name: null, dirty: false };
   logConsole('[PROJECT]: New untitled project');
   if (state.activeTab === 'pool') renderPoolForm();
+  else if (state.activeTab === 'images') {
+    import('/js/pool/image-pool.js').then(m => m.renderImagePoolForm());
+  }
   await savePoolStateNow();
 }
 
@@ -219,11 +277,14 @@ async function projectOpen() {
       projectPath: data.path,
       projectName: data.name,
     });
+    const imgN = data.image_count ?? (data.images || []).length;
     logConsole(
-      `[PROJECT]: Opened ${data.name || data.path} — ${data.item_count} clips, ${data.sequence_count} in sequence`
+      `[PROJECT]: Opened ${data.name || data.path} — ${data.item_count} clips, ${imgN} images, ${data.sequence_count} in sequence`
     );
     if (state.activeTab === 'pool') renderPoolForm();
-    else switchTab('pool');
+    else if (state.activeTab === 'images') {
+      import('/js/pool/image-pool.js').then(m => m.renderImagePoolForm());
+    } else switchTab('pool');
   } catch (err) {
     logConsole(`[PROJECT OPEN]: ${err.message}`, 'error');
     alert(`Could not open project: ${err.message}`);
@@ -299,13 +360,37 @@ async function projectSave(saveAs = false) {
 async function savePoolStateNow() {
   if (!_poolPersistReady) return;
   try {
+    const payload = buildPoolStatePayload();
     const res = await fetch('/api/pool/state', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(buildPoolStatePayload()),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(await res.text());
-    // Quiet success — only log occasionally would be noisy; skip
+
+    // Keep the open project file in sync (videos + images + sequence).
+    // Reload prefers last project over session — without this, Image Pool
+    // (and any unsaved pool edits) vanish on refresh while a project is open.
+    if (state.project.path) {
+      const pr = await fetch('/api/project/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...payload,
+          path: state.project.path,
+          name: state.project.name || undefined,
+        }),
+      });
+      if (pr.ok) {
+        const data = await pr.json().catch(() => ({}));
+        if (data.ok !== false) {
+          if (data.name) state.project.name = data.name;
+          if (data.path) state.project.path = data.path;
+          state.project.dirty = false;
+          updateProjectNameUI();
+        }
+      }
+    }
   } catch (err) {
     logConsole(`[POOL SAVE]: ${err.message}`, 'error');
   }
@@ -330,8 +415,9 @@ async function restorePoolState() {
                 projectName: data.name,
               });
               const timed = state.pool.sequence.filter(s => s.targetDuration != null).length;
+              const imgN = state.imagePool?.items?.length || 0;
               logConsole(
-                `[PROJECT]: Restored ${data.name || data.path} — ${state.pool.items.length} clips, ${state.pool.sequence.length} in sequence`
+                `[PROJECT]: Restored ${data.name || data.path} — ${state.pool.items.length} clips, ${imgN} images, ${state.pool.sequence.length} in sequence`
                 + (timed ? `, ${timed} timed` : '')
               );
               _poolPersistReady = true;
@@ -359,8 +445,9 @@ async function restorePoolState() {
       state.project.dirty = false;
     }
     const timed = state.pool.sequence.filter(s => s.targetDuration != null).length;
+    const imgN = state.imagePool?.items?.length || 0;
     logConsole(
-      `[POOL]: Restored session — ${state.pool.items.length} clips, ${state.pool.sequence.length} in sequence`
+      `[POOL]: Restored session — ${state.pool.items.length} clips, ${imgN} images, ${state.pool.sequence.length} in sequence`
       + (timed ? `, ${timed} timed` : '')
       + ((data.missing || []).length ? ` (${data.missing.length} missing skipped)` : '')
     );
@@ -374,7 +461,7 @@ async function restorePoolState() {
 function refreshPoolToolbarCounts() {
   const el = document.querySelector('.pool-count');
   if (el) {
-    el.textContent = `${state.pool.items.length} in pool · ${state.pool.sequence.length} in sequence`;
+    el.textContent = `${state.pool.items.length} in video pool · ${state.pool.sequence.length} in sequence`;
   }
   const stitchBtn = document.getElementById('btnPoolStitch');
   if (stitchBtn) stitchBtn.disabled = state.pool.sequence.length < 2;

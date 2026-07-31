@@ -23,6 +23,7 @@ Agents operating at this level are responsible for top-level repository integrit
 ├── speedramp_png.py             # PNG frame-remap speed ramp (bypasses ffmpeg setpts)
 ├── docs-transmute-README.md     # Reference doc for standalone transmute CLI flags
 ├── docs/                        # Specs, failure reports, debug notes
+│   └── video-image-pools-spec.md  # As-built: Video/Image Pool + Cut handoff
 ├── mtapi-project/               # FastAPI backend package and WebUI client
 └── AGENTS.md                    # Root agent operational directives (this file)
 ```
@@ -84,6 +85,21 @@ Stage kinds:
 
 `PngFramePipeline` removed (raises). Spec: `docs/filter-platform-spec.md`.
 
+### Media libraries (WebUI) — dual pools + Cut
+
+Canonical as-built: **`docs/video-image-pools-spec.md`**.
+
+| Library | State | Persist key | Purpose |
+|---------|-------|-------------|---------|
+| **Video Pool** | `state.pool` | `items[]` | Videos, sequence stitch, send-to ops |
+| **Image Pool** | `state.imagePool` | `images[]` | Stills, cut refs, image ops |
+| **Cut** | `state.cut` `{refA,refB}` | (refs not yet persisted) | In/Out from **global** frame range |
+
+- Tab ids: Video Pool=`pool`, Image Pool=`images`, Sequence=`sequence`, Cut=`cut`.  
+- Cut clip = global Video bar only (no private path field).  
+- Range thumbs: `/api/thumbnail?frame=N`; absolute first/last for Video Pool cards only.  
+- Open project must be saved with `images[]` (quiet dual-save in `savePoolStateNow`).
+
 ---
 
 ## 🚨 3. System Invariants & Non-Negotiable Rules
@@ -102,7 +118,11 @@ When modifying files at the root level or coordinating changes across components
    - Frame effects: **dump → stage(s) → encode** via `video_pipeline` + `app/filters/*`. Mid-chain format: PNG `frame_%06d.png`, start_number **0**.
    - Never invent a second dump/encode stack inside an op. Convert presets live in `convert_presets.py`.
    - Geometry stays on `transmute` CLI; Resolve intermediates / delivery codecs / frame folders stay on **Convert**, not ad-hoc ffmpeg in neural ops.
-6. **Version Bumping**:
+6. **Dual media libraries (Video / Image)**:
+   - Keep video and still libraries separate in state and JSON (`items` vs `images`).  
+   - Workspace tabs that need a clip + range (e.g. Cut) use **global Video + Frame range**, not a private file picker.  
+   - See `docs/video-image-pools-spec.md`.
+7. **Version Bumping**:
    - Bump far-right DD in VERSION for each feature (000.000.X.DD). Commit + push per change.
    - Bump third segment (000.000.X.0) for significant releases (new ops, major UI additions).
 

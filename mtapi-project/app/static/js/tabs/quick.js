@@ -58,7 +58,7 @@ function renderQuickTransmuteForm() {
       <h3>Quick Transmute defaults</h3>
       <p>
         Same Fit / AR as sequence stitch. Configure once here, then
-        <strong>right-click</strong> any Media Pool clip → <em>Quick Transmute</em>.
+        <strong>right-click</strong> any Video Pool clip → <em>Quick Transmute</em>.
         One click: auto-names next to the source, no dialogs.
       </p>
     </div>
@@ -107,7 +107,7 @@ function renderQuickTransmuteForm() {
 
     <div class="form-group" style="display:flex; gap:8px; flex-wrap:wrap;">
       <button type="button" class="btn" id="btnQuickCopySeq">Copy from sequence settings</button>
-      <button type="button" class="btn" id="btnQuickToPool">Open Media Pool</button>
+      <button type="button" class="btn" id="btnQuickToPool">Open Video Pool</button>
     </div>
   `;
   elements.actionPanel.innerHTML = html;

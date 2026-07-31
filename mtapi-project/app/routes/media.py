@@ -51,10 +51,18 @@ def register(app: FastAPI, probe_fn) -> None:
         )
 
     @app.get("/api/thumbnail", tags=["meta"])
-    async def get_thumbnail(path: str | None = None, hash: str | None = None, which: str = "first"):
-        which = (which or "first").lower()
-        if which not in ("first", "last"):
-            raise HTTPException(status_code=400, detail="which must be 'first' or 'last'")
+    async def get_thumbnail(
+        path: str | None = None,
+        hash: str | None = None,
+        which: str = "first",
+        frame: int | None = None,
+    ):
+        """Serve a thumbnail JPEG.
+
+        * ``which=first|last`` — permanent first/last of the whole file (default).
+        * ``frame=N`` — **1-based** frame index (Cut / range previews). Takes
+          precedence over ``which`` when provided.
+        """
         content_hash = hash
         source: Path | None = None
         if path:
@@ -72,6 +80,35 @@ def register(app: FastAPI, probe_fn) -> None:
                 )
         elif not content_hash:
             raise HTTPException(status_code=400, detail="Provide path or hash")
+
+        # Range / scrub frame (1-based inclusive)
+        if frame is not None:
+            try:
+                frame_n = int(frame)
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail="frame must be an integer")
+            if frame_n < 1:
+                raise HTTPException(status_code=400, detail="frame must be >= 1")
+            fps = None
+            rec = media.load_record(content_hash)
+            if rec:
+                try:
+                    fps = float(rec.get("fps") or 0) or None
+                except (TypeError, ValueError):
+                    fps = None
+            thumb = await media.get_frame_thumb_file(
+                content_hash, frame_n, source_path=source, fps=fps,
+            )
+            if not thumb:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to extract frame {frame_n}",
+                )
+            return FileResponse(str(thumb), media_type="image/jpeg")
+
+        which = (which or "first").lower()
+        if which not in ("first", "last"):
+            raise HTTPException(status_code=400, detail="which must be 'first' or 'last'")
         thumb = await media.get_thumb_file(content_hash, which, source_path=source)
         if not thumb:
             raise HTTPException(status_code=500, detail=f"Failed to extract {which} frame")

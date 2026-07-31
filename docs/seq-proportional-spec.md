@@ -4,7 +4,7 @@
 > **Category:** Frontend
 
 ## 1. Overview
-Sequence tokens in the Media Pool ("Drop videos here to build a stitch sequence") are currently rendered with uniform widths. This means a 2-second clip and a 30-second clip look identical on the timeline, preventing the composer from visually confirming actual clip durations. This specification introduces proportional sequence tokens where longer clips are allocated wider tokens, giving the user a true sense of the final sequence timing.
+Sequence tokens in the Video Pool / Sequence tab ("Drop videos here to build a stitch sequence") are currently rendered with uniform widths. This means a 2-second clip and a 30-second clip look identical on the timeline, preventing the composer from visually confirming actual clip durations. This specification introduces proportional sequence tokens where longer clips are allocated wider tokens, giving the user a true sense of the final sequence timing.
 
 ## 2. Frontend Implementation
 
