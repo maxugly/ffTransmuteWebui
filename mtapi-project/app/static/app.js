@@ -151,11 +151,15 @@ let state = {
     filterQuery: '',
     loading: false,
   },
-  // Cut workspace: clip endpoints + two reference stills
+  // Cut workspace: clip endpoints + two reference stills + shared image-compare state
+  // Compare fields: mode / overlayOpacity / abPosition — see js/ui/image-compare.js
   cut: {
-    videoPath: null,  // defaults to global video / pool selection
-    refA: null,       // absolute image path
-    refB: null,
+    refA: null,              // absolute image path (pairs with In)
+    refB: null,              // absolute image path (pairs with Out)
+    mode: 'separate',        // separate | overlay | ab (shared image-compare)
+    compareMode: 'separate', // legacy alias kept in sync with mode
+    overlayOpacity: 50,      // 0–100 ref opacity in overlay mode
+    abPosition: 50,          // 0–100 wipe handle (left=base, right=ref)
   },
 };
 

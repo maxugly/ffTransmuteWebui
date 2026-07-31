@@ -180,7 +180,9 @@ function selectImageItem(path) {
 
   // If Cut asked for a ref slot, fill it and jump back
   if (state._cutPendingRef === 'refA' || state._cutPendingRef === 'refB') {
-    if (!state.cut) state.cut = { videoPath: null, refA: null, refB: null };
+    if (!state.cut) {
+      state.cut = { refA: null, refB: null, mode: 'separate', compareMode: 'separate', overlayOpacity: 50, abPosition: 50 };
+    }
     const slot = state._cutPendingRef;
     state.cut[slot] = path;
     state._cutPendingRef = null;
@@ -299,7 +301,9 @@ function sendImagePathTo(path, target) {
   }
 
   if (target === 'cut_ref_a' || target === 'cut_ref_b') {
-    if (!state.cut) state.cut = { videoPath: null, refA: null, refB: null };
+    if (!state.cut) {
+      state.cut = { refA: null, refB: null, mode: 'separate', compareMode: 'separate', overlayOpacity: 50, abPosition: 50 };
+    }
     if (target === 'cut_ref_a') state.cut.refA = path;
     else state.cut.refB = path;
     logConsole(`[IMAGE POOL]: Set Cut ${target === 'cut_ref_a' ? 'Ref A' : 'Ref B'} → ${basename(path)}`);

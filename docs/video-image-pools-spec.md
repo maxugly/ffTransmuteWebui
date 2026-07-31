@@ -100,16 +100,25 @@ state.imagePool = {
 
 ```js
 state.cut = {
-  refA: null,   // absolute image path or null
-  refB: null,
+  refA: null,              // absolute image path or null (pairs with In)
+  refB: null,              // pairs with Out
+  mode: 'separate',        // shared image-compare: 'separate' | 'overlay' | 'ab'
+  compareMode: 'separate', // legacy alias; kept in sync with mode
+  overlayOpacity: 50,      // 0–100, ref opacity in overlay mode
+  abPosition: 50,          // 0–100 wipe handle (left of handle = frame, right = ref)
   // NO videoPath — clip lives in window.globalInputs.video
 };
 ```
 
-- UI module: **`js/tabs/cut.js`**.  
+- UI module: **`js/tabs/cut.js`** (host only).  
+- **Compare control (shared):** `js/ui/image-compare.js` + `css/image-compare.css` — see **`docs/image-compare-spec.md`**.  
 - Clip display is read-only: “from global Video”.  
 - Helpers: “Preview clip”, “Video Pool…” (navigates only).  
-- Pending ref fill: `state._cutPendingRef = 'refA'|'refB'` when user jumps to Image Pool to pick.
+- Pending ref fill: `state._cutPendingRef = 'refA'|'refB'` when user jumps to Image Pool to pick.  
+- **Compare modes** (via shared module; In↔Ref A, Out↔Ref B):  
+  1. **Separate** — In / Out / Ref A / Ref B as four cards (default).  
+  2. **Overlay** — Ref stacked on In/Out with adjustable transparency (align frames).  
+  3. **A/B** — wipe slider left=frame / right=ref (drag on image or bar).
 
 ### 2.4 Global inputs (shared with all ops)
 
@@ -248,8 +257,9 @@ Implementation:
 Global bar:  Video file(s)  |  Frame range [====In====Out====]
 Cut panel:
   Clip (read-only from global)
-  [ In · frame S ]   [ Out · frame E ]
-  [ Ref A        ]   [ Ref B        ]
+  Compare: [1 Separate | 2 Overlay | 3 A/B]  [opacity or wipe slider]
+  [ In · frame S ]   [ Out · frame E ]   (± ref composite when mode ≠ separate)
+  [ Ref A        ]   [ Ref B        ]   (separate mode only; toolbars when composite)
 ```
 
 ### 5.2 Events
@@ -292,9 +302,11 @@ When implementing encode later: dump with `start_frame`/`end_frame` via existing
 | `app/static/js/pool/image-pool.js` | **Image Pool** UI + import + send |
 | `app/static/js/pool/persistence.js` | Payload v2, project save/load, dual save |
 | `app/static/js/pool/sequence.js` | Sequence composer |
-| `app/static/js/tabs/cut.js` | **Cut** workspace |
+| `app/static/js/tabs/cut.js` | **Cut** workspace (host; no dual-layer logic) |
+| `app/static/js/ui/image-compare.js` | Shared separate/overlay/A/B compare control |
+| `app/static/css/image-compare.css` | Shared compare styles |
 | `app/static/js/timeline.js` | Global probe + range sliders + events |
-| `app/static/css/pool.css` | Pool cards, Image Pool, Cut layout |
+| `app/static/css/pool.css` | Pool cards, Image Pool, Cut layout only |
 
 ### Backend
 
@@ -391,6 +403,8 @@ curl -s "http://127.0.0.1:24590/api/pool/scan?path=/tmp&kind=image" | jq '.kind,
 | 2026-07-31 | Persistence fix: project quiet-save includes `images` |
 | 2026-07-31 | `/api/thumbnail?frame=N` + Cut range-driven In/Out |
 | 2026-07-31 | Cut global-only inputs; remove private video picker; probe force |
+| 2026-07-31 | Cut compare modes: separate / overlay opacity / A/B wipe |
+| 2026-07-31 | Extract compare → `js/ui/image-compare.js` + `css/image-compare.css` |
 
 ---
 

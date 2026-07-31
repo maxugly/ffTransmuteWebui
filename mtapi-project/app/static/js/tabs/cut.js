@@ -5,6 +5,9 @@
  *   Range start/end thumbs ← global Frame range sliders
  *   Ref A / Ref B          ← Image Pool (or Browse still into Image Pool)
  *
+ * Compare UI is the shared module `/js/ui/image-compare.js`
+ * (In↔Ref A, Out↔Ref B): separate | overlay | A/B wipe.
+ *
  * Encode of the trim is not here yet.
  */
 import { state, elements, logConsole, showPreview, switchTab, bestInput } from '/app.js';
@@ -12,17 +15,40 @@ import { basename, escapeHtml, isImagePath, globalFrameRange } from '/js/utils.j
 import { probeGlobalVideo } from '/js/timeline.js';
 import { poolThumbUrl } from '/js/pool/persistence.js';
 import { ensureImagePool } from '/js/pool/image-pool.js';
+import {
+  defaultCompareState,
+  normalizeCompareState,
+  compareToolbarHtml,
+  paintCompareView,
+  bindCompareControls,
+} from '/js/ui/image-compare.js';
 
 let _listenersBound = false;
 let _rangeRefreshTimer = null;
 let _videoRefreshTimer = null;
+/** @type {{ destroy: () => void } | null} */
+let _compareCtl = null;
+
+const CUT_COMPARE_PREFIX = 'cut';
 
 function ensureCut() {
   if (!state.cut) {
-    state.cut = { refA: null, refB: null };
+    state.cut = {
+      refA: null,
+      refB: null,
+      ...defaultCompareState(),
+      compareMode: 'separate', // legacy alias kept in sync by normalize
+    };
   }
   // drop legacy sticky local path if present
   if (state.cut.videoPath !== undefined) delete state.cut.videoPath;
+
+  // Map legacy compareMode ↔ shared mode field
+  if (state.cut.compareMode && !state.cut.mode) {
+    state.cut.mode = state.cut.compareMode;
+  }
+  normalizeCompareState(state.cut);
+  state.cut.compareMode = state.cut.mode;
   return state.cut;
 }
 
@@ -60,6 +86,15 @@ function workingRange() {
     end = Math.min(Math.max(start, end), total);
   }
   return { start, end, total };
+}
+
+function _cutCompareState() {
+  const cut = ensureCut();
+  return {
+    mode: cut.mode || cut.compareMode || 'separate',
+    overlayOpacity: cut.overlayOpacity,
+    abPosition: cut.abPosition,
+  };
 }
 
 function _bindGlobalListeners() {
@@ -101,8 +136,11 @@ function _bindGlobalListeners() {
  */
 function refreshCutRangePreviews() {
   if (state.activeTab !== 'cut') return;
+  const cut = ensureCut();
   const videoPath = resolveCutVideoPath();
   const { start, end, total } = workingRange();
+  const cmp = _cutCompareState();
+  const mode = cmp.mode;
 
   const clipEl = document.getElementById('cutClipPath');
   if (clipEl) {
@@ -123,52 +161,96 @@ function refreshCutRangePreviews() {
 
   const startLabel = document.getElementById('cutStartFrameLabel');
   const endLabelEl = document.getElementById('cutEndFrameLabel');
-  if (startLabel) startLabel.textContent = `In · frame ${start}`;
-  if (endLabelEl) endLabelEl.textContent = `Out · frame ${end}`;
+  if (startLabel) {
+    startLabel.textContent = mode === 'separate'
+      ? `In · frame ${start}`
+      : `In · frame ${start}${cut.refA ? ' + Ref A' : ''}`;
+  }
+  if (endLabelEl) {
+    endLabelEl.textContent = mode === 'separate'
+      ? `Out · frame ${end}`
+      : `Out · frame ${end}${cut.refB ? ' + Ref B' : ''}`;
+  }
 
   const startBox = document.getElementById('cutFirstFrame');
   const endBox = document.getElementById('cutLastFrame');
-  if (!videoPath) {
-    if (startBox) startBox.innerHTML = '<div class="cut-frame-empty">Set global Video file(s)</div>';
-    if (endBox) endBox.innerHTML = '<div class="cut-frame-empty">Set global Video file(s)</div>';
-    return;
-  }
+  const startSrc = videoPath ? rangeFrameThumbUrl(videoPath, start) : '';
+  const endSrc = videoPath ? rangeFrameThumbUrl(videoPath, end) : '';
+  const refASrc = cut.refA ? imageThumb(cut.refA) : '';
+  const refBSrc = cut.refB ? imageThumb(cut.refB) : '';
+  const emptyVideo = !videoPath ? 'Set global Video file(s)' : '…';
 
-  const startSrc = rangeFrameThumbUrl(videoPath, start);
-  const endSrc = rangeFrameThumbUrl(videoPath, end);
+  const common = {
+    mode,
+    opacity: cmp.overlayOpacity,
+    ab: cmp.abPosition,
+    emptyMsg: emptyVideo,
+    emptyClass: 'cut-frame-empty',
+    baseLabel: 'Frame',
+  };
 
-  _setFrameImg(startBox, startSrc, start, 'In');
-  _setFrameImg(endBox, endSrc, end, 'Out');
+  paintCompareView(startBox, {
+    ...common,
+    baseSrc: startSrc,
+    baseKey: start,
+    refSrc: refASrc,
+    refLabel: 'Ref A',
+    missingRefMsg: 'Load Ref A to compare',
+  });
+  paintCompareView(endBox, {
+    ...common,
+    baseSrc: endSrc,
+    baseKey: end,
+    refSrc: refBSrc,
+    refLabel: 'Ref B',
+    missingRefMsg: 'Load Ref B to compare',
+  });
 }
 
-function _setFrameImg(box, src, frame, alt) {
-  if (!box) return;
-  let img = box.querySelector('img');
-  if (!src) {
-    box.innerHTML = '<div class="cut-frame-empty">…</div>';
-    return;
-  }
-  if (!img) {
-    box.innerHTML = '';
-    img = document.createElement('img');
-    img.alt = alt;
-    img.loading = 'lazy';
-    img.addEventListener('error', () => img.classList.add('broken'));
-    box.appendChild(img);
-  }
-  if (img.getAttribute('data-frame') !== String(frame) || !img.src.includes(`frame=${frame}`)) {
-    img.classList.remove('broken');
-    img.setAttribute('data-frame', String(frame));
-    img.src = src;
-  }
+function _refCardHtml(letter, path, src) {
+  return `
+    <div class="cut-frame-card cut-ref-card">
+      <div class="cut-frame-label">Ref ${letter} ${path ? '· loaded' : ''}</div>
+      <div class="cut-frame-preview${path ? ' has-image' : ''}" id="cutRef${letter}">
+        ${src
+          ? `<img src="${src}" alt="Ref ${letter}" loading="lazy" onerror="this.classList.add('broken')">`
+          : `<div class="cut-frame-empty">From Image Pool</div>`}
+      </div>
+      <div class="cut-ref-actions">
+        <button type="button" class="btn btn-sm" id="btnCutRef${letter}Pool">From Image Pool</button>
+        <button type="button" class="btn btn-sm" id="btnCutRef${letter}Browse">Browse…</button>
+        <button type="button" class="btn btn-sm" id="btnCutRef${letter}Clear" ${path ? '' : 'disabled'}>Clear</button>
+      </div>
+      <div class="cut-ref-path" title="${escapeHtml(path || '')}">${escapeHtml(path || '—')}</div>
+    </div>
+  `;
+}
+
+function _refToolbarHtml(letter, path) {
+  return `
+    <div class="cut-ref-actions cut-ref-inline">
+      <span class="cut-ref-inline-label">Ref ${letter}</span>
+      <button type="button" class="btn btn-sm" id="btnCutRef${letter}Pool">Pool</button>
+      <button type="button" class="btn btn-sm" id="btnCutRef${letter}Browse">Browse…</button>
+      <button type="button" class="btn btn-sm" id="btnCutRef${letter}Clear" ${path ? '' : 'disabled'}>Clear</button>
+      <span class="cut-ref-path" title="${escapeHtml(path || '')}">${escapeHtml(path ? basename(path) : '—')}</span>
+    </div>
+  `;
 }
 
 async function renderCutForm() {
   _bindGlobalListeners();
   ensureCut();
 
+  if (_compareCtl) {
+    try { _compareCtl.destroy(); } catch (_) { /* ignore */ }
+    _compareCtl = null;
+  }
+
   const videoPath = resolveCutVideoPath();
   const cut = ensureCut();
+  const cmp = _cutCompareState();
+  const mode = cmp.mode;
 
   // Make sure frame sliders know the real length (not the default 100)
   if (videoPath) {
@@ -178,10 +260,38 @@ async function renderCutForm() {
   }
 
   const { start, end, total } = workingRange();
-  const firstSrc = videoPath ? rangeFrameThumbUrl(videoPath, start) : '';
-  const lastSrc = videoPath ? rangeFrameThumbUrl(videoPath, end) : '';
   const refASrc = cut.refA ? imageThumb(cut.refA) : '';
   const refBSrc = cut.refB ? imageThumb(cut.refB) : '';
+
+  const gridClass = mode === 'separate' ? 'cut-frames-grid' : 'cut-frames-grid cut-frames-grid-compare';
+
+  const inOutCards = `
+    <div class="cut-frame-card">
+      <div class="cut-frame-label" id="cutStartFrameLabel">In · frame ${start}</div>
+      <div class="cut-frame-preview img-compare-viewport" id="cutFirstFrame"></div>
+      ${mode !== 'separate' ? _refToolbarHtml('A', cut.refA) : ''}
+    </div>
+    <div class="cut-frame-card">
+      <div class="cut-frame-label" id="cutEndFrameLabel">Out · frame ${end}</div>
+      <div class="cut-frame-preview img-compare-viewport" id="cutLastFrame"></div>
+      ${mode !== 'separate' ? _refToolbarHtml('B', cut.refB) : ''}
+    </div>
+  `;
+
+  const refCards = mode === 'separate'
+    ? _refCardHtml('A', cut.refA, refASrc) + _refCardHtml('B', cut.refB, refBSrc)
+    : '';
+
+  const toolbar = compareToolbarHtml({
+    idPrefix: CUT_COMPARE_PREFIX,
+    state: cmp,
+    label: 'Compare',
+    modeTitles: {
+      separate: 'Show In, Out, Ref A, Ref B as four cards',
+      overlay: 'Stack ref on top of frame; adjust transparency to align',
+      ab: 'Wipe slider between frame and reference',
+    },
+  });
 
   const html = `
     <div class="cut-workspace">
@@ -190,7 +300,8 @@ async function renderCutForm() {
         <p>
           Uses the <strong>global Video file(s)</strong> bar and
           <strong>Frame range</strong> sliders above — same as RIFE / Convert / DeepDream.
-          Drag In/Out; the two previews follow. Refs come from the Image Pool.
+          Drag In/Out; previews follow. Refs from Image Pool.
+          Compare modes use the shared image-compare control.
         </p>
       </div>
 
@@ -214,57 +325,20 @@ async function renderCutForm() {
         </div>
       </div>
 
-      <div class="cut-frames-grid">
-        <div class="cut-frame-card">
-          <div class="cut-frame-label" id="cutStartFrameLabel">In · frame ${start}</div>
-          <div class="cut-frame-preview" id="cutFirstFrame">
-            ${firstSrc
-              ? `<img src="${firstSrc}" alt="In" data-frame="${start}" loading="lazy" onerror="this.classList.add('broken')">`
-              : `<div class="cut-frame-empty">Set global Video file(s)</div>`}
-          </div>
-        </div>
-        <div class="cut-frame-card">
-          <div class="cut-frame-label" id="cutEndFrameLabel">Out · frame ${end}</div>
-          <div class="cut-frame-preview" id="cutLastFrame">
-            ${lastSrc
-              ? `<img src="${lastSrc}" alt="Out" data-frame="${end}" loading="lazy" onerror="this.classList.add('broken')">`
-              : `<div class="cut-frame-empty">Set global Video file(s)</div>`}
-          </div>
-        </div>
-        <div class="cut-frame-card cut-ref-card">
-          <div class="cut-frame-label">Ref A ${cut.refA ? '· loaded' : ''}</div>
-          <div class="cut-frame-preview${cut.refA ? ' has-image' : ''}" id="cutRefA">
-            ${refASrc
-              ? `<img src="${refASrc}" alt="Ref A" loading="lazy" onerror="this.classList.add('broken')">`
-              : `<div class="cut-frame-empty">From Image Pool</div>`}
-          </div>
-          <div class="cut-ref-actions">
-            <button type="button" class="btn btn-sm" id="btnCutRefAPool">From Image Pool</button>
-            <button type="button" class="btn btn-sm" id="btnCutRefABrowse">Browse…</button>
-            <button type="button" class="btn btn-sm" id="btnCutRefAClear" ${cut.refA ? '' : 'disabled'}>Clear</button>
-          </div>
-          <div class="cut-ref-path" title="${escapeHtml(cut.refA || '')}">${escapeHtml(cut.refA || '—')}</div>
-        </div>
-        <div class="cut-frame-card cut-ref-card">
-          <div class="cut-frame-label">Ref B ${cut.refB ? '· loaded' : ''}</div>
-          <div class="cut-frame-preview${cut.refB ? ' has-image' : ''}" id="cutRefB">
-            ${refBSrc
-              ? `<img src="${refBSrc}" alt="Ref B" loading="lazy" onerror="this.classList.add('broken')">`
-              : `<div class="cut-frame-empty">From Image Pool</div>`}
-          </div>
-          <div class="cut-ref-actions">
-            <button type="button" class="btn btn-sm" id="btnCutRefBPool">From Image Pool</button>
-            <button type="button" class="btn btn-sm" id="btnCutRefBBrowse">Browse…</button>
-            <button type="button" class="btn btn-sm" id="btnCutRefBClear" ${cut.refB ? '' : 'disabled'}>Clear</button>
-          </div>
-          <div class="cut-ref-path" title="${escapeHtml(cut.refB || '')}">${escapeHtml(cut.refB || '—')}</div>
-        </div>
+      ${toolbar}
+
+      <div class="${gridClass}">
+        ${inOutCards}
+        ${refCards}
       </div>
 
       <div class="cut-footer-hint">
         <p>
-          Set the clip in <strong>Video file(s)</strong> (or Video Pool → send to Cut).
-          Drag <strong>Frame range</strong> for In/Out. Refs: Image Pool → Send to → Cut · Ref A/B.
+          <strong>1 Separate</strong> — four cards.
+          <strong>2 Overlay</strong> — ref on top of In/Out; drag opacity to align.
+          <strong>3 A/B</strong> — wipe left (frame) ↔ right (ref). Drag the wipe on the image or the slider.
+          Refs: Image Pool → Send to → Cut · Ref A/B.
+          Module: <code>js/ui/image-compare.js</code>.
         </p>
       </div>
     </div>
@@ -272,7 +346,6 @@ async function renderCutForm() {
 
   elements.actionPanel.innerHTML = html;
   _bindCutForm();
-  // Second paint after async probe may have updated totals
   refreshCutRangePreviews();
 }
 
@@ -282,6 +355,25 @@ function _bindCutForm() {
     if (p) showPreview(p);
   });
   document.getElementById('btnCutOpenPool')?.addEventListener('click', () => switchTab('pool'));
+
+  _compareCtl = bindCompareControls({
+    idPrefix: CUT_COMPARE_PREFIX,
+    getState: () => _cutCompareState(),
+    setState: (partial) => {
+      const cut = ensureCut();
+      if (partial.mode != null) {
+        cut.mode = partial.mode;
+        cut.compareMode = partial.mode;
+      }
+      if (partial.overlayOpacity != null) cut.overlayOpacity = partial.overlayOpacity;
+      if (partial.abPosition != null) cut.abPosition = partial.abPosition;
+    },
+    getViewports: () => [
+      document.getElementById('cutFirstFrame'),
+      document.getElementById('cutLastFrame'),
+    ],
+    onModeChange: () => renderCutForm(),
+  });
 
   _bindRefSlot('A', 'refA');
   _bindRefSlot('B', 'refB');
@@ -316,7 +408,6 @@ function _bindRefSlot(letter, key) {
 
   document.getElementById(`btnCutRef${letter}Browse`)?.addEventListener('click', async () => {
     try {
-      // Same global-style image picker filter as the global Image Browse
       const res = await fetch('/api/picker?mode=file&filter=image');
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();

@@ -123,6 +123,74 @@ function setupGlobalTimeline() {
   startEl.addEventListener('input', sync);
   endEl.addEventListener('input', sync);
 
+  // Fine-tune steppers: [<][N][>] around start (left) and end (right)
+  function stepStart(delta) {
+    var m = maxFrames();
+    var s = parseInt(startEl.value, 10);
+    var e = parseInt(endEl.value, 10);
+    if (isNaN(s)) s = 1;
+    if (isNaN(e)) e = m;
+    var next = s + delta;
+    // Keep start < end (same invariant as slider/text commit)
+    next = Math.min(Math.max(1, next), e - 1);
+    if (next === s) return;
+    startEl.value = next;
+    sync();
+  }
+
+  function stepEnd(delta) {
+    var m = maxFrames();
+    var s = parseInt(startEl.value, 10);
+    var e = parseInt(endEl.value, 10);
+    if (isNaN(s)) s = 1;
+    if (isNaN(e)) e = m;
+    var next = e + delta;
+    next = Math.max(Math.min(m, next), s + 1);
+    if (next === e) return;
+    endEl.value = next;
+    sync();
+  }
+
+  function bindStep(id, fn) {
+    var btn = document.getElementById(id);
+    if (!btn) return;
+    var holdTimer = null;
+    var holdInterval = null;
+    var fromPointer = false;
+
+    function clearHold() {
+      if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+      if (holdInterval) { clearInterval(holdInterval); holdInterval = null; }
+    }
+
+    // Immediate step + hold-to-repeat (pointer). Keyboard Enter/Space uses click.
+    btn.addEventListener('pointerdown', function(ev) {
+      if (ev.button != null && ev.button !== 0) return;
+      fromPointer = true;
+      fn();
+      holdTimer = setTimeout(function() {
+        holdInterval = setInterval(fn, 60);
+      }, 350);
+    });
+    btn.addEventListener('pointerup', clearHold);
+    btn.addEventListener('pointerleave', clearHold);
+    btn.addEventListener('pointercancel', clearHold);
+    btn.addEventListener('click', function(ev) {
+      // Suppress the synthetic click that follows pointerdown (already stepped)
+      if (fromPointer) {
+        fromPointer = false;
+        ev.preventDefault();
+        return;
+      }
+      fn();
+    });
+  }
+
+  bindStep('btnGiStartDec', function() { stepStart(-1); });
+  bindStep('btnGiStartInc', function() { stepStart(1); });
+  bindStep('btnGiEndDec', function() { stepEnd(-1); });
+  bindStep('btnGiEndInc', function() { stepEnd(1); });
+
   // Range dragging: drag the blue bar to slide the whole window
   var rangeDragging = false;
   var dragStartX = 0;

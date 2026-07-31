@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="/css/console.css">
   <link rel="stylesheet" href="/css/modals.css">
   <link rel="stylesheet" href="/css/pool.css">
+  <link rel="stylesheet" href="/css/image-compare.css">
 </head>
 <body>
 
@@ -232,19 +233,27 @@
           <button class="btn" id="btnGiPathOutBrowse" title="Pick output directory">Browse</button>
           <span class="gi-status" id="giPathOutStatus" title=""></span>
         </div>
-        <!-- Row 5: Frame range (mosh + video-pipeline tabs: rife, deepdream, convert, …) -->
+        <!-- Row 5: Frame range (mosh + video-pipeline tabs: rife, deepdream, convert, …)
+             Layout: [<][start][>]  track  [<][end][>] / selected [+] -->
         <div class="global-row" data-input="frames" id="giFramesRow" style="display:none">
           <label>Frame range:</label>
+          <div class="gi-frame-stepper" data-for="start" title="In point (1-based)">
+            <button type="button" class="gi-step-btn" id="btnGiStartDec" aria-label="Start frame minus one" title="Start −1">‹</button>
+            <input type="text" class="timeline-value-input" id="giValStartFrame" value="1" inputmode="numeric" aria-label="Start frame">
+            <button type="button" class="gi-step-btn" id="btnGiStartInc" aria-label="Start frame plus one" title="Start +1">›</button>
+          </div>
           <div class="timeline-container" style="flex:1; min-width:0; height:24px; position:relative; margin-bottom:0;">
             <div class="timeline-track"></div>
             <div class="timeline-range" id="giTimelineRange"></div>
-            <input type="range" id="giTimelineStart" class="timeline-thumb" min="1" max="100" value="1">
-            <input type="range" id="giTimelineEnd" class="timeline-thumb" min="1" max="100" value="100">
+            <input type="range" id="giTimelineStart" class="timeline-thumb" min="1" max="100" value="1" aria-label="Range start">
+            <input type="range" id="giTimelineEnd" class="timeline-thumb" min="1" max="100" value="100" aria-label="Range end">
+          </div>
+          <div class="gi-frame-stepper" data-for="end" title="Out point (1-based)">
+            <button type="button" class="gi-step-btn" id="btnGiEndDec" aria-label="End frame minus one" title="End −1">‹</button>
+            <input type="text" class="timeline-value-input" id="giValEndFrame" value="100" inputmode="numeric" aria-label="End frame">
+            <button type="button" class="gi-step-btn" id="btnGiEndInc" aria-label="End frame plus one" title="End +1">›</button>
           </div>
           <span class="gi-frames-display">
-            <input type="text" class="timeline-value-input" id="giValStartFrame" value="1">
-            –
-            <input type="text" class="timeline-value-input" id="giValEndFrame" value="100">
             / <span id="giTotalFrames" title="Selected frame count">100</span>
           </span>
           <button class="btn-scrub" id="btnFrameScrub" title="Generate frame thumbnails for hover preview">[+]</button>

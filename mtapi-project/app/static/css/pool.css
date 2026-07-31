@@ -2230,3 +2230,29 @@ body.pool-resizing video {
 .cut-footer-hint p {
   margin: 0;
 }
+
+/* Cut layout only — compare UI lives in css/image-compare.css + js/ui/image-compare.js */
+.cut-frames-grid-compare {
+  grid-template-columns: 1fr 1fr;
+}
+
+.cut-ref-inline {
+  align-items: center;
+}
+.cut-ref-inline-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #94a3b8);
+  margin-right: 2px;
+}
+.cut-ref-inline .cut-ref-path {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Host viewport must be positioned for absolute layers */
+.cut-frame-preview.img-compare-viewport {
+  position: relative;
+}

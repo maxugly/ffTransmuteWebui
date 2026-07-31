@@ -1,0 +1,225 @@
+/* ═══════════════════════════════════════════
+   Image compare — reusable dual-image viewer
+   (separate / overlay / A/B wipe)
+   Used by Cut and any future host tab.
+   ═══════════════════════════════════════════ */
+
+.img-compare-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 10px);
+  border: 1px solid var(--panel-border, #2a3344);
+  background: rgba(10, 14, 22, 0.4);
+}
+
+.img-compare-bar-label {
+  flex-shrink: 0;
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.img-compare-mode-switch {
+  display: inline-flex;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.img-compare-mode-btn {
+  appearance: none;
+  border: none;
+  margin: 0;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted, #94a3b8);
+  background: transparent;
+  cursor: pointer;
+  border-right: 1px solid rgba(148, 163, 184, 0.2);
+  transition: background 0.12s, color 0.12s;
+}
+.img-compare-mode-btn:last-child {
+  border-right: none;
+}
+.img-compare-mode-btn:hover {
+  color: #e2e8f0;
+  background: rgba(59, 130, 246, 0.12);
+}
+.img-compare-mode-btn.active {
+  color: #dbeafe;
+  background: rgba(59, 130, 246, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(96, 165, 250, 0.35);
+}
+
+.img-compare-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 200px;
+  min-width: 180px;
+}
+.img-compare-slider-row[hidden] {
+  display: none !important;
+}
+.img-compare-slider-label {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+  white-space: nowrap;
+}
+.img-compare-slider {
+  flex: 1 1 auto;
+  min-width: 80px;
+  accent-color: #60a5fa;
+  cursor: pointer;
+}
+.img-compare-slider-val {
+  flex-shrink: 0;
+  width: 40px;
+  text-align: right;
+  font-family: 'Fira Code', ui-monospace, monospace;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #cbd5e1);
+}
+
+/* Viewport: host sets size/aspect (e.g. cut-frame-preview). Layers fill the box. */
+.img-compare-viewport.img-compare,
+.img-compare.img-compare-viewport {
+  position: relative;
+  cursor: default;
+  touch-action: none;
+  overflow: hidden;
+}
+.img-compare.mode-ab {
+  cursor: col-resize;
+}
+
+.img-compare .img-layer-base,
+.img-compare .img-layer-ref {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  pointer-events: none;
+  user-select: none;
+}
+
+.img-compare .img-layer-base {
+  z-index: 1;
+}
+
+.img-compare .img-layer-ref {
+  z-index: 2;
+}
+
+/* Simple (non-compare) base image inside a sized host box */
+.img-layer-base:not(.img-compare .img-layer-base) {
+  /* host may use flex center; when alone fill like cut previews */
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* When paintSimpleImage puts a lone img in cut-frame-preview, keep fill */
+.cut-frame-preview > img.img-layer-base {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.img-compare .img-layer-base.broken,
+.img-compare .img-layer-ref.broken,
+img.img-layer-base.broken {
+  opacity: 0.3;
+}
+
+/* Mode 2: ref on top with adjustable opacity */
+.img-compare.mode-overlay .img-layer-ref {
+  opacity: var(--img-compare-opacity, 0.5);
+}
+
+/* Mode 3: wipe — left = base, right = ref */
+.img-compare.mode-ab .img-layer-ref {
+  opacity: 1;
+  clip-path: inset(0 0 0 var(--img-compare-ab-pct, 50%));
+}
+
+.img-compare .img-compare-ab-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--img-compare-ab-pct, 50%);
+  width: 2px;
+  margin-left: -1px;
+  z-index: 4;
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45), 0 0 8px rgba(59, 130, 246, 0.45);
+  pointer-events: none;
+}
+.img-compare .img-compare-ab-handle::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(15, 23, 42, 0.75);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.img-compare .img-compare-ab-labels {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  z-index: 3;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.img-compare .img-compare-hint {
+  position: absolute;
+  inset: auto 8px 8px 8px;
+  z-index: 5;
+  font-size: 0.75rem;
+  text-align: center;
+  color: #fde68a;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: 6px;
+  padding: 4px 8px;
+  pointer-events: none;
+}
+.img-compare .img-compare-hint[hidden] {
+  display: none !important;
+}
+
+.img-compare-empty {
+  font-size: 0.82rem;
+  color: var(--text-muted, #64748b);
+  padding: 12px;
+  text-align: center;
+}

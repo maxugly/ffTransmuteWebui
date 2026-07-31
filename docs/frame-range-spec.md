@@ -23,7 +23,7 @@ Datamosh already honored range via its own trim path.
 | Layer | Change |
 |-------|--------|
 | UI | `FRAME_RANGE_TABS` in `app.js`; show row + probe video on those tabs |
-| Display | `#giTotalFrames` = **selected** count (`end−start+1`); title has full clip length |
+| Display | Layout: `[‹][start][›]` track `[‹][end][›]` `/ selected` `[+]`. `#giTotalFrames` = **selected** count (`end−start+1`); title has full clip length. Steppers ±1 with hold-to-repeat. |
 | Body | `withFrameRange()` / collectors attach `start_frame`/`end_frame` |
 | Models | Fields on RIFE, DeepDream, styletransfer, withoutbg, convert, pipeline, speed_ramp |
 | Dump | `video_pipeline.dump(..., start_frame=, end_frame=)` — ffmpeg `select=between(n,…)` + trimmed audio |

@@ -23,15 +23,18 @@ Fast, dark, **zero-build** UI for pipelines, convert/export, dual media librarie
 static/
 ├── index.html              # Shell + sidebar nav (data-tab=…)
 ├── app.js                  # State, tab switch, global inputs, exports
-├── css/                    # base, layout, forms, pool, …
+├── css/                    # base, layout, forms, pool, image-compare, …
 └── js/
     ├── timeline.js         # Global probe + frame-range sliders + events
     ├── frame-scrubber.js   # Optional full-strip scrubber
     ├── job-control.js
     ├── preview.js
     ├── utils.js            # isVideoPath, isImagePath, globalFrameRange, withFrameRange
+    ├── ui/
+    │   ├── knobs.js        # DAW knobs
+    │   └── image-compare.js  # Shared separate/overlay/A/B dual-image compare
     ├── tabs/               # One module per major op tab
-    │   ├── cut.js          # Cut workspace (global video + range + refs)
+    │   ├── cut.js          # Cut host (uses image-compare; global video + range + refs)
     │   ├── convert.js
     │   ├── rife.js
     │   ├── deepdream.js
@@ -46,6 +49,8 @@ static/
         ├── chrome.js
         └── layout.js
 ```
+
+**Image compare:** `docs/image-compare-spec.md` — do not re-implement overlay/wipe inside a tab; import the module.
 
 ---
 
@@ -76,7 +81,7 @@ Full detail: **`docs/video-image-pools-spec.md`**.
 |-------|----------|
 | `state.pool` | Videos + sequence + layout |
 | `state.imagePool` | Stills only |
-| `state.cut` | `{ refA, refB }` only — **no videoPath** |
+| `state.cut` | `{ refA, refB, mode, overlayOpacity, abPosition }` — **no videoPath**; compare via `js/ui/image-compare.js` |
 | `window.globalInputs` | `video`, `image`, `frameStart`, `frameEnd`, `totalFrames` |
 
 ### Hard rules
