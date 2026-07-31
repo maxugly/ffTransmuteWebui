@@ -311,6 +311,20 @@ function sendImagePathTo(path, target) {
     return;
   }
 
+  if (target === 'zoompan_ref') {
+    if (!state.zoompan) {
+      state.zoompan = { refPath: null, mode: 'overlay', overlayOpacity: 50, abPosition: 50, compareTarget: 'end_ref' };
+    }
+    state.zoompan.refPath = path;
+    if (!state.zoompan.compareTarget || state.zoompan.compareTarget === 'start_end') {
+      state.zoompan.compareTarget = 'end_ref';
+    }
+    if (state.zoompan.mode === 'separate') state.zoompan.mode = 'overlay';
+    logConsole(`[IMAGE POOL]: Set Pan & Zoom Reference → ${basename(path)}`);
+    switchTab('zoompan');
+    return;
+  }
+
   if (target === 'facemorph') {
     if (!state.faceMorph.images.some(x => x.path === path)) {
       state.faceMorph.images.push({ path, name: basename(path) });
@@ -419,6 +433,7 @@ function renderImagePoolForm() {
                   <option value="deepdream">DeepDream</option>
                   <option value="cut_ref_a">Cut · Ref A</option>
                   <option value="cut_ref_b">Cut · Ref B</option>
+                  <option value="zoompan_ref">Pan &amp; Zoom · Reference</option>
                   <option value="preview">Preview</option>
                 </select>
                 <button class="btn btn-primary" id="btnImgPoolUse" type="button">Apply</button>
@@ -588,6 +603,7 @@ function _showImageSendMenu(anchor, path) {
     <button type="button" data-t="deepdream">DeepDream</button>
     <button type="button" data-t="cut_ref_a">Cut · Ref A</button>
     <button type="button" data-t="cut_ref_b">Cut · Ref B</button>
+    <button type="button" data-t="zoompan_ref">Pan &amp; Zoom · Reference</button>
     <button type="button" data-t="preview">Preview</button>
   `;
   const rect = anchor.getBoundingClientRect();

@@ -1,6 +1,7 @@
 # Zoompan (Image to Video) — Spec
 
-> **Status:** Implemented (2026-07-31) · `000.000.4.30`  
+> **Status:** Implemented (2026-07-31) · `000.000.4.31` — exact Zoomed In + Reference match  
+
 > **Audience:** Builder agents (codewhale, codex)  
 > **Related:** `image-compare-spec.md`, `video-image-pools-spec.md`
 
@@ -30,10 +31,12 @@ The UI will display two primary views similar to the Cut tab's In/Out layout:
 2. **Last Frame Configuration**
 
 **Shared Controls & Image Compare:**
-- The tab will utilize `js/ui/image-compare.js` allowing the user to view the Start Frame vs Last Frame using the 3 standard compare options: **Separate**, **Overlay**, and **A/B**.
-- *Option:* "Preview Zoom" vs "Show Full Image". For each frame (Start and Last), the user can toggle between:
-  - **Zoomed Out (Full Image):** Displays the entire original image with a draggable/resizable box (rectangle) superimposed on it.
-  - **Zoomed In (Box Size):** Displays *only* the contents of the defined box, scaled up to fill the viewport (representing the exact output frame).
+- Toolbar from `js/ui/image-compare.js`: **Separate**, **Overlay**, **A/B**.
+- **Reference still** (optional but primary for scene-match): Image Pool / Browse / Send-to → *Pan & Zoom · Reference*.
+- **Pair** selector: Last vs Reference (default) | Start vs Reference | Both vs Reference | Start vs Last.
+- Per viewport:
+  - **Zoomed Out:** full source + AR-locked draggable box.
+  - **Zoomed In:** canvas crop of **exactly** the box pixels from full `/api/image` (not an arbitrary CSS zoom). When Pair includes Reference and mode is Overlay/A/B, the reference is stacked on that crop for alignment.
 
 ### 2.3 Parameters
 
