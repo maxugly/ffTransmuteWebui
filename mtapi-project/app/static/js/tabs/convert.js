@@ -190,6 +190,7 @@ function renderConvertForm() {
 }
 
 function collectConvertBody() {
+  // First path only here; job-control batches allInputPaths when multi-line
   const input = bestInput('convertInput');
   const output = document.getElementById('convertOutput')?.value?.trim() || null;
   const target = document.getElementById('convertTarget')?.value || 'h264_avc';
@@ -197,7 +198,7 @@ function collectConvertBody() {
   const dryRun = document.getElementById('convertDryRun')?.checked || false;
 
   if (!input) {
-    alert('Please provide an input path (video, GIF, or image folder).');
+    alert('Please provide an input path (video, GIF, or image folder).\nMultiple videos: one path per line in Path video.');
     return null;
   }
 

@@ -1,7 +1,7 @@
 import {
   state, elements,
   logConsole, fitPreviewViewer,
-  renderTabForm, bestInput, bestOutput,
+  renderTabForm, bestInput, allInputPaths, bestOutput,
   probeGlobalVideo, updateGlobalInputs, updateStatusIndicators,
   showPreview,
 } from '/app.js';
@@ -451,10 +451,71 @@ async function runActiveOperation() {
     return;
   }
 
-  try {
-    await runOpWithCancel(opId, body, {
-      label: tab === 'deepdream' ? 'DeepDream… (Stop available)' : 'Processing…',
+  // ── Multi-path batch (global Path video / image is multi-line) ─────────
+  // Single-input ops historically used bestInput() → first line only.
+  // When multiple paths are present, run the same op sequentially for each
+  // (auto-name outputs; clear explicit output_path to avoid clobber).
+  const batchField = {
+    mosh: 'moshInput',
+    transmute: 'transmuteInput',
+    deepdream: 'dreamInput',
+    rife: 'rifeInput',
+    convert: 'convertInput',
+    advanced: 'advInput',
+  }[tab];
+
+  // Ops that already batch lists themselves
+  const selfBatchTabs = new Set(['multi', 'facemorph', 'withoutbg', 'styletransfer', 'pool', 'sequence', 'quick', 'watcher']);
+
+  let paths = [];
+  if (batchField && !selfBatchTabs.has(tab)) {
+    paths = allInputPaths(batchField).filter(function(p) {
+      // Prefer videos for video-first tabs; still allow any path if listed
+      return !!p;
     });
+  }
+
+  // Primary key on body for single-file input
+  const pathKey = (tab === 'advanced') ? 'input_arg'
+    : (body && body.input_path != null) ? 'input_path'
+    : (body && body.content_path != null) ? 'content_path'
+    : null;
+
+  try {
+    if (paths.length > 1 && pathKey) {
+      const n = paths.length;
+      logConsole(`[BATCH]: ${n} inputs — running ${opId} on each (Stop cancels current only)`);
+      let okCount = 0;
+      let failCount = 0;
+      for (let i = 0; i < n; i++) {
+        if (activeJob.stopping) {
+          logConsole(`[BATCH]: stopped after ${i}/${n}`, 'error');
+          break;
+        }
+        const path = paths[i];
+        const b = Object.assign({}, body);
+        b[pathKey] = path;
+        // Avoid writing every result to the same explicit path
+        if (n > 1) {
+          if ('output_path' in b) b.output_path = null;
+        }
+        logConsole(`[BATCH]: ${i + 1}/${n} ← ${path}`);
+        try {
+          await runOpWithCancel(opId, b, {
+            label: `Batch ${i + 1}/${n}…`,
+          });
+          okCount += 1;
+        } catch (_) {
+          failCount += 1;
+          // continue remaining unless user hit Stop
+        }
+      }
+      logConsole(`[BATCH]: done — ok=${okCount} fail=${failCount} total=${n}`);
+    } else {
+      await runOpWithCancel(opId, body, {
+        label: tab === 'deepdream' ? 'DeepDream… (Stop available)' : 'Processing…',
+      });
+    }
   } catch (_) {
     // already logged
   }

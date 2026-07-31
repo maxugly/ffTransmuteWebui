@@ -294,21 +294,44 @@ function updateStatusIndicators() {
   });
 }
 
-function bestInput(fieldId) {
+/**
+ * All non-empty paths from global video/image (multi-line) or a local field.
+ * Prefer global video for video/any tabs, else global image, else local field
+ * (also multi-line). Order preserved; de-dupe exact paths.
+ */
+function allInputPaths(fieldId) {
   const tab = state.activeTab;
   const accepts = TAB_ACCEPTS[tab] || 'any';
   const gi = window.globalInputs;
-  var lines;
+  function splitLines(s) {
+    return String(s || '').split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+  }
+  let lines = [];
   if ((accepts === 'video' || accepts === 'any') && gi.video.trim()) {
-    lines = gi.video.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
-    if (lines.length) return lines[0];
+    lines = splitLines(gi.video);
   }
-  if ((accepts === 'image' || accepts === 'any') && gi.image.trim()) {
-    lines = gi.image.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
-    if (lines.length) return lines[0];
+  if (!lines.length && (accepts === 'image' || accepts === 'any') && gi.image.trim()) {
+    lines = splitLines(gi.image);
   }
-  const el = document.getElementById(fieldId);
-  return el ? (el.value || '').trim() : '';
+  if (!lines.length && fieldId) {
+    const el = document.getElementById(fieldId);
+    if (el) lines = splitLines(el.value);
+  }
+  // de-dupe preserve order
+  const seen = new Set();
+  const out = [];
+  for (const p of lines) {
+    if (seen.has(p)) continue;
+    seen.add(p);
+    out.push(p);
+  }
+  return out;
+}
+
+/** First path only — single-clip convenience. Prefer allInputPaths for batch. */
+function bestInput(fieldId) {
+  const paths = allInputPaths(fieldId);
+  return paths.length ? paths[0] : '';
 }
 
 function bestOutput(fieldId) {
@@ -757,7 +780,7 @@ window.addEventListener('DOMContentLoaded', init);
 export {
   state, elements, 
   init, switchTab, renderTabForm,
-  bestInput, bestOutput, resolveGlobalImage, resolveGlobalImages,
+  bestInput, allInputPaths, bestOutput, resolveGlobalImage, resolveGlobalImages,
   TAB_ACCEPTS, detectFileType,
   logConsole, fitPreviewViewer,
   probeGlobalVideo, updateGlobalInputs, updateStatusIndicators,
