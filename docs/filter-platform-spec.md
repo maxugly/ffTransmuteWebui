@@ -83,6 +83,12 @@ Examples: **RIFE** (prefer one `rife-ncnn-vulkan -i/-o` over N process spawns).
 Datamosh / ffglitch act on **encoded bitstreams**, not PNG stages.  
 Compose at UX: run frame chain → encode → file-level op. Do not fake them as `per_frame`.
 
+### 3.4 Multi-source generators (not yet a registry kind)
+
+**Facemorph** builds a sequence from **N stills** (landmark morph), then encodes. That is not dump(video)→filter. It already writes `JobWorkspace.frames_out` + `video_pipeline.encode`. Optional `dream_mode=after` reuses **filters.deepdream** on the morph video.
+
+A future `multi_source` stage kind may formalize this; until then do not force facemorph into `per_frame`.
+
 ---
 
 ## 4. Registry

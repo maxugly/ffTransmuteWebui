@@ -93,4 +93,4 @@ Import the module from `filters/__init__.py` so registration runs at import time
 | `withoutbg` | per_frame | `withoutbg.py` |
 | `styletransfer` | per_frame | `styletransfer.py` |
 
-Next: facemorph (may need multi-source kind); remove remaining `PngFramePipeline` callers.
+Next: formalize facemorph multi-source if needed; remove remaining `PngFramePipeline` callers (`dream_video` / ouroboros / preview / facemorph_engine encode path).
