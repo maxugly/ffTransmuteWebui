@@ -622,6 +622,101 @@ input:checked + .slider:before {
   margin: 0 0 6px;
 }
 
+/* ── Dense tool rows (label · control · hint on one line) ───────────── */
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-bottom: 5px;
+  min-height: 26px;
+}
+
+.form-row > label,
+.form-row-label {
+  flex: 0 0 auto;
+  min-width: 3.2rem;
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.form-row > input[type="text"],
+.form-row > input[type="password"],
+.form-row > select {
+  width: auto;
+  flex: 1 1 10rem;
+  min-width: 8rem;
+  max-width: 100%;
+}
+
+.form-row .input-row {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.form-row .input-row input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+}
+
+.form-row-hint {
+  flex: 1 1 12rem;
+  margin: 0;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+  min-width: 0;
+}
+
+.form-row-hint code {
+  font-size: 0.66rem;
+}
+
+/* Knobs left + legend right (same vertical footprint as knobs) */
+.knob-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 14px;
+  margin-bottom: 6px;
+}
+
+.knob-row .knob-bank {
+  flex: 0 1 auto;
+  margin: 0;
+  padding: 2px 0;
+}
+
+.knob-row-legend {
+  flex: 1 1 11rem;
+  min-width: 10rem;
+  margin: 0;
+  padding: 2px 0 0;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.knob-row-legend strong {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.panel-title-desc.dense h3 {
+  font-size: 0.88rem;
+  margin: 0 0 2px;
+}
+
+.panel-title-desc.dense p {
+  margin: 0 0 4px;
+  font-size: 0.7rem;
+  line-height: 1.3;
+}
+
 .dream-layer-weights.hidden {
   display: none !important;
 }

@@ -13,81 +13,77 @@ function renderWithoutBgForm() {
           <span class="fm-name" title="${escapeHtml(it.path)}">${escapeHtml(it.name || basename(it.path))}</span>
           <button type="button" class="btn fm-rm" data-idx="${i}" data-wbg="1">✕</button>
         </div>`).join('')
-    : `<div class="fm-empty">Add one or more images (or a folder). Output names use the prefix knob.</div>`;
+    : `<div class="fm-empty">Add images or a folder. Outputs use prefix + source stem.</div>`;
 
   const html = `
-    <div class="panel-title-desc">
+    <div class="panel-title-desc dense">
       <h3>withoutBG · remove backgrounds</h3>
       <p class="dream-hint">
         <a href="https://github.com/withoutbg/withoutbg-python" target="_blank" rel="noopener">withoutbg-python</a>
-        — local open weights (free, private, ~455&nbsp;MB once) or Cloud API.
-        Saves cutout / mask / leftover background independently.
+        — local open weights (~455&nbsp;MB once) or Cloud API. Cutout / mask / leftover BG.
       </p>
     </div>
 
-    <div class="form-group">
-      <label>Images (${imgs.length})</label>
-      <div class="fm-list" id="wbgList">${listHtml}</div>
-      <div class="input-row" style="margin-top:8px; flex-wrap:wrap;">
-        <button type="button" class="btn btn-primary" id="btnWbgAddFiles">+ Images</button>
-        <button type="button" class="btn" id="btnWbgAddFolder">+ Folder</button>
-        <button type="button" class="btn" id="btnWbgClear" ${imgs.length ? '' : 'disabled'}>Clear</button>
+    <div class="form-group" style="margin-bottom:6px">
+      <div class="form-row" style="margin-bottom:3px">
+        <label>Images (${imgs.length})</label>
+        <div class="sort-toolbar" style="margin:0; flex:1">
+          <button type="button" class="btn btn-primary" id="btnWbgAddFiles">+ Images</button>
+          <button type="button" class="btn" id="btnWbgAddFolder">+ Folder</button>
+          <button type="button" class="btn" id="btnWbgClear" ${imgs.length ? '' : 'disabled'}>Clear</button>
+        </div>
       </div>
+      <div class="fm-list" id="wbgList">${listHtml}</div>
     </div>
 
-    <div class="form-group">
-      <label>Output folder (blank = next to each source)</label>
+    <div class="form-row">
+      <label for="wbgOutputDir">Output</label>
       <div class="input-row">
-        <input type="text" id="wbgOutputDir" placeholder="~/img/cutouts/">
+        <input type="text" id="wbgOutputDir" placeholder="blank = next to each source">
         <button type="button" class="btn" id="btnWbgOutBrowse">Browse</button>
       </div>
     </div>
 
-    <div class="dream-section-title">Backend</div>
-    <div class="form-group">
-      <label>Mode</label>
+    <div class="form-row">
+      <label for="wbgBackend">Mode</label>
       <select id="wbgBackend">
-        <option value="local" selected>Local open weights (CPU, free)</option>
-        <option value="api">Cloud API (WITHOUTBG_API_KEY)</option>
+        <option value="local" selected>Local (CPU, free)</option>
+        <option value="api">Cloud API</option>
       </select>
-      <p class="dream-hint" style="margin-top:6px">
-        First local run downloads model weights from Hugging Face (~455&nbsp;MB).
-        Cloud needs <code>WITHOUTBG_API_KEY</code> in the server environment.
+      <p class="form-row-hint">First local run pulls HF weights (~455&nbsp;MB). Cloud needs <code>WITHOUTBG_API_KEY</code>.</p>
+    </div>
+    <div class="form-row hidden" id="wbgApiKeyRow">
+      <label for="wbgApiKey">API key</label>
+      <input type="password" id="wbgApiKey" placeholder="sk_… or blank = env" autocomplete="off">
+      <p class="form-row-hint">Optional override of server env key.</p>
+    </div>
+
+    <div class="knob-row">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'wbgSaveCutout', label: 'Cutout', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'wbgSaveMask', label: 'Mask', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'wbgSaveBg', label: 'Background', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'wbgDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+      </div>
+      <p class="knob-row-legend">
+        <strong>Cutout</strong> = subject RGBA (transparent BG).<br>
+        <strong>Mask</strong> = grayscale alpha (white = subject).<br>
+        <strong>Background</strong> = leftover scene (subject punched out).
       </p>
     </div>
-    <div class="form-group" id="wbgApiKeyRow">
-      <label>API key (optional override)</label>
-      <input type="password" id="wbgApiKey" placeholder="sk_… or leave blank to use env" autocomplete="off">
-    </div>
 
-    <div class="dream-section-title">What to save</div>
-    <div class="knob-bank">
-      ${knobUnitHtml({ id: 'wbgSaveCutout', label: 'Cutout', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
-      ${knobUnitHtml({ id: 'wbgSaveMask', label: 'Mask', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-      ${knobUnitHtml({ id: 'wbgSaveBg', label: 'Background', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-      ${knobUnitHtml({ id: 'wbgDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
-    </div>
-    <p class="dream-hint">
-      <strong>Cutout</strong> = subject RGBA (transparent BG).<br>
-      <strong>Mask</strong> = grayscale alpha (white = subject).<br>
-      <strong>Background</strong> = leftover scene (subject punched out / transparent).
-    </p>
-
-    <div class="dream-section-title">Naming / format</div>
-    <div class="form-group">
-      <label>Filename prefix</label>
+    <div class="form-row">
+      <label for="wbgPrefix">Prefix</label>
       <input type="text" id="wbgPrefix" value="withoutbg" placeholder="withoutbg">
-      <p class="dream-hint" style="margin-top:4px">
-        e.g. <code>photo.jpg</code> → <code>withoutbg-photo.png</code>,
-        <code>…-mask.png</code>, <code>…-bg.png</code>
-      </p>
+      <p class="form-row-hint"><code>photo.jpg</code> → <code>withoutbg-photo.png</code>, <code>…-mask.png</code>, <code>…-bg.png</code></p>
     </div>
-    <div class="form-group">
-      <label>Format (cutout &amp; background; mask is always PNG)</label>
+    <div class="form-row">
+      <label for="wbgFmt">Format</label>
       <select id="wbgFmt">
         <option value="png" selected>PNG (lossless alpha)</option>
         <option value="webp">WebP (alpha, smaller)</option>
       </select>
+      <p class="form-row-hint">Cutout &amp; background only — mask is always PNG.</p>
     </div>
   `;
   elements.actionPanel.innerHTML = html;
