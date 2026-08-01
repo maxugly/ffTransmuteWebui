@@ -38,11 +38,12 @@ import {
 function renderPoolForm() {
   const count = state.pool.items.length;
   const selected = state.pool.selectedPath;
+  const seqCount = state.pool.sequence?.length || 0;
 
   const html = `
     <div class="pool-workspace-inner">
       <div class="pool-top">
-        ${_poolToolbarHtml(count, selected)}
+        ${_poolToolbarHtml(count, selected, seqCount, { showSeqTools: false })}
         <div class="pool-grid-wrap">
           <div class="pool-grid" id="poolGrid"></div>
         </div>
@@ -62,8 +63,17 @@ function renderPoolForm() {
   updateSelectionHighlights();
 }
 
-function _poolToolbarHtml(count, selected, seqCount) {
-  const hasSeq = seqCount != null;
+/**
+ * @param {number} count
+ * @param {string|null} selected
+ * @param {number} [seqCount]
+ * @param {{ showSeqTools?: boolean }} [opts]  Sequence tab: Clear Sequence + Hide Pool
+ */
+function _poolToolbarHtml(count, selected, seqCount, opts) {
+  opts = opts || {};
+  const showSeqTools = opts.showSeqTools === true || (opts.showSeqTools == null && seqCount != null);
+  // Always treat missing as 0 so the Clear Sequence button can still appear on Sequence tab
+  if (seqCount == null) seqCount = state.pool.sequence?.length || 0;
   const projectLabelVal = projectLabel();
   const q = state.pool.filterQuery || '';
   return `
@@ -85,8 +95,8 @@ function _poolToolbarHtml(count, selected, seqCount) {
         <button class="btn btn-primary" id="btnPoolImportFiles" type="button">+ Files</button>
         <button class="btn" id="btnPoolImportFolder" type="button">+ Folder</button>
         <button class="btn" id="btnPoolClear" type="button" ${count === 0 ? 'disabled' : ''}>Clear Video Pool</button>
-        ${hasSeq ? `<button class="btn" id="btnSeqClear" type="button" ${seqCount === 0 ? 'disabled' : ''}>Clear Sequence</button>` : ''}
-        ${hasSeq ? `<button class="btn pool-toggle-btn" id="btnTogglePool" type="button" title="Show / hide clip grid">${_poolToggleLabel()}</button>` : ''}
+        ${showSeqTools ? `<button class="btn" id="btnSeqClear" type="button" ${seqCount === 0 ? 'disabled' : ''} title="Remove all clips from the stitch sequence">Clear Sequence</button>` : ''}
+        ${showSeqTools ? `<button class="btn pool-toggle-btn" id="btnTogglePool" type="button" title="Show / hide clip grid">${_poolToggleLabel()}</button>` : ''}
 
         <div class="pool-zoom-group" title="Tile size">
           <button type="button" class="btn pool-zoom-btn" id="btnZoomMin" title="Minimum size">min</button>
@@ -109,7 +119,7 @@ function _poolToolbarHtml(count, selected, seqCount) {
         </div>
       </div>
       <div class="pool-toolbar-meta">
-        <span class="pool-count">${count} in video pool${hasSeq ? ' · ' + seqCount + ' in sequence' : ''}</span>
+        <span class="pool-count">${count} in video pool${showSeqTools ? ' · ' + seqCount + ' in sequence' : ''}</span>
         ${selected ? `
           <div class="pool-use-wrap">
             <label for="poolUseTarget" class="pool-use-label">Use as input</label>
@@ -144,7 +154,20 @@ function _bindPoolToolbar() {
   document.getElementById('btnPoolImportFiles')?.addEventListener('click', importPoolFiles);
   document.getElementById('btnPoolImportFolder')?.addEventListener('click', importPoolFolder);
   document.getElementById('btnPoolClear')?.addEventListener('click', clearPool);
-  document.getElementById('btnSeqClear')?.addEventListener('click', clearSequence);
+  // Bind via wrapper so circular-import undefined never silently no-ops the click
+  const seqClearBtn = document.getElementById('btnSeqClear');
+  if (seqClearBtn) {
+    seqClearBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        clearSequence({ confirm: true });
+      } catch (err) {
+        console.error('[SEQ] Clear Sequence failed', err);
+        logConsole(`[SEQ]: Clear failed — ${err.message}`, 'error');
+      }
+    });
+  }
   document.getElementById('btnTogglePool')?.addEventListener('click', () => togglePoolSection('pool'));
   document.getElementById('btnPoolUse')?.addEventListener('click', applyPoolAsInput);
   document.getElementById('btnJumpSelected')?.addEventListener('click', scrollToSelected);
@@ -220,7 +243,8 @@ function _updatePoolFilterCount() {
   const total = state.pool.items.length;
   const shown = filteredPoolItems().length;
   const seqCount = state.pool.sequence?.length;
-  const hasSeq = document.getElementById('btnSeqClear') != null;
+  const hasSeq = document.getElementById('btnSeqClear') != null
+    || document.getElementById('poolSequenceBox') != null;
   const q = (state.pool.filterQuery || '').trim();
   let text = q
     ? `${shown} shown · ${total} in video pool`
@@ -306,6 +330,16 @@ function _bindSequencePanel() {
     const idx = findSelectedSeqIndex();
     if (idx >= 0) removeSequenceAt(idx);
   });
+  document.getElementById('btnSeqClearDock')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      clearSequence({ confirm: true });
+    } catch (err) {
+      console.error('[SEQ] Clear Sequence (dock) failed', err);
+      logConsole(`[SEQ]: Clear failed — ${err.message}`, 'error');
+    }
+  });
 
   const durInput = document.getElementById('seqClipDuration');
   durInput?.addEventListener('change', onSeqClipDurationChange);
@@ -389,6 +423,8 @@ function _composeHtml() {
             <button type="button" class="btn seq-ctrl seq-reorder" id="btnSeqMoveLast" title="Move selected to end" disabled>&gt;&gt;</button>
             <span class="seq-reorder-sep" aria-hidden="true"></span>
             <button type="button" class="btn seq-ctrl seq-remove" id="btnSeqRemove" title="Remove selected from sequence" disabled>&minus;</button>
+            <span class="seq-reorder-sep" aria-hidden="true"></span>
+            <button type="button" class="btn seq-ctrl seq-clear-all" id="btnSeqClearDock" title="Clear entire sequence" ${seqCount === 0 ? 'disabled' : ''}>Clear</button>
           </div>
         </div>
         <div class="pool-section-body" data-section="sequence">
@@ -505,7 +541,7 @@ function renderSequenceForm() {
   const html = `
     <div class="pool-workspace-inner">
       <div class="pool-top">
-        ${_poolToolbarHtml(count, selected, seqCount)}
+        ${_poolToolbarHtml(count, selected, seqCount, { showSeqTools: true })}
         <div class="pool-grid-wrap${col.pool ? ' is-collapsed' : ''}">
           <div class="pool-grid" id="poolGrid"></div>
         </div>
@@ -534,6 +570,7 @@ function renderSequenceForm() {
   updatePoolFocusFrame(displayFocusPath());
   updateSelectionHighlights();
   updateSeqTransportUI();
+  refreshPoolToolbarCounts();
   if (state.pool.matchResults) {
     renderMatchResults(state.pool.matchResults);
   }

@@ -461,12 +461,19 @@ async function restorePoolState() {
 function refreshPoolToolbarCounts() {
   const el = document.querySelector('.pool-count');
   if (el) {
-    el.textContent = `${state.pool.items.length} in video pool · ${state.pool.sequence.length} in sequence`;
+    const hasSeqUi = document.getElementById('btnSeqClear') != null
+      || document.getElementById('poolSequenceBox') != null;
+    el.textContent = hasSeqUi
+      ? `${state.pool.items.length} in video pool · ${state.pool.sequence.length} in sequence`
+      : `${state.pool.items.length} in video pool`;
   }
   const stitchBtn = document.getElementById('btnPoolStitch');
   if (stitchBtn) stitchBtn.disabled = state.pool.sequence.length < 2;
+  const empty = state.pool.sequence.length === 0;
   const seqClear = document.getElementById('btnSeqClear');
-  if (seqClear) seqClear.disabled = state.pool.sequence.length === 0;
+  if (seqClear) seqClear.disabled = empty;
+  const seqClearDock = document.getElementById('btnSeqClearDock');
+  if (seqClearDock) seqClearDock.disabled = empty;
 }
 
 /** Ensure a path has a video container extension ffmpeg can mux. */

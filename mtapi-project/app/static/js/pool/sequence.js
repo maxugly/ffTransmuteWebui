@@ -243,14 +243,33 @@ function removeSequenceAt(idx) {
   scheduleSavePoolState();
 }
 
-function clearSequence() {
-  if (state.pool.sequence.length === 0) return;
-  seqStop();
+function clearSequence(opts = {}) {
+  const n = state.pool.sequence?.length || 0;
+  if (n === 0) {
+    logConsole('[SEQ]: Already empty');
+    refreshPoolToolbarCounts();
+    updateSeqTransportUI();
+    return;
+  }
+  if (opts.confirm !== false) {
+    // Allow silent clear when opts.confirm === false
+    if (!window.confirm(`Clear all ${n} clip(s) from the sequence?`)) return;
+  }
+  try {
+    seqStop();
+  } catch (err) {
+    console.error('[SEQ] seqStop during clear', err);
+  }
   state.pool.sequence = [];
+  state.pool.selectedSeqId = null;
+  state.pool.playback = state.pool.playback || {};
+  state.pool.playback.index = 0;
+  state.pool.playback.playing = false;
   logConsole('[SEQ]: Cleared');
   renderSequenceBox();
-  renderPoolGrid();
+  try { renderPoolGrid(); } catch (_) { /* grid may be absent */ }
   updatePoolFocusFrame(displayFocusPath());
+  try { updateSeqClipSettings(); } catch (_) { /* optional */ }
   refreshPoolToolbarCounts();
   updateSeqTransportUI();
   scheduleSavePoolState();
