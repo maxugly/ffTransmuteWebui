@@ -55,6 +55,7 @@ function startJobProgressPoll(token) {
   stopJobProgressPoll();
   if (!token) return;
   activeJob.lastProgressKey = '';
+  activeJob.historySeen = 0;
 
   const tick = async () => {
     if (!activeJob.token || activeJob.token !== token) return;
@@ -64,29 +65,50 @@ function startJobProgressPoll(token) {
       const p = await res.json();
       if (!p || !p.found) return;
 
-      // status bar: compact
-      if (elements.statusText && p.status === 'running') {
-        let st = p.message || 'Processing…';
-        if (p.total > 0) st = `${p.current || 0}/${p.total} · ${p.elapsed_h || ''}`
-          + (p.eta_s != null && p.eta_s > 0 ? ` · ETA ${p.eta_h}` : '');
-        elements.statusText.textContent = st;
+      // status bar: always refresh while running (don't wait for console-key change)
+      if (elements.statusText && (p.status === 'running' || p.status === 'cancelling')) {
+        const bits = [];
+        if (p.phase) bits.push(p.phase);
+        if (p.total > 0) {
+          bits.push(`${p.current || 0}/${p.total}${p.unit ? ' ' + p.unit : ''}`);
+          if (p.pct != null) bits.push(`${p.pct}%`);
+        }
+        if (p.message) bits.push(p.message);
+        bits.push(p.elapsed_h || '0s');
+        if (p.eta_s != null && p.eta_s > 0) bits.push(`ETA ${p.eta_h}`);
+        elements.statusText.textContent = bits.join(' · ') || 'Processing…';
       }
 
-      // console: only when something meaningful changes
+      // console: log every distinct snapshot (and any new history messages)
+      const hist = Array.isArray(p.history) ? p.history : [];
+      if (hist.length) {
+        // history is a ring of {t, msg}; length can shrink if server capped it
+        const seen = activeJob.historySeen | 0;
+        const start = hist.length < 40 && seen > hist.length ? 0 : Math.min(seen, hist.length);
+        for (let i = start; i < hist.length; i++) {
+          const msg = hist[i] && hist[i].msg;
+          if (msg) logConsole(`[PROGRESS] ${msg}`);
+        }
+        activeJob.historySeen = hist.length;
+      }
+
       const key = `${p.phase}|${p.current}|${p.total}|${p.message}|${p.status}`;
       if (key !== activeJob.lastProgressKey) {
         activeJob.lastProgressKey = key;
-        const line = formatJobLine(p);
-        if (line) logConsole(line);
+        // Prefer the full formatted line when counts/ETA exist (history is message-only)
+        if (p.total > 0 || p.phase) {
+          const line = formatJobLine(p);
+          if (line) logConsole(line);
+        }
       }
     } catch (_) {
       // ignore poll errors while job runs
     }
   };
 
-  // first tick soon, then every 1.5s
+  // Poll often enough to catch per-frame conform/rank steps (was 1.5s → sparse hops)
   tick();
-  activeJob.pollTimer = setInterval(tick, 1500);
+  activeJob.pollTimer = setInterval(tick, 300);
 }
 
 function setRunUiBusy(busy, { stopping = false } = {}) {
@@ -156,7 +178,7 @@ async function runOpWithCancel(opId, body, { label = 'Processing…' } = {}) {
   const token = newJobToken();
   const controller = new AbortController();
   stopJobProgressPoll();
-  activeJob = { token, controller, stopping: false, pollTimer: null, lastProgressKey: '' };
+  activeJob = { token, controller, stopping: false, pollTimer: null, lastProgressKey: '', historySeen: 0 };
 
   elements.statusDot.className = 'status-dot loading';
   elements.statusText.textContent = label;
@@ -164,7 +186,7 @@ async function runOpWithCancel(opId, body, { label = 'Processing…' } = {}) {
   startJobProgressPoll(token);
 
   logConsole(`[EXECUTE]: POST /ops/${opId} (job ${token.slice(0, 8)}…)\nParameters: ${JSON.stringify(body, null, 2)}`);
-  logConsole('[PROGRESS]: live updates every ~1.5s (elapsed / count / ETA when known)');
+  logConsole('[PROGRESS]: polling ~3×/s (status bar + console; binary stages may stay flat until done)');
 
   try {
     const response = await fetch(`/ops/${opId}`, {

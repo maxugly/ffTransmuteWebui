@@ -164,8 +164,9 @@ def report_progress(
             snap["message"] = message
             hist = snap.setdefault("history", [])
             hist.append({"t": now, "msg": message})
-            if len(hist) > 40:
-                del hist[:-40]
+            # Keep enough room for per-frame loops between UI polls
+            if len(hist) > 200:
+                del hist[:-200]
         if phase is not None:
             snap["phase"] = phase
         if current is not None:
