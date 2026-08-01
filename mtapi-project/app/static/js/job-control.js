@@ -79,27 +79,12 @@ function startJobProgressPoll(token) {
         elements.statusText.textContent = bits.join(' · ') || 'Processing…';
       }
 
-      // console: log every distinct snapshot (and any new history messages)
-      const hist = Array.isArray(p.history) ? p.history : [];
-      if (hist.length) {
-        // history is a ring of {t, msg}; length can shrink if server capped it
-        const seen = activeJob.historySeen | 0;
-        const start = hist.length < 40 && seen > hist.length ? 0 : Math.min(seen, hist.length);
-        for (let i = start; i < hist.length; i++) {
-          const msg = hist[i] && hist[i].msg;
-          if (msg) logConsole(`[PROGRESS] ${msg}`);
-        }
-        activeJob.historySeen = hist.length;
-      }
-
+      // console: one line per distinct progress snapshot (poll is ~300ms)
       const key = `${p.phase}|${p.current}|${p.total}|${p.message}|${p.status}`;
       if (key !== activeJob.lastProgressKey) {
         activeJob.lastProgressKey = key;
-        // Prefer the full formatted line when counts/ETA exist (history is message-only)
-        if (p.total > 0 || p.phase) {
-          const line = formatJobLine(p);
-          if (line) logConsole(line);
-        }
+        const line = formatJobLine(p);
+        if (line) logConsole(line);
       }
     } catch (_) {
       // ignore poll errors while job runs
