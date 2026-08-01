@@ -80,7 +80,8 @@ Stage kinds:
 | withoutbg | `withoutbg_ops.py` + `filters/withoutbg.py` | per_frame (video) | ✅ stable |
 | style transfer | `styletransfer_ops.py` + `filters/styletransfer.py` | per_frame (video) | ✅ stills + video (dump→filter→encode) |
 | RIFE | `rife_ops.py` + `filters/rife.py` | directory | ✅ stable |
-| speed ramp | `speedramp_ops.py` + `filters/speedramp.py` | directory remap | ✅ PNG remap (not setpts); audio dropped v1 |
+| speed change | `speedchange_ops.py` | setpts/atempo or dump→RIFE→encode | ✅ uniform speed + target FPS + optional RIFE |
+| speed ramp | `speedramp_ops.py` + `filters/speedramp.py` | directory remap | ✅ PNG remap (not setpts); optional RIFE; audio dropped v1 |
 | zoompan (pan & zoom still→video) | `zoompan_ops.py` | — (ffmpeg crop) | ✅ image + two boxes |
 | image sort & RIFE | `imagesort_rife_ops.py` + `app/image_sort/` | multi-source → optional directory RIFE | ✅ sort stills → conform → optional RIFE → encode |
 | raw transmute | `transmute_ops.py` | — | ✅ escape hatch |

@@ -10,6 +10,7 @@ import { collectFaceMorphBody } from '/js/tabs/facemorph.js';
 import { collectWithoutBgBody } from '/js/tabs/withoutbg.js';
 import { collectStyleTransferBody } from '/js/tabs/styletransfer.js';
 import { collectRifeBody } from '/js/tabs/rife.js';
+import { collectSpeedChangeBody } from '/js/tabs/speedchange.js';
 import { collectConvertBody } from '/js/tabs/convert.js';
 import { collectZoompanBody } from '/js/tabs/zoompan.js';
 import { collectImageSortBody } from '/js/tabs/imagesort.js';
@@ -450,8 +451,11 @@ async function runActiveOperation() {
         duration: parseFloat(document.getElementById('rampDuration')?.value) || 5.0,
         start_speed: parseFloat(document.getElementById('rampStartSpeed')?.value) || 4.0,
         end_speed: parseFloat(document.getElementById('rampEndSpeed')?.value) || 0.333,
-        curve_shape: document.getElementById('rampCurveShape')?.value || 'exponential',
-        loop_mode: document.getElementById('rampLoopMode')?.value || 'auto',
+        use_rife: document.getElementById('rampUseRife')?.value === '1',
+        multiplier: parseInt(document.getElementById('rampRifeMult')?.value || '2', 10),
+        model: document.getElementById('rampRifeModel')?.value || 'rife-v4.6',
+        tta: document.getElementById('rampRifeTta')?.value === '1',
+        uhd: document.getElementById('rampRifeUhd')?.value === '1',
         start_frame: window.globalInputs.frameStart || 1,
         end_frame: window.globalInputs.frameEnd || 999999,
       };
@@ -504,6 +508,11 @@ async function runActiveOperation() {
     if (!rifeBody) return;
     opId = 'rife';
     body = rifeBody;
+  } else if (tab === 'speedchange') {
+    const scBody = collectSpeedChangeBody();
+    if (!scBody) return;
+    opId = 'speedchange';
+    body = scBody;
   } else if (tab === 'convert') {
     const convBody = collectConvertBody();
     if (!convBody) return;

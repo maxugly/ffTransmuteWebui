@@ -15,6 +15,7 @@ from . import (  # noqa: F401
     imagesort_rife_ops,
     pipeline_ops,
     rife_ops,
+    speedchange_ops,
     speedramp_ops,
     withoutbg_ops,
     styletransfer_ops,

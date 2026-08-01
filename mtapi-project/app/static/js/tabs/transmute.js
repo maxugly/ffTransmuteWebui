@@ -133,6 +133,26 @@ function updateTransmuteExtras() {
       </div>
       <p class="knob-row-legend" id="rampInfoLine">Set knobs to see required source duration.</p>
     </div>
+    <div class="knob-row">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'rampUseRife', label: 'Use RIFE', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'rampRifeMult', label: 'Frame ×', value: '2' })}
+        ${knobUnitHtml({ id: 'rampRifeTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'rampRifeUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+      </div>
+      <p class="knob-row-legend">
+        RIFE before remap densifies frames for slow sections of the ramp.
+      </p>
+    </div>
+    <div class="form-row">
+      <label for="rampRifeModel">RIFE model</label>
+      <select id="rampRifeModel">
+        <option value="rife-v4.6" selected>rife-v4.6</option>
+        <option value="rife-v4">rife-v4</option>
+        <option value="rife-v2.4">rife-v2.4</option>
+        <option value="rife-v2.3">rife-v2.3</option>
+      </select>
+    </div>
   `;
   }
 
@@ -185,6 +205,26 @@ function updateTransmuteExtras() {
       knobId: 'rampEndSpeedKnob', indicatorId: 'rampEndSpeedKnobInd',
       valueId: 'rampEndSpeedVal', hiddenId: 'rampEndSpeed',
       min: 0.1, max: 20, step: 0.05, decimals: 2,
+    });
+    setupBinaryKnob({
+      knobId: 'rampUseRifeKnob', indicatorId: 'rampUseRifeKnobInd',
+      hiddenId: 'rampUseRife',
+      leftValue: '0', rightValue: '1', initial: '0',
+    });
+    setupContinuousKnob({
+      knobId: 'rampRifeMultKnob', indicatorId: 'rampRifeMultKnobInd',
+      valueId: 'rampRifeMultVal', hiddenId: 'rampRifeMult',
+      min: 2, max: 8, step: 1, decimals: 0,
+    });
+    setupBinaryKnob({
+      knobId: 'rampRifeTtaKnob', indicatorId: 'rampRifeTtaKnobInd',
+      hiddenId: 'rampRifeTta',
+      leftValue: '0', rightValue: '1', initial: '0',
+    });
+    setupBinaryKnob({
+      knobId: 'rampRifeUhdKnob', indicatorId: 'rampRifeUhdKnobInd',
+      hiddenId: 'rampRifeUhd',
+      leftValue: '0', rightValue: '1', initial: '0',
     });
 
     // Swap defaults when direction toggles

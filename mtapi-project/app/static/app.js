@@ -27,6 +27,7 @@ import { renderFaceMorphForm, collectFaceMorphBody } from '/js/tabs/facemorph.js
 import { renderWithoutBgForm, collectWithoutBgBody } from '/js/tabs/withoutbg.js';
 import { renderStyleTransferForm, collectStyleTransferBody } from '/js/tabs/styletransfer.js';
 import { renderRifeForm, collectRifeBody } from '/js/tabs/rife.js';
+import { renderSpeedChangeForm, collectSpeedChangeBody } from '/js/tabs/speedchange.js';
 import { loadQuickSettings, renderQuickTransmuteForm, runQuickTransmute, quickTransmuteLabel } from '/js/tabs/quick.js';
 import { renderWatcherForm } from '/js/tabs/watcher.js';
 import { renderConvertForm, collectConvertBody } from '/js/tabs/convert.js';
@@ -244,6 +245,7 @@ const TAB_ACCEPTS = {
   withoutbg:   'image',
   styletransfer:'any',
   rife:        'video',
+  speedchange: 'video',
   advanced:    'video',
   quick:       'video',
   convert:     'any',
@@ -255,7 +257,7 @@ const TAB_ACCEPTS = {
 
 /** Tabs that show the global frame-range row (video pipeline / mosh / convert). */
 const FRAME_RANGE_TABS = new Set([
-  'mosh', 'deepdream', 'rife', 'convert', 'transmute',
+  'mosh', 'deepdream', 'rife', 'speedchange', 'convert', 'transmute',
   'styletransfer', 'withoutbg', 'facemorph', 'multi', 'advanced',
   'cut', // cut workspace shows global range next to first/last
   'imagesort',
@@ -555,6 +557,7 @@ function switchTab(tab) {
   if (tab === 'withoutbg') title = 'withoutBG · Remove Background';
   if (tab === 'styletransfer') title = 'Style Transfer · Magenta';
   if (tab === 'rife') title = 'RIFE · AI Frame Interpolation';
+  if (tab === 'speedchange') title = 'Speed Change';
   if (tab === 'transmute') title = 'Single-Clip Transmutations';
   if (tab === 'multi') title = 'Layout Templates (Join / Grid)';
   if (tab === 'quick') title = 'Quick Transmute';
@@ -622,6 +625,8 @@ function renderTabForm(tab) {
     renderStyleTransferForm();
   } else if (tab === 'rife') {
     renderRifeForm();
+  } else if (tab === 'speedchange') {
+    renderSpeedChangeForm();
   } else if (tab === 'transmute') {
     renderTransmuteForm();
   } else if (tab === 'multi') {
@@ -865,8 +870,10 @@ export {
   loadPoolItemMeta, setPreviewAspect, clearPreviewAspect,
   collectFaceMorphBody,
   collectWithoutBgBody, collectStyleTransferBody, collectRifeBody,
+  collectSpeedChangeBody,
   renderFaceMorphForm,
   renderWithoutBgForm, renderStyleTransferForm, renderRifeForm,
+  renderSpeedChangeForm,
   renderImageSortForm,
   renderQuickTransmuteForm,
   renderWatcherForm, renderPoolForm, renderPoolGrid,

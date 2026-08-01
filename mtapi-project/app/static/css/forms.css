@@ -862,6 +862,35 @@ input:checked + .slider:before {
   margin-top: 4px;
 }
 
+/* Speed Change frame-budget banner */
+.sc-budget {
+  margin: 4px 0 8px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-muted);
+}
+
+.sc-budget.ok {
+  border-color: rgba(52, 211, 153, 0.45);
+  background: rgba(16, 185, 129, 0.1);
+  color: #6ee7b7;
+}
+
+.sc-budget.short {
+  border-color: rgba(248, 113, 113, 0.55);
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+  font-weight: 600;
+}
+
+.sc-budget.muted {
+  opacity: 0.85;
+}
+
 .hidden {
   display: none !important;
 }
