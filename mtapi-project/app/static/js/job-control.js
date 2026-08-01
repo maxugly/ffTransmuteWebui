@@ -25,8 +25,23 @@ let activeJob = {
   controller: null,
   stopping: false,
   pollTimer: null,
-  lastProgressKey: '',
+  tickTimer: null,
+  startedAt: 0,
+  lastPhase: '',
+  lastSnap: null,
 };
+
+/** Sticky elapsed clock: 0:05 / 1:02:03 */
+function formatElapsedMs(ms) {
+  const s = Math.max(0, Math.floor((ms || 0) / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  }
+  return `${m}:${String(sec).padStart(2, '0')}`;
+}
 
 function formatJobLine(p) {
   if (!p || !p.found) return null;
@@ -49,13 +64,59 @@ function stopJobProgressPoll() {
     clearInterval(activeJob.pollTimer);
     activeJob.pollTimer = null;
   }
+  if (activeJob.tickTimer) {
+    clearInterval(activeJob.tickTimer);
+    activeJob.tickTimer = null;
+  }
+}
+
+/** Update sticky status bar + Run button with live elapsed (no new console lines). */
+function paintStickyJobUi() {
+  if (!activeJob.token || !activeJob.startedAt) return;
+  const elapsed = formatElapsedMs(Date.now() - activeJob.startedAt);
+  const p = activeJob.lastSnap;
+  const stopping = activeJob.stopping;
+
+  // Status bar — sticky single place, rewrites in place
+  if (elements.statusText) {
+    const bits = [];
+    if (stopping) bits.push('Stopping');
+    else bits.push('Running');
+    bits.push(elapsed);
+    if (p && p.found) {
+      if (p.phase) bits.push(p.phase);
+      if (p.total > 0) {
+        bits.push(`${p.current || 0}/${p.total}${p.unit ? ' ' + p.unit : ''}`);
+        if (p.pct != null) bits.push(`${p.pct}%`);
+      } else if (p.message) {
+        bits.push(p.message);
+      }
+      if (p.eta_s != null && p.eta_s > 0 && !stopping) bits.push(`ETA ${p.eta_h}`);
+    }
+    elements.statusText.textContent = bits.join(' · ');
+  }
+
+  // Run button — sticky timer on the control itself
+  if (elements.btnRun && elements.btnRun.disabled) {
+    elements.btnRun.innerHTML = stopping
+      ? `<span style="animation: pulse-dot 1s infinite;">●</span> Stopping… ${elapsed}`
+      : `<span style="animation: pulse-dot 1s infinite;">●</span> ${elapsed}`;
+  }
 }
 
 function startJobProgressPoll(token) {
   stopJobProgressPoll();
   if (!token) return;
-  activeJob.lastProgressKey = '';
-  activeJob.historySeen = 0;
+  activeJob.lastPhase = '';
+  activeJob.lastSnap = null;
+  activeJob.startedAt = Date.now();
+
+  // Local sticky clock — independent of server poll (smooth 1s ticks)
+  paintStickyJobUi();
+  activeJob.tickTimer = setInterval(() => {
+    if (!activeJob.token || activeJob.token !== token) return;
+    paintStickyJobUi();
+  }, 1000);
 
   const tick = async () => {
     if (!activeJob.token || activeJob.token !== token) return;
@@ -64,25 +125,13 @@ function startJobProgressPoll(token) {
       if (!res.ok) return;
       const p = await res.json();
       if (!p || !p.found) return;
+      activeJob.lastSnap = p;
+      paintStickyJobUi();
 
-      // status bar: always refresh while running (don't wait for console-key change)
-      if (elements.statusText && (p.status === 'running' || p.status === 'cancelling')) {
-        const bits = [];
-        if (p.phase) bits.push(p.phase);
-        if (p.total > 0) {
-          bits.push(`${p.current || 0}/${p.total}${p.unit ? ' ' + p.unit : ''}`);
-          if (p.pct != null) bits.push(`${p.pct}%`);
-        }
-        if (p.message) bits.push(p.message);
-        bits.push(p.elapsed_h || '0s');
-        if (p.eta_s != null && p.eta_s > 0) bits.push(`ETA ${p.eta_h}`);
-        elements.statusText.textContent = bits.join(' · ') || 'Processing…';
-      }
-
-      // console: one line per distinct progress snapshot (poll is ~300ms)
-      const key = `${p.phase}|${p.current}|${p.total}|${p.message}|${p.status}`;
-      if (key !== activeJob.lastProgressKey) {
-        activeJob.lastProgressKey = key;
+      // Console: only when phase changes (not every frame / not every second)
+      const phase = p.phase || '';
+      if (phase && phase !== activeJob.lastPhase) {
+        activeJob.lastPhase = phase;
         const line = formatJobLine(p);
         if (line) logConsole(line);
       }
@@ -91,18 +140,21 @@ function startJobProgressPoll(token) {
     }
   };
 
-  // Poll often enough to catch per-frame conform/rank steps (was 1.5s → sparse hops)
   tick();
-  activeJob.pollTimer = setInterval(tick, 300);
+  // Server snapshot for phase / counts / ETA (status bar only — no spam)
+  activeJob.pollTimer = setInterval(tick, 1000);
 }
 
 function setRunUiBusy(busy, { stopping = false } = {}) {
   if (elements.btnRun) {
     elements.btnRun.disabled = busy;
     if (busy) {
+      const elapsed = activeJob.startedAt
+        ? formatElapsedMs(Date.now() - activeJob.startedAt)
+        : '0:00';
       elements.btnRun.innerHTML = stopping
-        ? `<span style="animation: pulse-dot 1s infinite;">●</span> Stopping…`
-        : `<span style="animation: pulse-dot 1s infinite;">●</span> Processing…`;
+        ? `<span style="animation: pulse-dot 1s infinite;">●</span> Stopping… ${elapsed}`
+        : `<span style="animation: pulse-dot 1s infinite;">●</span> ${elapsed}`;
     } else {
       elements.btnRun.innerHTML = `
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -163,15 +215,24 @@ async function runOpWithCancel(opId, body, { label = 'Processing…' } = {}) {
   const token = newJobToken();
   const controller = new AbortController();
   stopJobProgressPoll();
-  activeJob = { token, controller, stopping: false, pollTimer: null, lastProgressKey: '', historySeen: 0 };
+  activeJob = {
+    token,
+    controller,
+    stopping: false,
+    pollTimer: null,
+    tickTimer: null,
+    startedAt: Date.now(),
+    lastPhase: '',
+    lastSnap: null,
+  };
 
   elements.statusDot.className = 'status-dot loading';
-  elements.statusText.textContent = label;
   setRunUiBusy(true);
   startJobProgressPoll(token);
+  paintStickyJobUi();
 
   logConsole(`[EXECUTE]: POST /ops/${opId} (job ${token.slice(0, 8)}…)\nParameters: ${JSON.stringify(body, null, 2)}`);
-  logConsole('[PROGRESS]: polling ~3×/s (status bar + console; binary stages may stay flat until done)');
+  logConsole('[JOB]: sticky timer on status bar / Run button — console only logs phase changes');
 
   try {
     const response = await fetch(`/ops/${opId}`, {
@@ -245,17 +306,33 @@ async function runOpWithCancel(opId, body, { label = 'Processing…' } = {}) {
       throw err;
     }
   } finally {
+    const totalMs = activeJob.startedAt ? (Date.now() - activeJob.startedAt) : 0;
+    const totalLabel = formatElapsedMs(totalMs);
     stopJobProgressPoll();
-    // one last progress fetch for final stats
+    // one final console line with total wall time (not a stream of ticks)
     try {
       const res = await fetch(`/api/job/${encodeURIComponent(token)}`);
       if (res.ok) {
         const p = await res.json();
         const line = formatJobLine(p);
-        if (line) logConsole(line + ' · final');
+        if (line) logConsole(line + ` · done in ${totalLabel}`);
+        else logConsole(`[JOB]: done in ${totalLabel}`);
+      } else {
+        logConsole(`[JOB]: done in ${totalLabel}`);
       }
-    } catch (_) { /* ignore */ }
-    activeJob = { token: null, controller: null, stopping: false, pollTimer: null, lastProgressKey: '' };
+    } catch (_) {
+      logConsole(`[JOB]: done in ${totalLabel}`);
+    }
+    activeJob = {
+      token: null,
+      controller: null,
+      stopping: false,
+      pollTimer: null,
+      tickTimer: null,
+      startedAt: 0,
+      lastPhase: '',
+      lastSnap: null,
+    };
     setRunUiBusy(false);
   }
 }
