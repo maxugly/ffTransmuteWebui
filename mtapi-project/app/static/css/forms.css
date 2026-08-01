@@ -445,18 +445,18 @@ input:checked + .slider:before {
   color: var(--text-main);
 }
 
-/* DAW Rotary Knob Styling */
+/* DAW Rotary Knob Styling — default compact; vector-pad layouts override size */
 .daw-knob {
-  width: 70px;
-  height: 70px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   background: radial-gradient(circle, #1e293b 0%, #0f172a 100%);
-  border: 4px solid #334155;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3), inset 0 2px 4px rgba(255, 255, 255, 0.05);
+  border: 3px solid #334155;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3), inset 0 1px 2px rgba(255, 255, 255, 0.05);
   position: relative;
   cursor: ns-resize; /* up/down resize cursor to indicate vertical dragging */
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  margin: 35px 0; /* center vertically with the vector pad height of 140px */
+  margin: 2px 0;
 }
 
 .daw-knob:hover {
@@ -680,15 +680,18 @@ input:checked + .slider:before {
 .knob-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px 14px;
   margin-bottom: 6px;
 }
 
 .knob-row .knob-bank {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: nowrap;
   margin: 0;
   padding: 2px 0;
+  gap: 8px 12px;
 }
 
 .knob-row-legend {
@@ -758,6 +761,11 @@ input:checked + .slider:before {
 
 .fm-item:hover {
   background: rgba(255, 255, 255, 0.04);
+}
+
+.fm-item.is-selected {
+  background: rgba(96, 165, 250, 0.12);
+  outline: 1px solid rgba(96, 165, 250, 0.35);
 }
 
 .fm-ord {

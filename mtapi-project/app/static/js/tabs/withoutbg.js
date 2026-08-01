@@ -1,19 +1,25 @@
-import { state, elements, resolveGlobalImages } from '/app.js';
+import { state, elements, resolveGlobalImages, showPreview } from '/app.js';
 import { basename, escapeHtml, withFrameRange, isVideoPath } from '/js/utils.js';
 import { setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { registerListKeys } from '/js/ui/list-keys.js';
 
 // ── withoutBG tab (background removal) ───────────────────────────────────
 
 function renderWithoutBgForm() {
   const imgs = state.withoutbg.images || [];
+  if (state.withoutbg.selected == null) state.withoutbg.selected = 0;
+  if (imgs.length && state.withoutbg.selected >= imgs.length) {
+    state.withoutbg.selected = imgs.length - 1;
+  }
+  const sel = state.withoutbg.selected | 0;
   const listHtml = imgs.length
     ? imgs.map((it, i) => `
-        <div class="fm-item" data-idx="${i}">
+        <div class="fm-item${i === sel ? ' is-selected' : ''}" data-idx="${i}">
           <span class="fm-ord">${String(i + 1).padStart(2, '0')}</span>
           <span class="fm-name" title="${escapeHtml(it.path)}">${escapeHtml(it.name || basename(it.path))}</span>
           <button type="button" class="btn fm-rm" data-idx="${i}" data-wbg="1">✕</button>
         </div>`).join('')
-    : `<div class="fm-empty">Add images or a folder. Outputs use prefix + source stem.</div>`;
+    : `<div class="fm-empty">Add images or a folder. Arrows select · Ctrl+arrows reorder.</div>`;
 
   const html = `
     <div class="panel-title-desc dense">
@@ -161,10 +167,47 @@ function renderWithoutBgForm() {
     btn.addEventListener('click', () => {
       const i = parseInt(btn.dataset.idx, 10);
       state.withoutbg.images.splice(i, 1);
+      if (state.withoutbg.selected >= state.withoutbg.images.length) {
+        state.withoutbg.selected = Math.max(0, state.withoutbg.images.length - 1);
+      }
       renderWithoutBgForm();
     });
   });
+  document.getElementById('wbgList')?.addEventListener('click', (e) => {
+    if (e.target.closest('button')) return;
+    const row = e.target.closest('.fm-item');
+    if (!row) return;
+    const i = parseInt(row.dataset.idx, 10);
+    if (isNaN(i)) return;
+    state.withoutbg.selected = i;
+    document.querySelectorAll('#wbgList .fm-item').forEach((el, idx) => {
+      el.classList.toggle('is-selected', idx === i);
+    });
+    const it = state.withoutbg.images[i];
+    if (it?.path) showPreview(it.path);
+  });
 }
+
+registerListKeys('withoutbg', {
+  getItems: () => state.withoutbg.images || [],
+  getSelected: () => state.withoutbg.selected | 0,
+  setSelected: (i) => {
+    state.withoutbg.selected = i;
+    document.querySelectorAll('#wbgList .fm-item').forEach((el, idx) => {
+      el.classList.toggle('is-selected', idx === i);
+    });
+    const it = state.withoutbg.images[i];
+    if (it?.path) showPreview(it.path);
+  },
+  moveItem: (from, to) => {
+    const a = state.withoutbg.images || [];
+    if (from < 0 || to < 0 || from >= a.length || to >= a.length) return;
+    const item = a.splice(from, 1)[0];
+    a.splice(to, 0, item);
+    state.withoutbg.selected = to;
+    renderWithoutBgForm();
+  },
+});
 
 function collectWithoutBgBody() {
   var images = (state.withoutbg.images || []).map((x) => x.path);

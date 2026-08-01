@@ -77,16 +77,19 @@ let state = {
   faceMorph: {
     images: [], // {path, name}[]
     folder: null,
+    selected: 0, // keyboard / click selection
   },
   // withoutBG batch
   withoutbg: {
     images: [], // {path, name}[]
     folder: null,
+    selected: 0,
   },
   // Neural style transfer (content list + one style image)
   styleTransfer: {
     contents: [], // {path, name}[]
     stylePath: null,
+    selected: 0,
   },
   // Quick Transmute: one-click right-click reformat (same Fit/AR as sequence)
   quick: {
@@ -400,6 +403,7 @@ async function init() {
   loadQuickSettings();
   setupGlobalTimeline();
   setupFrameScrubber();
+  setupListKeys();
   setupEventListeners();
   setupPreviewConsoleResize();
   setupAllPanelResize();
@@ -648,6 +652,7 @@ function renderTabForm(tab) {
 }
 import { probeGlobalVideo, setupGlobalTimeline, setupTimelineSlider } from '/js/timeline.js';
 import { setupFrameScrubber, resetFrameScrubber } from '/js/frame-scrubber.js';
+import { setupListKeys } from '/js/ui/list-keys.js';
 import {
   renderPoolForm, renderSequenceForm, renderPoolGrid, sequencePositions,
 } from '/js/pool/grid.js';

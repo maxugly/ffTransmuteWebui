@@ -1,21 +1,27 @@
-import { state, elements, logConsole, resolveGlobalImages } from '/app.js';
+import { state, elements, logConsole, resolveGlobalImages, showPreview } from '/app.js';
 import { basename, escapeHtml } from '/js/utils.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { registerListKeys } from '/js/ui/list-keys.js';
 
 // ── Face Morph tab (facemorph package + optional DeepDream) ───────────────
 
 function renderFaceMorphForm() {
   const imgs = state.faceMorph.images || [];
+  if (state.faceMorph.selected == null) state.faceMorph.selected = 0;
+  if (imgs.length && state.faceMorph.selected >= imgs.length) {
+    state.faceMorph.selected = imgs.length - 1;
+  }
+  const sel = state.faceMorph.selected | 0;
   const listHtml = imgs.length
     ? imgs.map((it, i) => `
-        <div class="fm-item" data-idx="${i}">
+        <div class="fm-item${i === sel ? ' is-selected' : ''}" data-idx="${i}">
           <span class="fm-ord">${String(i + 1).padStart(2, '0')}</span>
           <span class="fm-name" title="${escapeHtml(it.path)}">${escapeHtml(it.name || basename(it.path))}</span>
           <button type="button" class="btn fm-up" data-idx="${i}" ${i === 0 ? 'disabled' : ''}>↑</button>
           <button type="button" class="btn fm-down" data-idx="${i}" ${i >= imgs.length - 1 ? 'disabled' : ''}>↓</button>
           <button type="button" class="btn fm-rm" data-idx="${i}">✕</button>
         </div>`).join('')
-    : `<div class="fm-empty">Add at least 2 face images (folder or multi-select). Order = morph sequence.</div>`;
+    : `<div class="fm-empty">Add at least 2 face images (folder or multi-select). Order = morph sequence. Arrows select · Ctrl+arrows reorder.</div>`;
 
   const html = `
     <div class="panel-title-desc dense">
@@ -224,6 +230,9 @@ function renderFaceMorphForm() {
     btn.addEventListener('click', () => {
       const i = parseInt(btn.dataset.idx, 10);
       state.faceMorph.images.splice(i, 1);
+      if (state.faceMorph.selected >= state.faceMorph.images.length) {
+        state.faceMorph.selected = Math.max(0, state.faceMorph.images.length - 1);
+      }
       renderFaceMorphForm();
     });
   });
@@ -233,6 +242,7 @@ function renderFaceMorphForm() {
       if (i <= 0) return;
       const a = state.faceMorph.images;
       [a[i - 1], a[i]] = [a[i], a[i - 1]];
+      state.faceMorph.selected = i - 1;
       renderFaceMorphForm();
     });
   });
@@ -242,10 +252,46 @@ function renderFaceMorphForm() {
       const a = state.faceMorph.images;
       if (i >= a.length - 1) return;
       [a[i], a[i + 1]] = [a[i + 1], a[i]];
+      state.faceMorph.selected = i + 1;
       renderFaceMorphForm();
     });
   });
+  // Click row (not button) → select + preview
+  document.getElementById('fmList')?.addEventListener('click', (e) => {
+    if (e.target.closest('button')) return;
+    const row = e.target.closest('.fm-item');
+    if (!row) return;
+    const i = parseInt(row.dataset.idx, 10);
+    if (isNaN(i)) return;
+    state.faceMorph.selected = i;
+    document.querySelectorAll('#fmList .fm-item').forEach((el, idx) => {
+      el.classList.toggle('is-selected', idx === i);
+    });
+    const it = state.faceMorph.images[i];
+    if (it?.path) showPreview(it.path);
+  });
 }
+
+registerListKeys('facemorph', {
+  getItems: () => state.faceMorph.images || [],
+  getSelected: () => state.faceMorph.selected | 0,
+  setSelected: (i) => {
+    state.faceMorph.selected = i;
+    document.querySelectorAll('#fmList .fm-item').forEach((el, idx) => {
+      el.classList.toggle('is-selected', idx === i);
+    });
+    const it = state.faceMorph.images[i];
+    if (it?.path) showPreview(it.path);
+  },
+  moveItem: (from, to) => {
+    const a = state.faceMorph.images || [];
+    if (from < 0 || to < 0 || from >= a.length || to >= a.length) return;
+    const item = a.splice(from, 1)[0];
+    a.splice(to, 0, item);
+    state.faceMorph.selected = to;
+    renderFaceMorphForm();
+  },
+});
 
 function collectFaceMorphBody() {
   var images = (state.faceMorph.images || []).map((x) => x.path);

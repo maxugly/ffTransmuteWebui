@@ -38,14 +38,15 @@ function renderRifeForm() {
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'rifeMultiplier', label: 'Multiplier', value: '2' })}
+        ${knobUnitHtml({ id: 'rifeMultiplier', label: 'Frame ×', value: '2' })}
         ${knobUnitHtml({ id: 'rifeTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
         ${knobUnitHtml({ id: 'rifeUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
         ${knobUnitHtml({ id: 'rifeDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
       </div>
       <p class="knob-row-legend">
-        <strong>Multiplier</strong> — 2 = double FPS, 4 = quadruple (24→96).<br>
-        <strong>TTA</strong> — cleaner, ~2× slower. <strong>UHD</strong> — 4K+ (more VRAM).
+        <strong>Frame ×</strong> — multiplier (2 = double FPS, 4 = 24→96).<br>
+        <strong>TTA</strong> — cleaner, ~2× slower.<br>
+        <strong>UHD</strong> — 4K+ sources (more VRAM).
       </p>
     </div>
   `;

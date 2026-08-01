@@ -1,25 +1,31 @@
-import { state, elements, resolveGlobalImages, bestInput } from '/app.js';
+import { state, elements, resolveGlobalImages, bestInput, showPreview } from '/app.js';
 import { basename, escapeHtml, withFrameRange, isVideoPath, isImagePath } from '/js/utils.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { registerListKeys } from '/js/ui/list-keys.js';
 
 // ── Style Transfer tab (Magenta arbitrary stylization) ───────────────────
 // Images: batch stills via engine. Video: dump → filters.styletransfer → encode.
 
 function renderStyleTransferForm() {
   const contents = state.styleTransfer.contents || [];
+  if (state.styleTransfer.selected == null) state.styleTransfer.selected = 0;
+  if (contents.length && state.styleTransfer.selected >= contents.length) {
+    state.styleTransfer.selected = contents.length - 1;
+  }
+  const sel = state.styleTransfer.selected | 0;
   const stylePath = state.styleTransfer.stylePath;
   const listHtml = contents.length
     ? contents.map((it, i) => {
         const kind = isVideoPath(it.path) ? 'video' : (isImagePath(it.path) ? 'image' : 'path');
         return `
-        <div class="fm-item" data-idx="${i}">
+        <div class="fm-item${i === sel ? ' is-selected' : ''}" data-idx="${i}">
           <span class="fm-ord">${String(i + 1).padStart(2, '0')}</span>
           <span class="fm-badge" title="${kind}">${kind === 'video' ? '▶' : '🖼'}</span>
           <span class="fm-name" title="${escapeHtml(it.path)}">${escapeHtml(it.name || basename(it.path))}</span>
           <button type="button" class="btn fm-rm" data-idx="${i}" data-st="1">✕</button>
         </div>`;
       }).join('')
-    : `<div class="fm-empty">Add content photo(s) and/or one video. One style image paints them all.</div>`;
+    : `<div class="fm-empty">Add content photo(s) and/or one video. Arrows select · Ctrl+arrows reorder.</div>`;
 
   const hasVideo = contents.some((c) => isVideoPath(c.path));
 
@@ -158,10 +164,47 @@ function renderStyleTransferForm() {
     btn.addEventListener('click', () => {
       const i = parseInt(btn.dataset.idx, 10);
       state.styleTransfer.contents.splice(i, 1);
+      if (state.styleTransfer.selected >= state.styleTransfer.contents.length) {
+        state.styleTransfer.selected = Math.max(0, state.styleTransfer.contents.length - 1);
+      }
       renderStyleTransferForm();
     });
   });
+  document.getElementById('stContentList')?.addEventListener('click', (e) => {
+    if (e.target.closest('button')) return;
+    const row = e.target.closest('.fm-item');
+    if (!row) return;
+    const i = parseInt(row.dataset.idx, 10);
+    if (isNaN(i)) return;
+    state.styleTransfer.selected = i;
+    document.querySelectorAll('#stContentList .fm-item').forEach((el, idx) => {
+      el.classList.toggle('is-selected', idx === i);
+    });
+    const it = state.styleTransfer.contents[i];
+    if (it?.path) showPreview(it.path);
+  });
 }
+
+registerListKeys('styletransfer', {
+  getItems: () => state.styleTransfer.contents || [],
+  getSelected: () => state.styleTransfer.selected | 0,
+  setSelected: (i) => {
+    state.styleTransfer.selected = i;
+    document.querySelectorAll('#stContentList .fm-item').forEach((el, idx) => {
+      el.classList.toggle('is-selected', idx === i);
+    });
+    const it = state.styleTransfer.contents[i];
+    if (it?.path) showPreview(it.path);
+  },
+  moveItem: (from, to) => {
+    const a = state.styleTransfer.contents || [];
+    if (from < 0 || to < 0 || from >= a.length || to >= a.length) return;
+    const item = a.splice(from, 1)[0];
+    a.splice(to, 0, item);
+    state.styleTransfer.selected = to;
+    renderStyleTransferForm();
+  },
+});
 
 async function _addPathsFromPicker(mode, filter) {
   try {

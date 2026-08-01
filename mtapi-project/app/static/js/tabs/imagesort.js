@@ -1,6 +1,7 @@
 import { state, elements, logConsole, showPreview } from '/app.js';
 import { basename, escapeHtml } from '/js/utils.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { registerListKeys } from '/js/ui/list-keys.js';
 
 function _durationEst() {
   var K = (state.imageSort.images || []).length;
@@ -481,5 +482,49 @@ function collectImageSortBody() {
   };
   return body;
 }
+
+// Arrows = select; Ctrl+arrows = reorder selected still
+registerListKeys('imagesort', {
+  getItems: function() { return state.imageSort.images || []; },
+  getSelected: function() { return state.imageSort.selected | 0; },
+  setSelected: function(i) {
+    state.imageSort.selected = i;
+    var list = document.getElementById('isList');
+    if (list) {
+      list.querySelectorAll('.is-row').forEach(function(row) {
+        var idx = parseInt(row.dataset.idx, 10);
+        row.classList.toggle('is-selected', idx === i);
+      });
+    }
+    var imgs = state.imageSort.images || [];
+    if (imgs[i]) showPreview(imgs[i].path);
+    // keep order bar label in sync without full re-render
+    var label = document.getElementById('isSelLabel');
+    if (label && imgs[i]) {
+      label.textContent = '#' + String(i + 1).padStart(2, '0') + ' · ' + (imgs[i].name || basename(imgs[i].path));
+    }
+    // enable/disable order buttons for new index
+    var n = imgs.length;
+    var map = {
+      btnIsTop: i <= 0,
+      btnIsUp: i <= 0,
+      btnIsDown: i >= n - 1,
+      btnIsBtm: i >= n - 1,
+      btnIsRm: n <= 0,
+    };
+    Object.keys(map).forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.disabled = map[id];
+    });
+  },
+  moveItem: function(from, to) {
+    var imgs = state.imageSort.images || [];
+    if (from < 0 || to < 0 || from >= imgs.length || to >= imgs.length) return;
+    var item = imgs.splice(from, 1)[0];
+    imgs.splice(to, 0, item);
+    state.imageSort.selected = to;
+    renderImageSortForm();
+  },
+});
 
 export { renderImageSortForm, collectImageSortBody };
