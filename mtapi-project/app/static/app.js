@@ -33,6 +33,7 @@ import { renderConvertForm, collectConvertBody } from '/js/tabs/convert.js';
 import { renderImagePoolForm } from '/js/pool/image-pool.js';
 import { renderCutForm } from '/js/tabs/cut.js';
 import { renderZoompanForm, collectZoompanBody } from '/js/tabs/zoompan.js';
+import { renderImageSortForm, collectImageSortBody } from '/js/tabs/imagesort.js';
 import { renderNotesForm } from '/js/tabs/notes.js';
 import {
   findPoolItem, displayFocusPath, setPoolHover, clearPoolHover,
@@ -153,6 +154,12 @@ let state = {
     filterQuery: '',
     loading: false,
   },
+  // Image Sort → Video (single ordered list; index 0 = base)
+  imageSort: {
+    images: [], // {path, name, score?}[] — slot [0] is always base
+    folder: null,
+    selected: 0, // index of selected row for shared reorder buttons
+  },
   // Cut workspace: clip endpoints + two reference stills + shared image-compare state
   // Compare fields: mode / overlayOpacity / abPosition — see js/ui/image-compare.js
   cut: {
@@ -238,6 +245,7 @@ const TAB_ACCEPTS = {
   quick:       'video',
   convert:     'any',
   cut:         'video',
+  imagesort:   'image',
   zoompan:     'image',
   notes:       'none',
 };
@@ -247,6 +255,7 @@ const FRAME_RANGE_TABS = new Set([
   'mosh', 'deepdream', 'rife', 'convert', 'transmute',
   'styletransfer', 'withoutbg', 'facemorph', 'multi', 'advanced',
   'cut', // cut workspace shows global range next to first/last
+  'imagesort',
 ]);
 
 function tabUsesFrameRange(tab) {
@@ -549,6 +558,7 @@ function switchTab(tab) {
   if (tab === 'advanced') title = 'Advanced (Raw CLI)';
   if (tab === 'convert') title = 'Convert / Export';
   if (tab === 'cut') title = 'Cut';
+  if (tab === 'imagesort') title = 'Image Sort → Video';
   if (tab === 'zoompan') title = 'Pan & Zoom';
   if (tab === 'notes') title = 'Notes';
   // Library tabs: drop the big header title (sidebar already shows active item)
@@ -630,6 +640,8 @@ function renderTabForm(tab) {
     renderCutForm();
   } else if (tab === 'zoompan') {
     renderZoompanForm();
+  } else if (tab === 'imagesort') {
+    renderImageSortForm();
   } else if (tab === 'notes') {
     renderNotesForm();
   }
@@ -850,6 +862,7 @@ export {
   collectWithoutBgBody, collectStyleTransferBody, collectRifeBody,
   renderFaceMorphForm,
   renderWithoutBgForm, renderStyleTransferForm, renderRifeForm,
+  renderImageSortForm,
   renderQuickTransmuteForm,
   renderWatcherForm, renderPoolForm, renderPoolGrid,
   checkHealth, addPathsToPool,

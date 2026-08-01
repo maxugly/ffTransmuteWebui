@@ -12,6 +12,7 @@ from . import (  # noqa: F401
     datamosh,
     deepdream_ops,
     facemorph_ops,
+    imagesort_rife_ops,
     pipeline_ops,
     rife_ops,
     speedramp_ops,

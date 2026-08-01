@@ -680,6 +680,65 @@ input:checked + .slider:before {
   font-size: 0.8rem;
 }
 
+/* Image Sort sequence list — selection, not per-row buttons */
+.is-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.is-row:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.is-row.is-selected {
+  background: rgba(96, 165, 250, 0.12);
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
+.is-row.is-base .fm-name {
+  font-style: italic;
+}
+
+.is-base-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+  vertical-align: middle;
+}
+
+.is-score {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-family: 'Fira Code', monospace;
+}
+
+.is-order-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.is-order-bar .is-order-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-right: 2px;
+}
+
 .hidden {
   display: none !important;
 }

@@ -12,6 +12,7 @@ import { collectStyleTransferBody } from '/js/tabs/styletransfer.js';
 import { collectRifeBody } from '/js/tabs/rife.js';
 import { collectConvertBody } from '/js/tabs/convert.js';
 import { collectZoompanBody } from '/js/tabs/zoompan.js';
+import { collectImageSortBody } from '/js/tabs/imagesort.js';
 import { activeTransmuteOp, transmuteOpsDetails, activeMultiMode } from '/js/tabs/transmute.js';
 import { collectDeepDreamBody } from '/js/tabs/deepdream.js';
 // ── Job run / cooperative stop ────────────────────────────────────────────
@@ -429,6 +430,11 @@ async function runActiveOperation() {
     if (!zpBody) return;
     opId = 'zoompan';
     body = zpBody;
+  } else if (tab === 'imagesort') {
+    const isBody = collectImageSortBody();
+    if (!isBody) return;
+    opId = 'imagesort_rife';
+    body = isBody;
   } else if (tab === 'advanced') {
     const input = bestInput('advInput');
     const flagsStr = document.getElementById('advFlags')?.value || '';
@@ -471,7 +477,7 @@ async function runActiveOperation() {
   }[tab];
 
   // Ops that already batch lists themselves
-  const selfBatchTabs = new Set(['multi', 'facemorph', 'withoutbg', 'styletransfer', 'pool', 'sequence', 'images', 'cut', 'zoompan', 'notes', 'quick', 'watcher']);
+  const selfBatchTabs = new Set(['multi', 'facemorph', 'withoutbg', 'styletransfer', 'pool', 'sequence', 'images', 'cut', 'zoompan', 'notes', 'quick', 'watcher', 'imagesort']);
 
   let paths = [];
   if (batchField && !selfBatchTabs.has(tab)) {

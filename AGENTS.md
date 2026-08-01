@@ -82,6 +82,7 @@ Stage kinds:
 | RIFE | `rife_ops.py` + `filters/rife.py` | directory | ✅ stable |
 | speed ramp | `speedramp_ops.py` + `filters/speedramp.py` | directory remap | ✅ PNG remap (not setpts); audio dropped v1 |
 | zoompan (pan & zoom still→video) | `zoompan_ops.py` | — (ffmpeg crop) | ✅ image + two boxes |
+| image sort & RIFE | `imagesort_rife_ops.py` + `app/image_sort/` | multi-source → optional directory RIFE | ✅ sort stills → conform → optional RIFE → encode |
 | raw transmute | `transmute_ops.py` | — | ✅ escape hatch |
 
 `PngFramePipeline` removed (raises). Spec: `docs/filter-platform-spec.md`.
@@ -126,6 +127,12 @@ When modifying files at the root level or coordinating changes across components
 7. **Version Bumping**:
    - Bump far-right DD in VERSION for each feature (000.000.X.DD). Commit + push per change.
    - Bump third segment (000.000.X.0) for significant releases (new ops, major UI additions).
+8. **Progress Reporting (live updates)**:
+   - Every long-running ops handler MUST call `job_control.report_progress()` frequently — at least once per item in any per-frame/conform loop, and once before/after external binary calls.
+   - Each call must include `phase`, `current`, `total`, and `unit` so the UI can show elapsed/ETA.
+   - Phase names: `conform`, `sort`, `rife`, `encode`, etc. — short, lowercase, stable.
+   - For single-call directory/binary stages (e.g. RIFE), report before the call (`current=0`) and after (`current=total_est`). The binary provides no intermediate progress but the UI shows a live clock.
+   - Never batch progress updates at e.g. "every 10 items" — that creates dead time where the browser sees no change. Report every iteration.
 
 ---
 
