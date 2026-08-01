@@ -33,6 +33,7 @@ import { renderConvertForm, collectConvertBody } from '/js/tabs/convert.js';
 import { renderImagePoolForm } from '/js/pool/image-pool.js';
 import { renderCutForm } from '/js/tabs/cut.js';
 import { renderZoompanForm, collectZoompanBody } from '/js/tabs/zoompan.js';
+import { renderNotesForm } from '/js/tabs/notes.js';
 import {
   findPoolItem, displayFocusPath, setPoolHover, clearPoolHover,
   setPoolFocus, updateSelectionHighlights, updatePoolFocusFrame,
@@ -238,6 +239,7 @@ const TAB_ACCEPTS = {
   convert:     'any',
   cut:         'video',
   zoompan:     'image',
+  notes:       'none',
 };
 
 /** Tabs that show the global frame-range row (video pipeline / mosh / convert). */
@@ -319,6 +321,11 @@ function updateStatusIndicators() {
   rows.forEach(function(r) {
     var el = document.getElementById(r.elId);
     if (!el) return;
+    if (accepts === 'none') {
+      el.textContent = '';
+      el.title = '';
+      return;
+    }
     var val = (gi[r.key] || '').trim();
     if (!r.needs)      { el.textContent = '\u274C'; el.title = 'Not used by this tab'; }
     else if (val)      { el.textContent = '\u2705'; el.title = 'Active'; }
@@ -543,6 +550,7 @@ function switchTab(tab) {
   if (tab === 'convert') title = 'Convert / Export';
   if (tab === 'cut') title = 'Cut';
   if (tab === 'zoompan') title = 'Pan & Zoom';
+  if (tab === 'notes') title = 'Notes';
   // Library tabs: drop the big header title (sidebar already shows active item)
   if (tab === 'pool' || tab === 'sequence' || tab === 'images') title = '';
   elements.tabTitle.textContent = title;
@@ -551,7 +559,7 @@ function switchTab(tab) {
   if (elements.btnRun) {
     elements.btnRun.style.display = (
       tab === 'pool' || tab === 'sequence' || tab === 'images' || tab === 'cut'
-      || tab === 'quick' || tab === 'watcher'
+      || tab === 'quick' || tab === 'watcher' || tab === 'notes'
     ) ? 'none' : '';
   }
 
@@ -569,6 +577,9 @@ function switchTab(tab) {
       tab === 'pool' || tab === 'sequence' || tab === 'images'
     );
   }
+
+  // Notes: bare workspace (sidebar + two text boxes only)
+  document.body.classList.toggle('notes-tab-active', tab === 'notes');
 
   // Render Form for the Tab
   renderTabForm(tab);
@@ -619,6 +630,8 @@ function renderTabForm(tab) {
     renderCutForm();
   } else if (tab === 'zoompan') {
     renderZoompanForm();
+  } else if (tab === 'notes') {
+    renderNotesForm();
   }
 }
 import { probeGlobalVideo, setupGlobalTimeline, setupTimelineSlider } from '/js/timeline.js';

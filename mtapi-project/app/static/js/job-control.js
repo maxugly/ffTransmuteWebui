@@ -471,7 +471,7 @@ async function runActiveOperation() {
   }[tab];
 
   // Ops that already batch lists themselves
-  const selfBatchTabs = new Set(['multi', 'facemorph', 'withoutbg', 'styletransfer', 'pool', 'sequence', 'images', 'cut', 'zoompan', 'quick', 'watcher']);
+  const selfBatchTabs = new Set(['multi', 'facemorph', 'withoutbg', 'styletransfer', 'pool', 'sequence', 'images', 'cut', 'zoompan', 'notes', 'quick', 'watcher']);
 
   let paths = [];
   if (batchField && !selfBatchTabs.has(tab)) {
