@@ -1,10 +1,11 @@
 # Image Sort + Optional RIFE — Spec
 
-> **Status:** Ready for build  
-> **Audience:** Builder agents  
-> **Op id:** `imagesort_rife` → `POST /ops/imagesort_rife`  
+> **Status:** Implemented (as-built)  
+> **Shipped:** `000.000.4.41`+ (feature); UI polish through densify / list-keys / folder list API  
+> **Audience:** Builders & reviewers  
+> **Op ids:** `imagesort_rank` → `POST /ops/imagesort_rank`; `imagesort_rife` → `POST /ops/imagesort_rife`  
 > **Related:** `filter-platform-spec.md` §3.4 (multi-source generators), `rife-spec.md`, `facemorph-spec.md`, `video-image-pools-spec.md`  
-> **UI pattern:** Single multi-image list (facemorph / withoutbg / styletransfer `fm-list` family) — no separate “base path” field
+> **UI pattern:** Single multi-image list (`fm-list` family) — no separate “base path” field; **shared** order controls on selected row
 
 ---
 
@@ -24,7 +25,7 @@ single ordered list  (UI: [base★, …items…])
       │
       ├─ [Sort] ──► rank items 2..N vs list[0]; rewrite list order in UI
       │
-      ├─ [manual reorder] ──► drag / ↑↓ / ⤒⤓; click → preview
+      ├─ [manual reorder] ──► select row → shared ⤒↑↓⤓ / arrows + Ctrl+arrows; click → preview
       │
       ▼
  POST final image_paths in UI order  (list[0] = base)
@@ -88,17 +89,18 @@ duration_sec ≈ (K * M) / F
 
 ```text
 app/
-  image_sort/                    # NEW — pure ranking (no HTTP, no RIFE, no UI)
+  image_sort/                    # pure ranking + conform (no HTTP, no RIFE, no UI)
     __init__.py
     modes.py                     # mode registry + score functions
-    rank.py                      # rank_images(base, targets, mode, order) → RankedItem[]
+    rank.py                      # rank_images / rank_images_full
     conform.py                   # conform_image(src, dst, w, h, fit)
-  filters/rife.py                # EXISTING — run_rife_directory only
-  video_pipeline.py              # EXISTING — encode only
-  job_workspace.py               # EXISTING
+  filters/rife.py                # run_rife_directory only
+  video_pipeline.py              # encode only
+  job_workspace.py
   operations/
-    imagesort_rife_ops.py        # THIN run op + optional rank-only endpoint
+    imagesort_rife_ops.py        # thin run + imagesort_rank
   static/js/tabs/imagesort.js    # list + sort + reorder + preview + collect
+  static/js/ui/list-keys.js      # arrows select · Ctrl+arrows reorder (shared)
 ```
 
 | Module | Owns | Does not own |
@@ -106,16 +108,17 @@ app/
 | `image_sort` | Scores, sort, conform helpers | Job dirs, RIFE, SPA state |
 | `filters.rife` | Directory RIFE pass | Sorting / UI order |
 | `imagesort_rife_ops` | Validate ordered paths, workspace, optional RIFE, encode, rank-only JSON | Second RIFE binary path |
-| `imagesort.js` | List, base badge, preview, drag/buttons, Sort button, collect body | Server-side ranking math (calls API) |
+| `imagesort.js` | List, base badge, selection, shared order bar, Sort, collect body | Server-side ranking math (calls API) |
 
 ### Reuse vs redo
 
 | Piece | Action |
 |-------|--------|
-| Facemorph / withoutbg **list UI** (`fm-list`, add files/folder, ↑↓, remove) | **Reuse pattern** — extend with base styling, ⤒⤓, drag, click-preview. Prefer shared CSS classes (`fm-*` or a thin `image-list` partial) over a third one-off list. |
+| Facemorph / withoutbg **list UI** (`fm-list`, + Images / + Folder) | **Reuse pattern** — base styling + **shared** order bar (not per-row buttons). CSS: `.fm-*`, `.is-row`, `.is-base`, `.is-selected`. |
+| Folder expand | **`GET /api/images/list?path=`** (alias `/api/facemorph/list`); fallback `GET /api/pool/scan?kind=image`. |
 | `filters.rife.run_rife_directory` | **Reuse** |
 | `JobWorkspace` + `video_pipeline.encode` | **Reuse** (`mux_audio=False`) |
-| `media` pHash helpers | **Reuse for `phash` if clean**; else implement in `image_sort.modes` and backlog-migrate pool matching later |
+| Hash modes | Implemented in `image_sort.modes` (not coupled to thumb cache). Optional later: share with `media/thumbnails`. |
 | Facemorph ad-hoc scale | **Do not copy** — use `conform.py` |
 
 **Invariant:** no second RIFE subprocess path; no video dump for this op.
@@ -330,62 +333,64 @@ async def conform_image(src: Path, dst: Path, width: int, height: int, fit: str)
 
 Condenses chrome, matches how users already import multi-images (facemorph / withoutbg / styletransfer).
 
-### 9.2 Sequence list (extend `fm-list` pattern)
+### 9.2 Sequence list (as-built)
 
-**State:** `state.imageSort.images = [{ path, name, score? }, …]`  
-Index `0` is always **base**.
+**State:** `state.imageSort = { images: [{ path, name, score? }, …], folder, selected }`  
+Index `0` is always **base**. `selected` indexes the row that shared order buttons act on.
 
-**Row UI:**
+**List rows (no per-row button stack):**
 
 ```text
-[01] ★ BASE   name.png     [⤒] [↑] [↓] [⤓] [✕]
-[02]          other.png    [⤒] [↑] [↓] [⤓] [✕]
+[01] name.png  BASE     ← selected highlight when selected === 0
+[02] other.png
 ...
+```
+
+**Shared order bar (below list):**
+
+```text
+Selected: #02 · other.png   [⤒] [↑] [↓] [⤓] [✕]
 ```
 
 | Element | Behavior |
 |---------|----------|
 | Ordinal | 1-based display (`01`, `02`, …) |
-| Base badge | Row `0` only: e.g. class `is-base`, accent border/background, **italic** or bold label `BASE` / ★ |
-| Click row | Select + show **preview** (see §9.3) |
-| Drag handle / whole row | HTML5 drag-and-drop reorder (or pointer drag if project already has a helper) |
-| ↑ / ↓ | Swap with neighbor |
-| ⤒ To top | Move to index 0 → **becomes new base** (restyle rows) |
-| ⤓ To bottom | Move to end |
-| ✕ | Remove; if base removed, new index 0 becomes base (restyle) |
-| + Images / + Folder / Clear | Same as facemorph |
-| Optional “From global images” | `resolveGlobalImages()` append |
+| Base badge | Row `0` only: class `is-base` + **BASE** badge (italic name) |
+| Click row | Set `selected` + `showPreview(path)` (global preview panel) |
+| Shared ⤒ / ↑ / ↓ / ⤓ / ✕ | Act on **selected** row only (not duplicated per row) |
+| Keyboard | **Arrows** → move selection; **Ctrl+arrows** → reorder selected item (`list-keys.js`) |
+| + Images / + Folder / Sort / Clear | Toolbar under list |
+| + Folder | Expand via **`GET /api/images/list?path=`** (then re-render list) |
 
 **Rules:**
 
-- Promoting any row to top makes it the base (conform + future Sort anchor).
+- Promoting any row to top (⤒) makes it the base (conform + future Sort anchor).
 - Sort **keeps** current index 0 fixed; only reorders `1..N-1`.
-- Empty / single-item: disable Sort and Run with hint “need at least 2 images”.
+- Empty / single-item: disable Sort; Run needs ≥2 images.
 - After rank response, rewrite list order; show score as muted subtitle when present.
+- **No HTML5 drag-and-drop** in v1 (backlog).
 
-**CSS:** extend `forms.css` `.fm-*` or add `.is-list` / `.is-base` next to facemorph — do not invent a parallel layout language unless necessary.
+**CSS:** `forms.css` — `.fm-list`, `.is-row`, `.is-base`, `.is-selected`, `.is-order-bar`, dense form chrome.
 
-### 9.3 Preview pane
+### 9.3 Preview
 
-- Beside or above the list: fixed-height preview (`object-fit: contain`).
-- **Click** a row (or select via keyboard later) → preview that path via existing media URL pattern if any (`/api/...` thumb) or `file://` is **not** available in browser — use whatever facemorph/pool uses for still preview (e.g. cache thumb by path, or a small `/api/media/preview?path=` if it exists).
-- If no thumb API: show basename + path and a “open in Image Pool” hint rather than broken `<img>`. Prefer reusing Image Pool / thumbnail endpoints when cheap.
-- Preview updates on select after reorder/sort.
+- **Click** or keyboard-select a row → `showPreview(path)` (main media viewer), not a private pane in the form.
+- Preview updates after reorder / sort when selection is preserved by path.
 
 ### 9.4 Other controls
 
+Dense form rows / knob rows (project-wide densify):
+
 | Control | Maps to |
 |---------|---------|
-| Sort mode `<select>` | `sort_mode` (rank + optional auto_sort) |
-| Sort order nearest / farthest | `sort_order` |
-| **Sort list** button | `POST` rank → replace list order |
-| **Use RIFE** | `use_rife` |
-| Multiplier 2–8 | `multiplier` (disabled if RIFE off) |
-| Model / TTA / UHD | RIFE only; hide/disable if off |
-| FPS / fit / CRF / dry run / keep frames / output | as §5.4 |
-| **Run** | `POST /ops/imagesort_rife` with `image_paths` in list order, `auto_sort: false` |
+| Sort mode / order / fit | selects (packed on one row in as-built UI) |
+| **Sort** button | `POST /ops/imagesort_rank` → replace list order |
+| **Use RIFE** + multiplier / TTA / UHD / model | RIFE knobs; model row when RIFE on |
+| FPS / CRF / keep frames / dry run | encode knobs |
+| Output path | optional Save As |
+| **Run** | `POST /ops/imagesort_rife`, `auto_sort: false` |
 
-Duration estimate under list: `~${(K * (useRife?M:1) / fps).toFixed(2)}s`.
+Duration estimate in header: `~${(K * (useRife?M:1) / fps).toFixed(2)}s`.
 
 ### 9.5 Collect body
 
@@ -398,32 +403,32 @@ Duration estimate under list: `~${(K * (useRife?M:1) / fps).toFixed(2)}s`.
 }
 ```
 
-No `base_image` key.
+No `base_image` key. Prefer expanded `image_paths` after folder import (do not rely on deferred `image_dir` alone).
 
 ### 9.6 Wiring
 
-- `js/tabs/imagesort.js` — `renderImageSortForm`, `collectImageSortBody`, list event handlers  
-- `app.js` — nav **Image Sort → Video**, import, run  
-- `job-control.js` — register collect if required  
+- `js/tabs/imagesort.js` — `renderImageSortForm`, `collectImageSortBody`, list + `registerListKeys('imagesort', …)`  
+- `app.js` — nav **Image Sort**, import, run  
+- `job-control.js` — `collectImageSortBody` → op `imagesort_rife`  
 
 ---
 
-## 10. Files to create / touch
+## 10. Files (as-built)
 
-| Path | Action |
-|------|--------|
-| `app/image_sort/__init__.py` | New package |
+| Path | Role |
+|------|------|
+| `app/image_sort/__init__.py` | Package exports |
 | `app/image_sort/modes.py` | Mode registry |
-| `app/image_sort/rank.py` | `rank_images` |
+| `app/image_sort/rank.py` | `rank_images` / `rank_images_full` |
 | `app/image_sort/conform.py` | `conform_image` |
-| `app/operations/imagesort_rife_ops.py` | Run + rank registration |
+| `app/operations/imagesort_rife_ops.py` | `imagesort_rank` + `imagesort_rife` |
 | `app/operations/__init__.py` | Import |
-| `app/static/js/tabs/imagesort.js` | List / sort / reorder / preview / collect |
-| `app/static/css/forms.css` (or small CSS) | `.is-base`, drag cursor, preview box |
-| `app/static/app.js` | Nav + wiring |
-| `app/static/js/job-control.js` | If needed |
-| Root `VERSION` | Far-right DD |
-| AGENTS.md op table | Optional row |
+| `app/routes/meta.py` | `GET /api/images/list` (+ facemorph list alias) |
+| `app/static/js/tabs/imagesort.js` | Tab UI |
+| `app/static/js/ui/list-keys.js` | Keyboard list nav/reorder |
+| `app/static/css/forms.css` | List + dense chrome |
+| `app/static/app.js` / `index.html` / `job-control.js` | Nav + run wiring |
+| Root `VERSION` / `AGENTS.md` | Registry row |
 
 **Do not** register sort as a `filters/*` chain stage. **Do not** use `PngFramePipeline`.
 
@@ -443,13 +448,13 @@ ffmpeg -y -f lavfi -i "color=c=green:s=320x180:d=1" -frames:v 1 /tmp/is_green.pn
 ### WebUI (required for DONE)
 
 1. Tab opens; **one** sequence list; **no** separate base field; no console errors.  
-2. Add four images; first row shows **BASE** styling.  
-3. Click rows → preview updates.  
+2. Add four images (or **+ Folder** → list populates via `/api/images/list`); first row shows **BASE** styling.  
+3. Click rows → selection + global preview updates.  
 4. **Sort** (`colorhash`, nearest) → order changes; base stays #1; scores visible if shown.  
-5. Manually **drag** or ⤒/↓ a non-base row; Run with RIFE M=4 fps=24 → `ok: true`, duration ~`(4*4)/24` s.  
+5. Select a non-base row; use shared **⤒ / ↑ / ↓ / ⤓** or **Ctrl+arrows**; Run with RIFE M=4 fps=24 → `ok: true`, duration ~`(4*4)/24` s.  
 6. Promote another image to top → it becomes base; Sort anchors on it.  
 7. RIFE off → keyframe-only shorter clip.  
-8. `< 2` images → Sort/Run disabled or `ok: false`.  
+8. `< 2` images → Sort disabled / Run `ok: false`.  
 9. Mixed aspect ratios → letterbox, no RIFE crash.
 
 ### Curl rank + run
@@ -468,14 +473,16 @@ curl -s -X POST http://localhost:24590/ops/imagesort_rife \
 
 ---
 
-## 12. Backlog (do not block v1)
+## 12. Backlog (post-v1)
 
-1. Shared hash helpers → migrate `media/match.py` / thumbnails.  
-2. Shared multi-image list component (facemorph / this tab / withoutbg).  
+1. Shared hash helpers → migrate `media/match.py` / thumbnails onto `image_sort.modes`.  
+2. Shared multi-image list component (facemorph / this tab / withoutbg / styletransfer).  
 3. Smarter path order (TSP / embeddings).  
-4. Image Pool “send selection here”.  
-5. Keyboard reorder / accessibility pass.  
-6. Preview via dedicated thumb API if missing.
+4. Image Pool “send selection here” / from global image bar.  
+5. HTML5 **drag-and-drop** reorder (keyboard + shared bar already ship).  
+6. Persist Image Sort list + knobs in desk/project snapshot (see universal persistence work).  
+
+**Done since original draft:** keyboard select/reorder (`list-keys.js`); folder expand via `/api/images/list`; shared order bar; dense UI.
 
 ---
 
@@ -485,21 +492,23 @@ curl -s -X POST http://localhost:24590/ops/imagesort_rife \
 - Server re-sorting on every Run from the WebUI (`auto_sort` stays false there).  
 - Audio; video inputs as keyframes.  
 - Chain registry stage for sort.  
-- Guaranteed smooth morphs under pure radial sort (manual order is the fix).
+- Guaranteed smooth morphs under pure radial sort (manual order is the fix).  
+- Per-row control buttons / drag-and-drop (replaced by selection + shared bar + keyboard).
 
 ---
 
-## 14. Builder checklist
+## 14. Builder checklist (as-built)
 
-- [ ] `app/image_sort` — modes + rank + conform  
-- [ ] `imagesort_rank` (or action=rank) returns ordered_paths + scores  
-- [ ] `imagesort_rife` trusts `image_paths`; `auto_sort` default false  
-- [ ] Optional RIFE + encode; verbose stdout  
-- [ ] WebUI: single list, base styling on #1, no base box  
-- [ ] Preview on click; drag + ↑↓ + ⤒⤓ + remove  
-- [ ] Sort button → rank → rewrite list  
-- [ ] Run with `auto_sort: false`  
-- [ ] WebUI verification §11  
-- [ ] VERSION DD bump  
+- [x] `app/image_sort` — modes + rank + conform  
+- [x] `imagesort_rank` returns `ordered_paths` + scores  
+- [x] `imagesort_rife` trusts `image_paths`; `auto_sort` default false  
+- [x] Optional RIFE + encode; verbose stdout  
+- [x] WebUI: single list, base styling on #1, no base box  
+- [x] Preview on select (`showPreview`); shared ⤒↑↓⤓✕ bar  
+- [x] Arrows select · Ctrl+arrows reorder  
+- [x] + Folder → `/api/images/list` populates list  
+- [x] Sort button → rank → rewrite list  
+- [x] Run with `auto_sort: false`  
+- [x] VERSION / AGENTS registry  
 
-**Pattern:** facemorph list UX + rife directory stage + this spec’s ordered-path run contract.
+**Pattern:** facemorph-style multi-image list + rife directory stage + client-owned ordered-path run contract.
