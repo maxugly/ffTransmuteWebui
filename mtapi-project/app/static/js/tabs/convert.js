@@ -56,19 +56,15 @@ const AUTO_NAMES = {
 
 function renderConvertForm() {
   const html = `
-    <div class="panel-title-desc">
+    <div class="panel-title-desc dense">
       <h3>Convert / Export</h3>
-      <p>
-        Re-encode between codecs and dump/import image sequences.
-        Supports intermediates (ProRes, DNxHR), delivery (H.264, H.265, VP9, AV1),
-        archival (FFV1), and frame folders (PNG, WebP, JPG, TIFF).
-        <strong>Not</strong> geometry. <strong>Not</strong> Watcher batch.
-        GIF import supported. PNG is the shared pipeline language.
+      <p class="dream-hint">
+        Codecs &amp; frame dumps (ProRes/DNxHR · H.264/265 · FFV1 · PNG seq). Not geometry / Watcher.
       </p>
     </div>
 
-    <div class="form-group">
-      <label for="convertTarget">Target format / codec</label>
+    <div class="form-row">
+      <label for="convertTarget">Target</label>
       <select id="convertTarget">
         ${Object.entries(GROUP_LABELS).map(([group, groupLabel]) => `
           <optgroup label="${groupLabel}">
@@ -78,24 +74,24 @@ function renderConvertForm() {
           </optgroup>
         `).join('')}
       </select>
-      <div class="field-desc" id="convertTargetHelp" style="margin-top:8px;"></div>
+      <p class="form-row-hint" id="convertTargetHelp"></p>
     </div>
 
-    <div class="form-group">
-      <label for="convertInput">Input path <span class="field-desc">(video, animated GIF, or folder of stills)</span></label>
+    <div class="form-row">
+      <label for="convertInput">Input</label>
       <div class="input-row">
-        <input type="text" id="convertInput" placeholder="/absolute/path/to/clip.mp4 \xB7 folder of frames/ \xB7 anim.gif">
+        <input type="text" id="convertInput" placeholder="video · GIF · frames folder">
         <button class="btn" type="button" id="btnConvertBrowseIn">Browse</button>
       </div>
     </div>
 
-    <div class="form-group">
-      <label for="convertOutput">Output path <span class="field-desc">(blank = auto-name next to source)</span></label>
+    <div class="form-row">
+      <label for="convertOutput">Output</label>
       <div class="input-row">
-        <input type="text" id="convertOutput" placeholder="auto: name_h264_avc.mp4 or name_frames_png/">
+        <input type="text" id="convertOutput" placeholder="blank = auto next to source">
         <button class="btn" type="button" id="btnConvertBrowseOut">Save As</button>
       </div>
-      <div class="field-desc" id="convertOutputHint" style="margin-top:4px;">Output will be auto-named next to the source.</div>
+      <p class="form-row-hint" id="convertOutputHint">auto-named next to source</p>
     </div>
 
     <div class="form-group" id="convertFpsGroup">

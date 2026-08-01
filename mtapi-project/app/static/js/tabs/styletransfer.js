@@ -24,73 +24,62 @@ function renderStyleTransferForm() {
   const hasVideo = contents.some((c) => isVideoPath(c.path));
 
   const html = `
-    <div class="panel-title-desc">
+    <div class="panel-title-desc dense">
       <h3>Neural style transfer</h3>
       <p class="dream-hint">
-        Magenta <strong>arbitrary stylization</strong> (TF-Hub) — one ~90&nbsp;MB model,
-        unlimited styles via a reference image (painting, glass, texture…).
-        <strong>Video</strong> uses the filter platform:
-        dump → <code>filters.styletransfer</code> (per-frame) → encode.
+        Magenta arbitrary stylization (~90&nbsp;MB). Stills batch · video = dump → per-frame → encode.
+        ${hasVideo ? ' <strong>Video mode:</strong> one clip (not mixed with stills).' : ''}
       </p>
     </div>
 
-    <div class="styletransfer-banner" style="background:rgba(59,130,246,0.1); border:1px solid rgba(59,130,246,0.28); border-radius:6px; padding:10px 14px; font-size:0.82rem; color:#93c5fd; margin-bottom:12px;">
-      Content = global <strong>Video</strong> or <strong>Image</strong> bar, or the list below.
-      Style image is required. For video, use the global <strong>Frame range</strong> to trim.
-      ${hasVideo ? '<br><strong>Video mode:</strong> one clip at a time (not mixed with stills in one run).' : ''}
-    </div>
-
-    <div class="form-group">
-      <label>Content (${contents.length}) — images and/or one video</label>
-      <div class="fm-list" id="stContentList">${listHtml}</div>
-      <div class="input-row" style="margin-top:8px; flex-wrap:wrap;">
-        <button type="button" class="btn btn-primary" id="btnStAddContent">+ Images</button>
-        <button type="button" class="btn" id="btnStAddVideo">+ Video</button>
-        <button type="button" class="btn" id="btnStAddFolder">+ Folder</button>
-        <button type="button" class="btn" id="btnStFromGlobal">From global bars</button>
-        <button type="button" class="btn" id="btnStClearContent" ${contents.length ? '' : 'disabled'}>Clear</button>
+    <div class="form-group" style="margin-bottom:6px">
+      <div class="form-row" style="margin-bottom:3px">
+        <label>Content (${contents.length})</label>
+        <div class="sort-toolbar" style="margin:0; flex:1">
+          <button type="button" class="btn btn-primary" id="btnStAddContent">+ Images</button>
+          <button type="button" class="btn" id="btnStAddVideo">+ Video</button>
+          <button type="button" class="btn" id="btnStAddFolder">+ Folder</button>
+          <button type="button" class="btn" id="btnStFromGlobal">Globals</button>
+          <button type="button" class="btn" id="btnStClearContent" ${contents.length ? '' : 'disabled'}>Clear</button>
+        </div>
+        <p class="form-row-hint">stills → <code>*_styled.png</code> · video → <code>*_styled.mp4</code></p>
       </div>
-      <span class="field-desc">
-        Stills → <code>*_styled.png</code> next to each source.
-        Video → <code>*_styled.mp4</code> (never overwrites; uses <code>_0001</code>, …).
-      </span>
+      <div class="fm-list" id="stContentList">${listHtml}</div>
     </div>
 
-    <div class="form-group">
-      <label>Style image (required)</label>
+    <div class="form-row">
+      <label for="stStylePath">Style</label>
       <div class="input-row">
-        <input type="text" id="stStylePath" placeholder="~/art/stained_glass.jpg"
+        <input type="text" id="stStylePath" placeholder="required: painting / texture still"
           value="${stylePath ? escapeHtml(stylePath) : ''}">
         <button type="button" class="btn" id="btnStStyleBrowse">Browse</button>
       </div>
-      <p class="dream-hint" style="margin-top:4px">
-        Any RGB still: Van Gogh crop, brush texture, mosaic photo…
-      </p>
     </div>
-
-    <div class="form-group">
-      <label>Output (optional — leave blank to write next to source)</label>
+    <div class="form-row">
+      <label for="stOutput">Output</label>
       <div class="input-row">
-        <input type="text" id="stOutput" placeholder="optional Save As (.png still or .mp4 video)">
+        <input type="text" id="stOutput" placeholder="blank = next to source">
         <button type="button" class="btn" id="btnStOutBrowse">Save As</button>
       </div>
-      <div class="input-row" style="margin-top:6px;">
-        <input type="text" id="stOutputDir" placeholder="optional shared output folder for batch stills">
+    </div>
+    <div class="form-row">
+      <label for="stOutputDir">Batch dir</label>
+      <div class="input-row">
+        <input type="text" id="stOutputDir" placeholder="optional shared folder for stills">
         <button type="button" class="btn" id="btnStOutDirBrowse">Folder</button>
       </div>
     </div>
 
-    <div class="dream-section-title">Knobs</div>
-    <div class="knob-bank">
-      ${knobUnitHtml({ id: 'stStrength', label: 'Strength', value: '1.0' })}
-      ${knobUnitHtml({ id: 'stMaxSide', label: 'Max side', value: '1280' })}
-      ${knobUnitHtml({ id: 'stDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+    <div class="knob-row">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'stStrength', label: 'Strength', value: '1.0' })}
+        ${knobUnitHtml({ id: 'stMaxSide', label: 'Max side', value: '1280' })}
+        ${knobUnitHtml({ id: 'stDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+      </div>
+      <p class="knob-row-legend">
+        <strong>Strength</strong> 1 = full style. <strong>Max side</strong> 0 = full res (video: per frame).
+      </p>
     </div>
-    <p class="dream-hint">
-      Strength blends stylized with original (1 = full style).
-      Max side caps content resolution for RAM/speed — 0 = full size (video: per frame).
-      Model cache ~90&nbsp;MB; video is dump → per-frame stylize → encode.
-    </p>
   `;
   elements.actionPanel.innerHTML = html;
 

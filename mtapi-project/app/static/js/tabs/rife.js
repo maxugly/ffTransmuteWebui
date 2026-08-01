@@ -6,60 +6,48 @@ import { withFrameRange } from '/js/utils.js';
 
 function renderRifeForm() {
   const html = `
-    <div class="panel-title-desc">
-      <h3>RIFE · AI Frame Interpolation</h3>
-      <p class="dream-hint">
-        <strong>RIFE</strong> (Real-Time Intermediate Flow Estimation) via ncnn-vulkan.
-        GPU-accelerated AI slow-motion. Doubles or quadruples frame rate with
-        neural in-between frames. Models: rife-v4.6 (newest, cleanest), v4, v2.4, v2.3.
-      </p>
+    <div class="panel-title-desc dense">
+      <h3>RIFE · AI frame interpolation</h3>
+      <p class="dream-hint">ncnn-vulkan slow-mo — neural in-betweens. Models: v4.6 (cleanest), v4, v2.4, v2.3.</p>
     </div>
 
-    <div class="form-group">
-      <label>Input video</label>
+    <div class="form-row">
+      <label for="rifeInput">Input</label>
       <div class="input-row">
         <input type="text" id="rifeInput" placeholder="/absolute/path/to/video.mp4">
         <button class="btn" type="button" id="btnRifeBrowseIn">Browse</button>
       </div>
     </div>
-
-    <div class="form-group">
-      <label>Output path (blank = auto next to source)</label>
+    <div class="form-row">
+      <label for="rifeOutput">Output</label>
       <div class="input-row">
-        <input type="text" id="rifeOutput" placeholder="auto: name_rife2x_rife-v4.6.mp4">
+        <input type="text" id="rifeOutput" placeholder="blank = auto next to source">
         <button class="btn" type="button" id="btnRifeBrowseOut">Save As</button>
       </div>
     </div>
 
-    <div class="dream-section-title">Interpolation</div>
-    <div class="knob-bank">
-      ${knobUnitHtml({ id: 'rifeMultiplier', label: 'Multiplier', value: '2' })}
-    </div>
-    <p class="dream-hint">
-      Frame multiplier. 2 = double FPS (one synthetic between each real),
-      3 = triple, 4 = quadruple. 24fps × 4 = 96fps slow-mo.
-    </p>
-
-    <div class="form-group">
-      <label>RIFE model</label>
+    <div class="form-row">
+      <label for="rifeModel">Model</label>
       <select id="rifeModel">
-        <option value="rife-v4.6" selected>rife-v4.6 — newest, cleanest (recommended)</option>
-        <option value="rife-v4">rife-v4 — stable, slightly faster</option>
-        <option value="rife-v2.4">rife-v2.4 — older variant</option>
-        <option value="rife-v2.3">rife-v2.3 — oldest, fastest</option>
+        <option value="rife-v4.6" selected>rife-v4.6 — newest, cleanest</option>
+        <option value="rife-v4">rife-v4 — stable, faster</option>
+        <option value="rife-v2.4">rife-v2.4</option>
+        <option value="rife-v2.3">rife-v2.3 — fastest</option>
       </select>
     </div>
 
-    <div class="dream-section-title">Quality</div>
-    <div class="knob-bank">
-      ${knobUnitHtml({ id: 'rifeTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-      ${knobUnitHtml({ id: 'rifeUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-      ${knobUnitHtml({ id: 'rifeDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+    <div class="knob-row">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'rifeMultiplier', label: 'Multiplier', value: '2' })}
+        ${knobUnitHtml({ id: 'rifeTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'rifeUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'rifeDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+      </div>
+      <p class="knob-row-legend">
+        <strong>Multiplier</strong> — 2 = double FPS, 4 = quadruple (24→96).<br>
+        <strong>TTA</strong> — cleaner, ~2× slower. <strong>UHD</strong> — 4K+ (more VRAM).
+      </p>
     </div>
-    <p class="dream-hint">
-      <strong>TTA</strong> (test-time augmentation) — spatial+temporal tiling, cleaner but ~2x slower.<br>
-      <strong>UHD</strong> — ultra-high-def mode for 4K+ sources (higher VRAM).
-    </p>
   `;
   elements.actionPanel.innerHTML = html;
 

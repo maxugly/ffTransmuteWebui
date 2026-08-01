@@ -25,46 +25,38 @@ function renderTransmuteForm() {
   });
 
   const html = `
-    <div class="panel-title-desc">
+    <div class="panel-title-desc dense">
       <h3>Single-Clip Operations</h3>
-      <p>Quick filters to extract frames/audio, change geometry, crop, pad, or reverse files. Fast stream-copy and standard transcoding.</p>
+      <p class="dream-hint">Extract frames/audio, geometry, crop, pad, reverse — stream-copy when possible.</p>
     </div>
 
-    <div class="form-group">
-      <label>Select Operation</label>
-      <select id="transmuteOpSelect">
-        ${optionsHtml}
-      </select>
+    <div class="form-row">
+      <label for="transmuteOpSelect">Op</label>
+      <select id="transmuteOpSelect">${optionsHtml}</select>
     </div>
-
-    <div class="form-group">
-      <label>Input File</label>
+    <div class="form-row">
+      <label for="transmuteInput">Input</label>
       <div class="input-row">
         <input type="text" id="transmuteInput" placeholder="/absolute/path/to/input.mp4">
         <button class="btn" onclick="openFileBrowser('transmuteInput', false)">Browse</button>
       </div>
-      <span class="field-desc">Choose a video file to transmute.</span>
     </div>
-
-    <div class="form-group">
-      <label>Output File <span style="font-weight: normal; font-size: 0.75rem; color: var(--text-muted);">(Optional)</span></label>
+    <div class="form-row">
+      <label for="transmuteOutput">Output</label>
       <div class="input-row">
-        <input type="text" id="transmuteOutput" placeholder="Leave empty for auto-naming">
+        <input type="text" id="transmuteOutput" placeholder="blank = auto next to input">
         <button class="btn" onclick="openFileBrowser('transmuteOutput', false, 'file_save')">Save As</button>
       </div>
-      <span class="field-desc">If blank, output will be auto-named and saved in the input directory.</span>
     </div>
 
-    <!-- Extra Params Container -->
-    <div id="transmuteExtras">
-      <!-- Injected dynamically -->
-    </div>
+    <div id="transmuteExtras"></div>
 
-    <div class="dream-section-title">Run</div>
-    <div class="knob-bank">
-      ${knobUnitHtml({ id: 'transmuteDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+    <div class="knob-row">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'transmuteDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+      </div>
+      <p class="knob-row-legend">Dry = print command only, no file written.</p>
     </div>
-    <p class="dream-hint">Dry = print shell command only, no file written.</p>
   `;
 
   elements.actionPanel.innerHTML = html;
@@ -95,55 +87,52 @@ function updateTransmuteExtras() {
   if (fields.includes('quality')) {
     const isPng = activeTransmuteOp === 'first_frame';
     const desc = isPng
-      ? 'PNG compression scale. 2–31, lower is higher quality.'
-      : 'JPEG compression scale. 2–31, lower is higher quality.';
+      ? 'PNG quality 2–31 (lower = better).'
+      : 'JPEG quality 2–31 (lower = better).';
     html += `
-      <div class="dream-section-title">Extract</div>
-      <div class="knob-bank">
-        ${knobUnitHtml({ id: 'transmuteQuality', label: 'Quality', value: '2' })}
+      <div class="knob-row">
+        <div class="knob-bank">
+          ${knobUnitHtml({ id: 'transmuteQuality', label: 'Quality', value: '2' })}
+        </div>
+        <p class="knob-row-legend">${desc}</p>
       </div>
-      <p class="dream-hint">${desc}</p>
     `;
   }
 
   if (fields.includes('seconds_from_end')) {
     html += `
-      <div class="dream-section-title">Seek</div>
-      <div class="knob-bank">
-        ${knobUnitHtml({ id: 'transmuteSecondsFromEnd', label: 'From end (s)', value: '0.1' })}
+      <div class="knob-row">
+        <div class="knob-bank">
+          ${knobUnitHtml({ id: 'transmuteSecondsFromEnd', label: 'From end (s)', value: '0.1' })}
+        </div>
+        <p class="knob-row-legend">Seconds before end to grab the frame.</p>
       </div>
-      <p class="dream-hint">How far from the end of the clip to seek before grabbing the frame.</p>
     `;
   }
 
   if (fields.includes('width') || fields.includes('height')) {
     html += `
-      <div class="dream-section-title">Size</div>
-      <div class="knob-bank">
-        ${knobUnitHtml({ id: 'transmuteWidth', label: 'Width', value: '1920' })}
-        ${knobUnitHtml({ id: 'transmuteHeight', label: 'Height', value: '1080' })}
+      <div class="knob-row">
+        <div class="knob-bank">
+          ${knobUnitHtml({ id: 'transmuteWidth', label: 'Width', value: '1920' })}
+          ${knobUnitHtml({ id: 'transmuteHeight', label: 'Height', value: '1080' })}
+        </div>
+        <p class="knob-row-legend">Pixels (prefer even).</p>
       </div>
-      <p class="dream-hint">Resolution in pixels (prefer even numbers).</p>
     `;
   }
 
   if (fields.includes('speed_ramp')) {
     html += `
-    <div class="dream-section-title">Speed Ramp</div>
-
-    <div class="knob-bank">
-      ${knobUnitHtml({ id: 'rampDirection', label: 'Direction', value: 'spin_down', binary: true, leftCap: 'Spin Up', rightCap: 'Spin Down' })}
+    <div class="knob-row">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'rampDirection', label: 'Direction', value: 'spin_down', binary: true, leftCap: 'Spin Up', rightCap: 'Spin Down' })}
+        ${knobUnitHtml({ id: 'rampDuration', label: 'Duration (s)', value: '5.0' })}
+        ${knobUnitHtml({ id: 'rampStartSpeed', label: 'Start ×', value: '4.0' })}
+        ${knobUnitHtml({ id: 'rampEndSpeed', label: 'End ×', value: '0.33' })}
+      </div>
+      <p class="knob-row-legend" id="rampInfoLine">Set knobs to see required source duration.</p>
     </div>
-
-    <div class="knob-bank">
-      ${knobUnitHtml({ id: 'rampDuration', label: 'Duration (s)', value: '5.0' })}
-      ${knobUnitHtml({ id: 'rampStartSpeed', label: 'Start ×', value: '4.0' })}
-      ${knobUnitHtml({ id: 'rampEndSpeed', label: 'End ×', value: '0.33' })}
-    </div>
-
-    <p class="dream-hint" id="rampInfoLine" style="margin-top: 8px;">
-      Set parameters above to see required source duration.
-    </p>
   `;
   }
 

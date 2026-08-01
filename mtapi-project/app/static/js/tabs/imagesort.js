@@ -143,107 +143,91 @@ function renderImageSortForm() {
     : 'none selected';
 
   var html = `
-    <div class="panel-title-desc">
+    <div class="panel-title-desc dense">
       <h3>Image Sort → Video</h3>
       <p class="dream-hint">
-        Build an ordered stills list (<strong>#1 = base</strong>). Sort #2…N by likeness to the base (<code>phash</code>, <code>ahash</code>, <code>colorhash</code>, <code>mse</code>, <code>ssim</code>),
-        reorder the <strong>selected</strong> row, conform all to base dimensions, optionally interpolate with RIFE, encode to video.
-        <strong>Duration = keyframes × multiplier ÷ fps</strong> (~<span id="isDurHint">${dur}</span>s).
+        <strong>#1 = base</strong> · sort #2…N · optional RIFE · encode.
+        Duration = K × M ÷ fps (~<span id="isDurHint">${dur}</span>s).
       </p>
     </div>
 
-    <div class="form-group">
-      <label>Stills sequence (${images.length} images)</label>
+    <div class="form-group" style="margin-bottom:6px">
+      <div class="form-row" style="margin-bottom:3px">
+        <label>Stills (${images.length})</label>
+        <div class="sort-toolbar" style="margin:0; flex:1">
+          <button type="button" class="btn btn-primary" id="btnIsAddFiles">+ Images</button>
+          <button type="button" class="btn" id="btnIsAddFolder">+ Folder</button>
+          <button type="button" class="btn" id="btnIsSort" ${images.length < 2 ? 'disabled' : ''}>Sort</button>
+          <button type="button" class="btn" id="btnIsClear" ${images.length ? '' : 'disabled'}>Clear</button>
+        </div>
+        <p class="form-row-hint">Click row = select + preview · Sort re-ranks #2…N only</p>
+      </div>
       <div class="fm-list" id="isList" role="listbox">${listHtml}</div>
       <div class="is-order-bar" id="isOrderBar">
-        <span class="is-order-label">Selected:</span>
         <span class="is-order-label" id="isSelLabel">${escapeHtml(selName)}</span>
-        <button type="button" class="btn" id="btnIsTop" title="Move selected to top (new base)" ${!images.length || sel <= 0 ? 'disabled' : ''}>⤒ Top</button>
-        <button type="button" class="btn" id="btnIsUp" title="Move selected up" ${!images.length || sel <= 0 ? 'disabled' : ''}>↑</button>
-        <button type="button" class="btn" id="btnIsDown" title="Move selected down" ${!images.length || sel >= images.length - 1 ? 'disabled' : ''}>↓</button>
-        <button type="button" class="btn" id="btnIsBtm" title="Move selected to bottom" ${!images.length || sel >= images.length - 1 ? 'disabled' : ''}>⤓ Bottom</button>
-        <button type="button" class="btn" id="btnIsRm" title="Remove selected" ${!images.length ? 'disabled' : ''}>✕ Remove</button>
+        <button type="button" class="btn" id="btnIsTop" title="To top (new base)" ${!images.length || sel <= 0 ? 'disabled' : ''}>⤒</button>
+        <button type="button" class="btn" id="btnIsUp" title="Up" ${!images.length || sel <= 0 ? 'disabled' : ''}>↑</button>
+        <button type="button" class="btn" id="btnIsDown" title="Down" ${!images.length || sel >= images.length - 1 ? 'disabled' : ''}>↓</button>
+        <button type="button" class="btn" id="btnIsBtm" title="To bottom" ${!images.length || sel >= images.length - 1 ? 'disabled' : ''}>⤓</button>
+        <button type="button" class="btn" id="btnIsRm" title="Remove" ${!images.length ? 'disabled' : ''}>✕</button>
       </div>
-      <div class="sort-toolbar">
-        <button type="button" class="btn btn-primary" id="btnIsAddFiles">+ Images</button>
-        <button type="button" class="btn" id="btnIsAddFolder">+ Folder</button>
-        <button type="button" class="btn" id="btnIsSort" ${images.length < 2 ? 'disabled' : ''}>Sort list</button>
-        <button type="button" class="btn" id="btnIsClear" ${images.length ? '' : 'disabled'}>Clear</button>
-      </div>
-      <p class="dream-hint">
-        Click a row to select + preview. One button set moves the selection. + Folder expands into the list. Sort re-ranks #2…N only.
-      </p>
     </div>
 
-    <div class="form-group">
-      <label>Output video (blank = auto)</label>
+    <div class="form-row">
+      <label for="isOutput">Output</label>
       <div class="input-row">
-        <input type="text" id="isOutput" placeholder="auto: first-stem_imagesort_rife4x.mp4">
+        <input type="text" id="isOutput" placeholder="blank = auto">
         <button type="button" class="btn" id="btnIsOutBrowse">Save As</button>
       </div>
     </div>
 
-    <div class="dream-section-title">Sort</div>
-    <div class="form-group">
-      <label>Sort mode</label>
+    <div class="form-row">
+      <label for="isSortMode">Mode</label>
       <select id="isSortMode">
-        <option value="phash" selected>pHash — perceptual hash (Hamming)</option>
-        <option value="ahash">aHash — average hash (fast)</option>
-        <option value="colorhash">colorhash — color layout</option>
-        <option value="mse">MSE — mean squared error (pixel)</option>
-        <option value="ssim">SSIM — structural similarity (1 − SSIM)</option>
+        <option value="phash" selected>pHash</option>
+        <option value="ahash">aHash</option>
+        <option value="colorhash">colorhash</option>
+        <option value="mse">MSE</option>
+        <option value="ssim">SSIM</option>
       </select>
-    </div>
-    <div class="form-group">
-      <label>Sort order</label>
+      <label for="isSortOrder">Order</label>
       <select id="isSortOrder">
-        <option value="nearest_first" selected>Nearest first (ascending distance)</option>
-        <option value="farthest_first">Farthest first (descending distance)</option>
+        <option value="nearest_first" selected>Nearest first</option>
+        <option value="farthest_first">Farthest first</option>
       </select>
-    </div>
-
-    <div class="dream-section-title">Size conform</div>
-    <div class="form-group">
-      <label>Fit mode (all frames → base W×H)</label>
+      <label for="isFit">Fit</label>
       <select id="isFit">
-        <option value="letterbox" selected>Letterbox — scale to fit, pad black bars</option>
-        <option value="crop">Crop — scale to cover, center crop</option>
-        <option value="stretch">Stretch — scale to exact (distorts)</option>
+        <option value="letterbox" selected>Letterbox</option>
+        <option value="crop">Crop</option>
+        <option value="stretch">Stretch</option>
       </select>
     </div>
 
-    <div class="dream-section-title">RIFE interpolation</div>
-    <div class="knob-bank">
-      ${knobUnitHtml({ id: 'isUseRife', label: 'Use RIFE', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
-      ${knobUnitHtml({ id: 'isMultiplier', label: 'Multiplier', value: '2' })}
-    </div>
-    <div id="isRifeOpts">
-      <div class="form-group">
-        <label>RIFE model</label>
-        <select id="isRifeModel">
-          <option value="rife-v4.6" selected>rife-v4.6 — newest, cleanest</option>
-          <option value="rife-v4">rife-v4 — stable, slightly faster</option>
-          <option value="rife-v2.4">rife-v2.4 — older variant</option>
-          <option value="rife-v2.3">rife-v2.3 — oldest, fastest</option>
-        </select>
-      </div>
+    <div class="knob-row">
       <div class="knob-bank">
+        ${knobUnitHtml({ id: 'isUseRife', label: 'Use RIFE', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'isMultiplier', label: 'Multiplier', value: '2' })}
         ${knobUnitHtml({ id: 'isRifeTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
         ${knobUnitHtml({ id: 'isRifeUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'isFps', label: 'FPS', value: '24' })}
+        ${knobUnitHtml({ id: 'isCrf', label: 'CRF', value: '18' })}
+        ${knobUnitHtml({ id: 'isKeepFrames', label: 'Keep PNG', value: '0', binary: true, leftCap: 'No', rightCap: 'Yes' })}
+        ${knobUnitHtml({ id: 'isDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
       </div>
+      <p class="knob-row-legend" id="isRifeHint">
+        RIFE multiplies keyframes. ~duration <span id="isDurHint2">${dur}</span>s.
+        FPS is absolute (not scaled by M). CRF 0 = lossless · 18 ≈ near-lossless.
+      </p>
     </div>
-    <p class="dream-hint" id="isRifeHint">
-      RIFE multiplies frames between keyframes. Estimated duration: ~<span id="isDurHint2">${dur}</span>s.
-    </p>
-
-    <div class="dream-section-title">Encode</div>
-    <div class="knob-bank">
-      ${knobUnitHtml({ id: 'isFps', label: 'FPS', value: '24' })}
-      ${knobUnitHtml({ id: 'isCrf', label: 'CRF', value: '18' })}
-      ${knobUnitHtml({ id: 'isKeepFrames', label: 'Keep PNG', value: '0', binary: true, leftCap: 'No', rightCap: 'Yes' })}
-      ${knobUnitHtml({ id: 'isDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+    <div class="form-row" id="isRifeOpts">
+      <label for="isRifeModel">RIFE model</label>
+      <select id="isRifeModel">
+        <option value="rife-v4.6" selected>rife-v4.6</option>
+        <option value="rife-v4">rife-v4</option>
+        <option value="rife-v2.4">rife-v2.4</option>
+        <option value="rife-v2.3">rife-v2.3</option>
+      </select>
     </div>
-    <p class="dream-hint">CRF 0 = lossless. 18 ≈ near-lossless. FPS is absolute — not scaled by multiplier.</p>
   `;
   elements.actionPanel.innerHTML = html;
 

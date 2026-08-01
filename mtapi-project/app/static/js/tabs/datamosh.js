@@ -5,26 +5,23 @@ import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs
 // Mosh Form
 function renderMoshForm() {
   const html = `
-    <div class="panel-title-desc">
-      <h3>Datamoshing & Vector Effects</h3>
-      <p>Smear, bleed, and hijack video streams using low-level MPEG-4 codec hacks.</p>
+    <div class="panel-title-desc dense">
+      <h3>Datamosh</h3>
+      <p class="dream-hint">MPEG-4 stream hacks — smear, bleed, hijack.</p>
     </div>
 
-    <div class="form-group">
-      <label>Datamosh Effect Mode</label>
+    <div class="form-row">
+      <label for="moshEffectSelect">Mode</label>
       <select id="moshEffectSelect">
-        <option value="melt" ${state.selectedMoshMode === 'melt' ? 'selected' : ''}>Continuous Melt (Vector Smear)</option>
-        <option value="classic" ${state.selectedMoshMode === 'classic' ? 'selected' : ''}>Classic Mosh (Keyframe Suppress)</option>
-        <option value="hijack" ${state.selectedMoshMode === 'hijack' ? 'selected' : ''}>Visual Hijack (P-Frame Injection)</option>
-        <option value="destruct" ${state.selectedMoshMode === 'destruct' ? 'selected' : ''}>Residual Destruct (DCT Clear)</option>
-        <option value="mv_hack" ${state.selectedMoshMode === 'mv_hack' ? 'selected' : ''}>Motion Vector Hack (Warp/Freeze)</option>
+        <option value="melt" ${state.selectedMoshMode === 'melt' ? 'selected' : ''}>Melt (vector smear)</option>
+        <option value="classic" ${state.selectedMoshMode === 'classic' ? 'selected' : ''}>Classic (keyframe suppress)</option>
+        <option value="hijack" ${state.selectedMoshMode === 'hijack' ? 'selected' : ''}>Hijack (P-frame inject)</option>
+        <option value="destruct" ${state.selectedMoshMode === 'destruct' ? 'selected' : ''}>Destruct (DCT clear)</option>
+        <option value="mv_hack" ${state.selectedMoshMode === 'mv_hack' ? 'selected' : ''}>MV hack (warp/freeze)</option>
       </select>
     </div>
 
-    <!-- Mode Specific Parameters -->
-    <div id="moshParamsContainer">
-      <!-- Injected dynamically based on selected mode -->
-    </div>
+    <div id="moshParamsContainer"></div>
   `;
 
   elements.actionPanel.innerHTML = html;

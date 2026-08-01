@@ -18,75 +18,74 @@ function renderFaceMorphForm() {
     : `<div class="fm-empty">Add at least 2 face images (folder or multi-select). Order = morph sequence.</div>`;
 
   const html = `
-    <div class="panel-title-desc">
-      <h3>Face Morph chain</h3>
-      <p class="dream-hint">
-        From <code>~/snc/cod/facemorph</code> — dlib 68-point landmarks + Delaunay triangles.
-        Morph A→B→C… into one video. Optionally DeepDream the faces first, or the morph video after.
-      </p>
+    <div class="panel-title-desc dense">
+      <h3>Face Morph</h3>
+      <p class="dream-hint">dlib 68-pt + Delaunay A→B→C… Optional DeepDream on faces or morph video.</p>
     </div>
 
-    <div class="form-group">
-      <label>Face images (${imgs.length})</label>
-      <div class="fm-list" id="fmList">${listHtml}</div>
-      <div class="input-row" style="margin-top:8px; flex-wrap:wrap;">
-        <button type="button" class="btn btn-primary" id="btnFmAddFiles">+ Images</button>
-        <button type="button" class="btn" id="btnFmAddFolder">+ Folder</button>
-        <button type="button" class="btn" id="btnFmClear" ${imgs.length ? '' : 'disabled'}>Clear</button>
+    <div class="form-group" style="margin-bottom:6px">
+      <div class="form-row" style="margin-bottom:3px">
+        <label>Faces (${imgs.length})</label>
+        <div class="sort-toolbar" style="margin:0; flex:1">
+          <button type="button" class="btn btn-primary" id="btnFmAddFiles">+ Images</button>
+          <button type="button" class="btn" id="btnFmAddFolder">+ Folder</button>
+          <button type="button" class="btn" id="btnFmClear" ${imgs.length ? '' : 'disabled'}>Clear</button>
+        </div>
+        <p class="form-row-hint">↑↓ reorder · needs detectable face · folder = alpha order</p>
       </div>
-      <p class="dream-hint" style="margin-top:6px">Alphabetical folder order if you use + Folder. Reorder with ↑↓. Every image needs a detectable face.</p>
+      <div class="fm-list" id="fmList">${listHtml}</div>
     </div>
 
-    <div class="form-group">
-      <label>Output video (blank = auto next to first image)</label>
+    <div class="form-row">
+      <label for="fmOutput">Output</label>
       <div class="input-row">
-        <input type="text" id="fmOutput" placeholder="~/faces/chain_morph.mp4">
+        <input type="text" id="fmOutput" placeholder="blank = auto next to first image">
         <button type="button" class="btn" id="btnFmOutBrowse">Save As</button>
       </div>
     </div>
 
-    <div class="dream-section-title">Morph timing / quality</div>
-    <div class="knob-bank">
-      ${knobUnitHtml({ id: 'fmDuration', label: 'Sec/pair', value: '2.0' })}
-      ${knobUnitHtml({ id: 'fmFps', label: 'FPS', value: '30' })}
-      ${knobUnitHtml({ id: 'fmCrf', label: 'CRF', value: '18' })}
-      ${knobUnitHtml({ id: 'fmKeepFrames', label: 'Keep PNG', value: '0', binary: true, leftCap: 'No', rightCap: 'Yes' })}
-      ${knobUnitHtml({ id: 'fmTriangles', label: 'Triangles', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-      ${knobUnitHtml({ id: 'fmDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
-    </div>
-    <p class="dream-hint">CRF 0 = lossless (huge/slow). 18 ≈ near-lossless. Sec/pair × pairs ≈ video length.</p>
-
-    <div class="dream-section-title">Pre-processing</div>
-    <div class="knob-bank">
-      ${knobUnitHtml({ id: 'fmAlign', label: 'Align faces', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-      ${knobUnitHtml({ id: 'fmAlignSize', label: 'Size', value: '1024' })}
-    </div>
-    <p class="dream-hint">FFHQ-style face alignment: centers nose, makes eyes horizontal, crops to square. Size = output px (256–4096).</p>
-
-    <div class="dream-section-title">DeepDream integration</div>
-    <div class="form-group">
-      <label>Dream mode</label>
-      <select id="fmDreamMode">
-        <option value="none" selected>Morph only (no dream)</option>
-        <option value="after">Morph first, then DeepDream the video</option>
-        <option value="faces_first">DeepDream each face, then morph</option>
-      </select>
-      <p class="dream-hint" style="margin-top:6px">
-        <strong>after</strong> = optical-flow dream on the morph (trippy, stable motion).<br>
-        <strong>faces_first</strong> = dream stills then morph (hallucinated faces blend).
+    <div class="knob-row">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'fmDuration', label: 'Sec/pair', value: '2.0' })}
+        ${knobUnitHtml({ id: 'fmFps', label: 'FPS', value: '30' })}
+        ${knobUnitHtml({ id: 'fmCrf', label: 'CRF', value: '18' })}
+        ${knobUnitHtml({ id: 'fmKeepFrames', label: 'Keep PNG', value: '0', binary: true, leftCap: 'No', rightCap: 'Yes' })}
+        ${knobUnitHtml({ id: 'fmTriangles', label: 'Triangles', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'fmDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+      </div>
+      <p class="knob-row-legend">
+        Sec/pair × pairs ≈ length. CRF 0 = lossless · 18 ≈ near-lossless.
       </p>
     </div>
+
+    <div class="knob-row">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'fmAlign', label: 'Align faces', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'fmAlignSize', label: 'Size', value: '1024' })}
+      </div>
+      <p class="knob-row-legend">
+        FFHQ-style: center nose, level eyes, square crop. Size = output px (256–4096).
+      </p>
+    </div>
+
+    <div class="form-row">
+      <label for="fmDreamMode">Dream</label>
+      <select id="fmDreamMode">
+        <option value="none" selected>Morph only</option>
+        <option value="after">Morph → DeepDream video</option>
+        <option value="faces_first">DeepDream faces → morph</option>
+      </select>
+      <p class="form-row-hint"><strong>after</strong> = optical-flow on morph · <strong>faces_first</strong> = dream stills then morph</p>
+    </div>
     <div class="fm-dream-opts" id="fmDreamOpts">
-      <div class="form-group">
-        <label>Dream model</label>
+      <div class="form-row">
+        <label for="fmDreamModel">Model</label>
         <select id="fmDreamModel">
           <option value="inception_v3" selected>InceptionV3</option>
           <option value="vgg16">VGG16</option>
           <option value="resnet50">ResNet50</option>
         </select>
-      </div>
-      <div class="form-group">
-        <label>Layer preset</label>
+        <label for="fmDreamPreset">Layers</label>
         <select id="fmDreamPreset">
           <option value="shallow">Shallow</option>
           <option value="mid">Mid</option>
@@ -95,14 +94,16 @@ function renderFaceMorphForm() {
           <option value="full">Full</option>
         </select>
       </div>
-      <div class="knob-bank">
-        ${knobUnitHtml({ id: 'fmDreamIters', label: 'Iterations', value: '10' })}
-        ${knobUnitHtml({ id: 'fmDreamOctaves', label: 'Octaves', value: '2' })}
-        ${knobUnitHtml({ id: 'fmDreamStep', label: 'Step', value: '0.015' })}
-        ${knobUnitHtml({ id: 'fmDreamPreview', label: 'Preview W', value: '640' })}
-        ${knobUnitHtml({ id: 'fmDreamFlow', label: 'Opt. flow', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
+      <div class="knob-row">
+        <div class="knob-bank">
+          ${knobUnitHtml({ id: 'fmDreamIters', label: 'Iterations', value: '10' })}
+          ${knobUnitHtml({ id: 'fmDreamOctaves', label: 'Octaves', value: '2' })}
+          ${knobUnitHtml({ id: 'fmDreamStep', label: 'Step', value: '0.015' })}
+          ${knobUnitHtml({ id: 'fmDreamPreview', label: 'Preview W', value: '640' })}
+          ${knobUnitHtml({ id: 'fmDreamFlow', label: 'Opt. flow', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        </div>
+        <p class="knob-row-legend">Preview W ≤ 800 for speed. Optical flow only for dream mode “after”.</p>
       </div>
-      <p class="dream-hint">Keep Preview W ≤ 800 for speed. Optical flow only applies to dream mode “after”.</p>
     </div>
   `;
   elements.actionPanel.innerHTML = html;

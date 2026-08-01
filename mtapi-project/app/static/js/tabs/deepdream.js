@@ -65,139 +65,119 @@ const DREAM_MODELS = {
 
 function renderDeepDreamForm() {
   const html = `
-    <div class="panel-title-desc">
+    <div class="panel-title-desc dense">
       <h3>Google DeepDream</h3>
-      <p class="dream-hint">
-        Gradient ascent on a real CNN (pick the <strong>model</strong>, then which
-        <strong>layers</strong> inside it). Image / video / Ouroboros. Knobs for continuous
-        params; binary snap knobs for on/off.
-      </p>
+      <p class="dream-hint">CNN gradient ascent — pick model + layers. Image / video / Ouroboros.</p>
     </div>
 
-    <div class="form-group">
-      <label>Input (image or video)</label>
+    <div class="form-row">
+      <label for="dreamInput">Input</label>
       <div class="input-row">
-        <input type="text" id="dreamInput" placeholder="/absolute/path/to/image.png or video.mp4">
+        <input type="text" id="dreamInput" placeholder="image.png or video.mp4">
         <button class="btn" type="button" id="btnDreamBrowseIn">Browse</button>
       </div>
     </div>
-
-    <div class="form-group">
-      <label>Output path (blank = auto next to source)</label>
+    <div class="form-row">
+      <label for="dreamOutput">Output</label>
       <div class="input-row">
-        <input type="text" id="dreamOutput" placeholder="auto: name_dream.png / name_dream.mp4">
+        <input type="text" id="dreamOutput" placeholder="blank = auto next to source">
         <button class="btn" type="button" id="btnDreamBrowseOut">Save As</button>
       </div>
     </div>
-
-    <div class="form-group">
-      <label>Guide image <span style="font-weight:normal;color:var(--text-muted)">(optional — guided dream)</span></label>
+    <div class="form-row">
+      <label for="dreamGuide">Guide</label>
       <div class="input-row">
-        <input type="text" id="dreamGuide" placeholder="Leave blank for classic L2 dream; pick image to steer features">
+        <input type="text" id="dreamGuide" placeholder="optional — steer features (blank = classic L2)">
         <button class="btn" type="button" id="btnDreamBrowseGuide">Browse</button>
       </div>
-      <p class="dream-hint" style="margin-top:6px">
-        Guided dreaming (DeepDreamAnim / Google): match activations to the guide's features
-        (flowers → floral patterns, faces → face-like forms, …).
-      </p>
+      <p class="form-row-hint">Match activations to guide (flowers → floral, faces → face-like…)</p>
     </div>
 
-    <div class="dream-section-title">Media</div>
-    <div class="knob-bank">
-      ${knobUnitHtml({ id: 'dreamMedia', label: 'Media', value: 'auto', binary: true, leftCap: 'Image', rightCap: 'Video' })}
-      ${knobUnitHtml({ id: 'dreamAutoDetect', label: 'Detect', value: '1', binary: true, leftCap: 'Force', rightCap: 'Auto' })}
-    </div>
-    <p class="dream-hint">With Detect=Auto, extension picks image vs video. Force uses the Media knob.</p>
-
-    <div class="dream-section-title">Ascent</div>
-    <div class="knob-bank">
-      ${knobUnitHtml({ id: 'dreamStep', label: 'Step', value: '0.01' })}
-      ${knobUnitHtml({ id: 'dreamIters', label: 'Iterations', value: '20' })}
-      ${knobUnitHtml({ id: 'dreamOctaves', label: 'Octaves', value: '3' })}
-      ${knobUnitHtml({ id: 'dreamOctScale', label: 'Oct scale', value: '1.4' })}
-      ${knobUnitHtml({ id: 'dreamMaxLoss', label: 'Max loss', value: '15' })}
-      ${knobUnitHtml({ id: 'dreamBlend', label: 'Blend', value: '1.0' })}
-      ${knobUnitHtml({ id: 'dreamPreviewW', label: 'Preview W', value: '0' })}
+    <div class="knob-row">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'dreamMedia', label: 'Media', value: 'auto', binary: true, leftCap: 'Image', rightCap: 'Video' })}
+        ${knobUnitHtml({ id: 'dreamAutoDetect', label: 'Detect', value: '1', binary: true, leftCap: 'Force', rightCap: 'Auto' })}
+        ${knobUnitHtml({ id: 'dreamJitter', label: 'Jitter', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'dreamDetail', label: 'Detail', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'dreamAudio', label: 'Audio', value: '1', binary: true, leftCap: 'Drop', rightCap: 'Keep' })}
+        ${knobUnitHtml({ id: 'dreamDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+      </div>
+      <p class="knob-row-legend">Detect=Auto uses extension. Force uses Media knob.</p>
     </div>
 
-    <div class="dream-section-title">Binary</div>
-    <div class="knob-bank">
-      ${knobUnitHtml({ id: 'dreamJitter', label: 'Jitter', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
-      ${knobUnitHtml({ id: 'dreamDetail', label: 'Detail', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
-      ${knobUnitHtml({ id: 'dreamAudio', label: 'Audio', value: '1', binary: true, leftCap: 'Drop', rightCap: 'Keep' })}
-      ${knobUnitHtml({ id: 'dreamDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+    <div class="knob-row">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'dreamStep', label: 'Step', value: '0.01' })}
+        ${knobUnitHtml({ id: 'dreamIters', label: 'Iterations', value: '20' })}
+        ${knobUnitHtml({ id: 'dreamOctaves', label: 'Octaves', value: '3' })}
+        ${knobUnitHtml({ id: 'dreamOctScale', label: 'Oct scale', value: '1.4' })}
+        ${knobUnitHtml({ id: 'dreamMaxLoss', label: 'Max loss', value: '15' })}
+        ${knobUnitHtml({ id: 'dreamBlend', label: 'Blend', value: '1.0' })}
+        ${knobUnitHtml({ id: 'dreamPreviewW', label: 'Preview W', value: '0' })}
+      </div>
+      <p class="knob-row-legend">Ascent knobs. Preview W 0 = full width.</p>
     </div>
 
-    <div class="form-group">
-      <label>Neural network (architecture)</label>
+    <div class="form-row">
+      <label for="dreamModel">Model</label>
       <select id="dreamModel">
-        <option value="inception_v3" selected>InceptionV3 (ImageNet) — classic Google DeepDream</option>
-        <option value="vgg16">VGG16 (ImageNet) — hierarchical / classic NN dream look</option>
-        <option value="resnet50">ResNet50 (ImageNet) — residual features, different creatures</option>
+        <option value="inception_v3" selected>InceptionV3 — classic</option>
+        <option value="vgg16">VGG16 — hierarchical</option>
+        <option value="resnet50">ResNet50 — residual</option>
       </select>
-      <p class="dream-hint" style="margin-top:6px">
-        These are <strong>different models</strong>, not just labels. VGG/ResNet load separate ImageNet weights
-        (first use may download once). Layer presets below map to that model's real layer names.
-      </p>
-    </div>
-
-    <div class="form-group">
-      <label>Layer preset <span style="font-weight:normal;color:var(--text-muted)">(within selected model)</span></label>
+      <label for="dreamLayerPreset">Layers</label>
       <select id="dreamLayerPreset"></select>
+      <p class="form-row-hint">Real architectures (weights may download once). Preset maps to that net’s layers.</p>
     </div>
 
     <div class="dream-section-title dream-layer-weights" id="dreamLayerWeightsTitle">Custom layer weights</div>
     <div class="knob-bank dream-layer-weights" id="dreamLayerWeightsBank"></div>
 
-    <div class="dream-section-title dream-video-only" id="dreamVideoTitle">DeepDream video (temporal)</div>
-    <div class="knob-bank dream-video-only" id="dreamVideoBank">
-      ${knobUnitHtml({ id: 'dreamFrameStep', label: 'Frame step', value: '1' })}
-      ${knobUnitHtml({ id: 'dreamMaxFrames', label: 'Max frames', value: '0' })}
-      ${knobUnitHtml({ id: 'dreamTemporalBlend', label: 'Temporal blend', value: '0.85' })}
-      ${knobUnitHtml({ id: 'dreamOpticalFlow', label: 'Optical flow', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-      ${knobUnitHtml({ id: 'dreamLayerCycle', label: 'Layer cycle', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+    <div class="knob-row dream-video-only" id="dreamVideoBank">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'dreamFrameStep', label: 'Frame step', value: '1' })}
+        ${knobUnitHtml({ id: 'dreamMaxFrames', label: 'Max frames', value: '0' })}
+        ${knobUnitHtml({ id: 'dreamTemporalBlend', label: 'Temporal blend', value: '0.85' })}
+        ${knobUnitHtml({ id: 'dreamOpticalFlow', label: 'Optical flow', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'dreamLayerCycle', label: 'Layer cycle', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+      </div>
+      <p class="knob-row-legend dream-video-only">
+        <strong>Temporal blend</strong> 0.85 classic · 1 = off.
+        <strong>Optical flow</strong> warps residual (ignores blend when on).
+        <strong>Layer cycle</strong> = one layer/frame. Step &gt; 1 holds last dream.
+      </p>
     </div>
-    <p class="dream-hint dream-video-only">
-      <strong>Temporal blend</strong> (simple / gordicaleksa): alpha-mix last dream + current frame (0.85 classic; 1.0 = off).<br>
-      <strong>Optical flow</strong> (DeepDreamAnim — different &amp; stronger): warp the
-      <em>hallucination residual</em> with Farneback flow so patterns stick to motion.
-      When flow is On, temporal blend is ignored.<br>
-      <strong>Layer cycle</strong>: one layer per frame (DeepDreamAnim multi-layer loop).<br>
-      Frame step &gt; 1 holds last dream. Preview W (Ascent section) speeds iteration.
-    </p>
 
-    <div class="dream-section-title">Ouroboros (zoom / spin / translate)</div>
-    <div class="knob-bank">
-      ${knobUnitHtml({ id: 'dreamOuro', label: 'Ouroboros', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+    <div class="knob-row">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'dreamOuro', label: 'Ouroboros', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+      </div>
+      <p class="knob-row-legend">Still → dream → transform → feedback loop (writes video).</p>
     </div>
-    <p class="dream-hint">
-      Feedback loop from a <strong>still image</strong>: dream → geometric transform → feed back
-      (gordicaleksa/pytorch-deepdream). Writes a video even if input is a still.
-    </p>
     <div class="dream-ouro-only" id="dreamOuroPanel">
-      <div class="form-group">
-        <label>Frame transform</label>
+      <div class="form-row">
+        <label for="dreamFrameTransform">Transform</label>
         <select id="dreamFrameTransform">
-          <option value="zoom_rotate" selected>Zoom + Spin (classic spiral)</option>
+          <option value="zoom_rotate" selected>Zoom + Spin</option>
           <option value="zoom">Zoom only</option>
           <option value="rotate">Spin only</option>
-          <option value="translate">Translate (5px diagonal pan)</option>
-          <option value="none">None (dream loop, no geometry)</option>
+          <option value="translate">Translate</option>
+          <option value="none">None</option>
         </select>
       </div>
-      <div class="knob-bank">
-        ${knobUnitHtml({ id: 'dreamOuroLen', label: 'Frames', value: '30' })}
-        ${knobUnitHtml({ id: 'dreamOuroFps', label: 'FPS', value: '30' })}
-        ${knobUnitHtml({ id: 'dreamZoom', label: 'Zoom', value: '1.04' })}
-        ${knobUnitHtml({ id: 'dreamSpin', label: 'Spin °', value: '1.5' })}
-        ${knobUnitHtml({ id: 'dreamTx', label: 'Pan X', value: '5' })}
-        ${knobUnitHtml({ id: 'dreamTy', label: 'Pan Y', value: '5' })}
+      <div class="knob-row">
+        <div class="knob-bank">
+          ${knobUnitHtml({ id: 'dreamOuroLen', label: 'Frames', value: '30' })}
+          ${knobUnitHtml({ id: 'dreamOuroFps', label: 'FPS', value: '30' })}
+          ${knobUnitHtml({ id: 'dreamZoom', label: 'Zoom', value: '1.04' })}
+          ${knobUnitHtml({ id: 'dreamSpin', label: 'Spin °', value: '1.5' })}
+          ${knobUnitHtml({ id: 'dreamTx', label: 'Pan X', value: '5' })}
+          ${knobUnitHtml({ id: 'dreamTy', label: 'Pan Y', value: '5' })}
+        </div>
+        <p class="knob-row-legend">
+          Zoom &gt; 1 in/frame · Spin °/frame · Translate +X/+Y pan (default 5px). Scales with FPS.
+        </p>
       </div>
-      <p class="dream-hint">
-        <strong>Zoom</strong> &gt; 1 zooms in each frame; <strong>Spin</strong> is °/frame @ 30&nbsp;fps.
-        <strong>Translate</strong>: +X/+Y = top-left → bottom-right (default 5&nbsp;px/frame, as in the README).
-        Motion auto-scales with FPS.
-      </p>
     </div>
   `;
   elements.actionPanel.innerHTML = html;
