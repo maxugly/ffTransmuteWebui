@@ -232,7 +232,7 @@ const TAB_ACCEPTS = {
   deepdream:   'any',
   facemorph:   'image',
   withoutbg:   'image',
-  styletransfer:'image',
+  styletransfer:'any',
   rife:        'video',
   advanced:    'video',
   quick:       'video',

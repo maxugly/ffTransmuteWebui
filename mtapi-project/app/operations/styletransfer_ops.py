@@ -158,8 +158,33 @@ def _dest_for(src: str, p: StyleTransferParams, *, multi: bool) -> Path:
     )
 
 
+def _resolve_single_video(p: StyleTransferParams) -> str | None:
+    """Return absolute path if the request is exactly one video (not a batch of stills)."""
+    candidates: list[str] = []
+    if p.content_path and str(p.content_path).strip():
+        candidates.append(str(p.content_path).strip())
+    if p.content_paths:
+        for x in p.content_paths:
+            if x and str(x).strip():
+                candidates.append(str(x).strip())
+    # de-dupe preserve order
+    seen: set[str] = set()
+    uniq: list[str] = []
+    for c in candidates:
+        if c in seen:
+            continue
+        seen.add(c)
+        uniq.append(c)
+    if len(uniq) != 1:
+        return None
+    path = Path(uniq[0]).expanduser().resolve()
+    if path.is_file() and path.suffix.lower() in VIDEO_EXTS:
+        return str(path)
+    return None
+
+
 async def _styletransfer_video(p: StyleTransferParams, video_path: str) -> OperationResult:
-    """Video path: dump → shared filters.styletransfer → encode."""
+    """Video path: dump → shared filters.styletransfer (per_frame) → encode."""
     from ..job_workspace import JobWorkspace
     from ..video_pipeline import probe, dump, process, encode, cleanup
     from ..filters.styletransfer import make_styletransfer_filter
@@ -167,6 +192,17 @@ async def _styletransfer_video(p: StyleTransferParams, video_path: str) -> Opera
 
     input_path = Path(video_path).expanduser().resolve()
     style_path = Path(p.style_path).expanduser().resolve()
+
+    if not input_path.is_file():
+        return OperationResult(
+            ok=False, operation="styletransfer",
+            error=f"Video not found: {input_path}", dry_run=p.dry_run,
+        )
+    if not style_path.is_file() and not p.dry_run:
+        return OperationResult(
+            ok=False, operation="styletransfer",
+            error=f"Style image not found: {style_path}", dry_run=p.dry_run,
+        )
 
     out = finalize_output_path(
         p.output_path or None,
@@ -179,21 +215,25 @@ async def _styletransfer_video(p: StyleTransferParams, video_path: str) -> Opera
 
     summary = (
         f"styletransfer video {input_path.name} ← {style_path.name} "
-        f"strength={p.strength} max_side={p.max_side}"
+        f"strength={p.strength} max_side={p.max_side} "
+        f"frames={p.start_frame}–{p.end_frame if p.end_frame < 999999 else 'end'}"
     )
 
     if p.dry_run:
         return OperationResult(
             ok=True, operation="styletransfer", output_path=str(out),
             dry_run=True, command=summary,
-            stdout=f"{summary}\nWould process {input_path.name} frame-by-frame → {out}\n",
+            stdout=(
+                f"{summary}\n"
+                f"dump → filters.styletransfer (per_frame) → encode → {out}\n"
+            ),
         )
 
     info = await probe(input_path)
-    if info["frame_count"] <= 0:
+    if info.get("frame_count", 0) <= 0 or info.get("fps", 0) <= 0:
         return OperationResult(
             ok=False, operation="styletransfer",
-            error="Could not probe video frames",
+            error=f"Could not probe video (fps={info.get('fps')}, frames={info.get('frame_count')})",
         )
 
     ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="styletransfer_")
@@ -210,20 +250,53 @@ async def _styletransfer_video(p: StyleTransferParams, video_path: str) -> Opera
         dump_info = await dump(
             ws, input_path, start_frame=p.start_frame, end_frame=p.end_frame,
         )
+        n_frames = int(dump_info.get("frame_count") or 0)
+        fps = float(dump_info.get("fps") or info["fps"] or 24.0)
         logs.append(
-            f"dump: {dump_info['frame_count']} frames "
+            f"dump: {n_frames} frames @ {fps:g} fps "
             f"(src {p.start_frame}–{p.end_frame if p.end_frame < 999999 else 'end'})"
         )
 
-        processed = await process(ws, filter_fn)
+        job_control.report_progress(
+            "styletransfer frames",
+            phase="styletransfer",
+            current=0,
+            total=max(1, n_frames),
+            unit="frames",
+        )
+
+        def progress_cb(cur: int, tot: int) -> None:
+            job_control.report_progress(
+                f"styletransfer {cur}/{tot}",
+                phase="styletransfer",
+                current=cur,
+                total=tot,
+                unit="frames",
+            )
+
+        processed = await process(ws, filter_fn, progress_cb=progress_cb)
         logs.append(f"process: {processed} frames via filters.styletransfer")
 
-        result_path = await encode(ws, out, info["fps"])
+        result_path = await encode(ws, out, fps)
         logs.append(f"Output: {result_path}")
         success = True
 
+        job_control.report_progress(
+            "styletransfer done",
+            phase="done",
+            current=processed,
+            total=processed,
+            unit="frames",
+        )
+
         return OperationResult(
             ok=True, operation="styletransfer", output_path=str(out),
+            dry_run=False, command=summary, stdout="\n".join(logs),
+        )
+
+    except job_control.JobCancelled as e:
+        return OperationResult(
+            ok=False, operation="styletransfer", error=str(e),
             dry_run=False, command=summary, stdout="\n".join(logs),
         )
 
@@ -238,11 +311,10 @@ async def _styletransfer_video(p: StyleTransferParams, video_path: str) -> Opera
 
 
 async def styletransfer(p: StyleTransferParams) -> OperationResult:
-    # ── video path ──
-    if p.content_path:
-        first = Path(p.content_path).expanduser()
-        if first.suffix.lower() in VIDEO_EXTS and first.is_file():
-            return await _styletransfer_video(p, p.content_path)
+    # ── video path (filter platform: dump → per_frame → encode) ──
+    video = _resolve_single_video(p)
+    if video:
+        return await _styletransfer_video(p, video)
 
     contents = _collect_contents(p)
     if not contents:

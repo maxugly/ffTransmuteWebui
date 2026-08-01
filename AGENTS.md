@@ -78,7 +78,7 @@ Stage kinds:
 | deepdream | `deepdream_ops.py` + `filters/deepdream.py` | per_frame (video) | ✅ stable |
 | facemorph | `facemorph_ops.py` | multi-source | ✅ morph+encode; dream_after → filters.deepdream |
 | withoutbg | `withoutbg_ops.py` + `filters/withoutbg.py` | per_frame (video) | ✅ stable |
-| style transfer | `styletransfer_ops.py` + `filters/styletransfer.py` | per_frame (video) | ✅ stable |
+| style transfer | `styletransfer_ops.py` + `filters/styletransfer.py` | per_frame (video) | ✅ stills + video (dump→filter→encode) |
 | RIFE | `rife_ops.py` + `filters/rife.py` | directory | ✅ stable |
 | speed ramp | `speedramp_ops.py` + `filters/speedramp.py` | directory remap | ✅ PNG remap (not setpts); audio dropped v1 |
 | zoompan (pan & zoom still→video) | `zoompan_ops.py` | — (ffmpeg crop) | ✅ image + two boxes |
