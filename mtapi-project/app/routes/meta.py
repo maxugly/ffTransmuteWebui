@@ -38,12 +38,27 @@ def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY
         }
 
     @app.get("/api/facemorph/list", tags=["meta"])
-    async def facemorph_list_images(path: str):
-        from .operations import facemorph_engine as fme
+    @app.get("/api/images/list", tags=["meta"])
+    async def list_images_in_dir(path: str):
+        """List stills in a directory (non-recursive).
+
+        Used by Image Sort, Face Morph, WithoutBG, etc. to expand + Folder
+        into an ordered path list. Self-contained — does not import facemorph.
+        """
+        # Keep in sync with frontend IMAGE_EXTS / pool scan.
+        image_exts = {
+            ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif",
+            ".tif", ".tiff", ".ppm", ".pgm",
+        }
         p = Path(path).expanduser().resolve()
         if not p.is_dir():
             raise HTTPException(status_code=400, detail=f"Not a directory: {p}")
-        files = fme.get_image_files(p)
+        files = sorted(
+            str(child.resolve())
+            for child in p.iterdir()
+            if child.is_file() and child.suffix.lower() in image_exts
+            and not child.name.startswith(".")
+        )
         return {"ok": True, "path": str(p), "files": files, "count": len(files)}
 
     @app.get("/api/job/{token}", tags=["meta"])

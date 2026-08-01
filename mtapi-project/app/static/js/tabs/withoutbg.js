@@ -138,7 +138,7 @@ function renderWithoutBgForm() {
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       if (!data.path) return;
-      const listRes = await fetch(`/api/facemorph/list?path=${encodeURIComponent(data.path)}`);
+      const listRes = await fetch(`/api/images/list?path=${encodeURIComponent(data.path)}`);
       if (listRes.ok) {
         const listed = await listRes.json();
         (listed.files || []).forEach((p) => {

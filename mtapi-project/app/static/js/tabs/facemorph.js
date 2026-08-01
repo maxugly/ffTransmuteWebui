@@ -192,13 +192,14 @@ function renderFaceMorphForm() {
       if (!data.path) return;
       // list dir via a lightweight API — use media path listing through shell of images by asking backend morph preview?
       // For now: store as folder and expand on run via image_dir
-      const listRes = await fetch(`/api/facemorph/list?path=${encodeURIComponent(data.path)}`);
+      const listRes = await fetch(`/api/images/list?path=${encodeURIComponent(data.path)}`);
       if (listRes.ok) {
         const listed = await listRes.json();
         (listed.files || []).forEach((p) => {
           if (state.faceMorph.images.some((x) => x.path === p)) return;
           state.faceMorph.images.push({ path: p, name: basename(p) });
         });
+        logConsole(`[FACEMORPH]: Folder ${data.path} — ${(listed.files || []).length} image(s)`);
       } else {
         // fallback: just remember folder path as single "virtual" entry via image_dir on collect
         state.faceMorph.folder = data.path;

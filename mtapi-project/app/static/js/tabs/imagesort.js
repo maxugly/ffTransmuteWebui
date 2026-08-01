@@ -164,13 +164,13 @@ function renderImageSortForm() {
         <button type="button" class="btn" id="btnIsBtm" title="Move selected to bottom" ${!images.length || sel >= images.length - 1 ? 'disabled' : ''}>⤓ Bottom</button>
         <button type="button" class="btn" id="btnIsRm" title="Remove selected" ${!images.length ? 'disabled' : ''}>✕ Remove</button>
       </div>
-      <div class="sort-toolbar" style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">
+      <div class="sort-toolbar">
         <button type="button" class="btn btn-primary" id="btnIsAddFiles">+ Images</button>
         <button type="button" class="btn" id="btnIsAddFolder">+ Folder</button>
         <button type="button" class="btn" id="btnIsSort" ${images.length < 2 ? 'disabled' : ''}>Sort list</button>
         <button type="button" class="btn" id="btnIsClear" ${images.length ? '' : 'disabled'}>Clear</button>
       </div>
-      <p class="dream-hint" style="margin-top:6px">
+      <p class="dream-hint">
         Click a row to select + preview. One button set moves the selection. + Folder expands into the list. Sort re-ranks #2…N only.
       </p>
     </div>
@@ -379,40 +379,54 @@ function renderImageSortForm() {
     }
   });
 
-  // + Folder — expand into the sequence list
+  // + Folder — expand stills into the sequence list
   document.getElementById('btnIsAddFolder')?.addEventListener('click', async function() {
     try {
       var res = await fetch('/api/picker?mode=dir&start_path=');
       if (!res.ok) throw new Error(await res.text());
       var data = await res.json();
       if (!data.path) return;
-      var listRes = await fetch('/api/facemorph/list?path=' + encodeURIComponent(data.path));
+      logConsole('[IMAGESORT]: Listing images in ' + data.path + '…');
+      // Prefer generic image list; fall back to pool scan (same source of truth as Image Pool)
+      var files = [];
+      var listRes = await fetch('/api/images/list?path=' + encodeURIComponent(data.path));
       if (listRes.ok) {
         var listed = await listRes.json();
-        var files = listed.files || [];
-        var added = 0;
-        var firstNew = -1;
-        files.forEach(function(p) {
-          if (!p) return;
-          if (state.imageSort.images.some(function(x) { return x.path === p; })) return;
-          state.imageSort.images.push({ path: p, name: basename(p), score: null });
-          if (firstNew < 0) firstNew = state.imageSort.images.length - 1;
-          added++;
-        });
-        if (added) {
-          logConsole('[IMAGESORT]: Folder ' + data.path + ' — added ' + added + ' image(s) to list (' + state.imageSort.images.length + ' total)');
-          if (firstNew >= 0) state.imageSort.selected = firstNew;
-        } else {
-          logConsole('[IMAGESORT]: Folder ' + data.path + ' — no new images (empty or all already in list)');
-        }
-        state.imageSort.folder = null;
+        files = listed.files || [];
       } else {
-        state.imageSort.folder = data.path;
-        logConsole('[IMAGESORT]: Folder ' + data.path + ' — list API failed; will expand at run if still empty');
+        var scanRes = await fetch(
+          '/api/pool/scan?path=' + encodeURIComponent(data.path) + '&recursive=false&kind=image'
+        );
+        if (scanRes.ok) {
+          var scan = await scanRes.json();
+          files = (scan.images || []).map(function(v) { return v.path; });
+        } else {
+          throw new Error('Could not list folder images (list + scan both failed)');
+        }
       }
+      var added = 0;
+      var firstNew = -1;
+      files.forEach(function(p) {
+        if (!p) return;
+        if (state.imageSort.images.some(function(x) { return x.path === p; })) return;
+        state.imageSort.images.push({ path: p, name: basename(p), score: null });
+        if (firstNew < 0) firstNew = state.imageSort.images.length - 1;
+        added++;
+      });
+      if (added) {
+        logConsole('[IMAGESORT]: Folder ' + data.path + ' — added ' + added + ' image(s) (' + state.imageSort.images.length + ' total)');
+        if (firstNew >= 0) state.imageSort.selected = firstNew;
+      } else if (!files.length) {
+        logConsole('[IMAGESORT]: Folder ' + data.path + ' — no image files found');
+        alert('No image files found in that folder.');
+      } else {
+        logConsole('[IMAGESORT]: Folder ' + data.path + ' — all images already in list');
+      }
+      state.imageSort.folder = null;
       renderImageSortForm();
     } catch (err) {
       alert('Folder pick failed: ' + err.message);
+      logConsole('[IMAGESORT ERROR]: ' + err.message, 'error');
     }
   });
 
