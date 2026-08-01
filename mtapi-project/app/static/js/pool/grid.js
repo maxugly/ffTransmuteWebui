@@ -7,7 +7,7 @@ import {
 } from '/js/pool/layout.js';
 import {
   projectNew, projectOpen, projectSave, savePoolStateNow,
-  scheduleSavePoolState, stitchPoolSequence,
+  scheduleSavePoolState, stitchPoolSequence, refreshPoolToolbarCounts,
   projectLabel, poolThumbUrl, shortHash, buildPoolMetaHtml,
 } from '/js/pool/persistence.js';
 import {
