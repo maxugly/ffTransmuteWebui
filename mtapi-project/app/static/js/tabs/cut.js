@@ -142,23 +142,6 @@ function refreshCutRangePreviews() {
   const cmp = _cutCompareState();
   const mode = cmp.mode;
 
-  const clipEl = document.getElementById('cutClipPath');
-  if (clipEl) {
-    clipEl.textContent = videoPath || '— set Video file(s) in the global bar above —';
-    clipEl.title = videoPath || '';
-  }
-
-  const hint = document.getElementById('cutRangeHint');
-  if (hint) {
-    if (!videoPath) {
-      hint.textContent = 'no video in global bar';
-    } else if (!total || total <= 1) {
-      hint.textContent = 'probing frame count…';
-    } else {
-      hint.textContent = `working range: frames ${start}–${end}  ·  ${total} in clip`;
-    }
-  }
-
   const startLabel = document.getElementById('cutStartFrameLabel');
   const endLabelEl = document.getElementById('cutEndFrameLabel');
   if (startLabel) {
@@ -305,26 +288,6 @@ async function renderCutForm() {
         </p>
       </div>
 
-      <div class="cut-video-row">
-        <label class="cut-field-label">Clip (from global Video)</label>
-        <div class="cut-global-path" id="cutClipPath" title="${escapeHtml(videoPath || '')}">
-          ${escapeHtml(videoPath || '— set Video file(s) in the global bar above —')}
-        </div>
-        <div class="cut-meta-line">
-          <span class="cut-range-hint" id="cutRangeHint">
-            ${!videoPath
-              ? 'no video in global bar'
-              : (!total || total <= 1
-                ? 'probing frame count…'
-                : `working range: frames ${start}–${end}  ·  ${total} in clip`)}
-          </span>
-        </div>
-        <div class="cut-ref-actions" style="margin-top:6px">
-          <button type="button" class="btn btn-sm" id="btnCutPreview" ${videoPath ? '' : 'disabled'}>Preview clip</button>
-          <button type="button" class="btn btn-sm" id="btnCutOpenPool">Video Pool…</button>
-        </div>
-      </div>
-
       ${toolbar}
 
       <div class="${gridClass}">
@@ -350,12 +313,6 @@ async function renderCutForm() {
 }
 
 function _bindCutForm() {
-  document.getElementById('btnCutPreview')?.addEventListener('click', () => {
-    const p = resolveCutVideoPath();
-    if (p) showPreview(p);
-  });
-  document.getElementById('btnCutOpenPool')?.addEventListener('click', () => switchTab('pool'));
-
   _compareCtl = bindCompareControls({
     idPrefix: CUT_COMPARE_PREFIX,
     getState: () => _cutCompareState(),

@@ -2,8 +2,41 @@ import { state, elements, logConsole, resolveGlobalImages, showPreview } from '/
 import { basename, escapeHtml } from '/js/utils.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
 import { registerListKeys } from '/js/ui/list-keys.js';
+import { fmtDuration, fmtFrames, renderPreRunSummary } from '/js/ui/pre-run-summary.js';
 
 // ── Face Morph tab (facemorph package + optional DeepDream) ───────────────
+
+function _buildFmSummary() {
+  var imgs = state.faceMorph.images || [];
+  var n = imgs.length;
+  var pairs = Math.max(0, n - 1);
+  if (n < 2) return { lines: [{ text: 'Add 2+ faces to see totals', estimate: true }], tone: 'estimate' };
+
+  var secPer = parseFloat(document.getElementById('fmDuration')?.value || '2');
+  var fps = parseInt(document.getElementById('fmFps')?.value || '30', 10);
+  if (!isFinite(secPer) || secPer <= 0) secPer = 2;
+  if (!isFinite(fps) || fps <= 0) fps = 30;
+
+  var totalDur = pairs * secPer;
+  var totalFrames = totalDur * fps;
+  var dreamMode = document.getElementById('fmDreamMode')?.value || 'none';
+
+  var lines = [];
+  lines.push({ text: n + ' faces' });
+  lines.push({ text: pairs + ' pairs' });
+  lines.push({ text: secPer.toFixed(1) + ' s/pair' });
+  lines.push({ text: fps + ' fps' });
+  if (dreamMode !== 'none') lines.push({ text: 'dream: ' + dreamMode.replace('_', ' ') });
+  lines.push({ text: '→ ~' + fmtDuration(totalDur), estimate: true });
+  lines.push({ text: '~' + fmtFrames(totalFrames) + ' frames', estimate: true });
+
+  return { lines, tone: 'ok' };
+}
+
+function _refreshFmSummary() {
+  var el = document.getElementById('fmPreRunSummary');
+  renderPreRunSummary(el, _buildFmSummary());
+}
 
 function renderFaceMorphForm() {
   const imgs = state.faceMorph.images || [];
@@ -24,6 +57,7 @@ function renderFaceMorphForm() {
     : `<div class="fm-empty">Add at least 2 face images (folder or multi-select). Order = morph sequence. Arrows select · Ctrl+arrows reorder.</div>`;
 
   const html = `
+    <div id="fmPreRunSummary" class="pre-run-summary"></div>
     <div class="panel-title-desc dense">
       <h3>Face Morph</h3>
       <p class="dream-hint">dlib 68-pt + Delaunay A→B→C… Optional DeepDream on faces or morph video.</p>
@@ -114,6 +148,8 @@ function renderFaceMorphForm() {
   `;
   elements.actionPanel.innerHTML = html;
 
+  _refreshFmSummary();
+
   setupContinuousKnob({
     knobId: 'fmDurationKnob', indicatorId: 'fmDurationKnobInd', valueId: 'fmDurationVal', hiddenId: 'fmDuration',
     min: 0.5, max: 8, step: 0.1, decimals: 1,
@@ -171,9 +207,16 @@ function renderFaceMorphForm() {
   const syncDreamOpts = () => {
     const mode = document.getElementById('fmDreamMode')?.value || 'none';
     document.getElementById('fmDreamOpts')?.classList.toggle('hidden', mode === 'none');
+    _refreshFmSummary();
   };
   document.getElementById('fmDreamMode')?.addEventListener('change', syncDreamOpts);
   syncDreamOpts();
+
+  ['fmDurationKnob', 'fmFpsKnob'].forEach(function(id) {
+    document.getElementById(id)?.addEventListener('click', function() {
+      setTimeout(_refreshFmSummary, 100);
+    });
+  });
 
   document.getElementById('btnFmAddFiles')?.addEventListener('click', async () => {
     try {

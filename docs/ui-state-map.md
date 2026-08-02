@@ -48,14 +48,26 @@ Maintains the active media paths and global frame range selections across tabs.
 ### Face Morph (`facemorph`)
 * `faceMorph.images` (array): Array of objects `{path, name}` representing the face sequence.
 * `faceMorph.folder` (string): Folder path for batch morph operations.
+* `faceMorph.selected` (number): Selected row index (keyboard / shared selection).
 
 ### withoutBG (`withoutbg`)
 * `withoutbg.images` (array): Array of objects `{path, name}` for background removal.
 * `withoutbg.folder` (string): Folder path for batch background removal operations.
+* `withoutbg.selected` (number): Selected row index.
 
 ### Style Transfer (`styletransfer`)
 * `styleTransfer.contents` (array): Array of objects `{path, name}` (content images).
 * `styleTransfer.stylePath` (string): Path to the single style reference image.
+* `styleTransfer.selected` (number): Selected content row index.
+
+### Image Sort (`imagesort`)
+* `imageSort.images` (array): Ordered stills `{path, name, score?}`; index `0` = base.
+* `imageSort.folder` (string | null): Deferred folder only if list API failed.
+* `imageSort.selected` (number): Selected row for order bar + keyboard.
+
+### Speed Change (`speedchange`)
+* Mostly DOM knobs (not yet in `state`): speed, target FPS, audio mode, use_rife, RIFE mult/model/tta/uhd.
+* Pre-run budget uses probe cache + global frame range.
 
 ### Quick Transmute (`quick`)
 * `quick.reconcile` (string): How to handle mismatched resolutions (`'pad'`, `'crop'`, `'stretch'`).
@@ -126,6 +138,9 @@ These variables are used internally to manage async loading, UI hovering, and ro
 
 * `window.globalInputs._lastProbedPath` (string | null): Caches the last video probed to prevent redundant API calls.
 * `window.globalInputs._probeOk` (boolean): Flag indicating successful probe.
+* Job timer / progress: `job-control.js` `activeJob` (token, startedAt, tickTimer) — **not** project-persisted.
+* `list-keys` handlers registry (per-tab) — runtime only.
+* Pre-run probe caches inside tab modules (RIFE / Speed) — runtime only.
 * `state.pool.hoverPath` (string | null): Temporary path for the video pool detail sidebar (resets on mouseout).
 * `state.pool.loading` (boolean): True while fetching pool folder scans.
 * `state.pool.matchLoading` (boolean): True while calculating pHash scene matches.

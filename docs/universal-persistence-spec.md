@@ -1,7 +1,8 @@
 # Universal Persistence Spec
 
-> **Status:** Draft / Proposed
-> **Audience:** Builder Agents (Implementation)
+> **Status:** Draft / Proposed — **not implemented** (spec only)  
+> **Audience:** Builder Agents (Implementation)  
+> **Related handoff:** `docs/SESSION-STOPPING-STATE.md`, `docs/coder-agy-universal-persistence-prompt.md`  
 > **Goal:** Redesign save / load / autosave so that user project files are isolated from session autosaves, preventing the bug where named projects are overwritten unintentionally.
 
 ---

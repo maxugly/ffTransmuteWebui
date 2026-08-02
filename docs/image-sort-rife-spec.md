@@ -1,7 +1,7 @@
 # Image Sort + Optional RIFE — Spec
 
 > **Status:** Implemented (as-built)  
-> **Shipped:** `000.000.4.41`+ (feature); UI polish through densify / list-keys / folder list API  
+> **Shipped:** `000.000.4.41`+ (feature); UI polish through densify / list-keys / folder list API / pre-run summary strip  
 > **Audience:** Builders & reviewers  
 > **Op ids:** `imagesort_rank` → `POST /ops/imagesort_rank`; `imagesort_rife` → `POST /ops/imagesort_rife`  
 > **Related:** `filter-platform-spec.md` §3.4 (multi-source generators), `rife-spec.md`, `facemorph-spec.md`, `video-image-pools-spec.md`  

@@ -1,11 +1,69 @@
 import { elements, bestInput } from '/app.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
 import { withFrameRange } from '/js/utils.js';
+import { fmtDuration, fmtFrames, renderPreRunSummary } from '/js/ui/pre-run-summary.js';
 
 // ── RIFE tab (AI frame interpolation) ─────────────────────────────────────
 
+let _probeCache = { path: '', frames: 0, fps: 24 };
+
+function _buildRifeSummary() {
+  var M = parseInt(document.getElementById('rifeMultiplier')?.value || '2', 10);
+  var probed = false;
+  var nIn = _probeCache.frames || 0;
+  var srcFps = _probeCache.fps || 0;
+
+  if (!nIn || !srcFps) {
+    var gi = window.globalInputs || {};
+    nIn = parseInt(gi.totalFrames, 10) || 0;
+    var start = parseInt(gi.frameStart, 10) || 1;
+    var end = parseInt(gi.frameEnd, 10) || nIn || 1;
+    if (nIn > 0) nIn = Math.max(1, Math.min(end, nIn) - start + 1);
+  }
+  if (nIn > 0 && srcFps <= 0) srcFps = 24;
+
+  if (!nIn) return { lines: [{ text: 'Probe a video to see frame estimates', estimate: true }], tone: 'estimate' };
+  if (srcFps <= 0) return { lines: [{ text: 'Probing…', estimate: true }], tone: 'estimate' };
+
+  var nOut = nIn * M;
+  var outFps = srcFps * M;
+  var dur = nIn / Math.max(srcFps, 1e-9);
+
+  return {
+    lines: [
+      { text: '~' + fmtFrames(nIn) + ' in', estimate: true },
+      { text: '×' + M },
+      { text: '→ ~' + fmtFrames(nOut) + ' frames', estimate: true },
+      { text: '~' + fmtDuration(dur) + ' @ ~' + Math.round(outFps) + ' fps', estimate: true },
+    ],
+    tone: 'estimate',
+  };
+}
+
+function _refreshRifeSummary() {
+  var el = document.getElementById('rifePreRunSummary');
+  renderPreRunSummary(el, _buildRifeSummary());
+}
+
+async function _refreshRifeProbe() {
+  var path = (document.getElementById('rifeInput')?.value || '').trim()
+    || ((window.globalInputs || {}).video || '').split('\n').map(function(l) { return l.trim(); }).filter(Boolean)[0]
+    || '';
+  if (!path) { _refreshRifeSummary(); return; }
+  if (_probeCache.path === path && _probeCache.frames > 0) { _refreshRifeSummary(); return; }
+  try {
+    var res = await fetch('/api/probe?path=' + encodeURIComponent(path));
+    if (!res.ok) return;
+    var data = await res.json();
+    if (!data.ok) return;
+    _probeCache = { path: path, frames: data.true_frames || data.frame_count || 0, fps: parseFloat(data.fps) || 24 };
+  } catch (_) { /* ignore */ }
+  _refreshRifeSummary();
+}
+
 function renderRifeForm() {
   const html = `
+    <div id="rifePreRunSummary" class="pre-run-summary"></div>
     <div class="panel-title-desc dense">
       <h3>RIFE · AI frame interpolation</h3>
       <p class="dream-hint">ncnn-vulkan slow-mo — neural in-betweens. Models: v4.6 (cleanest), v4, v2.4, v2.3.</p>
@@ -75,6 +133,15 @@ function renderRifeForm() {
   document.getElementById('btnRifeBrowseOut')?.addEventListener('click', () => {
     openFileBrowser('rifeOutput', true, 'file', 'video');
   });
+
+  _refreshRifeSummary();
+  _refreshRifeProbe();
+
+  document.getElementById('rifeMultiplierKnob')?.addEventListener('click', function() {
+    setTimeout(_refreshRifeSummary, 100);
+  });
+  document.addEventListener('mtapi:video-probed', function() { _probeCache.path = ''; _refreshRifeProbe(); });
+  document.addEventListener('mtapi:frame-range', function() { setTimeout(_refreshRifeSummary, 50); });
 }
 
 function collectRifeBody() {

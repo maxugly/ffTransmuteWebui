@@ -1,25 +1,22 @@
 # Spec: Speed Change (`speedchange`)
 
-> **Version**: 000.000.2.28 (next bump)
-> **Status**: Approved — ready for implementation
-> **Author**: Spec agent
-> **Scope**: New operation — `speedchange_ops.py` + WebUI "Speed" tab
+> **Status:** Implemented (as-built) — see also Speed tab + optional RIFE  
+> **Code:** `mtapi-project/app/operations/speedchange_ops.py`, `js/tabs/speedchange.js`  
+> **Note:** This original draft was pure `setpts`+`atempo`. Shipped code adds **target FPS**, **frame-budget warn**, and **optional RIFE** (dump→RIFE→encode) when density is short. Prefer the as-built op + UI over this file for builder truth; keep §2 ffmpeg math for the fast path.
 
 ---
 
 ## 1. What It Does
 
-Uniform speed change — speed up or slow down a video with pitch-preserved audio.
+Uniform speed change — speed up or slow down a video with pitch-preserved audio (fast path).
 No ramp, no acceleration curve. One factor applied to the entire clip.
 
 This fills the gap between:
-- **Speed Ramp** (`speedramp`): Variable speed over time.
-- **Time-Lapse** (`timelapse`): Extreme speedup (1.5×–1000×) with audio dropped.
+- **Speed Ramp** (`speed_ramp`): Variable speed over time (optional RIFE before remap).
+- **Time-Lapse** (backlog): Extreme speedup with audio dropped.
 
-Speed Change covers the everyday editing range: **0.25×–4.0×** with proper
-audio handling. Audio pitch is preserved via `atempo` (WSOLA time-stretch).
-
-No external tools. No Python engine. Pure `ffmpeg`.
+**As-built:** speed factor + optional target FPS + optional RIFE when frame budget is short.
+Fast path remains pure `ffmpeg` setpts + atempo; RIFE path uses filter-platform dump/encode.
 
 ---
 

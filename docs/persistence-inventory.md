@@ -108,6 +108,8 @@ On page close/refresh, `navigator.sendBeacon` fires a `PUT /api/pool/state` with
 
 ## 7. What is NOT persisted (lost on F5)
 
+> **Target redesign:** `docs/universal-persistence-spec.md` (session vs named project isolation + full desk).
+
 | State key | Reset to |
 |-----------|----------|
 | `state.activeTab` | `"mosh"` |
@@ -119,10 +121,17 @@ On page close/refresh, `navigator.sendBeacon` fires a `PUT /api/pool/state` with
 | `state.moshVideoFrames` | `100` |
 | `state.faceMorph.images[]` | `[]` |
 | `state.faceMorph.folder` | `null` |
+| `state.faceMorph.selected` | `0` |
 | `state.withoutbg.images[]` | `[]` |
 | `state.withoutbg.folder` | `null` |
+| `state.withoutbg.selected` | `0` |
 | `state.styleTransfer.contents[]` | `[]` |
 | `state.styleTransfer.stylePath` | `null` |
+| `state.styleTransfer.selected` | `0` |
+| `state.imageSort.images[]` | `[]` |
+| `state.imageSort.folder` | `null` |
+| `state.imageSort.selected` | `0` |
+| Speed / RIFE / DeepDream / Convert **form knobs** (mostly DOM-only) | defaults on tab re-render |
 | `state.cut.refA` | — |
 | `state.cut.refB` | — |
 | `state.cut.mode` | — |

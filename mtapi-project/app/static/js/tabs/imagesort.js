@@ -2,21 +2,37 @@ import { state, elements, logConsole, showPreview } from '/app.js';
 import { basename, escapeHtml } from '/js/utils.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
 import { registerListKeys } from '/js/ui/list-keys.js';
+import { fmtDuration, fmtFrames, renderPreRunSummary } from '/js/ui/pre-run-summary.js';
 
-function _durationEst() {
+function _buildPreRunSummary() {
   var K = (state.imageSort.images || []).length;
-  if (K < 2) return '—';
+  if (K < 2) return { lines: [{ text: 'Add 2+ images to see totals', estimate: true }], tone: 'estimate' };
+
   var useRife = document.getElementById('isUseRife')?.value === '1';
   var M = useRife ? parseInt(document.getElementById('isMultiplier')?.value || '2', 10) : 1;
   var fps = parseFloat(document.getElementById('isFps')?.value || '24');
-  return ((K * M) / Math.max(fps, 1e-9)).toFixed(2);
+  if (!isFinite(fps) || fps <= 0) fps = 24;
+
+  var N = K * M;
+  var dur = N / Math.max(fps, 1e-9);
+
+  var lines = [];
+  lines.push({ text: K + ' keyframes' });
+  if (useRife) {
+    lines.push({ text: 'RIFE ×' + M });
+  } else {
+    lines.push({ text: 'no RIFE' });
+  }
+  lines.push({ text: fps + ' fps' });
+  lines.push({ text: '→ ' + (useRife ? '~' : '') + fmtFrames(N) + ' frames' });
+  lines.push({ text: (useRife ? '~' : '') + fmtDuration(dur) });
+
+  return { lines: lines, tone: 'ok' };
 }
 
-function _updateDurHint() {
-  var el = document.getElementById('isDurHint');
-  if (el) el.textContent = _durationEst();
-  var el2 = document.getElementById('isDurHint2');
-  if (el2) el2.textContent = _durationEst();
+function _refreshPreRunSummary() {
+  var el = document.getElementById('isPreRunSummary');
+  renderPreRunSummary(el, _buildPreRunSummary());
 }
 
 function _clampSelected() {
@@ -138,17 +154,16 @@ function renderImageSortForm() {
       }).join('')
     : `<div class="fm-empty is-empty-hint">Add 2+ images. Slot #1 is the base (sort anchor + size reference). Click a row to select, then reorder with the buttons below.</div>`;
 
-  var dur = _durationEst();
   var selName = images.length
     ? ('#' + String(sel + 1).padStart(2, '0') + ' · ' + (images[sel].name || basename(images[sel].path)))
     : 'none selected';
 
   var html = `
+    <div id="isPreRunSummary" class="pre-run-summary"></div>
     <div class="panel-title-desc dense">
       <h3>Image Sort → Video</h3>
       <p class="dream-hint">
         <strong>#1 = base</strong> · sort #2…N · optional RIFE · encode.
-        Duration = K × M ÷ fps (~<span id="isDurHint">${dur}</span>s).
       </p>
     </div>
 
@@ -216,7 +231,7 @@ function renderImageSortForm() {
         ${knobUnitHtml({ id: 'isDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
       </div>
       <p class="knob-row-legend" id="isRifeHint">
-        RIFE multiplies keyframes. ~duration <span id="isDurHint2">${dur}</span>s.
+        RIFE multiplies keyframes.
         FPS is absolute (not scaled by M). CRF 0 = lossless · 18 ≈ near-lossless.
       </p>
     </div>
@@ -231,6 +246,9 @@ function renderImageSortForm() {
     </div>
   `;
   elements.actionPanel.innerHTML = html;
+
+  // Pre-run summary strip
+  _refreshPreRunSummary();
 
   // knobs
   setupBinaryKnob({
@@ -277,13 +295,13 @@ function renderImageSortForm() {
       var use = document.getElementById('isUseRife')?.value === '1';
       var opts = document.getElementById('isRifeOpts');
       if (opts) opts.style.display = use ? '' : 'none';
-      _updateDurHint();
+      _refreshPreRunSummary();
     }, 100);
   });
 
   ['isMultiplierKnob', 'isFpsKnob', 'isUseRifeKnob'].forEach(function(id) {
     document.getElementById(id)?.addEventListener('click', function() {
-      setTimeout(_updateDurHint, 100);
+      setTimeout(_refreshPreRunSummary, 100);
     });
   });
 

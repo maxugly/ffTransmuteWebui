@@ -128,7 +128,7 @@ If MCP is missing, use local Playwright + Chromium (`~/.cache/ms-playwright`) â€
 **Never** `web.run` / `web_search` for localhost.  
 **Never** claim WebUI DONE from curl alone.
 
-Tabs of note: **Convert / Export**, RIFE, DeepDream, Single-Clip, **Video Pool**, **Image Pool**, **Cut**, Sequence, Watcher.
+Tabs of note: **Convert / Export**, RIFE, **Speed**, DeepDream, Single-Clip, **Image Sort**, **Video Pool**, **Image Pool**, **Cut**, Sequence, Watcher.
 
 ---
 

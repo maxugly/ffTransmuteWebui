@@ -862,6 +862,72 @@ input:checked + .slider:before {
   margin-top: 4px;
 }
 
+/* ── Pre-run summary strip ───────────────────────────────────────────── */
+.pre-run-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: baseline;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--panel-border);
+}
+
+.pre-run-summary .prs-label {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 2px;
+}
+
+.pre-run-summary .prs-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pre-run-summary .prs-sep {
+  color: var(--text-muted);
+  margin: 0 2px;
+}
+
+.pre-run-summary .prs-number {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.pre-run-summary .prs-estimate {
+  color: var(--accent-muted);
+}
+
+.pre-run-summary.is-estimate {
+  border-left: 2px solid var(--text-muted);
+}
+
+.pre-run-summary.is-warn {
+  border-left: 2px solid #fbbf24;
+  background: rgba(251, 191, 36, 0.05);
+}
+
+.pre-run-summary.is-warn .prs-number {
+  color: #fbbf24;
+}
+
+.pre-run-summary-empty {
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed var(--panel-border);
+}
+
 /* Speed Change frame-budget banner */
 .sc-budget {
   margin: 4px 0 8px;

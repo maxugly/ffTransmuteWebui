@@ -1,6 +1,7 @@
 import { elements, bestInput } from '/app.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
 import { withFrameRange } from '/js/utils.js';
+import { fmtDuration, fmtFrames, renderPreRunSummary } from '/js/ui/pre-run-summary.js';
 
 // ── Speed Change (uniform) + optional RIFE for frame budget ───────────────
 
@@ -71,34 +72,38 @@ function frameBudget(srcFrames, srcFps, speed, targetFps, useRife, mult) {
 }
 
 function updateSpeedBudgetUi() {
-  const el = document.getElementById('scBudget');
+  var el = document.getElementById('scBudget');
   if (!el) return;
-  const speed = parseFloat(document.getElementById('scSpeed')?.value || '1') || 1;
-  let targetFps = parseFloat(document.getElementById('scTargetFps')?.value || '0');
-  const useRife = document.getElementById('scUseRife')?.value === '1';
-  const mult = parseInt(document.getElementById('scRifeMult')?.value || '2', 10);
-  const probe = _srcProbe();
-  // If user left target at 0, treat as source fps (budget uses same)
+  var speed = parseFloat(document.getElementById('scSpeed')?.value || '1') || 1;
+  var targetFps = parseFloat(document.getElementById('scTargetFps')?.value || '0');
+  var useRife = document.getElementById('scUseRife')?.value === '1';
+  var mult = parseInt(document.getElementById('scRifeMult')?.value || '2', 10);
+  var probe = _srcProbe();
   if (!targetFps || targetFps <= 0) targetFps = probe.fps;
 
-  const b = frameBudget(probe.frames, probe.fps, speed, targetFps, useRife, mult);
   if (!probe.frames) {
-    el.className = 'sc-budget muted';
-    el.textContent = 'Probe a video (global Video bar) to check frame budget.';
+    renderPreRunSummary(el, { lines: [{ text: 'Probe a video to check frame budget', estimate: true }], tone: 'estimate' });
     return;
   }
-  const need = b.needed.toFixed(1);
-  const have = String(b.available);
-  const outDur = b.outDur.toFixed(2);
+
+  var b = frameBudget(probe.frames, probe.fps, speed, targetFps, useRife, mult);
+  var need = b.needed.toFixed(1);
+  var have = String(b.available);
+  var outDurS = b.outDur.toFixed(2);
+
+  var lines = [];
+  lines.push({ text: speed.toFixed(2) + '×' });
+  lines.push({ text: 'out ~' + outDurS + 's', estimate: true });
+  lines.push({ text: 'need ~' + fmtFrames(b.needed) + ' frames @ ' + b.targetFps + 'fps', estimate: true });
+  if (useRife) lines.push({ text: 'RIFE ×' + mult });
   if (b.ok) {
-    el.className = 'sc-budget ok';
-    el.textContent = `OK · need ~${need} frames for ${outDur}s @ ${b.targetFps}fps · have ${have}`
-      + (useRife ? ` (RIFE ×${mult})` : '');
+    lines.push({ text: 'have ' + fmtFrames(b.available) });
   } else {
-    el.className = 'sc-budget short';
-    el.textContent = `SHORT · need ~${need} frames for ${outDur}s @ ${b.targetFps}fps · have ${have}`
-      + ` · enable RIFE ×${b.suggested}+ or lower speed/fps`;
+    lines.push({ text: 'have ' + fmtFrames(b.available) + ' — SHORT' });
+    lines.push({ text: 'raise RIFE to ×' + b.suggested + '+ or lower speed/fps', estimate: true });
   }
+
+  renderPreRunSummary(el, { lines: lines, tone: b.ok ? 'ok' : 'warn' });
 }
 
 function renderSpeedChangeForm() {
@@ -109,6 +114,8 @@ function renderSpeedChangeForm() {
         Uniform speed (setpts + atempo). Optional RIFE when slow-mo needs more frames for a target FPS.
       </p>
     </div>
+
+    <div id="scBudget" class="pre-run-summary"></div>
 
     <div class="form-row">
       <label for="scInput">Input</label>
@@ -136,8 +143,6 @@ function renderSpeedChangeForm() {
         <strong>Target FPS</strong> — 0 = keep source rate after speed.
       </p>
     </div>
-
-    <div id="scBudget" class="sc-budget muted">Probe a video to check frame budget.</div>
 
     <div class="form-row">
       <label for="scAudio">Audio</label>
