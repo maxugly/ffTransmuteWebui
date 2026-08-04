@@ -73,6 +73,7 @@ Full backlog + open product specs: **[STATUS.md §5](STATUS.md)**. Build order: 
 | [coder-prompt-library-prompt.md](coder-prompt-library-prompt.md) | Prompt library builder (shipped) |
 | [coder-agy-prompt-library-prompt.md](coder-agy-prompt-library-prompt.md) | Agy → prompt-library-spec |
 | [coder-rife-recoherence-prompt.md](coder-rife-recoherence-prompt.md) | Recohere builder (shipped) |
+| [coder-dry-platform-prompt.md](coder-dry-platform-prompt.md) | **Builder one-shot** — staged_job + Run/Queue DRY |
 
 ---
 

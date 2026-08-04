@@ -71,6 +71,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **UI list / sequence keys** | Sequence L/R + scroll-into-view **shipped `4.64`**; some pool edge cases may remain | `ui-list-nav-timer-spec.md` |
 | **Agent polish** | Phase A+API shipped | Streaming, Image Pool send-to, Ollama, multi-tool loop |
 | **Universal persistence** | **Sacred named-project autosave fixed `4.63`**; full desk snapshot still open | `universal-persistence-spec.md` |
+| **DRY / staged job** | **Builder assignment** — not started | [coder-dry-platform-prompt.md](coder-dry-platform-prompt.md) |
 | Image Sort true TSP | Out of scope | Chain is greedy only |
 
 ---
