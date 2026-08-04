@@ -193,102 +193,97 @@ def stylize_pair(
     }
 
 
-def stylize_batch(
-    content_paths: list[str],
+def stylize_strength_strip(
+    content_path: str | Path,
     style_path: str | Path,
+    candidates_dir: str | Path,
     *,
-    output_dir: str | Path | None = None,
-    suffix: str = "_styled",
-    strength: float = 1.0,
+    strengths: list[float],
     max_side: int = 1280,
     style_size: int = 256,
     progress_cb: Callable | None = None,
 ) -> dict[str, Any]:
-    """Stylize many contents with one style image. Model loaded once."""
+    """Run Magenta **once**, then blend content↔style at each strength → frame_*.png.
+
+    Efficient evolve strip: N strengths do not re-run the neural net N times.
+    Frame 0 = strength[0], last = strength[-1]. Returns paths list.
+    """
     from .. import job_control
 
+    content_path = Path(content_path).expanduser().resolve()
     style_path = Path(style_path).expanduser().resolve()
+    out_dir = Path(candidates_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    if not content_path.is_file():
+        return {"ok": False, "error": f"content not found: {content_path}", "paths": []}
     if not style_path.is_file():
-        return {"ok": False, "error": f"style not found: {style_path}", "results": []}
+        return {"ok": False, "error": f"style not found: {style_path}", "paths": []}
+    if not strengths:
+        return {"ok": False, "error": "need at least one strength", "paths": []}
 
-    contents = [str(Path(p).expanduser().resolve()) for p in content_paths]
-    if not contents:
-        return {"ok": False, "error": "No content images", "results": []}
+    job_control.check_cancelled()
+    if progress_cb:
+        progress_cb("loading style transfer model…", phase="load")
+    model = _get_model()
 
-    out_dir = Path(output_dir).expanduser().resolve() if output_dir else None
-    total = len(contents)
+    content_img = _load_rgb(content_path)
+    style_img = _load_rgb(style_path)
+    content_work = _resize_max_side(content_img, int(max_side) if max_side else 0)
 
+    import tensorflow as tf
+
+    c = _to_tf(content_work)
+    s = _to_tf(style_img, (max(64, int(style_size)), max(64, int(style_size))))
+
+    job_control.check_cancelled()
     if progress_cb:
         progress_cb(
-            f"style transfer: {total} image(s), style={style_path.name}",
-            phase="styletransfer",
-            current=0,
-            total=total,
-            unit="images",
+            f"stylize once {content_path.name} ← {style_path.name}",
+            phase="stylize",
         )
-
-    # Warm model once
     try:
-        preload()
+        out = model(tf.constant(c), tf.constant(s))[0]
     except Exception as e:
-        return {"ok": False, "error": str(e), "results": []}
+        return {"ok": False, "error": f"stylize failed: {e}", "paths": []}
 
-    results: list[dict[str, Any]] = []
-    ok_n = 0
-    primary = None
-
-    from ..pathutil import finalize_output_path
-
-    for i, src in enumerate(contents):
-        job_control.check_cancelled()
-        src_p = Path(src)
-        dest = finalize_output_path(
-            None,
-            source=src_p,
-            default_suffix=suffix,
-            default_ext=".png",
-            output_dir=out_dir,
-            allowed_exts=IMAGE_EXTS,
+    full = np.clip(out.numpy()[0], 0.0, 1.0)
+    base = np.asarray(content_work, dtype=np.float32) / 255.0
+    if base.shape[:2] != full.shape[:2]:
+        base_img = content_work.resize(
+            (full.shape[1], full.shape[0]),
+            Image.Resampling.LANCZOS,
         )
+        base = np.asarray(base_img, dtype=np.float32) / 255.0
 
+    paths: list[str] = []
+    n = len(strengths)
+    for i, raw_s in enumerate(strengths):
+        job_control.check_cancelled()
+        st = float(np.clip(raw_s, 0.0, 1.0))
+        if st < 1e-6:
+            blended = base
+        elif st > 1.0 - 1e-6:
+            blended = full
+        else:
+            blended = full * st + base * (1.0 - st)
+        rgb = (np.clip(blended, 0.0, 1.0) * 255.0).astype(np.uint8)
+        dest = out_dir / f"frame_{i:06d}.png"
+        Image.fromarray(rgb, "RGB").save(dest, format="PNG", compress_level=1)
+        paths.append(str(dest))
         if progress_cb:
             progress_cb(
-                f"image {i + 1}/{total}: {src_p.name} → {dest.name}",
-                phase="styletransfer",
+                f"evolve strength {st:.2f} ({i + 1}/{n})",
+                phase="evolve",
                 current=i + 1,
-                total=total,
-                unit="images",
+                total=n,
+                unit="frames",
+                latest_frame=str(dest),
             )
 
-        r = stylize_pair(
-            src,
-            style_path,
-            dest,
-            strength=strength,
-            max_side=max_side,
-            style_size=style_size,
-            progress_cb=None,
-        )
-        results.append(r)
-        if r.get("ok"):
-            ok_n += 1
-            if primary is None:
-                primary = r.get("output_path")
-
-    if progress_cb:
-        progress_cb(
-            f"style transfer done: {ok_n}/{total} ok",
-            phase="done",
-            current=total,
-            total=total,
-            unit="images",
-        )
-
     return {
-        "ok": ok_n > 0,
-        "ok_count": ok_n,
-        "total": total,
-        "results": results,
-        "output_path": primary,
-        "error": None if ok_n > 0 else "All images failed",
+        "ok": True,
+        "paths": paths,
+        "strengths": [float(np.clip(s, 0, 1)) for s in strengths],
+        "size": (full.shape[1], full.shape[0]),
     }

@@ -42,24 +42,67 @@ def register(app: FastAPI) -> None:
                 "All files | *",
             ]
         elif filter_key == "image":
-            kdialog_filter = (
-                "PNG image (*.png);;"
-                "Images (*.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff *.ppm *.pgm);;"
-                "JPEG (*.jpg *.jpeg);;All Files (*)"
+            # All common stills — open dialogs must lead with this (not PNG-only).
+            _img_all = (
+                "*.png *.jpg *.jpeg *.webp *.bmp *.gif "
+                "*.tif *.tiff *.ppm *.pgm *.svg"
             )
-            filetypes = [
-                ("PNG image", "*.png"),
-                ("Images", "*.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff"),
-                ("JPEG", "*.jpg *.jpeg"),
-                ("All files", "*.*"),
-            ]
-            zenity_pattern = "*.png *.jpg *.jpeg *.webp *.bmp *.gif"
-            zenity_filters = [
-                "PNG image | *.png",
-                "Images | *.png *.jpg *.jpeg *.webp *.bmp *.gif *.tif *.tiff",
-                "JPEG | *.jpg *.jpeg",
-                "All files | *",
-            ]
+            if mode == "save":
+                # Save: PNG first is a reasonable default extension for new files.
+                kdialog_filter = (
+                    f"PNG image (*.png);;"
+                    f"Images ({_img_all});;"
+                    f"JPEG (*.jpg *.jpeg);;"
+                    f"WebP (*.webp);;"
+                    f"All Files (*)"
+                )
+                filetypes = [
+                    ("PNG image", "*.png"),
+                    ("Images", _img_all),
+                    ("JPEG", "*.jpg *.jpeg"),
+                    ("WebP", "*.webp"),
+                    ("All files", "*.*"),
+                ]
+                zenity_filters = [
+                    "PNG image | *.png",
+                    f"Images | {_img_all}",
+                    "JPEG | *.jpg *.jpeg",
+                    "WebP | *.webp",
+                    "All files | *",
+                ]
+            else:
+                # Open (file / files): default filter = all image types.
+                kdialog_filter = (
+                    f"Images ({_img_all});;"
+                    f"JPEG (*.jpg *.jpeg);;"
+                    f"PNG (*.png);;"
+                    f"WebP (*.webp);;"
+                    f"GIF (*.gif);;"
+                    f"TIFF (*.tif *.tiff);;"
+                    f"BMP (*.bmp);;"
+                    f"All Files (*)"
+                )
+                filetypes = [
+                    ("Images", _img_all),
+                    ("JPEG", "*.jpg *.jpeg"),
+                    ("PNG", "*.png"),
+                    ("WebP", "*.webp"),
+                    ("GIF", "*.gif"),
+                    ("TIFF", "*.tif *.tiff"),
+                    ("BMP", "*.bmp"),
+                    ("All files", "*.*"),
+                ]
+                zenity_filters = [
+                    f"Images | {_img_all}",
+                    "JPEG | *.jpg *.jpeg",
+                    "PNG | *.png",
+                    "WebP | *.webp",
+                    "GIF | *.gif",
+                    "TIFF | *.tif *.tiff",
+                    "BMP | *.bmp",
+                    "All files | *",
+                ]
+            zenity_pattern = _img_all
         elif filter_key == "all":
             kdialog_filter = "All Files (*)"
             filetypes = [("All files", "*.*")]

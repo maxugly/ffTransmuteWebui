@@ -372,10 +372,3 @@ def morph_image_list(
         os.chdir(old_cwd)
 
 
-def morph_directory(
-    image_dir: str | Path,
-    output_path: Path,
-    **kwargs,
-) -> dict[str, Any]:
-    files = get_image_files(Path(image_dir).expanduser().resolve())
-    return morph_image_list(files, output_path, **kwargs)

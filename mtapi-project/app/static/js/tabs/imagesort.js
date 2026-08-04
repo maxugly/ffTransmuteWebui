@@ -1,6 +1,7 @@
 import { state, elements, logConsole, showPreview } from '/app.js';
 import { basename, escapeHtml } from '/js/utils.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { rifeModelSelectHtml } from '/js/ui/evolve-rife.js';
 import { registerListKeys } from '/js/ui/list-keys.js';
 import { fmtDuration, fmtFrames, renderPreRunSummary } from '/js/ui/pre-run-summary.js';
 
@@ -240,15 +241,7 @@ function renderImageSortForm() {
         FPS is absolute (not scaled by M). CRF 0 = lossless · 18 ≈ near-lossless.
       </p>
     </div>
-    <div class="form-row" id="isRifeOpts">
-      <label for="isRifeModel">RIFE model</label>
-      <select id="isRifeModel">
-        <option value="rife-v4.6" selected>rife-v4.6</option>
-        <option value="rife-v4">rife-v4</option>
-        <option value="rife-v2.4">rife-v2.4</option>
-        <option value="rife-v2.3">rife-v2.3</option>
-      </select>
-    </div>
+    ${rifeModelSelectHtml('isRifeModel', { rowId: 'isRifeOpts' })}
 
     <section class="tool-docs" aria-label="About this tool">
       <h4 class="tool-docs-title">About · Image Sort</h4>

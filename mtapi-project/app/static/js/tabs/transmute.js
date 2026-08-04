@@ -1,5 +1,6 @@
 import { state, elements } from '/app.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { rifeModelSelectHtml } from '/js/ui/evolve-rife.js';
 
 // Transmute single-clip form
 const transmuteOpsDetails = {
@@ -144,15 +145,7 @@ function updateTransmuteExtras() {
         RIFE before remap densifies frames for slow sections of the ramp.
       </p>
     </div>
-    <div class="form-row">
-      <label for="rampRifeModel">RIFE model</label>
-      <select id="rampRifeModel">
-        <option value="rife-v4.6" selected>rife-v4.6</option>
-        <option value="rife-v4">rife-v4</option>
-        <option value="rife-v2.4">rife-v2.4</option>
-        <option value="rife-v2.3">rife-v2.3</option>
-      </select>
-    </div>
+    ${rifeModelSelectHtml('rampRifeModel')}
   `;
   }
 

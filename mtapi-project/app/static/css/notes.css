@@ -35,6 +35,16 @@ body.notes-tab-active .action-panel {
 body.notes-tab-active .action-panel.notes-active {
   /* take the full content row */
 }
+body.notes-tab-active .action-panel-form {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* Input preview is hidden on Notes; keep form filling the panel */
+body.notes-tab-active .tool-input-preview {
+  display: none !important;
+}
 
 .notes-workspace {
   display: flex;

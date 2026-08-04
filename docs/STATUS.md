@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-04  
-> **VERSION:** `000.000.4.65`  
+> **VERSION:** `000.000.4.77`  
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -53,12 +53,22 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Prompt Library** | Save/load ± pairs; img2img / txt2img / recohere | `prompt-library-spec.md` · `js/ui/prompt-library.js` · `4.61` |
 | Job progress core | phase rate/ETA, cancel | `job_control.py` |
 | RIFE dir watch | `frames_out` while binary runs | `filters/rife.py` |
+| **Live preview (all ops)** | `latest_frame` on frame writers; **DeepDream mid-ascent** snapshots to `/tmp/mtapi_live/{token}.png` | `4.70`+`4.71` |
 | Pre-run summary | Image Sort, RIFE, Speed, Face Morph | `ui/pre-run-summary.js` |
 | Run-button elapsed | sticky `● m:ss` | `job-control.js` |
 | list-keys (partial ship) | several list tabs | `ui/list-keys.js` |
-| Bottom docs (partial ship) | Image Sort pilot + img2img / txt2img / agent / upscale / recohere | `tool-bottom-docs-spec.md` |
+| Bottom docs (partial ship) | Image Sort pilot + img2img / txt2img / agent / upscale / recohere / **deepdream** | `tool-bottom-docs-spec.md` |
 | **DRY staged job** | `run_staged_job` shared bookend runner; rife / cut / upscale-video / speedramp migrated | `app/staged_job.py`, `coder-dry-platform-prompt.md` · `4.65` |
 | **Run/Queue collect unified** | Single `resolveActiveOpAndBody()` shared by Run + Add to Queue | `js/job-control.js` · `4.65` |
+| **Bottom input preview** | Every op tab shows input thumb(s) at panel bottom (after docs); dual for style/recohere/guide | `js/ui/input-preview.js` · `4.66` |
+| **DeepDream bottom docs** | Full noob-friendly story + every knob + recipes | `js/tabs/deepdream.js` · `4.67` |
+| **DeepDream Evolve video** | Mid-ascent capture → Image Sort dedupe → optional RIFE → `*_evolve.mp4` (stills) | `deepdream-evolve-video-spec.md` · `4.73` |
+| **Style Evolve + shared bookend** | Strength ramp (1 neural pass) → `app/evolve_video.py` RIFE/encode DRY | `styletransfer` · `4.74` |
+| **Evolve DRY cleanup** | Shared `EvolveRifeParams` + `js/ui/evolve-rife.js` (DeepDream + Style tabs) | `evolve_video.py`, `evolve-rife.js` · `4.75` |
+| **DeepDream dead-path scrub** | Removed unused sync `dream_video`/`dream_ouroboros`; shared RIFE model select across tabs | `dream.py`, `evolve-rife.js` · `4.76` |
+| **Dead-code pass 3** | Dropped unused helpers/shims; wired `frame_range` fields across video ops | `shell`, engines, `*_ops` · `4.77` |
+| **Image Compare tab** | Two stills · separate/overlay/A/B (shared module) · rate via `imagesort_rank` | `js/tabs/imgcompare.js` · `4.68` |
+| **Nav category collapse** | Collapsible sidebar categories + localStorage persist + auto-expand active | `nav-collapse-spec.md` · `js/ui/nav-sections.js` · `4.69` |
 
 **Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale *(in tree — see §4)*. Root `AGENTS.md`.
 
@@ -117,10 +127,12 @@ Build **only when human prioritizes.** Suggested order in §8.
 | [automation-spec.md](automation-spec.md) / [parameter-automation-spec.md](parameter-automation-spec.md) | Parameter envelopes |
 | [dynamic-mixing-spec.md](dynamic-mixing-spec.md) | Dynamic mix |
 | [model-manager-spec.md](model-manager-spec.md) | Model manager UI |
-| [image-compare-spec.md](image-compare-spec.md) | Image compare |
+| [image-compare-spec.md](image-compare-spec.md) | Shared module + **Compare tab `4.68`** |
 | [frame-scrubber-spec.md](frame-scrubber-spec.md) / [frame-range-spec.md](frame-range-spec.md) | Scrubber / range (partial surface exists) |
 | [sequencer-mvp-spec.md](sequencer-mvp-spec.md) / [seq-proportional-spec.md](seq-proportional-spec.md) | Sequencer |
 | [pool-toggle-spec.md](pool-toggle-spec.md) | Pool toggles |
+| [nav-collapse-spec.md](nav-collapse-spec.md) | **Sidebar category collapse** (headers) — **Implemented `4.69`** |
+| [deepdream-evolve-video-spec.md](deepdream-evolve-video-spec.md) | **DeepDream Evolve** — **Implemented `4.73`** (stills A+B); multi/video later |
 
 ### 5.5 Backlog ops (`docs/backlog/*`) — not implemented
 
@@ -171,7 +183,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.4.65` (DRY staged job, Run/Queue collect unified, ops migrated).  
+- **Current:** `000.000.4.77` (dead helpers/shims removed; shared `frame_range` on video ops).  
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  
@@ -187,13 +199,11 @@ Build **only when human prioritizes.** Suggested order in §8.
 Agents wait for human assignment.
 
 1. **Close partials:** list/sequence keys, progress polish, tool-docs gaps.  
-2. **Verify / ship NCNN upscale** (code already present).  
-3. **Job queue** — line up long ops.  
-4. **Universal persistence** — fix sacred named projects.  
-5. **Cut encode** — small filter-platform win.  
-6. **Product choice:** quality rating *or* tilagup mode.  
-7. Agent polish (streaming / Ollama) when vision UX needs it.  
-8. Explicit backlog picks only (depth, flow, facerestore, …).
+2. **Nav category collapse** — small UX win; [`nav-collapse-spec.md`](nav-collapse-spec.md) + [`coder-nav-collapse-prompt.md`](coder-nav-collapse-prompt.md).  
+3. **Universal persistence** — full desk snapshot / inactive knobs.  
+4. **Product choice:** quality rating *or* tilagup mode.  
+5. Agent polish (streaming / Ollama) when vision UX needs it.  
+6. Explicit backlog picks only (depth, flow, facerestore, …).
 
 ---
 

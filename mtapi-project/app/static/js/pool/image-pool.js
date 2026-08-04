@@ -311,6 +311,15 @@ function sendImagePathTo(path, target) {
     return;
   }
 
+  if (target === 'compare_a' || target === 'compare_b') {
+    import('/js/tabs/imgcompare.js').then((m) => {
+      m.applyImgComparePath(path, target === 'compare_b' ? 'B' : 'A');
+    }).catch((err) => {
+      logConsole(`[IMAGE POOL ERROR]: Compare send failed — ${err.message}`, 'error');
+    });
+    return;
+  }
+
   if (target === 'zoompan_ref') {
     if (!state.zoompan) {
       state.zoompan = { refPath: null, mode: 'overlay', overlayOpacity: 50, abPosition: 50, compareTarget: 'end_ref' };
@@ -433,6 +442,8 @@ function renderImagePoolForm() {
                   <option value="deepdream">DeepDream</option>
                   <option value="cut_ref_a">Cut · Ref A</option>
                   <option value="cut_ref_b">Cut · Ref B</option>
+                  <option value="compare_a">Compare · Image A</option>
+                  <option value="compare_b">Compare · Image B</option>
                   <option value="zoompan_ref">Pan &amp; Zoom · Reference</option>
                   <option value="preview">Preview</option>
                 </select>
@@ -449,7 +460,7 @@ function renderImagePoolForm() {
   `;
 
   elements.actionPanel.innerHTML = html;
-  elements.actionPanel.classList.add('pool-active');
+  (elements.actionPanelRoot || elements.actionPanel).classList.add('pool-active');
 
   document.getElementById('btnProjectNew')?.addEventListener('click', projectNew);
   document.getElementById('btnProjectOpen')?.addEventListener('click', projectOpen);

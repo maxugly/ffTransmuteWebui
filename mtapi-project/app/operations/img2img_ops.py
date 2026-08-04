@@ -4,11 +4,11 @@ from __future__ import annotations
 import shutil
 import uuid
 from pathlib import Path
-from typing import Any
 
 from pydantic import BaseModel, Field
 
 from ..contract import OperationResult, OperationSpec, register
+from ..frame_range import end_frame_field, start_frame_field
 from ..pathutil import finalize_output_path
 
 IMAGE_EXTS = frozenset({".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"})
@@ -37,8 +37,8 @@ class Img2ImgParams(BaseModel):
         None, description="Inclusive [start, end] 0-based alternative to indices"
     )
     max_side: int = Field(0, ge=0, description="Optional long-side cap (0 = native, %%8)")
-    start_frame: int = Field(1, ge=0, description="Video dump start (1-based)")
-    end_frame: int = Field(999999, ge=0, description="Video dump end (1-based)")
+    start_frame: int = start_frame_field()
+    end_frame: int = end_frame_field()
     dry_run: bool = Field(False)
 
 

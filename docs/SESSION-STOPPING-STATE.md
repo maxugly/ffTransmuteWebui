@@ -1,27 +1,43 @@
 # Session stopping state — handoff
 
 > **Date:** 2026-08-04  
-> **VERSION:** `000.000.4.63`  
+> **VERSION:** `000.000.4.77`  
 > **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 4.63)
+## 1. Shipped this stretch (through 4.77)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
-| **Named project sacred** | Autosave → session only; never quiet-write `*.ffproject.json` | `persistence.js`, `media/pool.py` · **`4.63`** |
-| **RIFE Recohere (all mids)** | Keep every RIFE mid; img2img each (no discard) | `rife_recohere_ops.py` · **`4.62`** |
-| **Prompt Library** | Global save/load positive+negative; localStorage | `js/ui/prompt-library.js` · **`4.61`** |
-| **RIFE Recoherence** | 2 stills → RIFE M=2 → recohere mids → .mp4 + tab | `rife_recohere_ops.py`, `riferecohere.js` · **`4.60`+** |
-| **Agent tab + HTTP APIs** | CLI + DeepSeek/OpenRouter/xAI/… via `~/.secrets` | `agent_ops.py`, `agents/*` · **`4.59`** |
-| **Txt2img / Img2img OpenVINO** | Ops + WebUI tabs; mark frames on img2img | **`4.55`+** |
-| Image Sort chain + bottom docs pilot | radial \| chain; `.tool-docs` spreading | ~`4.54` |
-| RIFE ×2–128 + progress core | dir watch on RIFE | **progress still partial** |
+| **Dead-code pass 3** | Removed `shell.probe_duration`, dead `stylize_batch` / `morph_directory` / watcher `_save_config` / `_needs_audio_for_preset` / `ensure_withoutbg_available` / `get_target_group`; unused imports; video ops use `start_frame_field`/`end_frame_field` | **`4.77`** |
+| **DeepDream dead-path scrub** | Dropped unused sync `dream_video` / `dream_ouroboros` (~260 lines); ops only use filter + workspace paths; shared `rifeModelSelectHtml` on rife/imagesort/speed/recohere/transmute | `dream.py`, `evolve-rife.js` · **`4.76`** |
+| **Evolve DRY cleanup** | Shared `EvolveRifeParams` (Pydantic) + `js/ui/evolve-rife.js` knobs/collect/master toggle | `evolve_video.py`, `evolve-rife.js` · **`4.75`** |
+| **Style Evolve + shared bookend** | Strength ramp 0→full (1 Magenta pass) → optional RIFE → `*_styled_evolve.mp4` | `evolve_video.py`, `styletransfer_*` · **`4.74`** |
+| **DeepDream Evolve** | Mid-ascent capture → Image Sort dedupe → optional RIFE → `*_dream_evolve.mp4` (stills) | `deepdream-evolve-video-spec.md` · **`4.73`** |
+| **DeepDream fidelity** | Max loss default off; auto-ignore wrong-scale max_loss; VGG×40 / ResNet×120 step scale | `dream.py` / `models.py` · **`4.72`** |
+| **Live mid-ascent preview** | `/tmp/mtapi_live/{token}.png` + `latest_frame` | **`4.71`** |
+| **Live preview wiring** | Frame writers push `latest_frame` | **`4.70`** |
+| **Nav category collapse** | Collapsible sidebar sections + `mtapi_nav_sections` | `nav-sections.js` · **`4.69`** |
+| **Image Compare tab** | A/B + Image Sort metrics | `imgcompare.js` · **`4.68`** |
+| **DeepDream bottom docs** | Full knob story | `deepdream.js` · **`4.67`** |
+| **Bottom input preview** | Thumbs at panel bottom | `input-preview.js` · **`4.66`** |
+| **DRY staged job + Run/Queue collect** | `run_staged_job`, `resolveActiveOpAndBody` | **`4.65`** |
+| Upscale / Cut / Job queue | Earlier `4.64` | ops + Jobs tab |
 
-Earlier stable: filter platform, dual pools, Convert, neural ops, pre-run strips, Run timer, partial list-keys.
+Earlier stable: filter platform, dual pools, Convert, neural ops, Prompt Library, Recohere, Agent, OpenVINO stills.
+
+**Shared evolve stack (DRY) — use this, do not fork:**
+
+| Layer | Path | Role |
+|-------|------|------|
+| Bookend | `app/evolve_video.py` | `build_evolve_video`, `EvolveRifeOpts`, `rife_opts_from_evolve_params` |
+| Params | `EvolveRifeParams` (same module) | Inherit on op models for RIFE/fps/stills fields |
+| WebUI | `static/js/ui/evolve-rife.js` | HTML + knobs + `collectEvolveRifeFields` + master toggle |
+
+Next strip→video ops: inherit params, import JS helper, call `build_evolve_video`.
 
 ---
 
@@ -29,27 +45,27 @@ Earlier stable: filter platform, dual pools, Convert, neural ops, pre-run strips
 
 | Area | Next |
 |------|------|
-| Workspace progress | `workspace-progress-spec.md` — dump watch, multi-phase ETA |
+| Workspace progress | Multi-phase ETA polish — `workspace-progress-spec.md` |
 | Tool bottom docs | Roll out remaining tabs |
-| List / sequence keys | `ui-list-nav-timer-spec.md` |
-| NCNN Upscale | Code in tree — verify WebUI → ship or fix |
-| Universal persistence | `universal-persistence-spec.md` |
-| Cut encode | dump+encode bookends |
-| Job queue | `job-queue-spec.md` |
-| Tilagup mode | `tilagup-mtapi-mode-spec.md` |
-| Quality rating | `image-quality-rating-spec.md` (+ pool normalize) |
-| Full backlog | STATUS §5.5 — human priority only |
+| UI list keys | Edge cases — `ui-list-nav-timer-spec.md` |
+| Universal persistence | Full desk snapshot — `universal-persistence-spec.md` |
+| Evolve multi/video/ouro | Spec phases C–E — stills only shipped |
+| Job queue persist | Memory FIFO only |
+| Tilagup / quality rating | Specs; human priority |
+| Full backlog | STATUS §5.5 |
 
 ---
 
-## 3. Known bugs
+## 3. Known bugs / product debt
 
-1. ~~Autosave can overwrite named projects~~ — fixed `4.63`.  
-2. List reorder jumps to top.  
+1. ~~Autosave overwrites named projects~~ — fixed `4.63`.  
+2. List reorder jumps scroll to top.  
 3. Arrows scroll page outside wired lists.  
-4. Inactive tab knobs not persisted.  
-5. Pool normalize drops extra fields.  
-6. Extreme RIFE M × large K (no soft warn).
+4. Inactive tab knobs not in project JSON.  
+5. Pool normalize strips unknown fields (blocks quality rating).  
+6. Extreme RIFE M × large K — no soft warn.  
+7. Long POST can die under heavy DeepDream (browser “Failed to fetch”) — server crash/OOM; evolve/async-job polish later.  
+8. **Docs:** keep SESSION + feature banners in sync on ship (this file was long stale at 4.63).
 
 ---
 
@@ -57,17 +73,15 @@ Earlier stable: filter platform, dual pools, Convert, neural ops, pre-run strips
 
 | Doc | Role |
 |------|------|
-| **[STATUS.md](STATUS.md)** | Canonical roadmap: shipped / partial / remaining |
-| [README.md](README.md) | Doc index + at-a-glance |
+| **[STATUS.md](STATUS.md)** | Canonical shipped / partial / roadmap |
+| [README.md](README.md) | Doc index |
 | This file | Handoff narrative |
-| `prompt-library-spec.md` | Prompt library as-built (`4.61`) |
-| `rife-recoherence-spec.md` | Recohere as-built (`4.60`) |
-| `agent-vision-tab-spec.md` | Agent Phase A+API |
-| `img2img-openvino-spec.md` | Img2img |
-| `job-queue-spec.md` / `universal-persistence-spec.md` / `tilagup-mtapi-mode-spec.md` / `image-quality-rating-spec.md` | Next cleaned specs |
-| `filter-platform-spec.md` / `video-image-pools-spec.md` | Core law |
+| [deepdream-evolve-video-spec.md](deepdream-evolve-video-spec.md) | Evolve as-built (DeepDream) + shared bookend note |
+| [styletransfer-spec.md](styletransfer-spec.md) | Style stills/video + Evolve strength ramp |
+| [filter-platform-spec.md](filter-platform-spec.md) / [video-image-pools-spec.md](video-image-pools-spec.md) | Core law |
+| `prompt-library` / `rife-recoherence` / `agent-vision` / `img2img` | Earlier as-built |
 
-Sibling: `/home/m/snc/cod/tilagup`.
+Code: `mtapi-project/app/evolve_video.py` (shared).
 
 ---
 
@@ -77,17 +91,17 @@ Sibling: `/home/m/snc/cod/tilagup`.
 cd /home/m/snc/cod/ffTransmuteWebui
 git status
 git diff --stat
-cat VERSION   # expect 000.000.4.61
+cat VERSION   # expect 000.000.4.74
 ```
 
-Commit/push only when human asks. Tree often includes recohere, prompt library, upscale bins, docs.
+Commit/push only when human asks.
 
 ---
 
 ## 6. How to resume
 
 ```bash
-cat docs/STATUS.md                 # roadmap
+cat docs/STATUS.md
 cat docs/SESSION-STOPPING-STATE.md
 cd mtapi-project && .venv/bin/python run.py   # :24590
 ```
@@ -95,9 +109,10 @@ cd mtapi-project && .venv/bin/python run.py   # :24590
 | Role | First read | Then |
 |------|------------|------|
 | Spec writer | STATUS §5 | Docs only |
-| Builder (UX) | `ui-list-nav-timer-spec.md` | Keys / scroll |
-| Builder (progress) | `workspace-progress-spec.md` | Close checklist |
-| Builder (upscale) | in-tree ops + backlog upscale | Verify → ship |
-| Builder (queue / persistence / tilagup) | matching cleaned spec | When prioritized |
+| Builder (evolve UX DRY) | `evolve_video.py` + dream/style tabs | Shared RIFE knob fragment |
+| Builder (progress) | `workspace-progress-spec.md` | ETA polish |
+| Builder (persistence) | `universal-persistence-spec.md` | When prioritized |
 
-**STATUS §8** = suggested build order. No random backlog without human priority.
+**WebUI smoke:** DeepDream Evolve on still (Inception, Preview W 512, Max loss off); Style Evolve one still (Frames 16, Str 0→main, RIFE off).
+
+**STATUS §8** = build order. No random backlog without human priority.

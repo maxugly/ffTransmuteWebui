@@ -14,6 +14,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from ..frame_range import end_frame_field, start_frame_field
 from ..contract import OperationResult, OperationSpec, register
 from ..pathutil import unique_output_path
 from ..shell import ensure_video_output_path
@@ -40,8 +41,8 @@ class SpeedRampParams(BaseModel):
     model: RifeModel = Field("rife-v4.6", description="RIFE model")
     tta: bool = Field(False, description="RIFE spatial TTA")
     uhd: bool = Field(False, description="RIFE UHD mode")
-    start_frame: int = Field(1, ge=0, description="First source frame (1-based inclusive)")
-    end_frame: int = Field(999999, ge=0, description="Last source frame (1-based inclusive)")
+    start_frame: int = start_frame_field()
+    end_frame: int = end_frame_field()
     dry_run: bool = Field(False, description="Print plan only")
 
 

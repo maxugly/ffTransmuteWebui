@@ -10,14 +10,12 @@ Not a transmute wrapper. Uses shared video_pipeline + convert_presets.
 """
 from __future__ import annotations
 
-import asyncio
-import shutil
+import uuid
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
 from ..contract import OperationResult, OperationSpec, register
-from .. import job_control
 from ..job_workspace import JobWorkspace
 from ..pathutil import unique_output_path
 from ..convert_presets import (
@@ -26,8 +24,7 @@ from ..convert_presets import (
     get_auto_name,
     VIDEO_EXTS, IMAGE_EXTS, GIF_EXTS,
 )
-
-import uuid
+from ..frame_range import end_frame_field, start_frame_field
 
 # ── Params ──────────────────────────────────────────────────────────────────
 
@@ -51,8 +48,8 @@ class ConvertParams(BaseModel):
         ge=1.0, le=120.0,
         description="Effective FPS for image-folder import; ignored for video sources",
     )
-    start_frame: int = Field(1, ge=0, description="First source frame for video/GIF (1-based inclusive)")
-    end_frame: int = Field(999999, ge=0, description="Last source frame for video/GIF (1-based inclusive)")
+    start_frame: int = start_frame_field()
+    end_frame: int = end_frame_field()
     dry_run: bool = Field(False, description="Print command without executing")
 
 

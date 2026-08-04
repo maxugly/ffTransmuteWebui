@@ -728,6 +728,10 @@ input:checked + .slider:before {
   display: none !important;
 }
 
+.dream-evolve-only.hidden,
+.st-evolve-only.hidden {
+  display: none !important;
+}
 .dream-ouro-only.hidden {
   display: none !important;
 }
@@ -1193,6 +1197,115 @@ input.daw-knob-value-input:focus {
   background: rgba(255, 255, 255, 0.08);
 }
 
+/* ── Tool input preview (bottom of action panel, after all form chrome) ─ */
+.action-panel-form {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: inherit;
+}
+
+.tool-input-preview {
+  flex: 0 0 auto;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.tool-input-preview[hidden] {
+  display: none !important;
+}
+
+.tool-input-preview-title {
+  margin: 0 0 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tool-input-preview-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.tool-input-slot {
+  flex: 1 1 140px;
+  max-width: 280px;
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tool-input-slot-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.tool-input-slot-frame {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  max-height: 160px;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--panel-border);
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tool-input-slot-frame:hover {
+  border-color: var(--primary, #3b82f6);
+}
+
+.tool-input-slot-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: #0a0d12;
+}
+
+.tool-input-slot-empty {
+  padding: 12px 8px;
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.tool-input-slot-name {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.tool-input-slot-badge {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  font-size: 0.62rem;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #e5e7eb;
+  letter-spacing: 0.03em;
+}
+
 /* ── Tool bottom docs (About section) ────────────────────────────────── */
 .tool-docs {
   margin-top: 14px;
@@ -1245,6 +1358,27 @@ input.daw-knob-value-input:focus {
 
 .tool-docs p {
   margin: 2px 0 4px;
+}
+
+.tool-docs-ol,
+.tool-docs-ul {
+  margin: 4px 0 8px;
+  padding-left: 1.25rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.tool-docs-ol li,
+.tool-docs-ul li {
+  margin: 3px 0;
+}
+
+.tool-docs kbd {
+  font-size: 0.68rem;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid var(--panel-border);
+  background: rgba(0, 0, 0, 0.35);
 }
 
 /* Agent tab */

@@ -40,8 +40,11 @@ import { renderImagePoolForm } from '/js/pool/image-pool.js';
 import { renderCutForm, collectCutBody } from '/js/tabs/cut.js';
 import { renderZoompanForm, collectZoompanBody } from '/js/tabs/zoompan.js';
 import { renderImageSortForm, collectImageSortBody } from '/js/tabs/imagesort.js';
+import { renderImgCompareForm } from '/js/tabs/imgcompare.js';
 import { renderNotesForm } from '/js/tabs/notes.js';
 import { renderJobsForm, stopJobsPoll } from '/js/tabs/jobs.js';
+import { refreshInputPreview, bindInputPreviewListeners } from '/js/ui/input-preview.js';
+import { setupNavSectionCollapse, ensureNavSectionForTab } from '/js/ui/nav-sections.js';
 import {
   findPoolItem, displayFocusPath, setPoolHover, clearPoolHover,
   setPoolFocus, updateSelectionHighlights, updatePoolFocusFrame,
@@ -181,6 +184,20 @@ let state = {
     overlayOpacity: 50,      // 0–100 ref opacity in overlay mode
     abPosition: 50,          // 0–100 wipe handle (left=base, right=ref)
   },
+  // Image Compare tab (two stills + rate via imagesort_rank)
+  imgCompare: {
+    pathA: null,
+    pathB: null,
+    sortMode: 'phash',
+    lastScore: null,
+    lastScoreMode: null,
+    lastError: null,
+    rating: null,
+    mode: 'separate',
+    compareMode: 'separate',
+    overlayOpacity: 50,
+    abPosition: 50,
+  },
 };
 
 
@@ -204,13 +221,16 @@ state.pool.tileInfo = defaultTileInfo();
 state.pool.tileZoom = POOL_ZOOM.reset;
 
 // DOM Elements
+// actionPanel = form host (#actionPanelForm) so tab re-renders don't wipe the
+// bottom input preview; actionPanelRoot = outer .action-panel for layout classes.
 const elements = {
   statusDot: document.getElementById('statusDot'),
   statusText: document.getElementById('statusText'),
   tabTitle: document.getElementById('tabTitle'),
   btnRun: document.getElementById('btnRun'),
   btnStop: document.getElementById('btnStop'),
-  actionPanel: document.getElementById('actionPanel'),
+  actionPanelRoot: document.getElementById('actionPanel'),
+  actionPanel: document.getElementById('actionPanelForm') || document.getElementById('actionPanel'),
   mediaViewer: document.getElementById('mediaViewer'),
   mediaInfo: document.getElementById('mediaInfo'),
   mediaName: document.getElementById('mediaName'),
@@ -263,6 +283,7 @@ const TAB_ACCEPTS = {
   convert:     'any',
   cut:         'video',
   imagesort:   'image',
+  imgcompare:  'image',
   zoompan:     'image',
   notes:       'none',
 };
@@ -310,6 +331,7 @@ function updateGlobalInputs() {
   updateStatusIndicators();
   // Sync per-tab local fields from global inputs + show/hide frame row
   _syncTabInputFromGlobal();
+  try { refreshInputPreview(); } catch (_) { /* ignore */ }
 }
 
 function _syncTabInputFromGlobal() {
@@ -421,6 +443,7 @@ async function init() {
   setupEventListeners();
   setupPreviewConsoleResize();
   setupAllPanelResize();
+  bindInputPreviewListeners();
   await checkHealth();
   await fetchOperations();
   await restorePoolState();
@@ -517,6 +540,7 @@ function setupEventListeners() {
     btnPreview.addEventListener('click', () => togglePreviewCollapse());
   }
   loadSavedCollapseState();
+  setupNavSectionCollapse();
 }
 
 // API Calls
@@ -563,6 +587,9 @@ function switchTab(tab) {
     }
   });
 
+  // Ensure the section containing this tab is expanded
+  ensureNavSectionForTab(tab);
+
   // Update Page Title
   let title = 'Operations';
   if (tab === 'mosh') title = 'Datamosh Smear';
@@ -585,6 +612,7 @@ function switchTab(tab) {
   if (tab === 'convert') title = 'Convert / Export';
   if (tab === 'cut') title = 'Cut';
   if (tab === 'imagesort') title = 'Image Sort → Video';
+  if (tab === 'imgcompare') title = 'Image Compare';
   if (tab === 'zoompan') title = 'Pan & Zoom';
   if (tab === 'jobs') title = 'Jobs · Queue';
   if (tab === 'notes') title = 'Notes';
@@ -592,10 +620,11 @@ function switchTab(tab) {
   if (tab === 'pool' || tab === 'sequence' || tab === 'images') title = '';
   elements.tabTitle.textContent = title;
 
-  // Hide Run / Queue on library / settings-only tabs
+  // Hide Run / Queue on library / settings-only tabs (compare is interactive, not a job)
   const hideRun = (
     tab === 'pool' || tab === 'sequence' || tab === 'images'
     || tab === 'quick' || tab === 'watcher' || tab === 'notes' || tab === 'agent' || tab === 'jobs'
+    || tab === 'imgcompare'
   );
   if (elements.btnRun) {
     elements.btnRun.style.display = hideRun ? 'none' : '';
@@ -637,7 +666,11 @@ function switchTab(tab) {
 // Render Specific Tab Forms
 function renderTabForm(tab) {
   elements.actionPanel.innerHTML = '';
-  elements.actionPanel.classList.remove('pool-active');
+  const root = elements.actionPanelRoot || elements.actionPanel;
+  if (root) {
+    root.classList.remove('pool-active');
+    root.classList.remove('notes-active');
+  }
 
   if (tab === 'mosh') {
     renderMoshForm();
@@ -689,11 +722,16 @@ function renderTabForm(tab) {
     renderZoompanForm();
   } else if (tab === 'imagesort') {
     renderImageSortForm();
+  } else if (tab === 'imgcompare') {
+    renderImgCompareForm();
   } else if (tab === 'jobs') {
     renderJobsForm();
   } else if (tab === 'notes') {
     renderNotesForm();
   }
+
+  // Bottom input preview (after form chrome; survives form-only re-renders)
+  try { refreshInputPreview(); } catch (_) { /* ignore */ }
 }
 import { probeGlobalVideo, setupGlobalTimeline, setupTimelineSlider } from '/js/timeline.js';
 import { setupFrameScrubber, resetFrameScrubber } from '/js/frame-scrubber.js';
@@ -905,6 +943,7 @@ export {
   TAB_ACCEPTS, detectFileType,
   logConsole, fitPreviewViewer,
   probeGlobalVideo, updateGlobalInputs, updateStatusIndicators,
+  refreshInputPreview,
   showPreview,
   selectPoolItem, removePoolItem, sequencePositions,
   loadPoolItemMeta, setPreviewAspect, clearPreviewAspect,

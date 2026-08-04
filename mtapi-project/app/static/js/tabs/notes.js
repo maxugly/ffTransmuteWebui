@@ -62,7 +62,7 @@ function renderNotesForm() {
       </div>
     </div>
   `;
-  elements.actionPanel.classList.add('notes-active');
+  (elements.actionPanelRoot || elements.actionPanel).classList.add('notes-active');
 
   const left = document.getElementById('notesLeft');
   const right = document.getElementById('notesRight');

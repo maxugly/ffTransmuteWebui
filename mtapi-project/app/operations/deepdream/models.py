@@ -92,6 +92,18 @@ MODEL_MIN_SIDE = {
     "resnet50": 128,
 }
 
+# Gradient-ascent step multiplier after mean-|grad| normalize.
+# Inception preprocess ≈ [-1, 1]; VGG/ResNet Caffe-style ≈ O(100).
+# Without this, the same UI "step" barely moves VGG/ResNet pixels
+# (looks like a copy of the input even after many iterations).
+MODEL_STEP_SCALE = {
+    "inception_v3": 1.0,
+    "vgg16": 40.0,
+    # ResNet residual features yield weaker mean-|grad| signal than VGG at the
+    # same UI step — needs a higher post-normalize multiplier to match strength.
+    "resnet50": 120.0,
+}
+
 DEFAULT_MODEL = "inception_v3"
 SUPPORTED_MODELS = tuple(MODEL_PRESETS.keys())
 

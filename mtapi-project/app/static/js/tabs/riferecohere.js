@@ -1,5 +1,6 @@
 import { elements, bestInput } from '/app.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { rifeModelSelectHtml } from '/js/ui/evolve-rife.js';
 
 /**
  * RIFE Recoherence — two stills → conform → RIFE M=2 → img2img every mid → encode
@@ -72,15 +73,9 @@ function renderRifeRecohereForm() {
       </select>
     </div>
 
-    <div class="form-row">
-      <label for="rrRifeModel">RIFE model</label>
-      <select id="rrRifeModel">
-        <option value="rife-v4.6" selected>rife-v4.6 (best)</option>
-        <option value="rife-v4">rife-v4</option>
-        <option value="rife-v2.4">rife-v2.4</option>
-        <option value="rife-v2.3">rife-v2.3</option>
-      </select>
-    </div>
+    ${rifeModelSelectHtml('rrRifeModel', {
+      extraLabels: { 'rife-v4.6': 'rife-v4.6 (best)' },
+    })}
 
     <div class="knob-row">
       <div class="knob-bank">

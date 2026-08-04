@@ -173,19 +173,27 @@ async def rife_recohere_run(p: RifeRecohereParams) -> OperationResult:
         )
         ws.create()
 
-        await conform_image(pa, ws.frames_in / "frame_000000.png", bw, bh, fit=target_fit)
+        fa = ws.frames_in / "frame_000000.png"
+        fb = ws.frames_in / "frame_000001.png"
+        await conform_image(pa, fa, bw, bh, fit=target_fit)
         progress_cb(
-            "conformed A", phase="conform", current=1, total=2, unit="frames",
+            "conformed A",
+            phase="conform", current=1, total=2, unit="frames",
+            latest_frame=str(fa),
         )
-        await conform_image(pb, ws.frames_in / "frame_000001.png", bw, bh, fit=target_fit)
+        await conform_image(pb, fb, bw, bh, fit=target_fit)
         progress_cb(
-            "conformed B", phase="conform", current=2, total=2, unit="frames",
+            "conformed B",
+            phase="conform", current=2, total=2, unit="frames",
+            latest_frame=str(fb),
         )
 
         # ── phase: rife M=2 → typically 4 frames (2 inputs × 2) ──
+        # DirWatcher on frames_out already pushes latest_frame during RIFE
         progress_cb(
             "RIFE 2x interpolate…",
             phase="rife", current=0, total=4, unit="frames",
+            latest_frame=str(fa),
         )
         meta = await run_rife_directory(
             ws.frames_in, ws.frames_out,
@@ -207,9 +215,11 @@ async def rife_recohere_run(p: RifeRecohereParams) -> OperationResult:
             f"rife: keep all {out_count} frames; "
             f"img2img mids {mid_idxs} (A/B endpoints untouched)"
         )
+        _, rife_latest = job_control._scan_pngs(str(ws.frames_out))
         progress_cb(
             f"rife done: {out_count} frames",
             phase="rife", current=out_count, total=out_count, unit="frames",
+            latest_frame=rife_latest,
         )
 
         # ── phase: img2img every mid ──
@@ -252,9 +262,11 @@ async def rife_recohere_run(p: RifeRecohereParams) -> OperationResult:
                     f"(expected {out_count} frames)"
                 )
 
+        _, img2_latest = job_control._scan_pngs(str(ws.frames_in))
         progress_cb(
             f"img2img done ({n_mids} mid(s))",
             phase="img2img", current=n_mids, total=n_mids, unit="frames",
+            latest_frame=img2_latest,
         )
 
         # ── phase: encode ──

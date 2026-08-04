@@ -66,7 +66,8 @@ static/
 | **Video Pool** | `pool` | Video library (dual first/last thumbs); projects |
 | **Image Pool** | `images` | Still library; cut refs / image ops |
 | **Sequence** | `sequence` | Stitch composer (**videos only**) |
-| **Cut** | `cut` | In/Out from **global** range + Ref A/B stills (no encode yet) |
+| **Cut** | `cut` | In/Out from **global** range + Ref A/B stills + encode |
+| **Compare** | `imgcompare` | Two stills · separate/overlay/A/B · rate via imagesort metrics |
 | **Pan & Zoom** | `zoompan` | Still → video between two AR-locked viewports (`POST /ops/zoompan`) |
 
 **Word rule:** “Media Pool” is deprecated wording. Say **Video Pool** or **Image Pool**.

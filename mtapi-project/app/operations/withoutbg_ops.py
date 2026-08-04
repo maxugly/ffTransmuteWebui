@@ -15,6 +15,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from ..frame_range import end_frame_field, start_frame_field
 from ..contract import OperationResult, OperationSpec, register
 from .. import job_control
 from ..pathutil import finalize_output_path
@@ -83,8 +84,8 @@ class WithoutBGParams(BaseModel):
         "png",
         description="Cutout / background format (mask is always PNG). Prefer png/webp for alpha.",
     )
-    start_frame: int = Field(1, ge=0, description="First source frame for video (1-based inclusive)")
-    end_frame: int = Field(999999, ge=0, description="Last source frame for video (1-based inclusive)")
+    start_frame: int = start_frame_field()
+    end_frame: int = end_frame_field()
     dry_run: bool = False
 
 
@@ -173,7 +174,17 @@ async def _withoutbg_video(p: WithoutBGParams, video_path: str) -> OperationResu
             f"(src {p.start_frame}–{p.end_frame if p.end_frame < 999999 else 'end'})"
         )
 
-        processed = await process(ws, filter_fn)
+        def _progress(cur: int, tot: int) -> None:
+            job_control.report_progress(
+                f"withoutbg {cur}/{tot}",
+                phase="withoutbg",
+                current=cur,
+                total=tot,
+                unit="frames",
+                latest_frame=str(ws.frames_out / f"frame_{cur-1:06d}.png"),
+            )
+
+        processed = await process(ws, filter_fn, progress_cb=_progress)
         logs.append(f"process: {processed} frames via filters.withoutbg")
 
         codec = "libvpx-vp9" if p.save_cutout else "libx264"

@@ -11,6 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from ..frame_range import end_frame_field, start_frame_field
 from ..contract import OperationResult, OperationSpec, register
 from ..pathutil import finalize_output_path
 from ..staged_job import StageSpec, run_staged_job
@@ -31,13 +32,14 @@ class UpscaleParams(BaseModel):
     srmd_noise: int = Field(3, ge=-1, le=10, description="SRMD denoise level (-1=preserve, 10=heavy)")
     tta: bool = Field(False, description="Spatial TTA mode — cleaner but slower")
     grain_strength: int = Field(0, ge=0, le=24, description="Re-grain strength (0=off, ~12 for film look)")
-    start_frame: int = Field(1, ge=0, description="First source frame (1-based)")
-    end_frame: int = Field(999999, ge=0, description="Last source frame (1-based)")
+    start_frame: int = start_frame_field()
+    end_frame: int = end_frame_field()
     dry_run: bool = Field(False, description="Print command only")
 
 
 async def upscale_run(p: UpscaleParams) -> OperationResult:
     """Thin bookend wrapper around the upscale directory stage."""
+    from .. import job_control
     from ..filters.upscale import make_upscale_directory_fn
 
     input_path = Path(p.input_path).expanduser().resolve()
@@ -130,6 +132,14 @@ async def upscale_run(p: UpscaleParams) -> OperationResult:
                 ok=False, operation="upscale",
                 error=f"upscale failed (exit {rc}): {stderr[-500:]}",
                 command=" ".join(argv), stdout=stdout, stderr=stderr,
+            )
+
+        token = job_control.current_token()
+        if token:
+            job_control.report_progress(
+                "upscale done",
+                phase="done", current=1, total=1, unit="pass",
+                latest_frame=str(out), token=token,
             )
 
         return OperationResult(

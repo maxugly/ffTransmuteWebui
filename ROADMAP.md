@@ -55,7 +55,7 @@ Phase 5     POST /ops/pipeline + PipelineChain (disk stages)
 | P1 | Multi-Pass UI tab | Backend pipeline exists; frontend queue still light |
 | P1 | Model Manager | When chaining two heavy TF/neural stages |
 | P2 | Facemorph multi-source stage kind | Morph is multi-still → frames; optional formal registry kind |
-| P2 | scrub remaining `dream_video` call paths | Sync helper kept; prefer async filter path |
+| P2 | ~~scrub remaining `dream_video` call paths~~ | Removed dead sync `dream_video`/`dream_ouroboros`; ops use filter path (`4.76`) |
 | P3 | Backlog ops | `docs/backlog/*` (ASCII, CivitAI, etc.) on filter platform |
 | P3 | Planning doc hygiene | Keep this file + TODO current; archive stale debate docs |
 

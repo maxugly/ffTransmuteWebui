@@ -185,6 +185,7 @@ async def run_img2img_directory(
                     done, tot = int(cur_s), int(tot_s)
                 except Exception:
                     done, tot = 0, n_mark
+                _, latest = job_control._scan_pngs(dst)
                 job_control.report_progress(
                     f"img2img {done}/{tot}",
                     phase="img2img",
@@ -192,6 +193,7 @@ async def run_img2img_directory(
                     total=max(tot, 1),
                     unit="frames",
                     token=token,
+                    latest_frame=latest,
                 )
 
     wait_task = asyncio.create_task(proc.wait())

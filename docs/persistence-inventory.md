@@ -90,13 +90,15 @@ A single line containing the absolute path of the most recently opened or saved 
 
 | Key | Type | Content |
 |-----|------|---------|
-| `mtapi_sidebar_collapsed` | `"1"`\|`"0"` | sidebar collapsed |
+| `mtapi_sidebar_collapsed` | `"1"`\|`"0"` | whole sidebar icon mode |
 | `mtapi_preview_collapsed` | `"1"`\|`"0"` | preview panel collapsed |
+| `mtapi_nav_sections` | JSON | nav category collapse — `{ sectionId: true }` = collapsed (`nav-collapse-spec.md`) · `4.69` |
 | `mtapi_sidebar_w` | string px | sidebar width (clamped 56–600) |
 | `mtapi_panel_split` | CSS string | left/right grid columns |
 | `mtapi_console_h` | string px | console panel height |
 | `fftransmute.quick` | JSON | `{reconcile, aspect, aspectCustom}` |
 | `mtapi.notes.v1` | JSON | `{left: string, right: string}` |
+| `mtapi_prompt_library` | JSON | Prompt Library ± pairs (if present) |
 
 ---
 

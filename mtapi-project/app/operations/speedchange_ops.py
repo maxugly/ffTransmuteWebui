@@ -17,6 +17,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from ..frame_range import end_frame_field, start_frame_field
 from ..contract import OperationResult, OperationSpec, register
 from ..pathutil import finalize_output_path
 from ..shell import run_command
@@ -49,8 +50,8 @@ class SpeedChangeParams(BaseModel):
     model: RifeModel = Field("rife-v4.6", description="RIFE model")
     tta: bool = Field(False, description="RIFE spatial TTA")
     uhd: bool = Field(False, description="RIFE UHD mode")
-    start_frame: int = Field(1, ge=0, description="First source frame (1-based)")
-    end_frame: int = Field(999999, ge=0, description="Last source frame (1-based)")
+    start_frame: int = start_frame_field()
+    end_frame: int = end_frame_field()
     dry_run: bool = Field(False, description="Plan only")
 
 

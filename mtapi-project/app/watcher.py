@@ -94,24 +94,6 @@ def _load_config() -> None:
         log.warning("watcher config load failed: %s", e)
 
 
-def _save_config() -> None:
-    with _lock:
-        payload = {
-            "in_dir": _state.in_dir,
-            "out_dir": _state.out_dir,
-            "target_width": _state.target_width,
-            "target_height": _state.target_height,
-            "resize_mode": _state.resize_mode,
-            # enabled intentionally NOT persisted as true boot default
-            "enabled": False,
-        }
-    try:
-        _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        _CONFIG_PATH.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    except Exception as e:
-        log.warning("watcher config save failed: %s", e)
-
-
 def get_status() -> dict[str, Any]:
     with _lock:
         return _state.public()

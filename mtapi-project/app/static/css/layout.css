@@ -486,6 +486,36 @@ aside {
   letter-spacing: 1.5px;
   padding: 8px 12px;
   margin-top: 12px;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.nav-header:hover {
+  color: var(--text-main);
+}
+.nav-chevron {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  pointer-events: none;
+  transition: transform 0.15s ease;
+  opacity: 0.75;
+}
+.nav-section.collapsed .nav-chevron {
+  transform: rotate(-90deg);
+}
+.nav-section.collapsed .nav-section-items {
+  display: none;
+}
+.nav-section:first-child .nav-header {
+  margin-top: 0;
+}
+.nav-section-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .nav-item {

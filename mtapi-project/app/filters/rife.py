@@ -5,7 +5,6 @@ kind=directory (not per_frame). Shared by /ops/rife and /ops/pipeline.
 from __future__ import annotations
 
 import asyncio
-import os
 import shutil
 from pathlib import Path
 from typing import Any

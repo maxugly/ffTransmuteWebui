@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import uuid
 from pathlib import Path
 from typing import Literal
@@ -266,6 +265,7 @@ async def imagesort_rife(p: ImageSortRifeParams) -> OperationResult:
             progress_cb(
                 f"conformed {i + 1}/{K}",
                 phase="conform", current=i + 1, total=K, unit="frames",
+                latest_frame=str(dst),
             )
 
         if p.use_rife:

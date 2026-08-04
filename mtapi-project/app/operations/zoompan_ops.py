@@ -248,14 +248,15 @@ async def zoompan_run(p: ZoompanParams) -> OperationResult:
             frame_path = frames_dir / f"frame_{i:06d}.png"
             frame.save(frame_path, format="PNG", compress_level=1)
 
-            if i == 0 or i == n_frames - 1 or (i + 1) % max(1, n_frames // 10) == 0:
-                job_control.report_progress(
-                    f"zoompan frame {i + 1}/{n_frames}",
-                    phase="render",
-                    current=i + 1,
-                    total=n_frames,
-                    unit="frames",
-                )
+            # Every frame: Live preview + counters (poll is ~1s; cheap)
+            job_control.report_progress(
+                f"zoompan frame {i + 1}/{n_frames}",
+                phase="render",
+                current=i + 1,
+                total=n_frames,
+                unit="frames",
+                latest_frame=str(frame_path),
+            )
 
         job_control.report_progress(
             "zoompan encode",

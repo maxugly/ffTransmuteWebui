@@ -28,9 +28,8 @@ from .models import (  # noqa: F401
     _require_tf,
 )
 from .dream import (  # noqa: F401
+    EvolveCapture,
     dream_image,
-    dream_ouroboros,
-    dream_video,
     linear_blend,
     transform_frame,
 )

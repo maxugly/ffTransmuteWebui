@@ -28,38 +28,43 @@
 | [agent-vision-tab-spec.md](agent-vision-tab-spec.md) | Agent + vision APIs |
 | [rife-recoherence-spec.md](rife-recoherence-spec.md) | RIFE mid recohere |
 | [prompt-library-spec.md](prompt-library-spec.md) | Prompt save/load library |
+| [deepdream-evolve-video-spec.md](deepdream-evolve-video-spec.md) | Evolve capture + dedupe + RIFE |
+| [styletransfer-spec.md](styletransfer-spec.md) | Style stills/video + strength Evolve |
 | [architecture.md](architecture.md) | High-level map |
+
+**Shared code:** `mtapi-project/app/evolve_video.py` — strip → optional dedupe → optional RIFE → encode.
 
 ---
 
-## At a glance — `000.000.4.61` (2026-08-04)
+## At a glance — `000.000.4.74` (2026-08-04)
 
 ### Shipped recently
 | Doc / feature | Ver |
 |---------------|-----|
-| [prompt-library-spec.md](prompt-library-spec.md) | **4.61** |
-| [rife-recoherence-spec.md](rife-recoherence-spec.md) | **4.60** |
-| [agent-vision-tab-spec.md](agent-vision-tab-spec.md) | **4.59** Phase A+API |
-| [img2img-openvino-spec.md](img2img-openvino-spec.md) | **4.55** + tab |
-| Txt2img OpenVINO | In tree |
+| Style Evolve (strength ramp) + shared `evolve_video` | **4.74** |
+| DeepDream Evolve (mid-ascent + dedupe + RIFE) | **4.73** |
+| DeepDream max_loss / VGG·ResNet step scale | **4.72** |
+| Live mid-ascent + `latest_frame` | **4.70–4.71** |
+| Nav collapse, Image Compare, bottom input preview | **4.66–4.69** |
+| Prompt library / Recohere / Agent / OpenVINO | **4.55–4.61** |
 
 ### Partial / in progress
 | Doc | Status |
 |-----|--------|
-| [workspace-progress-spec.md](workspace-progress-spec.md) | RIFE watch + ETA; dump watch open |
+| [workspace-progress-spec.md](workspace-progress-spec.md) | RIFE/dump watch; multi-phase ETA polish |
 | [tool-bottom-docs-spec.md](tool-bottom-docs-spec.md) | Several tabs; not all |
-| [ui-list-nav-timer-spec.md](ui-list-nav-timer-spec.md) | Timer/pre-run; sequence keys open |
-| [backlog/upscale-spec.md](backlog/upscale-spec.md) | Code in tree — verify/ship |
+| [ui-list-nav-timer-spec.md](ui-list-nav-timer-spec.md) | Timer/pre-run; some list edges |
+| Evolve multi/video/ouro | Spec phases C–E only |
+| RIFE evolve **UI** DRY | Backend shared; JS still per-tab |
 
 ### Roadmap (priority cleaned specs)
 | Doc | Intent |
 |-----|--------|
-| [job-queue-spec.md](job-queue-spec.md) | FIFO queue + Jobs tab |
-| [universal-persistence-spec.md](universal-persistence-spec.md) | Desk save / autosave safety |
+| [universal-persistence-spec.md](universal-persistence-spec.md) | Desk save / inactive knobs |
 | [tilagup-mtapi-mode-spec.md](tilagup-mtapi-mode-spec.md) | Agent tiled SD |
 | [image-quality-rating-spec.md](image-quality-rating-spec.md) | Pool quality scores |
 
-Full backlog + open product specs: **[STATUS.md §5](STATUS.md)**. Build order: **[STATUS.md §8](STATUS.md)**.
+Full backlog: **[STATUS.md §5](STATUS.md)**. Build order: **[STATUS.md §8](STATUS.md)**.
 
 ### Research
 | Doc | Note |
@@ -70,10 +75,10 @@ Full backlog + open product specs: **[STATUS.md §5](STATUS.md)**. Build order: 
 ### Kickoffs (historical / builder)
 | Doc | Role |
 |-----|------|
-| [coder-prompt-library-prompt.md](coder-prompt-library-prompt.md) | Prompt library builder (shipped) |
-| [coder-agy-prompt-library-prompt.md](coder-agy-prompt-library-prompt.md) | Agy → prompt-library-spec |
-| [coder-rife-recoherence-prompt.md](coder-rife-recoherence-prompt.md) | Recohere builder (shipped) |
-| [coder-dry-platform-prompt.md](coder-dry-platform-prompt.md) | **Builder one-shot** — staged_job + Run/Queue DRY |
+| [coder-nav-collapse-prompt.md](coder-nav-collapse-prompt.md) | Nav collapse (shipped `4.69`) |
+| [coder-prompt-library-prompt.md](coder-prompt-library-prompt.md) | Prompt library (shipped) |
+| [coder-rife-recoherence-prompt.md](coder-rife-recoherence-prompt.md) | Recohere (shipped) |
+| [coder-dry-platform-prompt.md](coder-dry-platform-prompt.md) | staged_job + Run/Queue DRY |
 
 ---
 
@@ -83,6 +88,9 @@ Full backlog + open product specs: **[STATUS.md §5](STATUS.md)**. Build order: 
 |-----|--------|
 | [ui-state-map.md](ui-state-map.md) | UI state keys |
 | [persistence-inventory.md](persistence-inventory.md) | What saves today |
+| [nav-collapse-spec.md](nav-collapse-spec.md) | **Implemented** — collapsible nav categories |
+| [deepdream-evolve-video-spec.md](deepdream-evolve-video-spec.md) | **Implemented** — DeepDream evolve + bookend |
+| [styletransfer-spec.md](styletransfer-spec.md) | **Implemented** — style + Evolve |
 | [media-persistence-spec.md](media-persistence-spec.md) | Media cache |
 | [style-css-map.md](style-css-map.md) | CSS map |
 
@@ -90,7 +98,7 @@ Full backlog + open product specs: **[STATUS.md §5](STATUS.md)**. Build order: 
 
 ## Implemented ops (check STATUS)
 
-transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, style, rife, **rife_recohere**, speed, ramp, zoompan, image sort, img2img, txt2img, agent, **prompt library (UI)**; upscale **partial in tree**.
+transmute, convert, pipeline, datamosh, deepdream (+ **evolve**), facemorph, withoutbg, style (+ **evolve**), rife, **rife_recohere**, speed, ramp, zoompan, image sort, img2img, txt2img, agent, **prompt library (UI)**, upscale, cut, job queue.
 
 ---
 

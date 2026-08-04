@@ -538,12 +538,6 @@ def _build_encode_argv(
     return argv
 
 
-def _needs_audio_for_preset(encode_preset: Any | None) -> bool:
-    if encode_preset is None:
-        return False
-    return encode_preset.audio_codec in ("aac", "pcm_s16le", "libopus")
-
-
 # ── E. Load frames directory ────────────────────────────────────────────────
 
 async def load_frames_dir(
@@ -639,7 +633,7 @@ async def cleanup(workspace: JobWorkspace, *, keep_on_failure: bool = True) -> N
 
 # ── Sync helpers (engines / CLI that cannot await) ─────────────────────────
 # Prefer async dump/encode + JobWorkspace in ops. These exist so legacy sync
-# helpers (e.g. deepdream.dream_video) do not depend on PngFramePipeline.
+# helpers for rare sync callers do not depend on PngFramePipeline.
 
 import subprocess as _subprocess
 

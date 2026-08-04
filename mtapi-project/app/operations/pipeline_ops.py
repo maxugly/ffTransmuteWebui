@@ -13,6 +13,7 @@ from typing import Any, Callable
 
 from pydantic import BaseModel, Field
 
+from ..frame_range import end_frame_field, start_frame_field
 from ..contract import OperationResult, OperationSpec, register
 from .. import job_control
 from ..job_workspace import JobWorkspace
@@ -53,8 +54,8 @@ class PipelineParams(BaseModel):
     input_path: str = Field(..., description="Source video path")
     output_path: str | None = Field(None, description="Output path; auto-named if omitted")
     filters: list[PipelineFilter] = Field(..., description="Ordered list of filters to apply")
-    start_frame: int = Field(1, ge=0, description="First source frame (1-based inclusive)")
-    end_frame: int = Field(999999, ge=0, description="Last source frame (1-based inclusive)")
+    start_frame: int = start_frame_field()
+    end_frame: int = end_frame_field()
     dry_run: bool = Field(False, description="Print planned chain without executing")
 
 

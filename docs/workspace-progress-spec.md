@@ -219,6 +219,24 @@ message = "RIFE writing frames… (342 so far, ~12/s)"
 
 UI already handles `total > 0` for fraction; extend sticky line to show `current` + rate when total is 0.
 
+### 3.7 Live Preview Integration
+
+We already have a `Live: ON/OFF` toggle in the UI (`#btnPreviewLive`). Any operation that generates images over time should push those frames to the preview window when enabled.
+
+**Backend (`job_control` / `DirWatcher`):**
+When the `DirWatcher` scans a directory, it can trivially find the lexicographically highest file (e.g., `frame_000342.png`).
+- Extend `_progress[token]` with `latest_image: str | None` (a relative URL or absolute path we can map to a route).
+- `watch_frame_dir` should populate `latest_image` with the path to the newest frame found during its `scandir` tick.
+- Neural loops we own (like `deepdream.py` per-frame loops) should explicitly pass `latest_image` into `job_control.report_progress(..., latest_image=out_path)`.
+
+**Frontend (`job-control.js` / `preview.js`):**
+- During the `setInterval` job poll that fetches progress, if `state.previewLive === true` and the job progress contains `latest_image`:
+  - Fetch/display the image in `#mediaViewer`. 
+  - To prevent flickering or caching issues, append `?t=<timestamp>` to the image URL.
+- This applies to **all** image generation loops: RIFE (`frames_out`), DeepDream, Image Sort, Upscale, Img2img, and Txt2img.
+
+**Wired in `000.000.4.70`** — see `docs/coder-tom-live-preview-prompt.md`. Frame-generating ops push `latest_frame`. **`4.71`:** DeepDream **still** mid-ascent / octave live via `/tmp/mtapi_live/{job_token}.png` (`dream_image` deprocess); ouroboros reports after write + mid-ascent; facemorph faces_first / zoompan / style stills / withoutbg stills / recohere conform+rife also publish paths. RIFE and dump already via DirWatcher. UI: turn **Live: ON** in Media Output Preview.
+
 ---
 
 ## 4. UI (minimal)
@@ -356,7 +374,6 @@ curl -s http://localhost:24590/api/job/$TOKEN | jq '{phase,current,total,pct,rat
 |------|------|
 | Multi-phase remaining ETA | sum ETAs of queued phases (encode after rife) |
 | ffmpeg `-progress pipe:1` | encode/dump % without dir watch |
-| Thumbnail of latest frame in UI | optional live preview from `frames_out` max index |
 | tilagup mode | same watch pattern for tile prompt count + SD tile outputs |
 
 ---

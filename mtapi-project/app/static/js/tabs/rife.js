@@ -1,5 +1,6 @@
 import { elements, bestInput } from '/app.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { rifeModelSelectHtml } from '/js/ui/evolve-rife.js';
 import { withFrameRange } from '/js/utils.js';
 import { fmtDuration, fmtFrames, renderPreRunSummary } from '/js/ui/pre-run-summary.js';
 
@@ -84,15 +85,14 @@ function renderRifeForm() {
       </div>
     </div>
 
-    <div class="form-row">
-      <label for="rifeModel">Model</label>
-      <select id="rifeModel">
-        <option value="rife-v4.6" selected>rife-v4.6 — newest, cleanest</option>
-        <option value="rife-v4">rife-v4 — stable, faster</option>
-        <option value="rife-v2.4">rife-v2.4</option>
-        <option value="rife-v2.3">rife-v2.3 — fastest</option>
-      </select>
-    </div>
+    ${rifeModelSelectHtml('rifeModel', {
+      label: 'Model',
+      extraLabels: {
+        'rife-v4.6': 'rife-v4.6 — newest, cleanest',
+        'rife-v4': 'rife-v4 — stable, faster',
+        'rife-v2.3': 'rife-v2.3 — fastest',
+      },
+    })}
 
     <div class="knob-row">
       <div class="knob-bank">

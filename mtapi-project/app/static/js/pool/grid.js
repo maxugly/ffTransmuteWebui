@@ -52,7 +52,7 @@ function renderPoolForm() {
   `;
 
   elements.actionPanel.innerHTML = html;
-  elements.actionPanel.classList.add('pool-active');
+  (elements.actionPanelRoot || elements.actionPanel).classList.add('pool-active');
 
   _bindPoolToolbar();
   zoomBindings();
@@ -554,7 +554,7 @@ function renderSequenceForm() {
   `;
 
   elements.actionPanel.innerHTML = html;
-  elements.actionPanel.classList.add('pool-active');
+  (elements.actionPanelRoot || elements.actionPanel).classList.add('pool-active');
 
   _bindPoolToolbar();
   _bindSequencePanel();

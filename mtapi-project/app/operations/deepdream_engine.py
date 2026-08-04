@@ -28,8 +28,6 @@ from .deepdream import (  # noqa: F401
     _require_tf,
     detect_media_kind,
     dream_image,
-    dream_ouroboros,
-    dream_video,
     linear_blend,
     resolve_layer_weights,
     transform_frame,

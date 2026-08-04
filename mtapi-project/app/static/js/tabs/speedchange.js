@@ -1,5 +1,6 @@
 import { elements, bestInput } from '/app.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { rifeModelSelectHtml } from '/js/ui/evolve-rife.js';
 import { withFrameRange } from '/js/utils.js';
 import { fmtDuration, fmtFrames, renderPreRunSummary } from '/js/ui/pre-run-summary.js';
 
@@ -165,15 +166,7 @@ function renderSpeedChangeForm() {
         <strong>TTA</strong> cleaner/~2× slower · <strong>UHD</strong> 4K+.
       </p>
     </div>
-    <div class="form-row" id="scRifeModelRow">
-      <label for="scRifeModel">RIFE model</label>
-      <select id="scRifeModel">
-        <option value="rife-v4.6" selected>rife-v4.6</option>
-        <option value="rife-v4">rife-v4</option>
-        <option value="rife-v2.4">rife-v2.4</option>
-        <option value="rife-v2.3">rife-v2.3</option>
-      </select>
-    </div>
+    ${rifeModelSelectHtml('scRifeModel', { rowId: 'scRifeModelRow' })}
   `;
   elements.actionPanel.innerHTML = html;
 

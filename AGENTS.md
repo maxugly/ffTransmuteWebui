@@ -103,7 +103,7 @@ Stage kinds:
 
 **RIFE density:** multiplier **2–128** on Image Sort / RIFE / Speed / ramp (API + knobs). Image **list length is uncapped** (min 2). High M on large K is intentional power-user territory (2-still long morphs).
 
-**Progress:** long ops report via `job_control.report_progress`; directory binaries (RIFE) use `start_dir_watch` on workspace frame dirs — see `docs/workspace-progress-spec.md`.
+**Progress:** long ops report via `job_control.report_progress`; directory binaries (RIFE) use `start_dir_watch` on workspace frame dirs — see `docs/workspace-progress-spec.md`. All frame-generating ops push `latest_frame` for the Live Preview toggle (`4.70`).
 
 `PngFramePipeline` removed (raises). Spec: `docs/filter-platform-spec.md`.
 

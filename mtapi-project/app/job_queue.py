@@ -9,7 +9,7 @@ import logging
 import time
 import uuid
 from collections import deque
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
 log = logging.getLogger("mtapi.job_queue")

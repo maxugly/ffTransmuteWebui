@@ -1,9 +1,9 @@
 # Image Compare — Shared Dual-Image Viewer
 
-> **Status:** Implemented (2026-07-31) · `000.000.4.29`  
+> **Status:** Implemented (2026-07-31) · module `000.000.4.29` · **dedicated tab `000.000.4.68`**  
 > **Audience:** Any tab that needs separate / overlay / A/B image comparison  
-> **First consumer:** Cut workspace (`js/tabs/cut.js`)  
-> **Related:** `video-image-pools-spec.md` (Cut host wiring)
+> **Consumers:** Cut (`js/tabs/cut.js`), Zoompan, **Image Compare tab** (`js/tabs/imgcompare.js`)  
+> **Related:** `video-image-pools-spec.md` (Cut host wiring); Image Sort metrics via `imagesort_rank`
 
 ---
 
@@ -148,6 +148,21 @@ Opacity / A/B slider and drag update CSS vars live (`--img-compare-opacity`, `--
 | State | `state.cut.mode` (+ legacy `compareMode` alias) |
 
 See `docs/video-image-pools-spec.md` §2.3 / §5.
+
+---
+
+## 8. Image Compare tab (`4.68`)
+
+Dedicated host under Library sidebar → **Compare** (`data-tab="imgcompare"`).
+
+| Concern | How |
+|---------|-----|
+| Paths | `state.imgCompare.pathA` / `pathB` (browse, pool, global image soft-fill) |
+| View modes | Shared toolbar + viewport (`idPrefix: ic`) |
+| AR | Stage sets `--ic-ar` from natural image dims; layers use `object-fit: contain` |
+| Rate | `POST /ops/imagesort_rank` with `[A, B]` + metric (pHash / aHash / colorhash / MSE / SSIM) |
+| Run button | Hidden — interactive tool, not a long job |
+| Image Pool | Send targets `compare_a` / `compare_b` |
 
 ---
 

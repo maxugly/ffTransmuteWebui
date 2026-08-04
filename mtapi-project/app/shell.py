@@ -36,11 +36,6 @@ def ensure_video_output_path(output_path: str | None) -> str | None:
     return p + ".mp4"
 
 
-# TODO: remove — use app.probe.probe_duration directly
-async def probe_duration(path: str) -> float:
-    from .probe import probe_duration as _pd
-    return await _pd(path)
-
 async def run_command(argv: list[str], cwd: str | None = None) -> tuple[int, str, str]:
     """Run argv, wait for it, return (exit_code, stdout, stderr) as text.
 

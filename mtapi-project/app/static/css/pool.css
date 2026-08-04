@@ -6,6 +6,15 @@
 .action-panel.pool-active {
   gap: 14px;
 }
+.action-panel.pool-active .action-panel-form {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.action-panel.pool-active .tool-input-preview {
+  display: none !important;
+}
 
 .pool-toolbar {
   display: flex;

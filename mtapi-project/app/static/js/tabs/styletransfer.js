@@ -1,6 +1,13 @@
 import { state, elements, resolveGlobalImages, bestInput, showPreview } from '/app.js';
 import { basename, escapeHtml, withFrameRange, isVideoPath, isImagePath } from '/js/utils.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import {
+  evolveRifeModelSelectHtml,
+  evolveRifeKnobUnitsHtml,
+  setupEvolveRifeKnobs,
+  collectEvolveRifeFields,
+  setupEvolveMasterToggle,
+} from '/js/ui/evolve-rife.js';
 import { registerListKeys } from '/js/ui/list-keys.js';
 
 // ── Style Transfer tab (Magenta arbitrary stylization) ───────────────────
@@ -86,6 +93,32 @@ function renderStyleTransferForm() {
         <strong>Strength</strong> 1 = full style. <strong>Max side</strong> 0 = full res (video: per frame).
       </p>
     </div>
+
+    <div class="knob-row">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'stEvolve', label: 'Evolve', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+      </div>
+      <p class="knob-row-legend">
+        Strength ramp (one neural pass) → optional RIFE → <code>*_styled_evolve.mp4</code>.
+        Single still content only.
+      </p>
+    </div>
+    <div class="st-evolve-only hidden" id="stEvolvePanel">
+      ${evolveRifeModelSelectHtml('stEvolve')}
+      <div class="knob-row">
+        <div class="knob-bank">
+          ${knobUnitHtml({ id: 'stEvolveFrames', label: 'Frames', value: '16' })}
+          ${knobUnitHtml({ id: 'stEvolveStr0', label: 'Str start', value: '0' })}
+          ${knobUnitHtml({ id: 'stEvolveStr1', label: 'Str end', value: '-1' })}
+          ${knobUnitHtml({ id: 'stEvolveFps', label: 'FPS', value: '12' })}
+          ${evolveRifeKnobUnitsHtml('stEvolve')}
+        </div>
+        <p class="knob-row-legend">
+          <strong>Str end −1</strong> = use main Strength. Linear ramp over Frames.
+          RIFE fills between strength keyframes (shared UI + bookend).
+        </p>
+      </div>
+    </div>
   `;
   elements.actionPanel.innerHTML = html;
 
@@ -101,6 +134,29 @@ function renderStyleTransferForm() {
   setupBinaryKnob({
     knobId: 'stDryRunKnob', indicatorId: 'stDryRunKnobInd', hiddenId: 'stDryRun',
     leftValue: '0', rightValue: '1', initial: '0',
+  });
+  setupEvolveMasterToggle('stEvolve', '.st-evolve-only');
+  setupEvolveRifeKnobs('stEvolve');
+  setupContinuousKnob({
+    knobId: 'stEvolveFramesKnob', indicatorId: 'stEvolveFramesKnobInd',
+    valueId: 'stEvolveFramesVal', hiddenId: 'stEvolveFrames',
+    min: 2, max: 128, step: 1, decimals: 0,
+  });
+  setupContinuousKnob({
+    knobId: 'stEvolveStr0Knob', indicatorId: 'stEvolveStr0KnobInd',
+    valueId: 'stEvolveStr0Val', hiddenId: 'stEvolveStr0',
+    min: 0, max: 1, step: 0.05, decimals: 2,
+  });
+  setupContinuousKnob({
+    knobId: 'stEvolveStr1Knob', indicatorId: 'stEvolveStr1KnobInd',
+    valueId: 'stEvolveStr1Val', hiddenId: 'stEvolveStr1',
+    min: -1, max: 1, step: 0.05, decimals: 2,
+    format: (v) => (v < 0 ? 'main' : v.toFixed(2)),
+  });
+  setupContinuousKnob({
+    knobId: 'stEvolveFpsKnob', indicatorId: 'stEvolveFpsKnobInd',
+    valueId: 'stEvolveFpsVal', hiddenId: 'stEvolveFps',
+    min: 1, max: 60, step: 1, decimals: 0,
   });
 
   document.getElementById('stStylePath')?.addEventListener('change', (e) => {
@@ -290,6 +346,12 @@ function collectStyleTransferBody() {
   const output_dir = document.getElementById('stOutputDir')?.value?.trim() || null;
   const singleVideo = videos.length === 1;
 
+  const evolveOn = document.getElementById('stEvolve')?.value === '1';
+  if (evolveOn && (videos.length || contents.length !== 1)) {
+    alert('Evolve needs exactly one still content image (no multi, no video).');
+    return null;
+  }
+
   return withFrameRange({
     content_path: singleVideo ? videos[0] : (contents.length === 1 ? contents[0] : null),
     content_paths: singleVideo ? null : contents,
@@ -301,6 +363,13 @@ function collectStyleTransferBody() {
     style_size: 256,
     suffix: '_styled',
     dry_run: document.getElementById('stDryRun')?.value === '1',
+    evolve_enabled: evolveOn,
+    evolve_frames: parseInt(document.getElementById('stEvolveFrames')?.value || '16', 10),
+    evolve_strength_start: parseFloat(document.getElementById('stEvolveStr0')?.value || '0'),
+    evolve_strength_end: parseFloat(document.getElementById('stEvolveStr1')?.value || '-1'),
+    evolve_fps: parseFloat(document.getElementById('stEvolveFps')?.value || '12'),
+    evolve_dedupe: false,
+    ...collectEvolveRifeFields('stEvolve'),
   });
 }
 

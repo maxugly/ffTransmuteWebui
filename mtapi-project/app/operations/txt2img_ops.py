@@ -181,6 +181,7 @@ async def txt2img_run(p: Txt2ImgParams) -> OperationResult:
                     cur, tot = int(cur_s), int(tot_s)
                 except Exception:
                     cur, tot = 0, n
+                latest_frame = str(outputs[cur-1]) if cur > 0 and cur <= len(outputs) else None
                 job_control.report_progress(
                     f"txt2img {cur}/{tot}",
                     phase="txt2img",
@@ -188,6 +189,7 @@ async def txt2img_run(p: Txt2ImgParams) -> OperationResult:
                     total=max(tot, 1),
                     unit="images",
                     token=token,
+                    latest_frame=latest_frame,
                 )
 
     wait_task = asyncio.create_task(proc.wait())

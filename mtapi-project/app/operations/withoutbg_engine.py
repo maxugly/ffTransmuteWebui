@@ -27,23 +27,6 @@ _api_model = None
 _api_key_used: str | None = None
 
 
-def ensure_withoutbg_available(backend: Backend = "local") -> None:
-    try:
-        from withoutbg import WithoutBG  # noqa: F401
-    except ImportError as e:
-        raise RuntimeError(
-            "withoutbg is not installed in the mtapi venv:\n"
-            "  .venv/bin/python -m pip install withoutbg"
-        ) from e
-    if backend == "api":
-        key = os.environ.get("WITHOUTBG_API_KEY", "").strip()
-        if not key:
-            raise RuntimeError(
-                "API mode needs WITHOUTBG_API_KEY in the environment "
-                "(or pass api_key in the request)."
-            )
-
-
 def get_image_files(image_dir: Path) -> list[str]:
     image_dir = Path(image_dir)
     files = []
@@ -318,6 +301,25 @@ def process_many(
         results.append(r)
         if r.get("ok"):
             ok_n += 1
+            # Live preview: primary cutout / first written path
+            live = r.get("primary") or r.get("output_path")
+            if not live:
+                for k in ("cutout", "mask", "background"):
+                    if r.get(k):
+                        live = r[k]
+                        break
+            if live and progress_cb:
+                try:
+                    progress_cb(
+                        f"done {name}",
+                        phase="withoutbg",
+                        current=i + 1,
+                        total=total,
+                        unit="images",
+                        latest_frame=str(live),
+                    )
+                except Exception:
+                    pass
 
     primary = None
     for r in results:

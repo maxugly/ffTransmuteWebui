@@ -167,7 +167,12 @@ async def _facemorph_v2(p: FaceMorphParams, images: list[str]) -> OperationResul
     def progress_cb(msg: str, **kw):
         logs.append(msg)
         try:
-            job_control.report_progress(msg, token=job_token, **kw)
+            latest = kw.pop("latest_frame", None)
+            if not latest:
+                _, latest = job_control._scan_pngs(str(ws.frames_out))
+            job_control.report_progress(
+                msg, token=job_token, latest_frame=latest, **kw
+            )
         except Exception:
             pass
         job_control.check_cancelled()
@@ -194,6 +199,7 @@ async def _facemorph_v2(p: FaceMorphParams, images: list[str]) -> OperationResul
                     current=i + 1, total=len(images), unit="faces",
                 )
                 dest = tmp_dream_dir / f"{i:03d}_{Path(src).stem}_dream.png"
+                # Mid-ascent live via dream_image (writes /tmp/mtapi_live/{token}.png)
                 await asyncio.to_thread(
                     _bind_run(
                         dd.dream_image, Path(src), dest,
@@ -202,10 +208,16 @@ async def _facemorph_v2(p: FaceMorphParams, images: list[str]) -> OperationResul
                         iterations=p.dream_iterations,
                         num_octave=p.dream_octaves, step=p.dream_step,
                         preview_width=p.dream_preview_width or None,
-                        progress_cb=None,
+                        progress_cb=progress_cb,
                     ),
                 )
                 dreamed.append(str(dest))
+                progress_cb(
+                    f"dream face {i + 1}/{len(images)} done",
+                    phase="dream-faces",
+                    current=i + 1, total=len(images), unit="faces",
+                    latest_frame=str(dest),
+                )
             work_images = dreamed
 
         morph_out = out if p.dream_mode != "after" else out.with_name(out.stem + "_raw_morph.mp4")

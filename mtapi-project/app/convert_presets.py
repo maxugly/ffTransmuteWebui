@@ -11,7 +11,6 @@ Keys match the spec's stable ids; values are EncodePreset / DumpPreset.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 
 
 @dataclass
@@ -239,14 +238,6 @@ def is_dump_target(target_id: str) -> bool:
 
 def is_valid_target(target_id: str) -> bool:
     return target_id in ENCODE_PRESETS or target_id in DUMP_PRESETS
-
-
-def get_target_group(target_id: str) -> str:
-    """Return UI group label for a preset id."""
-    ep = ENCODE_PRESETS.get(target_id)
-    if ep:
-        return ep.group
-    return "frames"
 
 
 # ── Video/image extensions ──────────────────────────────────────────────────

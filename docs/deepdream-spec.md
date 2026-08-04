@@ -1,11 +1,15 @@
 # DeepDream
 
 > **Status:** Implemented — video path is a **per_frame** stage (`app/filters/deepdream.py`)  
-> **Platform:** `filter-platform-spec.md`
+> **Platform:** `filter-platform-spec.md`  
+> **Evolve video:** [deepdream-evolve-video-spec.md](deepdream-evolve-video-spec.md) · **`4.73`** (stills)  
+> **Fidelity notes:** max_loss default off; VGG/ResNet step scale · **`4.72`**
 
 ## Overview
 
 Google DeepDream via TensorFlow Keras (InceptionV3 / VGG16 / ResNet50, ImageNet). Images, videos (temporal blend / optical flow / layer cycle), and Ouroboros feedback video from a still.
+
+Optional **Evolve** on stills: mid-ascent strip → Image Sort dedupe → optional RIFE → `*_dream_evolve.mp4` via shared `app/evolve_video.py`.
 
 ## Architecture
 
