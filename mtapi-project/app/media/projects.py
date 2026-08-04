@@ -1,7 +1,8 @@
 """
 Named project files (.ffproject.json): save, load, last path.
 
-Mirrors the session pool_state on save so reload matches the last save.
+Explicit Save mirrors pool content into session autosave (desk recovery on F5).
+Session autosave alone must NEVER write named project files (see persistence.js).
 """
 from __future__ import annotations
 
@@ -57,7 +58,14 @@ async def save_project_file(
         LAST_PROJECT_PATH.write_text(str(path), encoding="utf-8")
     except Exception:
         pass
-    await save_pool_state(pool)
+    # Session mirror includes open-project pointer; dirty cleared after explicit Save.
+    session_payload = {
+        **pool,
+        "project_path": str(path),
+        "project_name": proj_name,
+        "project_dirty": False,
+    }
+    await save_pool_state(session_payload)
     return {
         "ok": True,
         "path": str(path),

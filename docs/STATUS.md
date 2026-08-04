@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-04  
-> **VERSION:** `000.000.4.62`  
+> **VERSION:** `000.000.4.63`  
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -69,7 +69,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **NCNN Upscale** | Ops + filter + tab + `bin/*-ncnn-vulkan` **in tree** | WebUI verify → ship STATUS + AGENTS row, or fix gaps — `backlog/upscale-spec.md` |
 | **Agent polish** | Phase A+API shipped | Streaming, Image Pool send-to, Ollama, multi-tool loop |
 | **Cut encode** | UI only | filter-platform dump+encode |
-| **Universal persistence** | Spec only; bugs real | `universal-persistence-spec.md` |
+| **Universal persistence** | **Sacred named-project autosave fixed `4.63`**; full desk snapshot still open | `universal-persistence-spec.md` |
 | Image Sort true TSP | Out of scope | Chain is greedy only |
 
 ---
@@ -156,7 +156,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 6. Known bugs / product debt
 
-1. **Autosave can overwrite named projects** → universal-persistence.  
+1. ~~**Autosave can overwrite named projects**~~ → **fixed `4.63`** (session-only autosave; named file only on explicit Save). Full desk snapshot still partial (`universal-persistence-spec.md`).  
 2. **List reorder** jumps scroll to top.  
 3. **Arrows** scroll page outside wired list tabs.  
 4. **Inactive tab knobs** not in project JSON (DOM destroyed on tab switch).  
@@ -168,7 +168,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.4.62` (Recohere: all mids img2img; Prompt Library `4.61`).  
+- **Current:** `000.000.4.63` (named-project sacred autosave fix; recohere all-mids `4.62`).  
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  

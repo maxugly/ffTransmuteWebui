@@ -70,6 +70,8 @@ function buildPoolStatePayload() {
     layout: ensurePoolLayout(),
     project_name: state.project.name || null,
     project_path: state.project.path || null,
+    // Session-only: whether named project file may lag the desk (never auto-written).
+    project_dirty: !!(state.project.path && state.project.dirty),
   };
 }
 
@@ -277,6 +279,9 @@ async function projectOpen() {
       projectPath: data.path,
       projectName: data.name,
     });
+    // Session mirrors the opened desk so F5 prefers session (not a stale dual-write).
+    _poolPersistReady = true;
+    await savePoolStateNow();
     const imgN = data.image_count ?? (data.images || []).length;
     logConsole(
       `[PROJECT]: Opened ${data.name || data.path} — ${data.item_count} clips, ${imgN} images, ${data.sequence_count} in sequence`
@@ -291,6 +296,28 @@ async function projectOpen() {
   } finally {
     await checkHealth();
   }
+}
+
+/**
+ * Guard explicit Save when wiping a non-empty on-disk sequence with an empty one.
+ * Returns false if the user cancelled.
+ */
+async function confirmEmptySequenceOverwrite(path) {
+  if (!path || state.pool.sequence.length > 0) return true;
+  try {
+    const res = await fetch(`/api/project/load?path=${encodeURIComponent(path)}`);
+    if (!res.ok) return true;
+    const data = await res.json();
+    if (!data.ok) return true;
+    const n = data.sequence_count ?? (data.sequence || []).length;
+    if (n > 0) {
+      return confirm(
+        `Current sequence is empty, but the project file has ${n} clip(s).\n\n`
+        + 'Overwrite the saved project with an empty sequence?'
+      );
+    }
+  } catch (_) { /* allow save if check fails */ }
+  return true;
 }
 
 async function projectSave(saveAs = false) {
@@ -320,6 +347,12 @@ async function projectSave(saveAs = false) {
     }
   }
 
+  // Empty sequence must not silently clobber a rich on-disk project (explicit Save only).
+  if (!(await confirmEmptySequenceOverwrite(path))) {
+    logConsole('[PROJECT]: Save cancelled (empty sequence overwrite refused)');
+    return;
+  }
+
   const name = state.project.name
     || basename(path).replace(/\.ffproject\.json$/i, '').replace(/\.ffproj$/i, '');
 
@@ -344,6 +377,8 @@ async function projectSave(saveAs = false) {
     state.project.name = data.name || name;
     state.project.dirty = false;
     updateProjectNameUI();
+    // Backend project save also mirrors session; keep client session payload in sync.
+    await savePoolStateNow();
     logConsole(`[PROJECT]: Saved ${state.project.name} → ${data.path}`);
     elements.statusDot.className = 'status-dot';
     elements.statusText.textContent = 'Project saved';
@@ -357,6 +392,11 @@ async function projectSave(saveAs = false) {
   }
 }
 
+/**
+ * Session autosave only. NEVER writes named *.ffproject.json.
+ * Named projects are sacred — only projectSave / Save As may touch them.
+ * (Fix: quiet dual-save was emptying project A after clear → Save As B.)
+ */
 async function savePoolStateNow() {
   if (!_poolPersistReady) return;
   try {
@@ -367,30 +407,8 @@ async function savePoolStateNow() {
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(await res.text());
-
-    // Keep the open project file in sync (videos + images + sequence).
-    // Reload prefers last project over session — without this, Image Pool
-    // (and any unsaved pool edits) vanish on refresh while a project is open.
-    if (state.project.path) {
-      const pr = await fetch('/api/project/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...payload,
-          path: state.project.path,
-          name: state.project.name || undefined,
-        }),
-      });
-      if (pr.ok) {
-        const data = await pr.json().catch(() => ({}));
-        if (data.ok !== false) {
-          if (data.name) state.project.name = data.name;
-          if (data.path) state.project.path = data.path;
-          state.project.dirty = false;
-          updateProjectNameUI();
-        }
-      }
-    }
+    // Do NOT clear dirty — only explicit projectSave does.
+    // Do NOT POST /api/project/save here.
   } catch (err) {
     logConsole(`[POOL SAVE]: ${err.message}`, 'error');
   }
@@ -398,8 +416,37 @@ async function savePoolStateNow() {
 
 async function restorePoolState() {
   try {
-    // Prefer last named project if present; else session autosave
+    // Prefer session autosave (latest desk edits). Named project files are only
+    // updated on explicit Save — so last-project-first would wipe recent work
+    // and forced the old dual-save bug.
     let data = null;
+    const res = await fetch('/api/pool/state');
+    if (res.ok) {
+      data = await res.json();
+      if (data.ok) {
+        applyPoolData(data, { asProject: false });
+        if (data.project_path) {
+          state.project.path = data.project_path;
+          state.project.name = data.project_name
+            || basename(data.project_path).replace(/\.ffproject\.json$/i, '');
+          // Restore dirty from session (true only if user had unsaved edits vs named file).
+          state.project.dirty = data.project_dirty === true;
+          updateProjectNameUI();
+        }
+        const timed = state.pool.sequence.filter(s => s.targetDuration != null).length;
+        const imgN = state.imagePool?.items?.length || 0;
+        logConsole(
+          `[POOL]: Restored session — ${state.pool.items.length} clips, ${imgN} images, ${state.pool.sequence.length} in sequence`
+          + (timed ? `, ${timed} timed` : '')
+          + (data.project_path ? ` (open: ${data.project_name || basename(data.project_path)})` : '')
+          + ((data.missing || []).length ? ` (${data.missing.length} missing skipped)` : '')
+        );
+        _poolPersistReady = true;
+        return;
+      }
+    }
+
+    // No session → fall back to last named project (explicit last Save).
     try {
       const lastRes = await fetch('/api/project/last');
       if (lastRes.ok) {
@@ -414,43 +461,22 @@ async function restorePoolState() {
                 projectPath: data.path,
                 projectName: data.name,
               });
+              _poolPersistReady = true;
+              await savePoolStateNow();
               const timed = state.pool.sequence.filter(s => s.targetDuration != null).length;
               const imgN = state.imagePool?.items?.length || 0;
               logConsole(
                 `[PROJECT]: Restored ${data.name || data.path} — ${state.pool.items.length} clips, ${imgN} images, ${state.pool.sequence.length} in sequence`
                 + (timed ? `, ${timed} timed` : '')
               );
-              _poolPersistReady = true;
               return;
             }
           }
         }
       }
-    } catch (_) { /* fall through to session */ }
+    } catch (_) { /* empty desk */ }
 
-    const res = await fetch('/api/pool/state');
-    if (!res.ok) throw new Error(await res.text());
-    data = await res.json();
-    if (!data.ok) {
-      logConsole(`[POOL]: No saved state (${data.error || 'empty'})`);
-      _poolPersistReady = true;
-      return;
-    }
-
-    applyPoolData(data, { asProject: false });
-    // session restore — keep untitled unless payload had project_path
-    if (data.project_path) {
-      state.project.path = data.project_path;
-      state.project.name = data.project_name || basename(data.project_path).replace(/\.ffproject\.json$/i, '');
-      state.project.dirty = false;
-    }
-    const timed = state.pool.sequence.filter(s => s.targetDuration != null).length;
-    const imgN = state.imagePool?.items?.length || 0;
-    logConsole(
-      `[POOL]: Restored session — ${state.pool.items.length} clips, ${imgN} images, ${state.pool.sequence.length} in sequence`
-      + (timed ? `, ${timed} timed` : '')
-      + ((data.missing || []).length ? ` (${data.missing.length} missing skipped)` : '')
-    );
+    logConsole('[POOL]: No saved state (empty)');
     _poolPersistReady = true;
   } catch (err) {
     logConsole(`[POOL RESTORE]: ${err.message}`, 'error');

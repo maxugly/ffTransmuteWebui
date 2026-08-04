@@ -1,6 +1,6 @@
 # Universal Persistence Spec
 
-> **Status:** Draft / Proposed — **not implemented** (spec only)  
+> **Status:** **Partial** — core “named project sacred” fix shipped `000.000.4.63` (session-only autosave; no quiet dual-save). Full desk snapshot / inactive-tab knobs still open.  
 > **Audience:** Builder Agents (Implementation)  
 > **Related handoff:** `docs/SESSION-STOPPING-STATE.md`, `docs/coder-agy-universal-persistence-prompt.md`  
 > **Goal:** Redesign save / load / autosave so that user project files are isolated from session autosaves, preventing the bug where named projects are overwritten unintentionally.

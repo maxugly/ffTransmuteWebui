@@ -1,17 +1,18 @@
 # Session stopping state — handoff
 
 > **Date:** 2026-08-04  
-> **VERSION:** `000.000.4.62`  
+> **VERSION:** `000.000.4.63`  
 > **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 4.62)
+## 1. Shipped this stretch (through 4.63)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
+| **Named project sacred** | Autosave → session only; never quiet-write `*.ffproject.json` | `persistence.js`, `media/pool.py` · **`4.63`** |
 | **RIFE Recohere (all mids)** | Keep every RIFE mid; img2img each (no discard) | `rife_recohere_ops.py` · **`4.62`** |
 | **Prompt Library** | Global save/load positive+negative; localStorage | `js/ui/prompt-library.js` · **`4.61`** |
 | **RIFE Recoherence** | 2 stills → RIFE M=2 → recohere mids → .mp4 + tab | `rife_recohere_ops.py`, `riferecohere.js` · **`4.60`+** |
@@ -43,7 +44,7 @@ Earlier stable: filter platform, dual pools, Convert, neural ops, pre-run strips
 
 ## 3. Known bugs
 
-1. Autosave can overwrite named projects.  
+1. ~~Autosave can overwrite named projects~~ — fixed `4.63`.  
 2. List reorder jumps to top.  
 3. Arrows scroll page outside wired lists.  
 4. Inactive tab knobs not persisted.  
