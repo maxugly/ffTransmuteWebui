@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-04  
-> **VERSION:** `000.000.4.63`  
+> **VERSION:** `000.000.4.64`  
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -47,6 +47,9 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | Txt2img OpenVINO | op + tab | `txt2img_ops.py` |
 | Agent tab (Phase A+API) | CLI + HTTP via `~/.secrets` | `agent-vision-tab-spec.md` · `4.59` |
 | **RIFE Recoherence** | 2 stills → RIFE M=2 → **img2img every mid** (keep all; no discard) → .mp4 | `rife-recoherence-spec.md` · `4.62` |
+| **Upscale (NCNN)** | Real-ESRGAN / SRMD + tab + bins | `upscale_ops.py`, `filters/upscale.py` · `4.64` |
+| **Cut encode** | Global range dump→encode | `cut_ops.py`, Cut tab · `4.64` |
+| **Job queue (v1)** | FIFO in-memory + Jobs tab + Add to Queue | `job_queue.py`, `op_runner.py` · `4.64` |
 | **Prompt Library** | Save/load ± pairs; img2img / txt2img / recohere | `prompt-library-spec.md` · `js/ui/prompt-library.js` · `4.61` |
 | Job progress core | phase rate/ETA, cancel | `job_control.py` |
 | RIFE dir watch | `frames_out` while binary runs | `filters/rife.py` |
@@ -63,12 +66,10 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 
 | Area | Status | Next |
 |------|--------|------|
-| **Workspace progress** | Core + RIFE watch in tree | Dump watch; multi-phase ETA — `workspace-progress-spec.md` |
+| **Workspace progress** | RIFE + **dump dir watch** in tree | multi-phase remaining ETA polish — `workspace-progress-spec.md` |
 | **Tool bottom docs** | Several tabs have blocks; not universal | Finish roll-out — `tool-bottom-docs-spec.md` |
-| **UI list / sequence keys** | Timer + pre-run done | Sequence L/R, scroll-into-view, page-scroll — `ui-list-nav-timer-spec.md` |
-| **NCNN Upscale** | Ops + filter + tab + `bin/*-ncnn-vulkan` **in tree** | WebUI verify → ship STATUS + AGENTS row, or fix gaps — `backlog/upscale-spec.md` |
+| **UI list / sequence keys** | Sequence L/R + scroll-into-view **shipped `4.64`**; some pool edge cases may remain | `ui-list-nav-timer-spec.md` |
 | **Agent polish** | Phase A+API shipped | Streaming, Image Pool send-to, Ollama, multi-tool loop |
-| **Cut encode** | UI only | filter-platform dump+encode |
 | **Universal persistence** | **Sacred named-project autosave fixed `4.63`**; full desk snapshot still open | `universal-persistence-spec.md` |
 | Image Sort true TSP | Out of scope | Chain is greedy only |
 
@@ -83,7 +84,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 | # | Spec | Intent | Notes |
 |---|------|--------|--------|
 | 1 | Finish §4 partials | Daily UX + verify upscale | High leverage |
-| 2 | [job-queue-spec.md](job-queue-spec.md) | FIFO op queue + Jobs tab | Long-job UX |
+| 2 | [job-queue-spec.md](job-queue-spec.md) | **Implemented v1 `4.64`** — memory FIFO + Jobs tab | Persist pending = later |
 | 3 | [universal-persistence-spec.md](universal-persistence-spec.md) | Stop autosave clobbering named projects | Bug #1 |
 | 4 | [tilagup-mtapi-mode-spec.md](tilagup-mtapi-mode-spec.md) | Multi-step agent tiled SD | Sibling `/home/m/snc/cod/tilagup` |
 | 5 | [image-quality-rating-spec.md](image-quality-rating-spec.md) | Pool tech/aesthetic scores | **Fix pool normalize first** |
@@ -168,7 +169,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.4.63` (named-project sacred autosave fix; recohere all-mids `4.62`).  
+- **Current:** `000.000.4.64` (upscale ship, cut encode, job queue, dump watch, list/seq keys).  
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  

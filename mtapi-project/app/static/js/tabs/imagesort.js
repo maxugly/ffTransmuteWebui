@@ -606,6 +606,14 @@ registerListKeys('imagesort', {
     imgs.splice(to, 0, item);
     state.imageSort.selected = to;
     renderImageSortForm();
+    setTimeout(function() {
+      var row = document.querySelector('.is-row.is-selected');
+      if (row) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, 0);
+  },
+  scrollSelectedIntoView: function() {
+    var row = document.querySelector('.is-row.is-selected');
+    if (row) row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   },
 });
 

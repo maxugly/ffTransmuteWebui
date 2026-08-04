@@ -18,7 +18,14 @@ const handlers = {};
  * @property {() => number} getSelected
  * @property {(i: number) => void} setSelected  select + preview if desired
  * @property {(from: number, to: number) => void} moveItem  reorder + re-render
+ * @property {() => void} [scrollSelectedIntoView]  optional after select/move
  */
+
+function _scrollSel(api) {
+  try {
+    if (typeof api.scrollSelectedIntoView === 'function') api.scrollSelectedIntoView();
+  } catch (_) { /* ignore */ }
+}
 
 /**
  * @param {string} tabId
@@ -109,17 +116,15 @@ function setupListKeys() {
         }
         e.preventDefault();
         api.moveItem(sel, to);
+        _scrollSel(api);
         return;
       }
 
-      // Navigate selection
+      // Navigate selection (arrows never page-scroll when a list owns keys)
       const next = Math.min(Math.max(0, sel + delta), items.length - 1);
-      if (next === sel) {
-        e.preventDefault();
-        return;
-      }
       e.preventDefault();
-      api.setSelected(next);
+      if (next !== sel) api.setSelected(next);
+      _scrollSel(api);
       return;
     }
 

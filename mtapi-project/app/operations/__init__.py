@@ -26,4 +26,5 @@ from . import (  # noqa: F401
     agent_ops,
     upscale_ops,
     rife_recohere_ops,
+    cut_ops,
 )

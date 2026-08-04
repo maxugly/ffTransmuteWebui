@@ -135,11 +135,11 @@ If MCP is missing, use local Playwright + Chromium (`~/.cache/ms-playwright`) �
 **Never** `web.run` / `web_search` for localhost.  
 **Never** claim WebUI DONE from curl alone.
 
-Tabs of note: **Convert / Export**, RIFE, **RIFE Recohere**, **Speed**, DeepDream, **Image Sort**, **Img2img**, **Txt2img**, **Agent**, Upscale (partial), **Video Pool**, **Image Pool**, **Cut**, Sequence, Watcher.
+Tabs of note: **Convert / Export**, RIFE, **RIFE Recohere**, **Speed**, DeepDream, **Image Sort**, **Img2img**, **Txt2img**, **Agent**, **Upscale**, **Cut** (encode), **Jobs** (queue), **Video Pool**, **Image Pool**, Sequence, Watcher.
 
-**OpenVINO / FastSD:** img2img + txt2img + recohere mid-frame need `MTAPI_FASTSD_ROOT` (GPU). **Prompt Library** (`js/ui/prompt-library.js`) saves ± pairs on img2img / txt2img / recohere via `localStorage`.
+**OpenVINO / FastSD:** img2img + txt2img + recohere mid-frame need `MTAPI_FASTSD_ROOT` (GPU). **Prompt Library** saves ± pairs via `localStorage`. **Job queue:** Add to Queue + Jobs tab (`job_queue.py`, in-memory v1).
 
-**Roadmap (not done):** job queue, universal persistence, tilagup mode, quality rating, progress/list UX partials — see repo `docs/STATUS.md` §4–§8. NCNN upscale is **in tree** but treat as partial until verified.
+**Roadmap (not done):** full universal desk persistence, tilagup mode, quality rating, progress multi-phase polish — see repo `docs/STATUS.md` §4–§8.
 
 ---
 

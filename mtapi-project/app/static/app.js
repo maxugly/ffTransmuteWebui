@@ -18,7 +18,7 @@ import {
   runOpWithCancel, runActiveOperation, stopActiveOperation,
   displayOpResult, setRunUiBusy,
   formatJobLine, stopJobProgressPoll, startJobProgressPoll,
-  newJobToken,
+  newJobToken, enqueueActiveOperation,
 } from '/js/job-control.js';
 import { renderMoshForm, updateMoshParams } from '/js/tabs/datamosh.js';
 import { renderDeepDreamForm, collectDeepDreamBody } from '/js/tabs/deepdream.js';
@@ -37,10 +37,11 @@ import { loadQuickSettings, renderQuickTransmuteForm, runQuickTransmute, quickTr
 import { renderWatcherForm } from '/js/tabs/watcher.js';
 import { renderConvertForm, collectConvertBody } from '/js/tabs/convert.js';
 import { renderImagePoolForm } from '/js/pool/image-pool.js';
-import { renderCutForm } from '/js/tabs/cut.js';
+import { renderCutForm, collectCutBody } from '/js/tabs/cut.js';
 import { renderZoompanForm, collectZoompanBody } from '/js/tabs/zoompan.js';
 import { renderImageSortForm, collectImageSortBody } from '/js/tabs/imagesort.js';
 import { renderNotesForm } from '/js/tabs/notes.js';
+import { renderJobsForm, stopJobsPoll } from '/js/tabs/jobs.js';
 import {
   findPoolItem, displayFocusPath, setPoolHover, clearPoolHover,
   setPoolFocus, updateSelectionHighlights, updatePoolFocusFrame,
@@ -440,6 +441,8 @@ function setupEventListeners() {
 
   // Action Buttons
   elements.btnRun.addEventListener('click', runActiveOperation);
+  const btnQueue = document.getElementById('btnQueue');
+  if (btnQueue) btnQueue.addEventListener('click', () => enqueueActiveOperation());
   elements.btnStop?.addEventListener('click', stopActiveOperation);
   elements.btnClearConsole.addEventListener('click', () => {
     elements.consoleBody.innerHTML = '~ terminal cleared';
@@ -583,23 +586,30 @@ function switchTab(tab) {
   if (tab === 'cut') title = 'Cut';
   if (tab === 'imagesort') title = 'Image Sort → Video';
   if (tab === 'zoompan') title = 'Pan & Zoom';
+  if (tab === 'jobs') title = 'Jobs · Queue';
   if (tab === 'notes') title = 'Notes';
   // Library tabs: drop the big header title (sidebar already shows active item)
   if (tab === 'pool' || tab === 'sequence' || tab === 'images') title = '';
   elements.tabTitle.textContent = title;
 
-  // Hide Run on library / settings-only tabs (Cut has no encode yet)
+  // Hide Run / Queue on library / settings-only tabs
+  const hideRun = (
+    tab === 'pool' || tab === 'sequence' || tab === 'images'
+    || tab === 'quick' || tab === 'watcher' || tab === 'notes' || tab === 'agent' || tab === 'jobs'
+  );
   if (elements.btnRun) {
-    elements.btnRun.style.display = (
-      tab === 'pool' || tab === 'sequence' || tab === 'images' || tab === 'cut'
-      || tab === 'quick' || tab === 'watcher' || tab === 'notes' || tab === 'agent'
-    ) ? 'none' : '';
+    elements.btnRun.style.display = hideRun ? 'none' : '';
   }
+  const btnQueue = document.getElementById('btnQueue');
+  if (btnQueue) btnQueue.style.display = hideRun ? 'none' : '';
 
   // Stop watcher status polling when leaving the tab
   if (tab !== 'watcher' && state.watcher.pollTimer) {
     clearInterval(state.watcher.pollTimer);
     state.watcher.pollTimer = null;
+  }
+  if (tab !== 'jobs') {
+    try { stopJobsPoll(); } catch (_) { /* ignore */ }
   }
 
   // Pool / Sequence / Image Pool take most of the workspace
@@ -679,6 +689,8 @@ function renderTabForm(tab) {
     renderZoompanForm();
   } else if (tab === 'imagesort') {
     renderImageSortForm();
+  } else if (tab === 'jobs') {
+    renderJobsForm();
   } else if (tab === 'notes') {
     renderNotesForm();
   }

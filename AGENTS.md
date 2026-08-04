@@ -97,7 +97,9 @@ Stage kinds:
 | raw transmute | `transmute_ops.py` | — | ✅ escape hatch |
 | **RIFE Recoherence** | `rife_recohere_ops.py` + rife + img2img filters | compose directory stages | ✅ two stills → RIFE M=2 → img2img **every mid** (keep all) → encode (`4.62`) |
 | **Prompt Library** (UI) | `static/js/ui/prompt-library.js` | — (localStorage) | ✅ save/load ± pairs on img2img / txt2img / recohere (`4.61`) |
-| upscale (NCNN) | `upscale_ops.py` + `filters/upscale.py` | directory | ⚠️ **partial** — in tree + tab + bins; verify before treating as DONE |
+| upscale (NCNN) | `upscale_ops.py` + `filters/upscale.py` | directory | ✅ Real-ESRGAN / SRMD + re-grain; WebUI tab (`4.64`) |
+| cut (trim) | `cut_ops.py` | bookends dump→encode | ✅ global frame range → .mp4 (`4.64`) |
+| job queue | `job_queue.py` + `op_runner.py` | — | ✅ FIFO serial; Jobs tab; Add to Queue (`4.64`) |
 
 **RIFE density:** multiplier **2–128** on Image Sort / RIFE / Speed / ramp (API + knobs). Image **list length is uncapped** (min 2). High M on large K is intentional power-user territory (2-still long morphs).
 

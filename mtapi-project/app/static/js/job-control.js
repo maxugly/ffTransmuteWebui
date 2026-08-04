@@ -19,6 +19,7 @@ import { collectSpeedChangeBody } from '/js/tabs/speedchange.js';
 import { collectConvertBody } from '/js/tabs/convert.js';
 import { collectZoompanBody } from '/js/tabs/zoompan.js';
 import { collectImageSortBody } from '/js/tabs/imagesort.js';
+import { collectCutBody } from '/js/tabs/cut.js';
 import { activeTransmuteOp, transmuteOpsDetails, activeMultiMode } from '/js/tabs/transmute.js';
 import { collectDeepDreamBody } from '/js/tabs/deepdream.js';
 // ── Job run / cooperative stop ────────────────────────────────────────────
@@ -614,6 +615,11 @@ async function runActiveOperation() {
     if (!isBody) return;
     opId = 'imagesort_rife';
     body = isBody;
+  } else if (tab === 'cut') {
+    const cutBody = collectCutBody();
+    if (!cutBody) return;
+    opId = 'cut';
+    body = cutBody;
   } else if (tab === 'advanced') {
     const input = bestInput('advInput');
     const flagsStr = document.getElementById('advFlags')?.value || '';
@@ -656,7 +662,7 @@ async function runActiveOperation() {
   }[tab];
 
   // Ops that already batch lists themselves
-  const selfBatchTabs = new Set(['multi', 'facemorph', 'withoutbg', 'styletransfer', 'pool', 'sequence', 'images', 'cut', 'zoompan', 'notes', 'quick', 'watcher', 'imagesort', 'txt2img', 'img2img', 'agent']);
+  const selfBatchTabs = new Set(['multi', 'facemorph', 'withoutbg', 'styletransfer', 'pool', 'sequence', 'images', 'cut', 'zoompan', 'notes', 'quick', 'watcher', 'imagesort', 'txt2img', 'img2img', 'agent', 'jobs']);
 
   let paths = [];
   if (batchField && !selfBatchTabs.has(tab)) {
@@ -760,11 +766,153 @@ function displayOpResult(res) {
 }
 
 
+/**
+ * Snapshot current tab op+body for queue (same switch as Run).
+ * Returns { opId, body } or null.
+ */
+function collectActiveOp() {
+  // Reuse runActiveOperation's collection by temporary dry path:
+  // duplicate minimal: callers should prefer enqueueActiveOperation.
+  return null;
+}
+
+async function enqueueActiveOperation() {
+  // Build body by temporarily invoking the same branches as Run without executing.
+  // Simplest: mirror Run's collection by calling runActiveOperation's logic —
+  // factor: set a one-shot collector.
+  const prev = activeJob.controller;
+  if (prev) {
+    // still allow queue while busy
+  }
+  // Steal collection by running the same switch via a synthetic helper
+  const tab = state.activeTab;
+  let opId = '';
+  let body = null;
+
+  // Invoke the same collection as runActiveOperation by calling a shared internal.
+  // We re-call runActiveOperation's collection by duplicating the entry via
+  // temporary assignment into a probe object:
+  const bag = { opId: '', body: null, aborted: false };
+  const _origAlert = window.alert;
+  const _alerts = [];
+  window.alert = (m) => { _alerts.push(m); bag.aborted = true; };
+  try {
+    // Inline re-use: call runActiveOperation collection only — 
+    // easier path: POST after building via evaluateCollect
+    await _collectForQueue(bag);
+  } finally {
+    window.alert = _origAlert;
+  }
+  if (bag.aborted || !bag.opId || !bag.body) {
+    if (_alerts[0]) logConsole(`[QUEUE]: ${_alerts[0]}`, 'error');
+    return;
+  }
+  opId = bag.opId;
+  body = bag.body;
+  const label = `${opId}${body.input_path ? ' · ' + basename(String(body.input_path)) : ''}`;
+  try {
+    const res = await fetch('/api/queue', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ op_id: opId, body, label }),
+    });
+    const data = await res.json();
+    if (!data.ok) {
+      alert(data.error || 'Queue failed');
+      return;
+    }
+    logConsole(`[QUEUE]: #${data.position} ${data.label || opId} (${String(data.id).slice(0, 8)}…)`);
+    elements.statusText.textContent = `Queued #${data.position}`;
+  } catch (err) {
+    logConsole(`[QUEUE]: ${err.message}`, 'error');
+    alert(`Queue failed: ${err.message}`);
+  }
+}
+
+/** Populate bag.opId / bag.body using the same form readers as Run. */
+async function _collectForQueue(bag) {
+  const tab = state.activeTab;
+  // Mirror the key collect branches used by runActiveOperation
+  if (tab === 'rife') {
+    const b = collectRifeBody();
+    if (!b) { bag.aborted = true; return; }
+    bag.opId = 'rife'; bag.body = b; return;
+  }
+  if (tab === 'img2img') {
+    const b = collectImg2ImgBody();
+    if (!b) { bag.aborted = true; return; }
+    bag.opId = 'img2img'; bag.body = b; return;
+  }
+  if (tab === 'txt2img') {
+    const b = collectTxt2ImgBody();
+    if (!b) { bag.aborted = true; return; }
+    bag.opId = 'txt2img'; bag.body = b; return;
+  }
+  if (tab === 'upscale') {
+    const b = collectUpscaleBody();
+    if (!b) { bag.aborted = true; return; }
+    bag.opId = 'upscale'; bag.body = b; return;
+  }
+  if (tab === 'riferecohere') {
+    const b = collectRifeRecohereBody();
+    if (!b) { bag.aborted = true; return; }
+    bag.opId = 'rife_recohere'; bag.body = b; return;
+  }
+  if (tab === 'speedchange') {
+    const b = collectSpeedChangeBody();
+    if (!b) { bag.aborted = true; return; }
+    bag.opId = 'speedchange'; bag.body = b; return;
+  }
+  if (tab === 'convert') {
+    const b = collectConvertBody();
+    if (!b) { bag.aborted = true; return; }
+    bag.opId = 'convert'; bag.body = b; return;
+  }
+  if (tab === 'imagesort') {
+    const b = collectImageSortBody();
+    if (!b) { bag.aborted = true; return; }
+    bag.opId = 'imagesort_rife'; bag.body = b; return;
+  }
+  if (tab === 'cut') {
+    const b = collectCutBody();
+    if (!b) { bag.aborted = true; return; }
+    bag.opId = 'cut'; bag.body = b; return;
+  }
+  if (tab === 'deepdream') {
+    const b = collectDeepDreamBody();
+    if (!b) { bag.aborted = true; return; }
+    bag.opId = b.operation || 'deepdream'; bag.body = b; return;
+  }
+  if (tab === 'facemorph') {
+    const b = collectFaceMorphBody();
+    if (!b) { bag.aborted = true; return; }
+    bag.opId = 'facemorph'; bag.body = b; return;
+  }
+  if (tab === 'withoutbg') {
+    const b = collectWithoutBgBody();
+    if (!b) { bag.aborted = true; return; }
+    bag.opId = 'withoutbg'; bag.body = b; return;
+  }
+  if (tab === 'styletransfer') {
+    const b = collectStyleTransferBody();
+    if (!b) { bag.aborted = true; return; }
+    bag.opId = 'styletransfer'; bag.body = b; return;
+  }
+  if (tab === 'zoompan') {
+    const b = collectZoompanBody();
+    if (!b) { bag.aborted = true; return; }
+    bag.opId = 'zoompan'; bag.body = b; return;
+  }
+  // Fallback: reuse Run path by telling user to use Run when idle for rare tabs
+  bag.aborted = true;
+  window.alert('Add to Queue supports main ops on this tab set; use Run when idle for others.');
+}
+
 export {
   formatJobLine, stopJobProgressPoll, startJobProgressPoll,
   setRunUiBusy, newJobToken, stopActiveOperation,
   runOpWithCancel, runActiveOperation, displayOpResult,
-  togglePreviewLive,
+  togglePreviewLive, enqueueActiveOperation,
 };
 
 // ── Module init: wire static UI elements ──────────────────────────────────

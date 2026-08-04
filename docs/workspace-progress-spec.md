@@ -1,6 +1,6 @@
 # Workspace Progress & Smart ETA — Spec
 
-> **Status:** **Partial** — phase-local rate/ETA + `start_dir_watch` **in tree**; RIFE wired; dump watch / remaining checklist open  
+> **Status:** **Partial** — phase-local rate/ETA + `start_dir_watch`; RIFE + **dump** wired (`4.64`); multi-phase remaining ETA polish open  
 > **VERSION note:** progress core landed with ~`000.000.4.54` tree  
 > **Audience:** Builders  
 > **Problem:** Long ops materialize work under `/tmp/mtapi_jobs/{id}/frames_*`; UI must climb `current` while binaries run.  

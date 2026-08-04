@@ -4,11 +4,10 @@
  * No local video path / no private file picker.
  *   Range start/end thumbs ← global Frame range sliders
  *   Ref A / Ref B          ← Image Pool (or Browse still into Image Pool)
+ *   Encode                ← dump range → encode .mp4 (POST /ops/cut)
  *
  * Compare UI is the shared module `/js/ui/image-compare.js`
  * (In↔Ref A, Out↔Ref B): separate | overlay | A/B wipe.
- *
- * Encode of the trim is not here yet.
  */
 import { state, elements, logConsole, showPreview, switchTab, bestInput } from '/app.js';
 import { basename, escapeHtml, isImagePath, globalFrameRange } from '/js/utils.js';
@@ -22,6 +21,7 @@ import {
   paintCompareView,
   bindCompareControls,
 } from '/js/ui/image-compare.js';
+import { runOpWithCancel } from '/js/job-control.js';
 
 let _listenersBound = false;
 let _rangeRefreshTimer = null;
@@ -295,6 +295,18 @@ async function renderCutForm() {
         ${refCards}
       </div>
 
+      <div class="form-row" style="margin-top:1rem">
+        <label for="cutOutput">Encode output</label>
+        <div class="input-row">
+          <input type="text" id="cutOutput" placeholder="blank = auto next to source (_cut_IN-OUT.mp4)">
+          <button type="button" class="btn" id="btnCutEncode">Encode cut</button>
+        </div>
+        <p class="form-row-hint">
+          Dump In–Out (frames ${start}–${end}) via filter-platform bookends, then encode .mp4.
+          Or use the global <strong>Run</strong> button.
+        </p>
+      </div>
+
       <div class="cut-footer-hint">
         <p>
           <strong>1 Separate</strong> — four cards.
@@ -312,7 +324,36 @@ async function renderCutForm() {
   refreshCutRangePreviews();
 }
 
+/** Params for POST /ops/cut from global video + frame range. */
+function collectCutBody() {
+  const videoPath = resolveCutVideoPath();
+  if (!videoPath) {
+    alert('Set a video in the global Video file(s) bar.');
+    return null;
+  }
+  const { start, end } = workingRange();
+  const outEl = document.getElementById('cutOutput');
+  return {
+    input_path: videoPath,
+    output_path: (outEl && outEl.value.trim()) || null,
+    start_frame: start,
+    end_frame: end,
+    dry_run: false,
+  };
+}
+
 function _bindCutForm() {
+  const enc = document.getElementById('btnCutEncode');
+  if (enc) {
+    enc.addEventListener('click', async () => {
+      const body = collectCutBody();
+      if (!body) return;
+      try {
+        await runOpWithCancel('cut', body, { label: 'Encoding cut…' });
+      } catch (_) { /* logged */ }
+    });
+  }
+
   _compareCtl = bindCompareControls({
     idPrefix: CUT_COMPARE_PREFIX,
     getState: () => _cutCompareState(),
@@ -389,4 +430,4 @@ function _bindRefSlot(letter, key) {
   });
 }
 
-export { renderCutForm, ensureCut, resolveCutVideoPath, refreshCutRangePreviews };
+export { renderCutForm, ensureCut, resolveCutVideoPath, refreshCutRangePreviews, collectCutBody };

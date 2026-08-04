@@ -1,6 +1,7 @@
 # Job Queue — Spec
 
-> **Status:** **Spec only** — not implemented (`STATUS.md` §5)  
+> **Status:** **Implemented v1** `000.000.4.64` — in-memory FIFO + Jobs tab + Add to Queue; pending not persisted across restart  
+
 > **Audience:** Builders & reviewers  
 > **Related:** `job_control.py`, `static/js/job-control.js`, `workspace-progress-spec.md`, `main.py` op dispatcher, `STATUS.md`  
 > **Problem:** Users want to line up long ops (RIFE → DeepDream → Convert…) without babysitting each finish.  

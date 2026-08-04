@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException
 
 
 def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY) -> None:
+    from .. import job_queue
     @app.get("/api/watcher", tags=["meta"])
     async def watcher_status():
         return {"ok": True, **folder_watcher.get_status()}
@@ -60,6 +61,33 @@ def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY
             and not child.name.startswith(".")
         )
         return {"ok": True, "path": str(p), "files": files, "count": len(files)}
+
+    @app.post("/api/queue", tags=["meta"])
+    async def queue_add(body: dict):
+        op_id = (body or {}).get("op_id") or (body or {}).get("operation")
+        if not op_id:
+            raise HTTPException(status_code=400, detail="op_id is required")
+        return await job_queue.enqueue(
+            str(op_id),
+            (body or {}).get("body") or {},
+            label=(body or {}).get("label"),
+        )
+
+    @app.get("/api/queue", tags=["meta"])
+    async def queue_get():
+        return await job_queue.snapshot()
+
+    @app.delete("/api/queue/{item_id}", tags=["meta"])
+    async def queue_delete(item_id: str):
+        return await job_queue.remove_pending(item_id)
+
+    @app.post("/api/queue/{item_id}/cancel", tags=["meta"])
+    async def queue_cancel(item_id: str):
+        return await job_queue.cancel_item(item_id)
+
+    @app.post("/api/queue/clear", tags=["meta"])
+    async def queue_clear():
+        return await job_queue.clear_pending()
 
     @app.get("/api/job/{token}", tags=["meta"])
     async def job_progress(token: str):

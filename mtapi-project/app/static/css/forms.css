@@ -1361,3 +1361,28 @@ input.daw-knob-value-input:focus {
   font-size: 0.85em;
   opacity: 0.85;
 }
+
+
+/* Jobs queue panel */
+.jobs-panel { max-width: 42rem; }
+.jobs-h {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0 0.4rem;
+  font-size: 0.95rem;
+}
+.jobs-section { display: flex; flex-direction: column; gap: 0.35rem; }
+.jobs-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+}
+.jobs-main { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.jobs-meta { font-size: 0.8em; opacity: 0.8; word-break: break-all; }
+.jobs-progress { font-size: 0.85em; margin: 0.25rem 0 0; opacity: 0.9; }
+.jobs-running { border-color: var(--accent, #6af); }

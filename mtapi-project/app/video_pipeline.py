@@ -177,11 +177,48 @@ async def dump(
         argv.extend(["-q:v", "2"])
 
     argv.append(out_pattern)
-    code, _, stderr = await run_command(argv)
+
+    # Dir watch while ffmpeg dumps (opaque writer fills frames_dir)
+    from . import job_control
+    token = job_control.current_token()
+    dump_total = 0
+    try:
+        fc = int(info.get("frame_count") or 0)
+        if n1 is not None:
+            dump_total = max(1, (n1 - n0) + 1)
+        elif fc > 0:
+            dump_total = fc
+    except Exception:
+        dump_total = 0
+    if token and dump_total > 0:
+        job_control.report_progress(
+            f"dump 0/{dump_total} frames",
+            phase="dump", current=0, total=dump_total, unit="frames", token=token,
+        )
+        job_control.start_dir_watch(
+            token,
+            directory=frames_dir,
+            total=dump_total,
+            phase="dump",
+            unit="frames",
+            message=f"dump 0/{dump_total} frames",
+        )
+    try:
+        code, _, stderr = await run_command(argv)
+    finally:
+        if token:
+            job_control.stop_dir_watch(token)
+
     if code != 0:
         raise RuntimeError(f"ffmpeg {ext} dump failed (exit {code}): {stderr.strip() or 'no stderr'}")
 
     frame_count = _count_frames_in_dir(frames_dir, ext)
+    if token and frame_count:
+        job_control.report_progress(
+            f"dump done {frame_count} frames",
+            phase="dump", current=frame_count, total=max(frame_count, dump_total or frame_count),
+            unit="frames", token=token,
+        )
 
     audio_path: str | None = None
     if info.get("has_audio") and not out_dir:

@@ -862,6 +862,56 @@ function seqNext() {
   renderSequenceBox();
 }
 
+// Horizontal sequence: arrows select; Ctrl+arrows reorder (list-keys).
+import { registerListKeys } from '/js/ui/list-keys.js';
+
+function _seqScrollSelected() {
+  const el = document.querySelector('.seq-token.selected, .seq-token.focused, .seq-token.playing');
+  if (el && typeof el.scrollIntoView === 'function') {
+    el.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+  }
+}
+
+const _seqListApi = {
+  getItems: () => state.pool.sequence || [],
+  getSelected: () => findSelectedSeqIndex(),
+  setSelected: (i) => {
+    const seq = state.pool.sequence || [];
+    if (i < 0 || i >= seq.length) return;
+    const entry = seq[i];
+    state.pool.selectedSeqId = entry.id;
+    state.pool.selectedPath = entry.path;
+    state.pool.focusPath = entry.path;
+    try { selectPoolItem(entry.path); } catch (_) { /* ignore */ }
+    renderSequenceBox();
+    updateSeqClipSettings();
+    updateSelectionHighlights();
+    _seqScrollSelected();
+  },
+  moveItem: (from, to) => {
+    const seq = state.pool.sequence || [];
+    if (from < 0 || to < 0 || from >= seq.length || to >= seq.length) return;
+    const [item] = seq.splice(from, 1);
+    seq.splice(to, 0, item);
+    state.pool.selectedSeqId = item.id;
+    state.pool.selectedPath = item.path;
+    state.pool.focusPath = item.path;
+    state.pool.playback.index = to;
+    logConsole(`[SEQ]: Moved ${item.name} ${from + 1} → ${to + 1}`);
+    renderSequenceBox();
+    updateSelectionHighlights();
+    updateSeqTransportUI();
+    updateSeqClipSettings();
+    scheduleSavePoolState();
+    _seqScrollSelected();
+  },
+  scrollSelectedIntoView: _seqScrollSelected,
+};
+
+// Same strip lives on Video Pool + Sequence tabs
+registerListKeys('sequence', _seqListApi);
+registerListKeys('pool', _seqListApi);
+
 export {
   findPoolItem,
   displayFocusPath,

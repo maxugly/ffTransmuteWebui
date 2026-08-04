@@ -213,66 +213,16 @@ def _make_endpoint(spec):
         x_mtapi_output_dir: str | None = Header(None, alias="X-MTAPI-Output-Dir"),
     ) -> OperationResult:
         from . import output_dir_ctx
+        from . import job_queue
+        from .op_runner import run_registered_op
+
         output_dir_ctx.set_output_dir(x_mtapi_output_dir)
         token = (x_job_token or "").strip() or job_control.new_token()
-        job_control.register(token, operation=spec.id)
-        job_control.bind(token)
-        job_control.report_progress(
-            f"running {spec.id}",
-            phase="start",
-            current=0,
-            total=0,
-            token=token,
-        )
+        job_queue.set_direct_busy(True)
         try:
-            # Cooperative cancel: handlers/threads call job_control.check_cancelled()
-            result = await spec.handler(params)
-            if result and not result.ok and result.error == "Cancelled by user":
-                job_control.finish(token, status="cancelled", message="Cancelled by user")
-            elif result and result.ok:
-                job_control.finish(token, status="done", message="complete")
-            else:
-                job_control.finish(
-                    token,
-                    status="error",
-                    message=(result.error if result else "failed") or "failed",
-                )
-        except job_control.JobCancelled:
-            log.info("op %s cancelled (token=%s…)", spec.id, token[:8])
-            job_control.finish(token, status="cancelled", message="Cancelled by user")
-            return OperationResult(
-                ok=False,
-                operation=spec.id,
-                error="Cancelled by user",
-                dry_run=False,
-            )
-        except Exception as e:
-            # deepdream_ops may wrap cancel as generic Exception with message
-            if "Cancelled by user" in str(e):
-                job_control.finish(token, status="cancelled", message="Cancelled by user")
-                return OperationResult(
-                    ok=False,
-                    operation=spec.id,
-                    error="Cancelled by user",
-                    dry_run=False,
-                )
-            job_control.finish(token, status="error", message=str(e)[:200])
-            raise
+            return await run_registered_op(spec, params, token=token)
         finally:
-            job_control.unregister(token)
-
-        # Track what we've done against each content-hash identity
-        try:
-            await media.record_operation(
-                _params_input_path(params),
-                operation=spec.id,
-                output_path=result.output_path,
-                ok=result.ok,
-                dry_run=result.dry_run,
-            )
-        except Exception as e:
-            log.warning("media history hook failed for %s: %s", spec.id, e)
-        return result
+            job_queue.set_direct_busy(False)
 
     endpoint.__name__ = f"run_{spec.id}"
     return endpoint
@@ -297,6 +247,8 @@ meta.register(app, folder_watcher=folder_watcher, job_control=job_control,
 async def _warn_on_missing_tools() -> None:
     for w in check_tools():
         log.warning("mtapi startup: %s", w)
+    from . import job_queue
+    job_queue.start_worker()
     # Load API keys from ~/.secrets (names only logged)
     try:
         from .agents.secrets import load_secrets, secrets_path
