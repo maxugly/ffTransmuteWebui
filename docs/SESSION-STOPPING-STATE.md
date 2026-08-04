@@ -1,7 +1,7 @@
 # Session stopping state — handoff
 
 > **Date:** 2026-08-04  
-> **VERSION:** `000.000.4.77`  
+> **VERSION:** `000.000.4.78`  
 > **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
@@ -12,6 +12,7 @@
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
+| **FastSAM OpenVINO** | Implemented batch asset extraction filter using OpenVINO IR on Intel GPU | `fastsam.py`, `fastsam.js` · **`4.78`** |
 | **Dead-code pass 3** | Removed `shell.probe_duration`, dead `stylize_batch` / `morph_directory` / watcher `_save_config` / `_needs_audio_for_preset` / `ensure_withoutbg_available` / `get_target_group`; unused imports; video ops use `start_frame_field`/`end_frame_field` | **`4.77`** |
 | **DeepDream dead-path scrub** | Dropped unused sync `dream_video` / `dream_ouroboros` (~260 lines); ops only use filter + workspace paths; shared `rifeModelSelectHtml` on rife/imagesort/speed/recohere/transmute | `dream.py`, `evolve-rife.js` · **`4.76`** |
 | **Evolve DRY cleanup** | Shared `EvolveRifeParams` (Pydantic) + `js/ui/evolve-rife.js` knobs/collect/master toggle | `evolve_video.py`, `evolve-rife.js` · **`4.75`** |

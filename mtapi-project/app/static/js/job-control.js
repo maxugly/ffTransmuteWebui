@@ -20,6 +20,7 @@ import { collectConvertBody } from '/js/tabs/convert.js';
 import { collectZoompanBody } from '/js/tabs/zoompan.js';
 import { collectImageSortBody } from '/js/tabs/imagesort.js';
 import { collectCutBody } from '/js/tabs/cut.js';
+import { collectFastSAMBody } from '/js/tabs/fastsam.js';
 import { activeTransmuteOp, transmuteOpsDetails, activeMultiMode } from '/js/tabs/transmute.js';
 import { collectDeepDreamBody } from '/js/tabs/deepdream.js';
 // ── Job run / cooperative stop ────────────────────────────────────────────
@@ -536,6 +537,11 @@ function resolveActiveOpAndBody() {
     const bb = collectWithoutBgBody();
     if (!bb) { error = "Please provide valid input for Remove BG."; return { opId: '', body: null, error }; }
     opId = 'withoutbg';
+    body = bb;
+  } else if (tab === 'fastsam') {
+    const bb = collectFastSAMBody();
+    if (!bb) { error = "Please provide valid input for FastSAM."; return { opId: '', body: null, error }; }
+    opId = 'fastsam';
     body = bb;
   } else if (tab === 'styletransfer') {
     const bb = collectStyleTransferBody();

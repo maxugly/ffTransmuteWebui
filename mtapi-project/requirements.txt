@@ -16,3 +16,5 @@ pyyaml>=6.0
 withoutbg>=1.0.6
 # Arbitrary neural style transfer (Magenta TF-Hub; TF already used by DeepDream)
 tensorflow-hub>=0.16
+openvino
+ultralytics

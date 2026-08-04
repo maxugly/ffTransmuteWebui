@@ -25,6 +25,7 @@ import { renderDeepDreamForm, collectDeepDreamBody } from '/js/tabs/deepdream.js
 import { renderTransmuteForm, renderMultiForm, renderAdvancedForm, addMultiClipPath } from '/js/tabs/transmute.js';
 import { renderFaceMorphForm, collectFaceMorphBody } from '/js/tabs/facemorph.js';
 import { renderWithoutBgForm, collectWithoutBgBody } from '/js/tabs/withoutbg.js';
+import { renderFastSAMForm, collectFastSAMBody } from '/js/tabs/fastsam.js';
 import { renderStyleTransferForm, collectStyleTransferBody } from '/js/tabs/styletransfer.js';
 import { renderRifeForm, collectRifeBody } from '/js/tabs/rife.js';
 import { renderImg2ImgForm, collectImg2ImgBody } from '/js/tabs/img2img.js';
@@ -90,12 +91,13 @@ let state = {
     folder: null,
     selected: 0, // keyboard / click selection
   },
-  // withoutBG batch
   withoutbg: {
     images: [], // {path, name}[]
     folder: null,
     selected: 0,
   },
+  // fastsam
+  fastsam: {},
   // Neural style transfer (content list + one style image)
   styleTransfer: {
     contents: [], // {path, name}[]
@@ -270,6 +272,7 @@ const TAB_ACCEPTS = {
   deepdream:   'any',
   facemorph:   'image',
   withoutbg:   'image',
+  fastsam:     'any',
   styletransfer:'any',
   rife:        'video',
   img2img:     'any',
@@ -291,7 +294,7 @@ const TAB_ACCEPTS = {
 /** Tabs that show the global frame-range row (video pipeline / mosh / convert). */
 const FRAME_RANGE_TABS = new Set([
   'mosh', 'deepdream', 'rife', 'img2img', 'speedchange', 'convert', 'transmute',
-  'styletransfer', 'withoutbg', 'facemorph', 'multi', 'advanced',
+  'styletransfer', 'withoutbg', 'fastsam', 'facemorph', 'multi', 'advanced',
   'cut', // cut workspace shows global range next to first/last
   'imagesort',
 ]);
@@ -596,6 +599,7 @@ function switchTab(tab) {
   if (tab === 'deepdream') title = 'Google DeepDream';
   if (tab === 'facemorph') title = 'Face Morph';
   if (tab === 'withoutbg') title = 'withoutBG · Remove Background';
+  if (tab === 'fastsam') title = 'FastSAM · Asset Extraction';
   if (tab === 'styletransfer') title = 'Style Transfer · Magenta';
   if (tab === 'rife') title = 'RIFE · AI Frame Interpolation';
   if (tab === 'img2img') title = 'Img2Img · OpenVINO GPU';
@@ -680,6 +684,8 @@ function renderTabForm(tab) {
     renderFaceMorphForm();
   } else if (tab === 'withoutbg') {
     renderWithoutBgForm();
+  } else if (tab === 'fastsam') {
+    renderFastSAMForm();
   } else if (tab === 'styletransfer') {
     renderStyleTransferForm();
   } else if (tab === 'rife') {
