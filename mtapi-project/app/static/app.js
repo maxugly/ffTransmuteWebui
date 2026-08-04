@@ -31,6 +31,7 @@ import { renderImg2ImgForm, collectImg2ImgBody } from '/js/tabs/img2img.js';
 import { renderTxt2ImgForm, collectTxt2ImgBody } from '/js/tabs/txt2img.js';
 import { renderAgentForm, applyPendingToImg2Img, applyPendingToTxt2Img } from '/js/tabs/agent.js';
 import { renderUpscaleForm, collectUpscaleBody } from '/js/tabs/upscale.js';
+import { renderRifeRecohereForm, collectRifeRecohereBody } from '/js/tabs/riferecohere.js';
 import { renderSpeedChangeForm, collectSpeedChangeBody } from '/js/tabs/speedchange.js';
 import { loadQuickSettings, renderQuickTransmuteForm, runQuickTransmute, quickTransmuteLabel } from '/js/tabs/quick.js';
 import { renderWatcherForm } from '/js/tabs/watcher.js';
@@ -254,6 +255,7 @@ const TAB_ACCEPTS = {
   txt2img:     'none',
   agent:       'none',
   upscale:     'any',
+  riferecohere:'image',
   speedchange: 'video',
   advanced:    'video',
   quick:       'video',
@@ -570,6 +572,7 @@ function switchTab(tab) {
   if (tab === 'txt2img') title = 'Txt2Img · OpenVINO GPU';
   if (tab === 'agent') title = 'Agent · Vision chat';
   if (tab === 'upscale') title = 'Upscale · NCNN Vulkan';
+  if (tab === 'riferecohere') title = 'RIFE Recoherence';
   if (tab === 'speedchange') title = 'Speed Change';
   if (tab === 'transmute') title = 'Single-Clip Transmutations';
   if (tab === 'multi') title = 'Layout Templates (Join / Grid)';
@@ -648,6 +651,8 @@ function renderTabForm(tab) {
     renderAgentForm();
   } else if (tab === 'upscale') {
     renderUpscaleForm();
+  } else if (tab === 'riferecohere') {
+    renderRifeRecohereForm();
   } else if (tab === 'speedchange') {
     renderSpeedChangeForm();
   } else if (tab === 'transmute') {
@@ -892,15 +897,17 @@ export {
   selectPoolItem, removePoolItem, sequencePositions,
   loadPoolItemMeta, setPreviewAspect, clearPreviewAspect,
   collectFaceMorphBody,
-  collectWithoutBgBody, collectStyleTransferBody, collectRifeBody,
+  collectWithoutBgBody, collectStyleTransferBody,   collectRifeBody,
   collectImg2ImgBody,
   collectTxt2ImgBody,
+  collectRifeRecohereBody,
   collectSpeedChangeBody,
   collectUpscaleBody,
   renderFaceMorphForm,
   renderWithoutBgForm, renderStyleTransferForm, renderRifeForm,
   renderImg2ImgForm,
   renderTxt2ImgForm,
+  renderRifeRecohereForm,
   renderSpeedChangeForm,
   renderUpscaleForm,
   renderImageSortForm,

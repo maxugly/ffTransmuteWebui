@@ -1344,3 +1344,20 @@ input.daw-knob-value-input:focus {
   flex: 1 1 auto;
   margin: 0;
 }
+
+/* ── Prompt Library toolbar ───────────────────────────────────────────── */
+.prompt-library-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  margin: 0.25rem 0 0.5rem;
+}
+.prompt-library-bar select {
+  min-width: 10rem;
+  max-width: 18rem;
+}
+.prompt-library-bar .prompt-lib-active {
+  font-size: 0.85em;
+  opacity: 0.85;
+}

@@ -1,50 +1,78 @@
 # docs/ — index
 
-> **Start here for agents:** [STATUS.md](STATUS.md)  
-> **Last stop handoff:** [SESSION-STOPPING-STATE.md](SESSION-STOPPING-STATE.md)  
-> **Root law:** `../AGENTS.md` · **mtapi law:** `../mtapi-project/AGENTS.md`
-
-Status labels used in specs:
+> **Start here:** [STATUS.md](STATUS.md) — **shipped / partial / full roadmap**  
+> **Handoff:** [SESSION-STOPPING-STATE.md](SESSION-STOPPING-STATE.md)  
+> **Law:** `../AGENTS.md` · `../mtapi-project/AGENTS.md`
 
 | Banner | Meaning |
 |--------|---------|
-| **Implemented** / as-built | Code is source of truth; update code + doc together |
-| **Partial** | Some of the spec is in tree |
-| **Spec** | Design only — do not implement without priority |
-| **Research** | Notes / comparison — not a build ticket alone |
-| **Legacy** | Superseded; do not build from this file |
+| **Implemented** | Code is truth; update code + doc together |
+| **Partial** | In tree but not done — do not claim DONE |
+| **Spec** | Design only — need human priority |
+| **Research** | Notes — not a build ticket alone |
+| **Legacy** | Do not build from this file |
 | **Backlog** | Future op under `backlog/` |
 
 ---
 
-## Canonical as-built (read before coding)
+## Canonical as-built
 
 | Doc | Topic |
 |-----|--------|
-| [STATUS.md](STATUS.md) | **Where we are** |
+| [STATUS.md](STATUS.md) | **Where we are + roadmap** |
 | [filter-platform-spec.md](filter-platform-spec.md) | dump → filters → encode |
-| [video-image-pools-spec.md](video-image-pools-spec.md) | Video Pool / Image Pool / Cut |
+| [video-image-pools-spec.md](video-image-pools-spec.md) | Dual pools / Cut |
 | [resolve-transcode-spec.md](resolve-transcode-spec.md) | Convert / bookends |
-| [image-sort-rife-spec.md](image-sort-rife-spec.md) | Image Sort + RIFE + chain strategy |
-| [rife-spec.md](rife-spec.md) / [rife-filter-cleanup-spec.md](rife-filter-cleanup-spec.md) | RIFE stage |
+| [image-sort-rife-spec.md](image-sort-rife-spec.md) | Image Sort + chain |
+| [img2img-openvino-spec.md](img2img-openvino-spec.md) | Img2img OpenVINO |
+| [agent-vision-tab-spec.md](agent-vision-tab-spec.md) | Agent + vision APIs |
+| [rife-recoherence-spec.md](rife-recoherence-spec.md) | RIFE mid recohere |
+| [prompt-library-spec.md](prompt-library-spec.md) | Prompt save/load library |
 | [architecture.md](architecture.md) | High-level map |
 
 ---
 
-## Recently active specs (2026-08)
+## At a glance — `000.000.4.61` (2026-08-04)
 
+### Shipped recently
+| Doc / feature | Ver |
+|---------------|-----|
+| [prompt-library-spec.md](prompt-library-spec.md) | **4.61** |
+| [rife-recoherence-spec.md](rife-recoherence-spec.md) | **4.60** |
+| [agent-vision-tab-spec.md](agent-vision-tab-spec.md) | **4.59** Phase A+API |
+| [img2img-openvino-spec.md](img2img-openvino-spec.md) | **4.55** + tab |
+| Txt2img OpenVINO | In tree |
+
+### Partial / in progress
 | Doc | Status |
 |-----|--------|
-| [tool-bottom-docs-spec.md](tool-bottom-docs-spec.md) | **Partial** — Image Sort pilot shipped |
-| [workspace-progress-spec.md](workspace-progress-spec.md) | **Partial** — rate/ETA + RIFE dir watch in tree |
-| [tilagup-mtapi-mode-spec.md](tilagup-mtapi-mode-spec.md) | Spec — multi-step agent tiled SD |
-| [image-quality-rating-spec.md](image-quality-rating-spec.md) | Spec — pool quality scores |
-| [img2img-openvino-spec.md](img2img-openvino-spec.md) | **Implemented** — pipeline/op img2img (OV GPU) + mark frames |
-| [agent-vision-tab-spec.md](agent-vision-tab-spec.md) | **Spec / next** — Agent tab + image→SD1.5 prompt (agy/grok) |
-| [job-queue-spec.md](job-queue-spec.md) | Spec — FIFO queue + Jobs tab |
-| [fastsdcpu-upscalers-spec.md](fastsdcpu-upscalers-spec.md) | Research — FastSD upscale catalog |
-| [ui-list-nav-timer-spec.md](ui-list-nav-timer-spec.md) | Partial UX (timer/pre-run; keys incomplete) |
-| [universal-persistence-spec.md](universal-persistence-spec.md) | Spec — desk save redesign |
+| [workspace-progress-spec.md](workspace-progress-spec.md) | RIFE watch + ETA; dump watch open |
+| [tool-bottom-docs-spec.md](tool-bottom-docs-spec.md) | Several tabs; not all |
+| [ui-list-nav-timer-spec.md](ui-list-nav-timer-spec.md) | Timer/pre-run; sequence keys open |
+| [backlog/upscale-spec.md](backlog/upscale-spec.md) | Code in tree — verify/ship |
+
+### Roadmap (priority cleaned specs)
+| Doc | Intent |
+|-----|--------|
+| [job-queue-spec.md](job-queue-spec.md) | FIFO queue + Jobs tab |
+| [universal-persistence-spec.md](universal-persistence-spec.md) | Desk save / autosave safety |
+| [tilagup-mtapi-mode-spec.md](tilagup-mtapi-mode-spec.md) | Agent tiled SD |
+| [image-quality-rating-spec.md](image-quality-rating-spec.md) | Pool quality scores |
+
+Full backlog + open product specs: **[STATUS.md §5](STATUS.md)**. Build order: **[STATUS.md §8](STATUS.md)**.
+
+### Research
+| Doc | Note |
+|-----|------|
+| [fastsdcpu-upscalers-spec.md](fastsdcpu-upscalers-spec.md) | FastSD upscale catalog |
+| [amused-openvino-spec.md](amused-openvino-spec.md) | aMUSEd OpenVINO proposed |
+
+### Kickoffs (historical / builder)
+| Doc | Role |
+|-----|------|
+| [coder-prompt-library-prompt.md](coder-prompt-library-prompt.md) | Prompt library builder (shipped) |
+| [coder-agy-prompt-library-prompt.md](coder-agy-prompt-library-prompt.md) | Agy → prompt-library-spec |
+| [coder-rife-recoherence-prompt.md](coder-rife-recoherence-prompt.md) | Recohere builder (shipped) |
 
 ---
 
@@ -56,41 +84,26 @@ Status labels used in specs:
 | [persistence-inventory.md](persistence-inventory.md) | What saves today |
 | [media-persistence-spec.md](media-persistence-spec.md) | Media cache |
 | [style-css-map.md](style-css-map.md) | CSS map |
-| [ui-list-nav-timer-spec.md](ui-list-nav-timer-spec.md) | Timer, lists, pre-run |
 
 ---
 
-## Implemented ops (docs may lag code — check STATUS)
+## Implemented ops (check STATUS)
 
-DeepDream, facemorph, withoutbg, styletransfer, RIFE, speed change, speed ramp, zoompan, image sort, convert, transmute, datamosh, pipeline — see root `AGENTS.md` registry.
+transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, style, rife, **rife_recohere**, speed, ramp, zoompan, image sort, img2img, txt2img, agent, **prompt library (UI)**; upscale **partial in tree**.
 
 ---
 
 ## Backlog (`backlog/`)
 
-Future operations (upscale, swinir, glitch, codecview, …). Many are Gemini-era drafts — **prefer STATUS + cleaned specs** over raw backlog when both exist.
-
-Notable:
-
-| Doc | Note |
-|-----|------|
-| [backlog/upscale-spec.md](backlog/upscale-spec.md) | NCNN Real-ESRGAN / SRMD |
-| [backlog/sd-tiled-upscale-spec.md](backlog/sd-tiled-upscale-spec.md) | **Legacy** → [tilagup-mtapi-mode-spec.md](tilagup-mtapi-mode-spec.md) |
-| [backlog/swinir-spec.md](backlog/swinir-spec.md) | Denoise/deblur |
-
-Coder prompts (`coder-*-prompt.md`, `codewhale-*-prompt.md`) are agent kickoff text, not as-built docs.
+~28 draft ops (swinir, depthmap, glitch, audio-reactive, …). Prefer STATUS + cleaned specs. Legacy sd-tiled → tilagup-mtapi.
 
 ---
 
-## External / sibling
+## External
 
 | Path | Role |
 |------|------|
-| `/home/m/snc/cod/tilagup` | Working agent tiled upscale CLI — port per tilagup-mtapi-mode-spec |
-| [external-design-brief.md](external-design-brief.md) | Brief for outside feature-spec agents |
+| `/home/m/snc/cod/tilagup` | Agent tiled upscale CLI |
+| [external-design-brief.md](external-design-brief.md) | Outside agents |
 
----
-
-## Machine registry
-
-[spec_registry.json](spec_registry.json) — partial machine index; **STATUS.md is authoritative** when they disagree. Rebuild registry when convenient; do not trust status fields blindly.
+[spec_registry.json](spec_registry.json) is a partial machine index — **STATUS is authoritative**.

@@ -25,4 +25,5 @@ from . import (  # noqa: F401
     txt2img_ops,
     agent_ops,
     upscale_ops,
+    rife_recohere_ops,
 )

@@ -11,6 +11,7 @@ function renderTxt2ImgForm() {
       </p>
     </div>
 
+    <div id="t2iPromptLib" class="prompt-library-bar" aria-label="Prompt library"></div>
     <div class="form-row">
       <label for="t2iPrompt">Prompt</label>
       <input type="text" id="t2iPrompt" placeholder="a red fox in misty forest, cinematic" style="flex:1 1 16rem">
@@ -102,6 +103,15 @@ function renderTxt2ImgForm() {
     if (typeof openFileBrowser === 'function') {
       openFileBrowser('t2iOutput', false, 'file_save', 'all');
     }
+  });
+
+  import('/js/ui/prompt-library.js').then(function (m) {
+    m.attachPromptLibrary({
+      containerEl: document.getElementById('t2iPromptLib'),
+      positiveEl: document.getElementById('t2iPrompt'),
+      negativeEl: document.getElementById('t2iNeg'),
+      sourceTab: 'txt2img',
+    });
   });
 }
 

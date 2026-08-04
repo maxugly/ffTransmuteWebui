@@ -34,6 +34,7 @@ function renderImg2ImgForm() {
       </div>
     </div>
 
+    <div id="i2iPromptLib" class="prompt-library-bar" aria-label="Prompt library"></div>
     <div class="form-row">
       <label for="i2iPrompt">Prompt</label>
       <input type="text" id="i2iPrompt" placeholder="watercolor illustration, soft light" style="flex:1 1 16rem">
@@ -121,6 +122,15 @@ function renderImg2ImgForm() {
     if (typeof openFileBrowser === 'function') {
       openFileBrowser('i2iOutput', false, 'file_save', 'all');
     }
+  });
+
+  import('/js/ui/prompt-library.js').then(function (m) {
+    m.attachPromptLibrary({
+      containerEl: document.getElementById('i2iPromptLib'),
+      positiveEl: document.getElementById('i2iPrompt'),
+      negativeEl: document.getElementById('i2iNeg'),
+      sourceTab: 'img2img',
+    });
   });
 
   document.getElementById('btnI2iFromImage')?.addEventListener('click', async function() {

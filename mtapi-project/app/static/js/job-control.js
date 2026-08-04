@@ -14,6 +14,7 @@ import { collectRifeBody } from '/js/tabs/rife.js';
 import { collectImg2ImgBody } from '/js/tabs/img2img.js';
 import { collectTxt2ImgBody } from '/js/tabs/txt2img.js';
 import { collectUpscaleBody } from '/js/tabs/upscale.js';
+import { collectRifeRecohereBody } from '/js/tabs/riferecohere.js';
 import { collectSpeedChangeBody } from '/js/tabs/speedchange.js';
 import { collectConvertBody } from '/js/tabs/convert.js';
 import { collectZoompanBody } from '/js/tabs/zoompan.js';
@@ -588,6 +589,11 @@ async function runActiveOperation() {
     if (!upBody) return;
     opId = 'upscale';
     body = upBody;
+  } else if (tab === 'riferecohere') {
+    const rrBody = collectRifeRecohereBody();
+    if (!rrBody) return;
+    opId = 'rife_recohere';
+    body = rrBody;
   } else if (tab === 'speedchange') {
     const scBody = collectSpeedChangeBody();
     if (!scBody) return;

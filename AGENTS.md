@@ -93,8 +93,11 @@ Stage kinds:
 | image sort & RIFE | `imagesort_rife_ops.py` + `app/image_sort/` | multi-source → optional directory RIFE | ✅ radial/chain rank → conform → RIFE (M **2–128**) → encode; bottom `.tool-docs` |
 | img2img (OpenVINO) | `img2img_ops.py` + `filters/img2img.py` | directory | ✅ FastSD GPU OV; mark `frame_indices`; pipeline filter `img2img` |
 | txt2img (OpenVINO) | `txt2img_ops.py` + `filters/txt2img_ov_worker.py` | — (generate) | ✅ FastSD GPU OV text-to-image stills |
-| agent chat / image_to_prompt | `agent_ops.py` + `app/agents/` | — (CLI vision) | ✅ grok/agy/stub; SD1.5 skill; Agent tab |
+| agent chat / image_to_prompt | `agent_ops.py` + `app/agents/` | — (CLI vision) | ✅ grok/agy/stub + HTTP APIs; SD1.5 skill; Agent tab |
 | raw transmute | `transmute_ops.py` | — | ✅ escape hatch |
+| **RIFE Recoherence** | `rife_recohere_ops.py` + rife + img2img filters | compose directory stages | ✅ two stills → RIFE M=2 → img2img **every mid** (keep all) → encode (`4.62`) |
+| **Prompt Library** (UI) | `static/js/ui/prompt-library.js` | — (localStorage) | ✅ save/load ± pairs on img2img / txt2img / recohere (`4.61`) |
+| upscale (NCNN) | `upscale_ops.py` + `filters/upscale.py` | directory | ⚠️ **partial** — in tree + tab + bins; verify before treating as DONE |
 
 **RIFE density:** multiplier **2–128** on Image Sort / RIFE / Speed / ramp (API + knobs). Image **list length is uncapped** (min 2). High M on large K is intentional power-user territory (2-still long morphs).
 
