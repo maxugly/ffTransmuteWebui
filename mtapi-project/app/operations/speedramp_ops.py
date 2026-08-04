@@ -37,7 +37,7 @@ class SpeedRampParams(BaseModel):
         False,
         description="RIFE-interpolate dumped frames before ramp remap (more density for slow sections)",
     )
-    multiplier: int = Field(2, ge=2, le=8, description="RIFE frame multiplier")
+    multiplier: int = Field(2, ge=2, le=128, description="RIFE frame density (2–128)")
     model: RifeModel = Field("rife-v4.6", description="RIFE model")
     tta: bool = Field(False, description="RIFE spatial TTA")
     uhd: bool = Field(False, description="RIFE UHD mode")

@@ -45,7 +45,7 @@ class SpeedChangeParams(BaseModel):
         False,
         description="Interpolate frames with RIFE before speed/encode (helps slow-mo)",
     )
-    multiplier: int = Field(2, ge=2, le=8, description="RIFE frame multiplier")
+    multiplier: int = Field(2, ge=2, le=128, description="RIFE frame density (2–128)")
     model: RifeModel = Field("rife-v4.6", description="RIFE model")
     tta: bool = Field(False, description="RIFE spatial TTA")
     uhd: bool = Field(False, description="RIFE UHD mode")
@@ -232,6 +232,7 @@ async def speedchange(p: SpeedChangeParams) -> OperationResult:
                 ok=False, operation="speedchange", error=(stderr or "ffmpeg failed")[-800:],
                 dry_run=False, command=summary, stdout="\n".join(logs), stderr=stderr,
             )
+        job_control.report_progress("encode done", phase="encode", current=1, total=1, unit="pass")
         logs.append(f"Output: {out}")
         return OperationResult(
             ok=True, operation="speedchange", output_path=str(out),
@@ -329,6 +330,7 @@ async def speedchange(p: SpeedChangeParams) -> OperationResult:
             ws, out, encode_fps, mux_audio=mux, crf=18, preset="fast",
             frame_source_dir=frame_src,
         )
+        job_control.report_progress("encode done", phase="encode", current=1, total=1, unit="pass")
         logs.append(f"Output: {result_path}")
         success = True
         return OperationResult(

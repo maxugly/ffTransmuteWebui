@@ -196,7 +196,7 @@ function renderSpeedChangeForm() {
   });
   setupContinuousKnob({
     knobId: 'scRifeMultKnob', indicatorId: 'scRifeMultKnobInd', valueId: 'scRifeMultVal', hiddenId: 'scRifeMult',
-    min: 2, max: 8, step: 1, decimals: 0,
+    min: 2, max: 128, step: 1, decimals: 0,
   });
   setupBinaryKnob({
     knobId: 'scRifeTtaKnob', indicatorId: 'scRifeTtaKnobInd', hiddenId: 'scRifeTta',

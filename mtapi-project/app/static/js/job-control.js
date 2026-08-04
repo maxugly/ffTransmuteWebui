@@ -6,10 +6,14 @@ import {
   showPreview,
 } from '/app.js';
 import { basename, escapeHtml } from '/js/utils.js';
+import { setPreviewAspect } from '/js/preview.js';
 import { collectFaceMorphBody } from '/js/tabs/facemorph.js';
 import { collectWithoutBgBody } from '/js/tabs/withoutbg.js';
 import { collectStyleTransferBody } from '/js/tabs/styletransfer.js';
 import { collectRifeBody } from '/js/tabs/rife.js';
+import { collectImg2ImgBody } from '/js/tabs/img2img.js';
+import { collectTxt2ImgBody } from '/js/tabs/txt2img.js';
+import { collectUpscaleBody } from '/js/tabs/upscale.js';
 import { collectSpeedChangeBody } from '/js/tabs/speedchange.js';
 import { collectConvertBody } from '/js/tabs/convert.js';
 import { collectZoompanBody } from '/js/tabs/zoompan.js';
@@ -32,6 +36,56 @@ let activeJob = {
   lastSnap: null,
 };
 
+// ── Live preview toggle ───────────────────────────────────────────────────
+
+function togglePreviewLive() {
+  state.previewLive = !state.previewLive;
+  var btn = document.getElementById('btnPreviewLive');
+  if (btn) {
+    btn.textContent = state.previewLive ? 'Live: ON' : 'Live: OFF';
+    btn.classList.toggle('live-active', state.previewLive);
+  }
+}
+
+function _maybeShowLiveFrame(snap) {
+  if (!state.previewLive || !activeJob.token) return;
+  var path = snap && snap.latest_frame;
+  if (!path) return;
+
+  var viewer = elements.mediaViewer;
+  if (!viewer) return;
+
+  var existingImg = viewer.querySelector('img.live-preview-frame');
+  var cacheBust = '&t=' + Date.now();
+
+  if (existingImg) {
+    existingImg.src = '/api/image?path=' + encodeURIComponent(path) + cacheBust;
+    return;
+  }
+
+  // Live is on and we have a frame — replace whatever's there
+  viewer.innerHTML = '';
+  var img = document.createElement('img');
+  img.className = 'live-preview-frame';
+  img.src = '/api/image?path=' + encodeURIComponent(path) + cacheBust;
+  img.style.objectFit = 'contain';
+  img.style.width = '100%';
+  img.style.height = '100%';
+  img.onload = function() {
+    if (img.naturalWidth && img.naturalHeight) {
+      setPreviewAspect(img.naturalWidth, img.naturalHeight);
+    }
+  };
+  viewer.appendChild(img);
+
+  var info = document.getElementById('mediaInfo');
+  if (info) info.style.display = 'flex';
+  var nameEl = document.getElementById('mediaName');
+  if (nameEl) nameEl.textContent = 'Live preview';
+  var pathEl = document.getElementById('mediaPath');
+  if (pathEl) pathEl.textContent = path;
+}
+
 /** Sticky elapsed clock: 0:05 / 1:02:03 */
 function formatElapsedMs(ms) {
   const s = Math.max(0, Math.floor((ms || 0) / 1000));
@@ -52,6 +106,7 @@ function formatJobLine(p) {
     parts.push(`${p.current || 0}/${p.total}${p.unit ? ' ' + p.unit : ''}`);
     if (p.pct != null) parts.push(`(${p.pct}%)`);
   }
+  if (p.rate_h) parts.push(`~${p.rate_h}`);
   if (p.message) parts.push(p.message);
   parts.push(`| elapsed ${p.elapsed_h || '—'}`);
   if (p.eta_s != null && p.eta_s > 0 && p.status === 'running') {
@@ -92,6 +147,7 @@ function paintStickyJobUi() {
       } else if (p.message) {
         bits.push(p.message);
       }
+      if (p.rate_h) bits.push(`~${p.rate_h}`);
       if (p.eta_s != null && p.eta_s > 0 && !stopping) bits.push(`ETA ${p.eta_h}`);
     }
     elements.statusText.textContent = bits.join(' · ');
@@ -128,6 +184,11 @@ function startJobProgressPoll(token) {
       if (!p || !p.found) return;
       activeJob.lastSnap = p;
       paintStickyJobUi();
+
+      // Live preview: show latest generated frame if toggle is on
+      if (state.previewLive && p.latest_frame) {
+        _maybeShowLiveFrame(p);
+      }
 
       // Console: only when phase changes (not every frame / not every second)
       const phase = p.phase || '';
@@ -508,6 +569,25 @@ async function runActiveOperation() {
     if (!rifeBody) return;
     opId = 'rife';
     body = rifeBody;
+  } else if (tab === 'img2img') {
+    const i2iBody = collectImg2ImgBody();
+    if (!i2iBody) return;
+    opId = 'img2img';
+    body = i2iBody;
+  } else if (tab === 'txt2img') {
+    const t2iBody = collectTxt2ImgBody();
+    if (!t2iBody) return;
+    opId = 'txt2img';
+    body = t2iBody;
+  } else if (tab === 'agent') {
+    // Agent tab uses its own Send button + runOpWithCancel('agent_chat')
+    alert('Use the Send button on the Agent tab (not Run).');
+    return;
+  } else if (tab === 'upscale') {
+    const upBody = collectUpscaleBody();
+    if (!upBody) return;
+    opId = 'upscale';
+    body = upBody;
   } else if (tab === 'speedchange') {
     const scBody = collectSpeedChangeBody();
     if (!scBody) return;
@@ -570,7 +650,7 @@ async function runActiveOperation() {
   }[tab];
 
   // Ops that already batch lists themselves
-  const selfBatchTabs = new Set(['multi', 'facemorph', 'withoutbg', 'styletransfer', 'pool', 'sequence', 'images', 'cut', 'zoompan', 'notes', 'quick', 'watcher', 'imagesort']);
+  const selfBatchTabs = new Set(['multi', 'facemorph', 'withoutbg', 'styletransfer', 'pool', 'sequence', 'images', 'cut', 'zoompan', 'notes', 'quick', 'watcher', 'imagesort', 'txt2img', 'img2img', 'agent']);
 
   let paths = [];
   if (batchField && !selfBatchTabs.has(tab)) {
@@ -678,4 +758,11 @@ export {
   formatJobLine, stopJobProgressPoll, startJobProgressPoll,
   setRunUiBusy, newJobToken, stopActiveOperation,
   runOpWithCancel, runActiveOperation, displayOpResult,
+  togglePreviewLive,
 };
+
+// ── Module init: wire static UI elements ──────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  var btn = document.getElementById('btnPreviewLive');
+  if (btn) btn.addEventListener('click', togglePreviewLive);
+});

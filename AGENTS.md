@@ -1,7 +1,8 @@
 # AGENTS.md — Root Workspace Agent Directives
 
-> **Scope**: Root directory `/home/m/snc/cod/ffTransmuteWebui`
-> **Audience**: Autonomous AI Agents, Code Assistants, and Developer Tooling
+> **Scope**: Root directory `/home/m/snc/cod/ffTransmuteWebui`  
+> **Audience**: Autonomous AI Agents, Code Assistants, and Developer Tooling  
+> **Where we are:** read **`docs/STATUS.md` first** (shipped vs partial vs spec-only). Handoff narrative: `docs/SESSION-STOPPING-STATE.md`. Doc index: `docs/README.md`.
 
 ---
 
@@ -10,6 +11,8 @@
 The root workspace orchestrates a non-destructive video manipulation system. It combines raw shell-level ffmpeg/ffglitch pipelines with a typed Python HTTP server (`mtapi-project`) and an asynchronous single-page web interface.
 
 Agents operating at this level are responsible for top-level repository integrity, cross-component interface stability, build execution, and workspace-wide documentation.
+
+**Before coding or writing a new spec:** check `docs/STATUS.md` so you do not re-spec shipped work or implement abandoned backlog by accident.
 
 ---
 
@@ -22,11 +25,15 @@ Agents operating at this level are responsible for top-level repository integrit
 ├── melt.js / no_keyframe.js     # ffglitch ECMAScript modules for vector & frame destruction
 ├── speedramp_png.py             # PNG frame-remap speed ramp (bypasses ffmpeg setpts)
 ├── docs-transmute-README.md     # Reference doc for standalone transmute CLI flags
-├── docs/                        # Specs, failure reports, debug notes
-│   └── video-image-pools-spec.md  # As-built: Video/Image Pool + Cut handoff
+├── docs/                        # Specs, STATUS, handoffs (start: docs/STATUS.md)
+│   ├── STATUS.md                # Canonical shipped / partial / spec-only
+│   ├── README.md                # Doc index
+│   └── video-image-pools-spec.md
 ├── mtapi-project/               # FastAPI backend package and WebUI client
 └── AGENTS.md                    # Root agent operational directives (this file)
 ```
+
+Sibling (not in this repo): `/home/m/snc/cod/tilagup` — agent tiled SD upscale; port design in `docs/tilagup-mtapi-mode-spec.md`.
 
 ### Component Breakdown
 1. **`transmute`**:
@@ -83,8 +90,15 @@ Stage kinds:
 | speed change | `speedchange_ops.py` | setpts/atempo or dump→RIFE→encode | ✅ uniform speed + target FPS + optional RIFE |
 | speed ramp | `speedramp_ops.py` + `filters/speedramp.py` | directory remap | ✅ PNG remap (not setpts); optional RIFE; audio dropped v1 |
 | zoompan (pan & zoom still→video) | `zoompan_ops.py` | — (ffmpeg crop) | ✅ image + two boxes |
-| image sort & RIFE | `imagesort_rife_ops.py` + `app/image_sort/` | multi-source → optional directory RIFE | ✅ sort stills → conform → optional RIFE → encode |
+| image sort & RIFE | `imagesort_rife_ops.py` + `app/image_sort/` | multi-source → optional directory RIFE | ✅ radial/chain rank → conform → RIFE (M **2–128**) → encode; bottom `.tool-docs` |
+| img2img (OpenVINO) | `img2img_ops.py` + `filters/img2img.py` | directory | ✅ FastSD GPU OV; mark `frame_indices`; pipeline filter `img2img` |
+| txt2img (OpenVINO) | `txt2img_ops.py` + `filters/txt2img_ov_worker.py` | — (generate) | ✅ FastSD GPU OV text-to-image stills |
+| agent chat / image_to_prompt | `agent_ops.py` + `app/agents/` | — (CLI vision) | ✅ grok/agy/stub; SD1.5 skill; Agent tab |
 | raw transmute | `transmute_ops.py` | — | ✅ escape hatch |
+
+**RIFE density:** multiplier **2–128** on Image Sort / RIFE / Speed / ramp (API + knobs). Image **list length is uncapped** (min 2). High M on large K is intentional power-user territory (2-still long morphs).
+
+**Progress:** long ops report via `job_control.report_progress`; directory binaries (RIFE) use `start_dir_watch` on workspace frame dirs — see `docs/workspace-progress-spec.md`.
 
 `PngFramePipeline` removed (raises). Spec: `docs/filter-platform-spec.md`.
 
@@ -129,11 +143,15 @@ When modifying files at the root level or coordinating changes across components
    - Bump far-right DD in VERSION for each feature (000.000.X.DD). Commit + push per change.
    - Bump third segment (000.000.X.0) for significant releases (new ops, major UI additions).
 8. **Progress Reporting (live updates)**:
-   - Every long-running ops handler MUST call `job_control.report_progress()` frequently — at least once per item in any per-frame/conform loop, and once before/after external binary calls.
-   - Each call must include `phase`, `current`, `total`, and `unit` so the UI can show elapsed/ETA.
-   - Phase names: `conform`, `sort`, `rife`, `encode`, etc. — short, lowercase, stable.
-   - For single-call directory/binary stages (e.g. RIFE), report before the call (`current=0`) and after (`current=total_est`). The binary provides no intermediate progress but the UI shows a live clock.
+   - Every long-running ops handler MUST call `job_control.report_progress()` frequently — at least once per item in any per-frame/conform loop.
+   - Each call must include `phase`, `current`, `total`, and `unit` so the UI can show elapsed/ETA (phase-local rate).
+   - Phase names: `conform`, `sort`, `rife`, `encode`, `dump`, etc. — short, lowercase, stable.
+   - For single-call directory/binary stages that **write PNG sequences** (e.g. RIFE → `frames_out`): use **`job_control.start_dir_watch`** for the duration of the subprocess so `current` climbs; do not leave the UI on `0/N` until exit.
    - Never batch progress updates at e.g. "every 10 items" — that creates dead time where the browser sees no change. Report every iteration.
+9. **Tool bottom docs (WebUI)**:
+   - Long explanations live in a **`.tool-docs`** block at the **bottom** of the action panel (after knobs). Pilot: Image Sort. Pattern: `docs/tool-bottom-docs-spec.md`.
+10. **Ship → update STATUS**:
+   - When landing a feature: bump VERSION DD, update `docs/STATUS.md`, set the feature spec banner to Implemented/Partial, refresh `docs/SESSION-STOPPING-STATE.md` on meaningful stops.
 
 ---
 
@@ -181,9 +199,13 @@ You can read the whole file, but **only do the work your role says to do.**
 Your job is research and specification. You do NOT write code. You do NOT edit
 files outside `docs/`.
 
+- **Read `docs/STATUS.md` first.** Do not re-spec Implemented features without
+  a human asking for a redesign.
 - Research: search the web, read the codebase, compare approaches.
 - Write specs: create `docs/<feature>-spec.md` with the problem, approach,
   files to touch, pattern to follow, pitfalls, and verification steps.
+- Keep **STATUS / SESSION-STOPPING-STATE / docs/README** accurate when the
+  product picture changes (status banners, new docs).
 - Review: read other specs and note conflicts, missing edge cases, or
   contradictions with existing code.
 - Post findings to `docs/` or tell the user directly.
@@ -191,13 +213,17 @@ files outside `docs/`.
 **You never claim DONE in the verification sense — your deliverable is a spec
 document, not working code.**
 
-#### Builder (codewhale, codex)
+#### Builder (codewhale, codex, opencode)
 
 Your job is implementation. You read specs and turn them into working code.
 
+- **Read `docs/STATUS.md` first.** Implement only prioritized open work; do not
+  randomly pick `docs/backlog/*` unless assigned.
+- Prefer as-built specs over Legacy/Gemini drafts when both exist.
 - Follow §D (Verification) for every change — WebUI test with test clips.
 - Follow §B (Adding a New Operation) for new ops.
 - Follow §3 (System Invariants) for all code.
+- On ship: VERSION DD + `docs/STATUS.md` + feature-spec banner.
 - Commit after each working sub-step. Push only when asked.
 - If a spec is unclear or missing, ask — don't guess.
 

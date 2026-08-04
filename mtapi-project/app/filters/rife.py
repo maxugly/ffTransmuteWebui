@@ -105,17 +105,37 @@ async def run_rife_directory(
 
     job_control.check_cancelled()
 
+    token = job_control.current_token()
+    if token:
+        job_control.start_dir_watch(
+            token,
+            directory=dst,
+            total=out_target,
+            phase="rife",
+            unit="frames",
+            message=f"RIFE {0}/{out_target} frames",
+        )
+
     proc = await asyncio.create_subprocess_exec(
         *argv,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
     try:
+        # Cancel-friendly wait: poll instead of blocking communicate()
+        while proc.returncode is None:
+            job_control.check_cancelled()
+            await asyncio.sleep(0.5)
         _out_b, err_b = await proc.communicate()
     except asyncio.CancelledError:
         proc.kill()
         await proc.wait()
+        if token:
+            job_control.stop_dir_watch(token)
         raise
+    finally:
+        if token:
+            job_control.stop_dir_watch(token)
 
     if proc.returncode != 0:
         err = (err_b or b"").decode(errors="replace")[-500:]
@@ -126,6 +146,14 @@ async def run_rife_directory(
     out_count = normalize_frame_sequence(dst)
     if out_count <= 0:
         raise RuntimeError(f"rife produced no frames in {dst}")
+
+    # Final accurate count after normalization
+    if token:
+        job_control.report_progress(
+            f"rife done: {out_count} frames",
+            phase="rife", current=out_count, total=out_count, unit="frames",
+            token=token, watch_dir=str(dst), watch_count=out_count,
+        )
 
     return {
         "frame_count_in": in_count,

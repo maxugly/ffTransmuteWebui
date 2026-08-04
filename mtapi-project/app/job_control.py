@@ -1,24 +1,34 @@
 """
-Cooperative job cancellation + live progress for long-running ops (DeepDream).
-
-Not magic — Python/ffmpeg won't always die mid-syscall — but loops that call
-``check_cancelled()`` will stop cleanly when the user hits Stop.
+Cooperative job cancellation + live progress for long-running ops.
 
 Progress is polled by the UI via GET /api/job/{token} while the POST is open.
+
+Directory watch: for opaque subprocesses (RIFE, ffmpeg dump) that write frames
+to a known directory, a background thread counts PNG files every ~0.75 s and
+reports progress so the UI never sits frozen on 0/N.
 """
 from __future__ import annotations
 
+import os
+import re
 import threading
 import time
 import uuid
+from collections import deque
 from typing import Any, Callable
 
 # token -> Event (set means cancel requested)
 _jobs: dict[str, threading.Event] = {}
 # token -> progress snapshot
 _progress: dict[str, dict[str, Any]] = {}
+# token -> dir watch handle
+_watches: dict[str, dict[str, Any]] = {}
 _lock = threading.Lock()
 _tls = threading.local()
+
+_WINDOW_S = 15.0       # sliding window for rate estimation
+_WATCH_INTERVAL = 0.75  # seconds between dir scans
+_MAX_SAMPLES = 60       # ring buffer cap
 
 
 class JobCancelled(Exception):
@@ -52,7 +62,14 @@ def register(token: str, *, operation: str | None = None) -> threading.Event:
             "elapsed_s": 0.0,
             "eta_s": None,
             "pct": None,
-            "history": [],  # recent messages (tail)
+            "rate": None,
+            "rate_h": None,
+            "phase_started_at": now,
+            "watch_dir": None,
+            "watch_count": None,
+            "latest_frame": None,
+            "history": [],
+            "_samples": deque(maxlen=_MAX_SAMPLES),
         }
     return ev
 
@@ -60,9 +77,9 @@ def register(token: str, *, operation: str | None = None) -> threading.Event:
 def unregister(token: str | None) -> None:
     if not token:
         return
+    stop_dir_watch(token)
     with _lock:
         _jobs.pop(token, None)
-        # Keep last progress snapshot so UI can read final status after POST ends
         snap = _progress.get(token)
         if snap is not None:
             now = time.time()
@@ -78,6 +95,7 @@ def unregister(token: str | None) -> None:
 def finish(token: str | None, *, status: str = "done", message: str | None = None) -> None:
     if not token:
         return
+    stop_dir_watch(token)
     with _lock:
         snap = _progress.get(token)
         if not snap:
@@ -93,7 +111,6 @@ def finish(token: str | None, *, status: str = "done", message: str | None = Non
 
 
 def bind(token: str | None) -> None:
-    """Bind token to this thread (call inside worker threads)."""
     if not token:
         _tls.token = None
         _tls.event = None
@@ -109,9 +126,9 @@ def current_token() -> str | None:
 
 
 def request_cancel(token: str) -> bool:
-    """Mark a job cancelled. Returns True if the job was still registered."""
     if not token:
         return False
+    stop_dir_watch(token)
     with _lock:
         ev = _jobs.get(token)
         snap = _progress.get(token)
@@ -135,9 +152,56 @@ def is_cancelled(token: str | None = None) -> bool:
 
 
 def check_cancelled() -> None:
-    """Raise JobCancelled if the current bound job was stopped."""
     if is_cancelled():
         raise JobCancelled(getattr(_tls, "token", None))
+
+
+def _compute_rate_eta(snap: dict[str, Any]) -> tuple[float | None, str | None, float | None]:
+    """Compute phase-local rate and ETA from sample window.
+
+    Returns (rate, rate_h, eta_s).  rate_h is a human string like "18/s".
+    """
+    cur = int(snap.get("current") or 0)
+    tot = int(snap.get("total") or 0)
+    samples: deque = snap.get("_samples", deque())
+    phase_started = float(snap.get("phase_started_at") or snap.get("started_at") or time.time())
+    now = time.time()
+
+    rate: float | None = None
+    rate_h: str | None = None
+
+    # Window-based: look at samples in the last _WINDOW_S seconds
+    recent = [(t, c) for t, c in samples if now - t <= _WINDOW_S]
+    if len(recent) >= 2:
+        dt = recent[-1][0] - recent[0][0]
+        dc = recent[-1][1] - recent[0][1]
+        if dt > 0.2 and dc > 0:
+            rate = dc / dt
+    elif cur > 0 and len(samples) >= 2:
+        # Fallback: use all samples in this phase
+        dt = samples[-1][0] - samples[0][0]
+        dc = samples[-1][1] - samples[0][1]
+        if dt > 0.5 and dc > 0:
+            rate = dc / dt
+
+    # Second fallback: use phase elapsed (first sample at 0)
+    if rate is None and cur > 0:
+        phase_elapsed = now - phase_started
+        if phase_elapsed > 2.0:
+            rate = cur / max(phase_elapsed, 1e-9)
+
+    if rate is not None and rate > 1e-9:
+        rate_h = f"{rate:.0f}/s" if rate >= 10 else f"{rate:.1f}/s"
+
+    eta: float | None = None
+    if rate is not None and rate > 1e-9 and tot > 0 and cur >= 0:
+        remaining = max(0, tot - cur)
+        if remaining <= 0:
+            eta = 0.0
+        else:
+            eta = round(remaining / rate, 1)
+
+    return rate, rate_h, eta
 
 
 def report_progress(
@@ -148,8 +212,15 @@ def report_progress(
     total: int | None = None,
     unit: str | None = None,
     token: str | None = None,
+    watch_dir: str | None = None,
+    watch_count: int | None = None,
+    latest_frame: str | None = None,
 ) -> None:
-    """Update live progress for the bound (or explicit) job token."""
+    """Update live progress for the bound (or explicit) job token.
+
+    Phase-local rate & ETA: rate is computed from samples in the current
+    phase using a short sliding window — never from job start.
+    """
     tok = token or current_token()
     if not tok:
         return
@@ -158,13 +229,18 @@ def report_progress(
         snap = _progress.get(tok)
         if snap is None:
             return
-        started = float(snap.get("started_at") or now)
-        elapsed = now - started
+
+        # Detect phase change → reset phase clock
+        new_phase = phase if phase is not None else snap.get("phase")
+        old_phase = snap.get("phase")
+        if new_phase and new_phase != old_phase:
+            snap["_samples"] = deque(maxlen=_MAX_SAMPLES)
+            snap["phase_started_at"] = now
+
         if message:
             snap["message"] = message
             hist = snap.setdefault("history", [])
             hist.append({"t": now, "msg": message})
-            # Keep enough room for per-frame loops between UI polls
             if len(hist) > 200:
                 del hist[:-200]
         if phase is not None:
@@ -175,25 +251,122 @@ def report_progress(
             snap["total"] = int(total)
         if unit is not None:
             snap["unit"] = unit
+        if watch_dir is not None:
+            snap["watch_dir"] = watch_dir
+        if watch_count is not None:
+            snap["watch_count"] = int(watch_count)
+        if latest_frame is not None:
+            snap["latest_frame"] = latest_frame
 
+        # Record sample for rate computation
         cur = int(snap.get("current") or 0)
-        tot = int(snap.get("total") or 0)
-        pct = None
-        eta = None
-        if tot > 0 and cur >= 0:
-            pct = round(100.0 * min(cur, tot) / tot, 1)
-            if cur > 0 and elapsed > 0.5:
-                rate = cur / elapsed
-                remaining = max(0, tot - cur)
-                eta = round(remaining / rate, 1) if rate > 1e-9 else None
-        snap["pct"] = pct
-        snap["eta_s"] = eta
-        snap["elapsed_s"] = round(elapsed, 2)
-        snap["updated_at"] = now
+        samples: deque = snap.setdefault("_samples", deque(maxlen=_MAX_SAMPLES))
+        samples.append((now, cur))
+
         if snap.get("status") == "running" or snap.get("status") == "cancelling":
             pass
         elif snap.get("status") not in ("done", "cancelled", "error"):
             snap["status"] = "running"
+
+        # Compute rate / ETA
+        rate, rate_h, eta = _compute_rate_eta(snap)
+
+        tot = int(snap.get("total") or 0)
+        pct = None
+        if tot > 0 and cur >= 0:
+            pct = round(100.0 * min(cur, tot) / tot, 1)
+
+        snap["rate"] = rate
+        snap["rate_h"] = rate_h
+        snap["eta_s"] = eta
+        snap["pct"] = pct
+        snap["elapsed_s"] = round(now - float(snap.get("started_at") or now), 2)
+        snap["updated_at"] = now
+
+
+# ── Directory watch ────────────────────────────────────────────────────────
+
+def _scan_pngs(directory: str | os.PathLike) -> tuple[int, str | None]:
+    """Count *.png files and return (count, path_of_max_numbered_png)."""
+    count = 0
+    best_path: str | None = None
+    best_num = -1
+    try:
+        for entry in os.scandir(directory):
+            if not entry.is_file() or not entry.name.endswith(".png"):
+                continue
+            count += 1
+            m = re.search(r"(\d+)", entry.name)
+            if m:
+                n = int(m.group(1))
+                if n > best_num:
+                    best_num = n
+                    best_path = entry.path
+            elif best_path is None:
+                best_path = entry.path
+    except (OSError, FileNotFoundError):
+        pass
+    return count, best_path
+
+
+def _dir_watch_loop(token: str, directory: str, total: int, phase: str,
+                    unit: str, message: str) -> None:
+    while True:
+        with _lock:
+            info = _watches.get(token)
+            if not info or info.get("stopped"):
+                break
+
+        if is_cancelled(token):
+            break
+
+        count, latest = _scan_pngs(directory)
+
+        report_progress(
+            message or f"{phase} {count}/{total} {unit}",
+            phase=phase, current=count, total=total, unit=unit,
+            token=token, watch_dir=directory, watch_count=count,
+            latest_frame=latest,
+        )
+
+        if count >= total > 0:
+            break
+
+        time.sleep(_WATCH_INTERVAL)
+
+
+def start_dir_watch(
+    token: str,
+    directory: str | os.PathLike,
+    total: int,
+    phase: str,
+    unit: str = "frames",
+    message: str | None = None,
+) -> str:
+    """Start a background watch thread that counts files and reports progress.
+
+    Returns the token (handle).  Call ``stop_dir_watch(token)`` to end.
+    """
+    stop_dir_watch(token)
+    d = str(directory)
+
+    t = threading.Thread(
+        target=_dir_watch_loop,
+        args=(token, d, total, phase, unit, message or ""),
+        daemon=True,
+    )
+    with _lock:
+        _watches[token] = {"thread": t, "stopped": False}
+    t.start()
+    return token
+
+
+def stop_dir_watch(token: str) -> None:
+    """Stop watching a directory.  Idempotent — safe to call multiple times."""
+    with _lock:
+        info = _watches.pop(token, None)
+        if info:
+            info["stopped"] = True
 
 
 def get_progress(token: str) -> dict[str, Any] | None:
@@ -203,20 +376,17 @@ def get_progress(token: str) -> dict[str, Any] | None:
         snap = _progress.get(token)
         if not snap:
             return None
-        # copy so callers can't mutate
         out = dict(snap)
+        # Strip internal fields
+        out.pop("_samples", None)
         out["history"] = list(snap.get("history") or [])
-        # still active?
         out["active"] = token in _jobs
         return out
 
 
 def cancel_callback() -> Callable[[], None]:
-    """Return a zero-arg callback that raises JobCancelled when needed."""
-
     def _cb() -> None:
         check_cancelled()
-
     return _cb
 
 

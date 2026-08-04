@@ -3,7 +3,8 @@
 > **Audience:** Agents / contractors who write feature specs **without** full repo access  
 > **Your deliverable:** A concise implementation-ready spec (problem, approach, files, acceptance tests)  
 > **Not your deliverable:** Production code (unless later hired as builder)  
-> **Last updated:** 2026-08-01
+> **Last updated:** 2026-08-03  
+> **If you have repo access:** also read **`docs/STATUS.md`** (what is already shipped) so you do not re-spec live features.
 
 Use this document as the **contract**. Prefer inventing features that fit these patterns over inventing new architecture.
 

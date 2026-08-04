@@ -1,7 +1,14 @@
 # Stable Diffusion Tiled Agent Upscale (`sd_tiled_upscale`)
 
+> **Status:** Legacy one-shot draft (Gemini-era). **Do not build from this alone.**  
+> **Canonical product design:** [`docs/tilagup-mtapi-mode-spec.md`](../tilagup-mtapi-mode-spec.md)  
+> **Working reference implementation:** `/home/m/snc/cod/tilagup`  
+> **Engine catalog:** [`docs/fastsdcpu-upscalers-spec.md`](../fastsdcpu-upscalers-spec.md)
+
 ## Concept
-Leverages Stable Diffusion (via OpenVINO `optimum-intel`) to not just upsample an image, but to *hallucinate* new fractal-like, complex details into specific regions. Instead of a dumb grid upscale, it uses semantic "zones" and local "tile" prompts to inject unique, prompt-driven details (e.g., "micro-clockworks" or "petrified crustaceans") into the image as it scales up.
+Leverages Stable Diffusion to not just upsample an image, but to *hallucinate* new detail in regions. The **real** system is multi-stage (base → tiles → optional zones → upscale) with dry-run and archives — not a single POST with one base prompt.
+
+**Keep below only as a rough OpenVINO engine sketch.** Prompt hierarchy, CLIP fit, archives, and WebUI pause points live in the tilagup-mtapi spec.
 
 ## Architecture & Hardware Guardrails
 - **Backend**: `diffusers` + `optimum-intel` (OpenVINO). This completely replaces the need for IPEX or PyTorch XPU for diffusion models.

@@ -297,3 +297,17 @@ meta.register(app, folder_watcher=folder_watcher, job_control=job_control,
 async def _warn_on_missing_tools() -> None:
     for w in check_tools():
         log.warning("mtapi startup: %s", w)
+    # Load API keys from ~/.secrets (names only logged)
+    try:
+        from .agents.secrets import load_secrets, secrets_path
+        names = load_secrets()
+        sp = secrets_path()
+        if sp:
+            log.info(
+                "mtapi startup: loaded %d secret key name(s) from %s",
+                len(names), sp,
+            )
+        else:
+            log.info("mtapi startup: no ~/.secrets file found")
+    except Exception as e:
+        log.warning("mtapi startup: secrets load failed: %s", e)

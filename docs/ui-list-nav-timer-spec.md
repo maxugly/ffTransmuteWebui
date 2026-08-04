@@ -1,10 +1,11 @@
 # Spec: Sticky Job Timer + List Keyboard / Scroll UX + Pre-Run Summary
 
-> **Status:** Ready for build (OpenCode / Playwright) — **partial progress in tree**  
+> **Status:** **Partial** — timer + pre-run strips in tree; list/sequence keyboard incomplete  
 > **Audience:** Builder agents  
 > **Priority:** UX polish — high user visibility  
-> **Related:** `job-control.js` sticky timer (keep Run-button elapsed), `ui/list-keys.js` (partial), Image Sort / pools / sequence / Speed  
-> **Partial as of stop:** `pre-run-summary.js` + strips on Image Sort / RIFE / Speed / Face Morph. Still open: sequence L/R keys, scroll-into-view on reorder, broader list capture, remaining tabs’ summaries. See `docs/SESSION-STOPPING-STATE.md`.
+> **Related:** `STATUS.md`, `job-control.js` sticky timer (**keep**), `ui/list-keys.js`, Image Sort / pools / sequence  
+> **In tree:** `pre-run-summary.js` on Image Sort / RIFE / Speed / Face Morph; Run-button elapsed.  
+> **Still open:** sequence L/R keys, scroll-into-view on reorder, broader list capture, remaining tabs’ summaries.
 
 ---
 

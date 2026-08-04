@@ -23,7 +23,7 @@ VIDEO_EXTS = {".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi"}
 class RifeParams(BaseModel):
     input_path: str = Field(..., description="Source video path")
     output_path: str | None = Field(None, description="Output path; auto-named if omitted")
-    multiplier: int = Field(2, ge=2, le=8, description="Frame multiplier (2 = double, 4 = quadruple)")
+    multiplier: int = Field(2, ge=2, le=128, description="Frame density (2 = double … 128 = extreme). out ≈ N×M")
     model: RifeModel = Field(
         "rife-v4.6", description="RIFE model variant. v4.6 is newest/cleanest.")
     tta: bool = Field(False, description="Spatial TTA mode — cleaner but slower")
@@ -134,12 +134,19 @@ async def rife_interpolate(p: RifeParams) -> OperationResult:
         job_control.report_progress(
             "rife encode",
             phase="encode",
-            current=out_n,
-            total=out_n,
-            unit="frames",
+            current=0,
+            total=1,
+            unit="pass",
         )
 
         result_path = await encode(ws, out, out_fps, mux_audio=True)
+        job_control.report_progress(
+            "encode done",
+            phase="encode",
+            current=1,
+            total=1,
+            unit="pass",
+        )
         logs.append(f"Output: {result_path} @ {out_fps:.4g} fps")
         success = True
 

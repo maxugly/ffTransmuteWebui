@@ -112,7 +112,7 @@ function renderRifeForm() {
 
   setupContinuousKnob({
     knobId: 'rifeMultiplierKnob', indicatorId: 'rifeMultiplierKnobInd', valueId: 'rifeMultiplierVal', hiddenId: 'rifeMultiplier',
-    min: 2, max: 8, step: 1, decimals: 0,
+    min: 2, max: 128, step: 1, decimals: 0,
   });
   setupBinaryKnob({
     knobId: 'rifeTtaKnob', indicatorId: 'rifeTtaKnobInd', hiddenId: 'rifeTta',

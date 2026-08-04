@@ -27,6 +27,10 @@ import { renderFaceMorphForm, collectFaceMorphBody } from '/js/tabs/facemorph.js
 import { renderWithoutBgForm, collectWithoutBgBody } from '/js/tabs/withoutbg.js';
 import { renderStyleTransferForm, collectStyleTransferBody } from '/js/tabs/styletransfer.js';
 import { renderRifeForm, collectRifeBody } from '/js/tabs/rife.js';
+import { renderImg2ImgForm, collectImg2ImgBody } from '/js/tabs/img2img.js';
+import { renderTxt2ImgForm, collectTxt2ImgBody } from '/js/tabs/txt2img.js';
+import { renderAgentForm, applyPendingToImg2Img, applyPendingToTxt2Img } from '/js/tabs/agent.js';
+import { renderUpscaleForm, collectUpscaleBody } from '/js/tabs/upscale.js';
 import { renderSpeedChangeForm, collectSpeedChangeBody } from '/js/tabs/speedchange.js';
 import { loadQuickSettings, renderQuickTransmuteForm, runQuickTransmute, quickTransmuteLabel } from '/js/tabs/quick.js';
 import { renderWatcherForm } from '/js/tabs/watcher.js';
@@ -54,6 +58,7 @@ import {
 } from '/js/pool/items.js';
 let state = {
   activeTab: 'mosh',
+  previewLive: false,
   operations: {},
   health: { ok: true, warnings: [] },
   fb: {
@@ -245,6 +250,10 @@ const TAB_ACCEPTS = {
   withoutbg:   'image',
   styletransfer:'any',
   rife:        'video',
+  img2img:     'any',
+  txt2img:     'none',
+  agent:       'none',
+  upscale:     'any',
   speedchange: 'video',
   advanced:    'video',
   quick:       'video',
@@ -257,7 +266,7 @@ const TAB_ACCEPTS = {
 
 /** Tabs that show the global frame-range row (video pipeline / mosh / convert). */
 const FRAME_RANGE_TABS = new Set([
-  'mosh', 'deepdream', 'rife', 'speedchange', 'convert', 'transmute',
+  'mosh', 'deepdream', 'rife', 'img2img', 'speedchange', 'convert', 'transmute',
   'styletransfer', 'withoutbg', 'facemorph', 'multi', 'advanced',
   'cut', // cut workspace shows global range next to first/last
   'imagesort',
@@ -557,6 +566,9 @@ function switchTab(tab) {
   if (tab === 'withoutbg') title = 'withoutBG · Remove Background';
   if (tab === 'styletransfer') title = 'Style Transfer · Magenta';
   if (tab === 'rife') title = 'RIFE · AI Frame Interpolation';
+  if (tab === 'img2img') title = 'Img2Img · OpenVINO GPU';
+  if (tab === 'txt2img') title = 'Txt2Img · OpenVINO GPU';
+  if (tab === 'agent') title = 'Agent · Vision chat';
   if (tab === 'speedchange') title = 'Speed Change';
   if (tab === 'transmute') title = 'Single-Clip Transmutations';
   if (tab === 'multi') title = 'Layout Templates (Join / Grid)';
@@ -576,7 +588,7 @@ function switchTab(tab) {
   if (elements.btnRun) {
     elements.btnRun.style.display = (
       tab === 'pool' || tab === 'sequence' || tab === 'images' || tab === 'cut'
-      || tab === 'quick' || tab === 'watcher' || tab === 'notes'
+      || tab === 'quick' || tab === 'watcher' || tab === 'notes' || tab === 'agent'
     ) ? 'none' : '';
   }
 
@@ -625,6 +637,16 @@ function renderTabForm(tab) {
     renderStyleTransferForm();
   } else if (tab === 'rife') {
     renderRifeForm();
+  } else if (tab === 'img2img') {
+    renderImg2ImgForm();
+    try { applyPendingToImg2Img(); } catch (_) { /* ignore */ }
+  } else if (tab === 'txt2img') {
+    renderTxt2ImgForm();
+    try { applyPendingToTxt2Img(); } catch (_) { /* ignore */ }
+  } else if (tab === 'agent') {
+    renderAgentForm();
+  } else if (tab === 'upscale') {
+    renderUpscaleForm();
   } else if (tab === 'speedchange') {
     renderSpeedChangeForm();
   } else if (tab === 'transmute') {
@@ -859,7 +881,7 @@ window.addEventListener('DOMContentLoaded', init);
 // ── ES module exports ───────────────────────────────────────────────────
 
 export {
-  state, elements, 
+  state, elements,
   init, switchTab, renderTabForm,
   bestInput, allInputPaths, bestOutput, resolveGlobalImage, resolveGlobalImages,
   TAB_ACCEPTS, detectFileType,
@@ -870,10 +892,16 @@ export {
   loadPoolItemMeta, setPreviewAspect, clearPreviewAspect,
   collectFaceMorphBody,
   collectWithoutBgBody, collectStyleTransferBody, collectRifeBody,
+  collectImg2ImgBody,
+  collectTxt2ImgBody,
   collectSpeedChangeBody,
+  collectUpscaleBody,
   renderFaceMorphForm,
   renderWithoutBgForm, renderStyleTransferForm, renderRifeForm,
+  renderImg2ImgForm,
+  renderTxt2ImgForm,
   renderSpeedChangeForm,
+  renderUpscaleForm,
   renderImageSortForm,
   renderQuickTransmuteForm,
   renderWatcherForm, renderPoolForm, renderPoolGrid,

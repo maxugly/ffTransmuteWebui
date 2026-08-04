@@ -33,3 +33,5 @@ from . import deepdream as _deepdream  # noqa: E402, F401
 from . import withoutbg as _withoutbg  # noqa: E402, F401
 from . import styletransfer as _styletransfer  # noqa: E402, F401
 from . import speedramp as _speedramp  # noqa: E402, F401
+from . import img2img as _img2img  # noqa: E402, F401
+from . import upscale as _upscale  # noqa: E402, F401

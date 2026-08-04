@@ -206,6 +206,11 @@ function renderImageSortForm() {
         <option value="mse">MSE</option>
         <option value="ssim">SSIM</option>
       </select>
+      <label for="isSortStrategy">Strategy</label>
+      <select id="isSortStrategy">
+        <option value="radial" selected>To base</option>
+        <option value="chain">Closest next</option>
+      </select>
       <label for="isSortOrder">Order</label>
       <select id="isSortOrder">
         <option value="nearest_first" selected>Nearest first</option>
@@ -244,6 +249,63 @@ function renderImageSortForm() {
         <option value="rife-v2.3">rife-v2.3</option>
       </select>
     </div>
+
+    <section class="tool-docs" aria-label="About this tool">
+      <h4 class="tool-docs-title">About · Image Sort</h4>
+      <p class="tool-docs-lede">
+        <strong>Image Sort → Video</strong> turns a pile of stills into one clip. Slot <strong>#1 is the base</strong>: first keyframe, conform size reference, and start of Sort. <strong>Sort</strong> reorders #2…N using a <strong>distance metric</strong> (what “similar” means) and a <strong>strategy</strong> (how those scores become an order). You can still reorder by hand after. Optional <strong>RIFE</strong> invents in-between frames between keyframes, then the sequence is encoded at your chosen <strong>FPS</strong>. Duration is not a knob — it falls out of keyframe count × RIFE multiplier ÷ FPS.
+      </p>
+
+      <h5 class="tool-docs-h">Sort strategy</h5>
+      <dl class="tool-docs-dl">
+        <dt>To base (default)</dt>
+        <dd>Scores every still <strong>only against #1</strong>, then sorts by that score. Mid-list frames can jump relative to each other: both “near base” but far from each other. Good for “spread from this hero.”</dd>
+        <dt>Closest next</dt>
+        <dd>Start at #1. Repeatedly append the unused image <strong>closest to the current end</strong> (or farthest, if Order says so). Greedy nearest-neighbor walk — each step is locally smooth, better for RIFE morphs. Not a perfect global tour; late jumps can still happen if early choices used up the bridges.</dd>
+      </dl>
+
+      <h5 class="tool-docs-h">Distance metric (Mode)</h5>
+      <dl class="tool-docs-dl">
+        <dt>pHash (default)</dt>
+        <dd>Perceptual structure / layout (DCT hash). Mild regrades still look close. Same pose, different grade → usually near. Same colors, different subject → usually far.</dd>
+        <dt>aHash</dt>
+        <dd>Coarse bright/dark grid. Faster, cruder. Often same rough order as pHash; more random swaps on busy/noisy images. Draft pass.</dd>
+        <dt>colorhash</dt>
+        <dd>Palette / color mood more than shape. Same subject regraded → may rank <strong>far</strong>. Different subject, same colors → may rank <strong>near</strong>. Mood-board sequences.</dd>
+        <dt>MSE</dt>
+        <dd>Pixel mean-squared error. Tightest on near-duplicates / burst frames. Small crop or exposure bump can rank worse than a different but globally similar image.</dd>
+        <dt>SSIM</dt>
+        <dd>Structural similarity (score = 1 − SSIM). Like softer MSE: lighting/blur drift hurts less. Needs scikit-image.</dd>
+      </dl>
+      <p>Scores are not comparable across metrics — only the order within one metric matters. Same Mode under different strategies often yields different orders.</p>
+
+      <h5 class="tool-docs-h">Order</h5>
+      <dl class="tool-docs-dl">
+        <dt>Nearest first</dt>
+        <dd>Prefer small distance → smooth transitions. Best default for morphs.</dd>
+        <dt>Farthest first</dt>
+        <dd>Prefer large distance → contrast / jump-cut energy.</dd>
+      </dl>
+
+      <h5 class="tool-docs-h">RIFE models</h5>
+      <dl class="tool-docs-dl">
+        <dt>rife-v4.6 (default)</dt>
+        <dd>Cleanest edges, best general motion. Almost always the right choice.</dd>
+        <dt>rife-v4</dt>
+        <dd>Solid alternate on the v4 line; try if v4.6 glitches on a specific clip.</dd>
+        <dt>rife-v2.4 / rife-v2.3</dt>
+        <dd>Older. Use for experimentation or if you want a different look / more speed.</dd>
+      </dl>
+
+      <h5 class="tool-docs-h">TTA</h5>
+      <p>Spatial test-time augmentation (<kbd>-x</kbd>). Runs the network on flipped/augmented views and merges — usually cleaner interpolation, ~2× slower, more VRAM. Off by default; on for hero exports or when you see shimmering/ghosting on edges.</p>
+
+      <h5 class="tool-docs-h">UHD</h5>
+      <p>High-res path (<kbd>-u</kbd>) for ~4K+ bases. More VRAM. Off for HD and below. Not a “make it sharper” button for small frames.</p>
+
+      <h5 class="tool-docs-h">CRF</h5>
+      <p>Encode quality. Lower = better / bigger. <strong>0</strong> ≈ lossless; <strong>18</strong> default near-lossless; <strong>23</strong> smaller web; higher = softer. Does not change motion or length.</p>
+    </section>
   `;
   elements.actionPanel.innerHTML = html;
 
@@ -257,7 +319,7 @@ function renderImageSortForm() {
   });
   setupContinuousKnob({
     knobId: 'isMultiplierKnob', indicatorId: 'isMultiplierKnobInd', valueId: 'isMultiplierVal', hiddenId: 'isMultiplier',
-    min: 2, max: 8, step: 1, decimals: 0,
+    min: 2, max: 128, step: 1, decimals: 0,
   });
   setupBinaryKnob({
     knobId: 'isRifeTtaKnob', indicatorId: 'isRifeTtaKnobInd', hiddenId: 'isRifeTta',
@@ -319,12 +381,13 @@ function renderImageSortForm() {
     var paths = imgs.map(function(x) { return x.path; });
     var mode = document.getElementById('isSortMode')?.value || 'phash';
     var order = document.getElementById('isSortOrder')?.value || 'nearest_first';
-    logConsole('[IMAGESORT]: sorting ' + imgs.length + ' images with ' + mode + '…');
+    var strategy = document.getElementById('isSortStrategy')?.value || 'radial';
+    logConsole('[IMAGESORT]: sorting ' + imgs.length + ' images with ' + mode + ' / ' + strategy + '…');
     try {
       var res = await fetch('/ops/imagesort_rank', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_paths: paths, sort_mode: mode, sort_order: order }),
+        body: JSON.stringify({ image_paths: paths, sort_mode: mode, sort_order: order, sort_strategy: strategy }),
       });
       var data = await res.json();
       if (!data.ok) { alert('Sort failed: ' + (data.error || 'unknown')); return; }
@@ -485,6 +548,7 @@ function collectImageSortBody() {
     image_dir: images.length < 2 ? folder : null,
     sort_mode: document.getElementById('isSortMode')?.value || 'phash',
     sort_order: document.getElementById('isSortOrder')?.value || 'nearest_first',
+    sort_strategy: document.getElementById('isSortStrategy')?.value || 'radial',
     auto_sort: false,
     use_rife: useRife,
     multiplier: parseInt(document.getElementById('isMultiplier')?.value || '2', 10),

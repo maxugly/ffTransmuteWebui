@@ -1,13 +1,16 @@
 # AGENTS.md — mtapi-project Backend & Web Server Agent Directives
 
 > **Scope**: Subdirectory `/home/m/snc/cod/ffTransmuteWebui/mtapi-project`  
-> **Audience**: Autonomous AI Agents working on the FastAPI app, dependencies, and execution entrypoints.
+> **Audience**: Autonomous AI Agents working on the FastAPI app, dependencies, and execution entrypoints.  
+> **Where we are:** repo `docs/STATUS.md` (canonical) · `docs/SESSION-STOPPING-STATE.md` · `docs/README.md` · root `AGENTS.md`
 
 ---
 
 ## 1. Mission & Purpose
 
 `mtapi-project` transforms CLI video tools and neural/frame pipelines into a typed REST microservice. It serves the vanilla SPA WebUI, OpenAPI (`/openapi.json`), async jobs (cancel/progress), media pool/cache, and the **filter platform** (dump → stages → encode).
+
+**Read `docs/STATUS.md` before inventing ops or redoing Image Sort / RIFE / progress.**
 
 ---
 
@@ -34,7 +37,8 @@ mtapi-project/
 ```
 
 **Read first for frame work:** repo `docs/filter-platform-spec.md` and `docs/resolve-transcode-spec.md`.  
-**Read first for libraries / Cut:** repo `docs/video-image-pools-spec.md` (as-built handoff).
+**Read first for libraries / Cut:** repo `docs/video-image-pools-spec.md` (as-built handoff).  
+**Read first for “what’s done”:** repo `docs/STATUS.md`.
 
 ---
 
@@ -55,6 +59,9 @@ mtapi-project/
 5. **Do not use `PngFramePipeline`**  
    - Removed (raises). Use `video_pipeline` + `JobWorkspace`, or `dump_frames_sync` / `encode_frames_sync` for rare sync helpers.
 6. **Absolute paths** for all media I/O.
+7. **Progress** — `report_progress` every loop item; **dir watch** for opaque writers that fill `frames_in`/`frames_out` (RIFE already wired). Spec: `docs/workspace-progress-spec.md`.
+8. **RIFE multiplier** — API/UI range **2–128** (not list length). Image Sort list min 2, no max count.
+9. **WebUI long docs** — bottom of panel (`.tool-docs`); Image Sort is the pilot (`docs/tool-bottom-docs-spec.md`).
 
 ---
 
@@ -128,7 +135,11 @@ If MCP is missing, use local Playwright + Chromium (`~/.cache/ms-playwright`) �
 **Never** `web.run` / `web_search` for localhost.  
 **Never** claim WebUI DONE from curl alone.
 
-Tabs of note: **Convert / Export**, RIFE, **Speed**, DeepDream, Single-Clip, **Image Sort**, **Video Pool**, **Image Pool**, **Cut**, Sequence, Watcher.
+Tabs of note: **Convert / Export**, RIFE, **Speed**, DeepDream, Single-Clip, **Image Sort** (chain strategy + bottom About docs + RIFE × up to 128), **Video Pool**, **Image Pool**, **Cut**, Sequence, Watcher.
+
+**Img2img:** stage + `/ops/img2img` (OpenVINO via FastSD env, `DEVICE=gpu`). No dedicated WebUI tab yet — use curl/pipeline.
+
+**Still specs only:** tilagup multi-step mode, pool quality rating, NCNN upscale, job queue — see `docs/STATUS.md` §5.
 
 ---
 

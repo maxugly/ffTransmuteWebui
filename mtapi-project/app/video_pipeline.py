@@ -301,6 +301,7 @@ async def encode(
     frame_source_dir: str | Path | None = None,
     silence_on_no_audio: bool = False,
     even_floor: bool = False,
+    extra_vf: str | None = None,
 ) -> str:
     """Encode frames to output video. Muxes audio if available.
 
@@ -345,6 +346,7 @@ async def encode(
         pix_fmt=pix_fmt,
         even_floor=even_floor,
         encode_preset=encode_preset,
+        extra_vf=extra_vf,
     )
 
     code, _, stderr = await run_command(argv)
@@ -370,6 +372,7 @@ def _build_encode_argv(
     pix_fmt: str,
     even_floor: bool,
     encode_preset: Any | None,
+    extra_vf: str | None = None,
 ) -> list[str]:
     """Build ffmpeg argv for encode from either legacy kwargs or EncodePreset."""
     if encode_preset is not None:
@@ -489,6 +492,8 @@ def _build_encode_argv(
                 "-an",
             ])
 
+    if extra_vf:
+        video_filter = f"{video_filter},{extra_vf}" if video_filter else extra_vf
     if video_filter:
         argv.extend(["-vf", video_filter])
 

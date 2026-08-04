@@ -74,12 +74,14 @@ def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY
             }
         elapsed = snap.get("elapsed_s")
         eta = snap.get("eta_s")
+        rate = snap.get("rate")
         return {
             "ok": True,
             "found": True,
             **snap,
             "elapsed_h": job_control.format_duration(elapsed),
             "eta_h": job_control.format_duration(eta) if eta is not None else "—",
+            "rate_h": snap.get("rate_h"),
         }
 
     @app.get("/ops", tags=["meta"])

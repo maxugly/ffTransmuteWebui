@@ -214,7 +214,7 @@ function updateTransmuteExtras() {
     setupContinuousKnob({
       knobId: 'rampRifeMultKnob', indicatorId: 'rampRifeMultKnobInd',
       valueId: 'rampRifeMultVal', hiddenId: 'rampRifeMult',
-      min: 2, max: 8, step: 1, decimals: 0,
+      min: 2, max: 128, step: 1, decimals: 0,
     });
     setupBinaryKnob({
       knobId: 'rampRifeTtaKnob', indicatorId: 'rampRifeTtaKnobInd',

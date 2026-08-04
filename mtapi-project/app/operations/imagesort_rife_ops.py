@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from ..contract import OperationResult, OperationSpec, register
 from ..pathutil import finalize_output_path, parse_path_list, verify_paths_exist
-from ..image_sort import rank_images, rank_images_full, conform_image, MODES
+from ..image_sort import rank_images, rank_images_chain, rank_images_full, conform_image, MODES, SortStrategy
 
 FitMode = Literal["letterbox", "crop", "stretch"]
 SortOrder = Literal["nearest_first", "farthest_first"]
@@ -26,6 +26,7 @@ class ImageSortRankParams(BaseModel):
     image_paths: list[str] = Field(..., min_length=2, description="Ordered list; [0] = base (sort anchor)")
     sort_mode: str = Field("phash", description=f"Sort mode: {', '.join(sorted(MODES.keys()))}")
     sort_order: SortOrder = Field("nearest_first")
+    sort_strategy: SortStrategy = Field("radial", description="radial = score each vs base; chain = greedy nearest-next walk")
 
 
 async def imagesort_rank(p: ImageSortRankParams) -> OperationResult:
@@ -39,14 +40,14 @@ async def imagesort_rank(p: ImageSortRankParams) -> OperationResult:
         )
 
     try:
-        result = rank_images_full(resolved, mode=p.sort_mode, order=p.sort_order)
+        result = rank_images_full(resolved, mode=p.sort_mode, order=p.sort_order, strategy=p.sort_strategy)
     except (FileNotFoundError, ValueError) as e:
         return OperationResult(
             ok=False, operation="imagesort_rank", error=str(e),
         )
 
     lines = [
-        f"rank {p.sort_mode} {p.sort_order}: base + {len(resolved) - 1} targets",
+        f"rank {p.sort_mode} {p.sort_strategy} {p.sort_order}: base + {len(resolved) - 1} targets",
         "order:",
     ]
     for item in result.items:
@@ -67,11 +68,12 @@ async def imagesort_rank(p: ImageSortRankParams) -> OperationResult:
 
 register(OperationSpec(
     id="imagesort_rank",
-    summary="Rank stills by likeness to list[0] — returns ordered list with scores",
+    summary="Rank stills by metric + strategy — returns ordered list with scores",
     description=(
         "Takes an ordered list of image paths (list[0] = base anchor), "
-        "scores items 1..N against the base, and returns the re-ordered list "
-        "with scores. No conform, RIFE, or encode. "
+        "scores items 1..N, and returns the re-ordered list with scores. "
+        "Strategy: radial = score each vs base; chain = greedy nearest-next walk. "
+        "No conform, RIFE, or encode. "
         f"Sort modes: {', '.join(sorted(MODES.keys()))}."
     ),
     params_model=ImageSortRankParams,
@@ -88,9 +90,10 @@ class ImageSortRifeParams(BaseModel):
     input_path: str | None = Field(None, description="Newline-separated targets")
     sort_mode: str = Field("phash", description=f"Sort mode: {', '.join(sorted(MODES.keys()))}")
     sort_order: SortOrder = Field("nearest_first")
+    sort_strategy: SortStrategy = Field("radial", description="radial = score each vs base; chain = greedy nearest-next walk")
     auto_sort: bool = Field(False, description="Headless convenience: re-rank targets vs [0] before conform. WebUI always sends false.")
     use_rife: bool = Field(True)
-    multiplier: int = Field(2, ge=2, le=8, description="RIFE frame multiplier (ignored when RIFE off)")
+    multiplier: int = Field(2, ge=2, le=128, description="RIFE frame density (out ≈ K×M). 2–128; high M on 2 stills = long morph")
     model: RifeModel = Field("rife-v4.6")
     tta: bool = Field(False, description="RIFE TTA mode")
     uhd: bool = Field(False, description="RIFE UHD mode")
@@ -170,12 +173,15 @@ async def imagesort_rife(p: ImageSortRifeParams) -> OperationResult:
     if p.auto_sort:
         targets = paths[1:]
         try:
-            ranked = rank_images(base, targets, mode=p.sort_mode, order=p.sort_order)
+            if p.sort_strategy == "chain":
+                ranked = rank_images_chain(paths, mode=p.sort_mode, order=p.sort_order)
+            else:
+                ranked = rank_images(base, targets, mode=p.sort_mode, order=p.sort_order)
         except (FileNotFoundError, ValueError) as e:
             return OperationResult(
                 ok=False, operation="imagesort_rife", error=str(e), dry_run=p.dry_run,
             )
-        final_paths = [base] + [str(item.path) for item in ranked]
+        final_paths = [base] + [str(item.path) for item in ranked[1:]] if p.sort_strategy == "chain" else [base] + [str(item.path) for item in ranked]
     else:
         final_paths = paths
 
@@ -189,13 +195,14 @@ async def imagesort_rife(p: ImageSortRifeParams) -> OperationResult:
     order_lines = []
     for i, fp in enumerate(final_paths):
         name = Path(fp).name
-        role = "base" if i == 0 else ("manual" if not p.auto_sort else "auto-sort")
+        role = "base" if i == 0 else ("manual" if not p.auto_sort else f"auto-sort ({p.sort_strategy})")
         order_lines.append(f"  {i:02d}  {name:30s} role={role}")
 
     summary = (
         f"imagesort_rife  K={K}  use_rife={p.use_rife}"
         + (f"  M={p.multiplier}" if p.use_rife else "")
         + f"  fps={p.fps}  fit={p.fit}  auto_sort={p.auto_sort}"
+        + (f"  strategy={p.sort_strategy}" if p.auto_sort else "")
     )
 
     if p.dry_run:
@@ -292,7 +299,10 @@ async def imagesort_rife(p: ImageSortRifeParams) -> OperationResult:
             crf=p.crf, mux_audio=False,
             frame_source_dir=encode_dir,
         )
-
+        progress_cb(
+            f"encoded",
+            phase="encode", current=1, total=1, unit="pass",
+        )
         logs.append(f"encode: {result_path}  ~duration={dur_est:.2f}s")
         success = True
 
