@@ -6,7 +6,6 @@ See docs/backlog/upscale-spec.md and docs/filter-platform-spec.md.
 """
 from __future__ import annotations
 
-import uuid
 from pathlib import Path
 from typing import Literal
 
@@ -14,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from ..contract import OperationResult, OperationSpec, register
 from ..pathutil import finalize_output_path
+from ..staged_job import StageSpec, run_staged_job
 
 UpscaleEngine = Literal["realesrgan", "srmd"]
 
@@ -38,19 +38,13 @@ class UpscaleParams(BaseModel):
 
 async def upscale_run(p: UpscaleParams) -> OperationResult:
     """Thin bookend wrapper around the upscale directory stage."""
-    from ..job_workspace import JobWorkspace
-    from ..video_pipeline import probe, dump, encode, cleanup
-    from ..filters.upscale import (
-        run_upscale_directory, resolve_upscale_bin, resolve_upscale_models,
-    )
+    from ..filters.upscale import make_upscale_directory_fn
 
     input_path = Path(p.input_path).expanduser().resolve()
     if not input_path.is_file():
         return OperationResult(
-            ok=False,
-            operation="upscale",
-            error=f"Input not found: {input_path}",
-            dry_run=p.dry_run,
+            ok=False, operation="upscale",
+            error=f"Input not found: {input_path}", dry_run=p.dry_run,
         )
 
     ext = input_path.suffix.lower()
@@ -58,25 +52,23 @@ async def upscale_run(p: UpscaleParams) -> OperationResult:
 
     if is_image:
         out = finalize_output_path(
-            p.output_path,
-            source=input_path,
+            p.output_path, source=input_path,
             default_suffix=f"_x{p.scale}",
             default_ext=input_path.suffix if input_path.suffix else ".png",
             allowed_exts=IMAGE_EXTS,
         )
     else:
         out = finalize_output_path(
-            p.output_path,
-            source=input_path,
+            p.output_path, source=input_path,
             default_suffix=f"_x{p.scale}",
-            default_ext=".mp4",
-            allowed_exts=VIDEO_EXTS,
+            default_ext=".mp4", allowed_exts=VIDEO_EXTS,
         )
 
     engine_label = p.engine
     summary = f"upscale {input_path.name} {p.scale}x {engine_label}"
 
     if p.dry_run:
+        from ..filters.upscale import resolve_upscale_bin
         try:
             bin_path = resolve_upscale_bin(p.engine)
         except RuntimeError as e:
@@ -96,22 +88,19 @@ async def upscale_run(p: UpscaleParams) -> OperationResult:
             + (f"# re-grain\n  ffmpeg noise=c0s={p.grain_strength}..."
                if p.grain_strength > 0 else "")
             + (f"\n# {'encode' if not is_image else 'output'}\n"
-               f"  {'ffmpeg -framerate <fps> -i frames_out/frame_%06d.png' if not is_image else '  (direct image output)'}"
+               + (f"  ffmpeg -framerate <fps> -i frames_out/frame_%06d.png"
+                  if not is_image else "  (direct image output)")
                + (f" {out}" if not is_image else ""))
         )
         return OperationResult(
-            ok=True,
-            operation="upscale",
-            output_path=str(out),
-            dry_run=True,
-            command=summary,
-            stdout=dry,
+            ok=True, operation="upscale", output_path=str(out),
+            dry_run=True, command=summary, stdout=dry,
         )
 
+    # ── Image path: direct CLI ───────────────────────────────────────────
     if is_image:
-        # Single image: direct CLI call
         from ..filters.upscale import resolve_upscale_bin, resolve_upscale_models
-        import asyncio, os
+        import os
 
         bin_path = resolve_upscale_bin(p.engine)
         models_path = resolve_upscale_models(p.engine, bin_path)
@@ -119,10 +108,8 @@ async def upscale_run(p: UpscaleParams) -> OperationResult:
 
         argv = [
             bin_path,
-            "-i", str(input_path),
-            "-o", str(out),
-            "-s", str(p.scale),
-            "-t", str(p.tile_size),
+            "-i", str(input_path), "-o", str(out),
+            "-s", str(p.scale), "-t", str(p.tile_size),
             "-m", models_path,
         ]
         if p.engine == "realesrgan":
@@ -135,124 +122,45 @@ async def upscale_run(p: UpscaleParams) -> OperationResult:
         argv.extend(["-f", "png"])
 
         from ..shell import run_command
-
         cwd = str(Path(out).parent)
         rc, stdout, stderr = await run_command(argv, cwd=cwd)
 
         if rc != 0:
             return OperationResult(
-                ok=False,
-                operation="upscale",
+                ok=False, operation="upscale",
                 error=f"upscale failed (exit {rc}): {stderr[-500:]}",
-                command=" ".join(argv),
-                stdout=stdout,
-                stderr=stderr,
+                command=" ".join(argv), stdout=stdout, stderr=stderr,
             )
 
         return OperationResult(
-            ok=True,
-            operation="upscale",
-            output_path=str(out),
-            dry_run=False,
-            command=" ".join(argv),
-            stdout=stdout,
+            ok=True, operation="upscale", output_path=str(out),
+            dry_run=False, command=" ".join(argv), stdout=stdout,
         )
 
-    # Video path
-    info = await probe(input_path)
-    if info["frame_count"] <= 0 or info["fps"] <= 0:
-        return OperationResult(
-            ok=False,
-            operation="upscale",
-            error=f"Could not probe video: fps={info['fps']}, frames={info['frame_count']}",
-        )
+    # ── Video path: dump → upscale → encode ──────────────────────────────
+    upscale_fn = make_upscale_directory_fn(
+        engine=p.engine, scale=p.scale, tile_size=p.tile_size,
+        model_name=p.model_name, srmd_noise=p.srmd_noise, tta=p.tta,
+    )
 
-    ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="upscale_")
-    success = False
-    logs: list[str] = [summary]
+    ek: dict = {"mux_audio": True}
+    if p.grain_strength > 0:
+        gs = p.grain_strength
+        ek["extra_vf"] = f"noise=c0s={gs}:c1s={gs//2}:c2s={gs//2}:allf=t+g"
 
-    try:
-        dump_info = await dump(
-            ws, input_path, start_frame=p.start_frame, end_frame=p.end_frame,
-        )
-        logs.append(
-            f"dump: {dump_info['frame_count']} frames @ {dump_info['fps']} fps"
-        )
-
-        from .. import job_control
-        job_control.report_progress(
-            "upscale directory",
-            phase="upscale",
-            current=0,
-            total=dump_info["frame_count"],
-            unit="frames",
-        )
-
-        meta = await run_upscale_directory(
-            ws.frames_in,
-            ws.frames_out,
-            engine=p.engine,
-            scale=p.scale,
-            tile_size=p.tile_size,
-            model_name=p.model_name,
-            srmd_noise=p.srmd_noise,
-            tta=p.tta,
-        )
-        logs.append(
-            f"upscale: {meta['frame_count_in']} -> {meta['frame_count_out']} frames"
-        )
-        logs.append(f"command: {meta['command']}")
-
-        source_fps = float(dump_info["fps"])
-        grain_vf: str | None = None
-        if p.grain_strength > 0:
-            gs = p.grain_strength
-            grain_vf = f"noise=c0s={gs}:c1s={gs//2}:c2s={gs//2}:allf=t+g"
-            logs.append(f"re-grain: strength={gs}")
-
-        job_control.report_progress(
-            "upscale encode",
-            phase="encode",
-            current=0,
-            total=1,
-            unit="pass",
-        )
-
-        result_path = await encode(
-            ws, out, source_fps, mux_audio=True, extra_vf=grain_vf,
-        )
-        job_control.report_progress(
-            "encode done",
-            phase="encode",
-            current=1,
-            total=1,
-            unit="pass",
-        )
-        logs.append(f"Output: {result_path} @ {source_fps} fps")
-        success = True
-
-        return OperationResult(
-            ok=True,
-            operation="upscale",
-            output_path=str(result_path),
-            dry_run=False,
-            command=summary,
-            stdout="\n".join(logs),
-        )
-
-    except Exception as e:
-        return OperationResult(
-            ok=False,
-            operation="upscale",
-            error=str(e),
-            dry_run=False,
-            command=summary,
-            stdout="\n".join(logs),
-            stderr=str(e),
-        )
-
-    finally:
-        await cleanup(ws, keep_on_failure=not success)
+    return await run_staged_job(
+        op_id="upscale",
+        prefix="upscale_",
+        input_path=input_path,
+        output_path=out,
+        dry_run=False,
+        dump_kwargs={"start_frame": p.start_frame, "end_frame": p.end_frame},
+        stages=[
+            StageSpec("upscale", "directory", upscale_fn),
+        ],
+        encode_kwargs=ek,
+        summary=summary,
+    )
 
 
 register(OperationSpec(

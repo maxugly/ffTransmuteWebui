@@ -1,16 +1,14 @@
 """
 Speed ramp — exponential spin-up / spin-down via PNG frame remap.
 
-dump → filters.speedramp (directory remap) → encode
+dump → [optional RIFE] → filters.speedramp (directory remap) → encode
 No ffmpeg setpts (unreliable). Audio dropped for v1 (remap changes timeline).
 
 See docs/speed-ramp-spec.md and docs/filter-platform-spec.md.
 """
 from __future__ import annotations
 
-import math
 import os
-import uuid
 from pathlib import Path
 from typing import Literal
 
@@ -19,6 +17,7 @@ from pydantic import BaseModel, Field
 from ..contract import OperationResult, OperationSpec, register
 from ..pathutil import unique_output_path
 from ..shell import ensure_video_output_path
+from ..staged_job import StageSpec, run_staged_job
 
 RifeModel = Literal["rife-v4.6", "rife-v4", "rife-v2.4", "rife-v2.3"]
 
@@ -66,11 +65,9 @@ def _resolve_output(p: SpeedRampParams) -> str:
 
 async def speed_ramp(p: SpeedRampParams) -> OperationResult:
     """Frame-remap speed ramp via shared filter platform bookends."""
-    from .. import job_control
-    from ..job_workspace import JobWorkspace
-    from ..video_pipeline import probe, dump, encode, cleanup
-    from ..filters.speedramp import compute_curve, run_speedramp_directory
-    from ..filters.rife import run_rife_directory, resolve_rife_bin
+    from ..video_pipeline import probe as vp_probe
+    from ..filters.speedramp import compute_curve, make_speedramp_directory_fn
+    from ..filters.rife import make_rife_directory_fn, resolve_rife_bin
 
     input_path = Path(p.input_path).expanduser().resolve()
     if not input_path.is_file():
@@ -95,7 +92,7 @@ async def speed_ramp(p: SpeedRampParams) -> OperationResult:
         + ")"
     )
 
-    info = await probe(str(input_path))
+    info = await vp_probe(str(input_path))
     fps = float(info.get("fps") or 24.0)
     input_dur = float(info.get("duration") or 0.0)
     if input_dur <= 0 or fps <= 0:
@@ -110,7 +107,9 @@ async def speed_ramp(p: SpeedRampParams) -> OperationResult:
             p.direction, p.duration, p.start_speed, p.end_speed, input_dur, fps,
         )
     except ValueError as e:
-        return OperationResult(ok=False, operation="speed_ramp", error=str(e), dry_run=p.dry_run)
+        return OperationResult(
+            ok=False, operation="speed_ramp", error=str(e), dry_run=p.dry_run,
+        )
 
     plan = (
         f"{summary}\n"
@@ -130,84 +129,44 @@ async def speed_ramp(p: SpeedRampParams) -> OperationResult:
             dry_run=True, command=summary, stdout=plan,
         )
 
-    ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="speedramp_")
-    success = False
-    logs = [plan.rstrip()]
+    # span_dur: wall-clock duration of the dumped frames
+    fc = int(info.get("frame_count") or 0)
+    span_dur = fc / fps if fc > 0 and fps > 0 else input_dur
+    ramp_fps = fps * (p.multiplier if p.use_rife else 1)
 
-    try:
-        job_control.report_progress("dump", phase="dump", current=0, total=1, unit="pass")
-        dump_info = await dump(
-            ws, str(input_path), start_frame=p.start_frame, end_frame=p.end_frame,
-        )
-        logs.append(
-            f"dump: {dump_info['frame_count']} frames "
-            f"(src {p.start_frame}–{p.end_frame if p.end_frame < 999999 else 'end'})"
-        )
-        # Remap curve uses dumped span as the source timeline
-        span_dur = dump_info["frame_count"] / fps if fps > 0 else input_dur
-        ramp_fps = fps
-        remap_src = ws.frames_in
-
-        if p.use_rife:
-            rife_out = ws.root / "frames_rife"
-            rife_out.mkdir(parents=True, exist_ok=True)
-            job_control.report_progress(
-                f"RIFE {p.multiplier}x",
-                phase="rife",
-                current=0,
-                total=int(dump_info["frame_count"]) * p.multiplier,
-                unit="frames",
-            )
-            rmeta = await run_rife_directory(
-                ws.frames_in, rife_out,
+    # Build stages
+    stages: list[StageSpec] = []
+    if p.use_rife:
+        stages.append(StageSpec(
+            "rife", "directory",
+            make_rife_directory_fn(
                 multiplier=p.multiplier, model=p.model, tta=p.tta, uhd=p.uhd,
-            )
-            logs.append(
-                f"rife: {rmeta['frame_count_in']} → {rmeta['frame_count_out']} frames"
-            )
-            # Dense frames cover same wall duration → effective fps *= M
-            ramp_fps = fps * p.multiplier
-            remap_src = rife_out
+            ),
+        ))
 
-        job_control.report_progress("remap", phase="remap", current=0, total=1, unit="pass")
-        meta = run_speedramp_directory(
-            remap_src,
-            ws.frames_out,
-            direction=p.direction,
-            duration=p.duration,
-            start_speed=p.start_speed,
-            end_speed=p.end_speed,
-            input_dur=span_dur,
-            fps=ramp_fps,
-        )
-        logs.append(
-            f"remap: {meta['output_frames']} out frames "
-            f"({meta['unique_sources']} unique sources) @ ramp_fps={ramp_fps:.4g}"
-        )
+    # Speedramp stage: needs accurate input_dur + fps for curve
+    stages.append(StageSpec(
+        "speedramp", "directory",
+        make_speedramp_directory_fn(
+            direction=p.direction, duration=p.duration,
+            start_speed=p.start_speed, end_speed=p.end_speed,
+            input_dur=span_dur, fps=ramp_fps,
+        ),
+    ))
 
-        out_fps = ramp_fps
-        # Duration-preserving fps if frame count changed vs naive duration*fps
-        if meta["output_frames"] > 0 and p.duration > 0:
-            out_fps = meta["output_frames"] / p.duration
-
-        job_control.report_progress("encode", phase="encode", current=0, total=1, unit="pass")
-        result_path = await encode(
-            ws, output, out_fps, mux_audio=False, crf=18, preset="fast",
-        )
-        logs.append(f"Output: {result_path} @ {out_fps:.4g} fps (no audio)")
-        success = True
-
-        return OperationResult(
-            ok=True, operation="speed_ramp", output_path=str(result_path),
-            dry_run=False, command=summary, stdout="\n".join(logs),
-        )
-    except Exception as e:
-        return OperationResult(
-            ok=False, operation="speed_ramp", error=str(e),
-            dry_run=False, command=summary, stdout="\n".join(logs), stderr=str(e),
-        )
-    finally:
-        await cleanup(ws, keep_on_failure=not success)
+    return await run_staged_job(
+        op_id="speed_ramp",
+        prefix="speedramp_",
+        input_path=input_path,
+        output_path=Path(output),
+        dry_run=False,
+        dump_kwargs={"start_frame": p.start_frame, "end_frame": p.end_frame},
+        stages=stages,
+        encode_fps=ramp_fps,
+        encode_kwargs={"mux_audio": False, "crf": 18, "preset": "fast"},
+        summary=summary,
+        probe_skip=True,  # already probed above
+    )
 
 
 register(OperationSpec(

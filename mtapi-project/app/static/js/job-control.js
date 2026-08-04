@@ -401,31 +401,33 @@ async function runOpWithCancel(opId, body, { label = 'Processing…' } = {}) {
   }
 }
 
-// Running Operations
-async function runActiveOperation() {
-  if (activeJob.controller) {
-    alert('A job is already running. Hit Stop first, or wait for it to finish.');
-    return;
-  }
+// ── resolveActiveOpAndBody — single function for Run + Queue ──────────────
+
+/**
+ * Read the active tab form and return { opId, body } or null on validation
+ * failure.  Populates `error` string when form cannot be collected; callers
+ * are expected to surface it (alert / logConsole).
+ */
+function resolveActiveOpAndBody() {
   const tab = state.activeTab;
   let opId = '';
   let body = {};
-  
+  let error = null;
+
   if (tab === 'mosh') {
     const input = bestInput('moshInput');
     const output = bestOutput('moshOutput');
-    
+
     if (!input) {
-      alert("Please provide an Input path.");
-      return;
+      error = "Please provide an Input path.";
+      return { opId: '', body: null, error };
     }
-    
+
     const mode = state.selectedMoshMode;
     if (mode === 'melt') {
       opId = 'datamosh_melt';
       body = {
-        input_path: input,
-        output_path: output,
+        input_path: input, output_path: output,
         tail: parseInt(document.getElementById('moshTail').value),
         hdamp: parseInt(document.getElementById('moshDamp').value),
         vdrift: parseInt(document.getElementById('moshDrift').value),
@@ -434,82 +436,59 @@ async function runActiveOperation() {
       };
     } else if (mode === 'classic') {
       opId = 'datamosh_classic';
-      body = {
-        input_path: input,
-        output_path: output,
-        start_frame: window.globalInputs.frameStart,
-        end_frame: window.globalInputs.frameEnd,
-      };
+      body = { input_path: input, output_path: output, start_frame: window.globalInputs.frameStart, end_frame: window.globalInputs.frameEnd };
     } else if (mode === 'hijack') {
       opId = 'datamosh_hijack';
       const injectMode = document.getElementById('hijackSourceSelect').value;
       body = {
-        input_path: input,
-        output_path: output,
-        inject_mode: injectMode,
+        input_path: input, output_path: output, inject_mode: injectMode,
         inject_image_path: injectMode === 'file' ? document.getElementById('hijackImagePath').value : null,
         inject_frame_num: injectMode === 'frame' ? parseInt(document.getElementById('hijackSourceFrame').value) : 0,
-        start_frame: window.globalInputs.frameStart,
-        end_frame: window.globalInputs.frameEnd,
+        start_frame: window.globalInputs.frameStart, end_frame: window.globalInputs.frameEnd,
         transition_style: document.getElementById('hijackTransitionStyle').value
       };
     } else if (mode === 'destruct') {
       opId = 'datamosh_destruct';
-      body = {
-        input_path: input,
-        output_path: output,
-        start_frame: window.globalInputs.frameStart,
-        end_frame: window.globalInputs.frameEnd
-      };
+      body = { input_path: input, output_path: output, start_frame: window.globalInputs.frameStart, end_frame: window.globalInputs.frameEnd };
     } else if (mode === 'mv_hack') {
       opId = 'datamosh_mv_hack';
       body = {
-        input_path: input,
-        output_path: output,
-        start_frame: window.globalInputs.frameStart,
-        end_frame: window.globalInputs.frameEnd,
+        input_path: input, output_path: output,
+        start_frame: window.globalInputs.frameStart, end_frame: window.globalInputs.frameEnd,
         multiplier: parseFloat(document.getElementById('mvMultiplier').value) / 100.0,
         drift_h: parseInt(document.getElementById('mvDriftH').value),
         drift_v: parseInt(document.getElementById('mvDriftV').value)
       };
     }
+
   } else if (tab === 'transmute') {
     const input = bestInput('transmuteInput');
     const output = document.getElementById('transmuteOutput')?.value || null;
     const dryRun = document.getElementById('transmuteDryRun')?.value === '1'
       || document.getElementById('transmuteDryRun')?.checked || false;
-    
+
     if (!input) {
-      alert("Please provide an Input path.");
-      return;
+      error = "Please provide an Input path.";
+      return { opId: '', body: null, error };
     }
-    
+
     opId = activeTransmuteOp;
     body = {
-      input_path: input,
-      output_path: output,
-      dry_run: dryRun,
+      input_path: input, output_path: output, dry_run: dryRun,
       start_frame: window.globalInputs.frameStart || 1,
       end_frame: window.globalInputs.frameEnd || 999999,
     };
 
-    // Add extra params if needed
     const fields = transmuteOpsDetails[activeTransmuteOp].fields;
-    if (fields.includes('quality')) {
-      body.quality = parseInt(document.getElementById('transmuteQuality').value, 10);
-    }
-    if (fields.includes('seconds_from_end')) {
-      body.seconds_from_end = parseFloat(document.getElementById('transmuteSecondsFromEnd').value);
-    }
+    if (fields.includes('quality')) body.quality = parseInt(document.getElementById('transmuteQuality').value, 10);
+    if (fields.includes('seconds_from_end')) body.seconds_from_end = parseFloat(document.getElementById('transmuteSecondsFromEnd').value);
     if (fields.includes('width')) {
       body.width = parseInt(document.getElementById('transmuteWidth').value, 10);
       body.height = parseInt(document.getElementById('transmuteHeight').value, 10);
     }
     if (activeTransmuteOp === 'speed_ramp') {
       body = {
-        input_path: input,
-        output_path: output,
-        dry_run: dryRun,
+        input_path: input, output_path: output, dry_run: dryRun,
         direction: document.getElementById('rampDirection')?.value || 'spin_down',
         duration: parseFloat(document.getElementById('rampDuration')?.value) || 5.0,
         start_speed: parseFloat(document.getElementById('rampStartSpeed')?.value) || 4.0,
@@ -523,103 +502,99 @@ async function runActiveOperation() {
         end_frame: window.globalInputs.frameEnd || 999999,
       };
     }
+
   } else if (tab === 'multi') {
-    const mode = activeMultiMode; // 'join' or 'grid'
+    const mode = activeMultiMode;
     const reconcile = document.getElementById('multiReconcile')?.value || 'pad';
     const output = document.getElementById('multiOutput')?.value || null;
     const dryRun = document.getElementById('multiDryRun')?.value === '1'
       || document.getElementById('multiDryRun')?.checked || false;
-    
+
     if (state.multiClips.length < (mode === 'grid' ? 4 : 2)) {
-      alert(mode === 'grid' ? "Grid mode requires exactly 4 clips." : "Stitch mode requires 2 or more clips.");
-      return;
+      error = mode === 'grid' ? "Grid mode requires exactly 4 clips." : "Stitch mode requires 2 or more clips.";
+      return { opId: '', body: null, error };
     }
     if (mode === 'grid' && state.multiClips.length !== 4) {
-      alert("Grid mode requires exactly 4 clips (currently you have " + state.multiClips.length + ").");
-      return;
+      error = "Grid mode requires exactly 4 clips (currently you have " + state.multiClips.length + ").";
+      return { opId: '', body: null, error };
     }
 
     opId = mode;
-    body = {
-      input_paths: state.multiClips,
-      mode: reconcile,
-      output_path: output,
-      dry_run: dryRun
-    };
+    body = { input_paths: state.multiClips, mode: reconcile, output_path: output, dry_run: dryRun };
+
   } else if (tab === 'deepdream') {
-    const dreamBody = collectDeepDreamBody();
-    if (!dreamBody) return;
+    const bb = collectDeepDreamBody();
+    if (!bb) { error = "Please provide valid input for DeepDream."; return { opId: '', body: null, error }; }
     opId = 'deepdream';
-    body = dreamBody;
+    body = bb;
   } else if (tab === 'facemorph') {
-    const fmBody = collectFaceMorphBody();
-    if (!fmBody) return;
+    const bb = collectFaceMorphBody();
+    if (!bb) { error = "Please provide valid input for Face Morph."; return { opId: '', body: null, error }; }
     opId = 'facemorph';
-    body = fmBody;
+    body = bb;
   } else if (tab === 'withoutbg') {
-    const wbgBody = collectWithoutBgBody();
-    if (!wbgBody) return;
+    const bb = collectWithoutBgBody();
+    if (!bb) { error = "Please provide valid input for Remove BG."; return { opId: '', body: null, error }; }
     opId = 'withoutbg';
-    body = wbgBody;
+    body = bb;
   } else if (tab === 'styletransfer') {
-    const stBody = collectStyleTransferBody();
-    if (!stBody) return;
+    const bb = collectStyleTransferBody();
+    if (!bb) { error = "Please provide valid input for Style Transfer."; return { opId: '', body: null, error }; }
     opId = 'styletransfer';
-    body = stBody;
+    body = bb;
   } else if (tab === 'rife') {
-    const rifeBody = collectRifeBody();
-    if (!rifeBody) return;
+    const bb = collectRifeBody();
+    if (!bb) { error = "Please provide valid input for RIFE."; return { opId: '', body: null, error }; }
     opId = 'rife';
-    body = rifeBody;
+    body = bb;
   } else if (tab === 'img2img') {
-    const i2iBody = collectImg2ImgBody();
-    if (!i2iBody) return;
+    const bb = collectImg2ImgBody();
+    if (!bb) { error = "Please provide valid input for Img2Img."; return { opId: '', body: null, error }; }
     opId = 'img2img';
-    body = i2iBody;
+    body = bb;
   } else if (tab === 'txt2img') {
-    const t2iBody = collectTxt2ImgBody();
-    if (!t2iBody) return;
+    const bb = collectTxt2ImgBody();
+    if (!bb) { error = "Please provide valid input for Txt2Img."; return { opId: '', body: null, error }; }
     opId = 'txt2img';
-    body = t2iBody;
+    body = bb;
   } else if (tab === 'agent') {
-    // Agent tab uses its own Send button + runOpWithCancel('agent_chat')
-    alert('Use the Send button on the Agent tab (not Run).');
-    return;
+    error = 'Use the Send button on the Agent tab (not Run).';
+    return { opId: '', body: null, error };
   } else if (tab === 'upscale') {
-    const upBody = collectUpscaleBody();
-    if (!upBody) return;
+    const bb = collectUpscaleBody();
+    if (!bb) { error = "Please provide valid input for Upscale."; return { opId: '', body: null, error }; }
     opId = 'upscale';
-    body = upBody;
+    body = bb;
   } else if (tab === 'riferecohere') {
-    const rrBody = collectRifeRecohereBody();
-    if (!rrBody) return;
+    const bb = collectRifeRecohereBody();
+    if (!bb) { error = "Please provide valid input for RIFE Recohere."; return { opId: '', body: null, error }; }
     opId = 'rife_recohere';
-    body = rrBody;
+    body = bb;
   } else if (tab === 'speedchange') {
-    const scBody = collectSpeedChangeBody();
-    if (!scBody) return;
+    const bb = collectSpeedChangeBody();
+    if (!bb) { error = "Please provide valid input for Speed Change."; return { opId: '', body: null, error }; }
     opId = 'speedchange';
-    body = scBody;
+    body = bb;
   } else if (tab === 'convert') {
-    const convBody = collectConvertBody();
-    if (!convBody) return;
+    const bb = collectConvertBody();
+    if (!bb) { error = "Please provide valid input for Convert."; return { opId: '', body: null, error }; }
     opId = 'convert';
-    body = convBody;
+    body = bb;
   } else if (tab === 'zoompan') {
-    const zpBody = collectZoompanBody();
-    if (!zpBody) return;
+    const bb = collectZoompanBody();
+    if (!bb) { error = "Please provide valid input for Zoompan."; return { opId: '', body: null, error }; }
     opId = 'zoompan';
-    body = zpBody;
+    body = bb;
   } else if (tab === 'imagesort') {
-    const isBody = collectImageSortBody();
-    if (!isBody) return;
+    const bb = collectImageSortBody();
+    if (!bb) { error = "Please provide valid input for Image Sort."; return { opId: '', body: null, error }; }
     opId = 'imagesort_rife';
-    body = isBody;
+    body = bb;
   } else if (tab === 'cut') {
-    const cutBody = collectCutBody();
-    if (!cutBody) return;
+    const bb = collectCutBody();
+    if (!bb) { error = "Please provide valid input for Cut."; return { opId: '', body: null, error }; }
     opId = 'cut';
-    body = cutBody;
+    body = bb;
   } else if (tab === 'advanced') {
     const input = bestInput('advInput');
     const flagsStr = document.getElementById('advFlags')?.value || '';
@@ -628,51 +603,59 @@ async function runActiveOperation() {
       || document.getElementById('advDryRun')?.checked || false;
 
     if (!input) {
-      alert("Please provide an Input path.");
-      return;
+      error = "Please provide an Input path.";
+      return { opId: '', body: null, error };
     }
 
     opId = 'transmute_raw';
-    // split flags by whitespace, filter empty
     const flags = flagsStr.split(/\s+/).filter(f => f.length > 0);
-    body = {
-      input_arg: input,
-      flags: flags,
-      output_path: output,
-      dry_run: dryRun
-    };
+    body = { input_arg: input, flags: flags, output_path: output, dry_run: dryRun };
   }
 
   if (!opId) {
-    alert('Nothing to run on this tab.');
+    error = 'Nothing to run on this tab.';
+    return { opId: '', body: null, error };
+  }
+
+  return { opId, body, error: null };
+}
+
+// ── Running Operations ────────────────────────────────────────────────────
+
+async function runActiveOperation() {
+  if (activeJob.controller) {
+    alert('A job is already running. Hit Stop first, or wait for it to finish.');
     return;
   }
 
+  const { opId, body, error } = resolveActiveOpAndBody();
+  if (error) {
+    if (error === 'Use the Send button on the Agent tab (not Run).') {
+      // Agent tab: no-op, just log
+      logConsole('[AGENT]: ' + error);
+      return;
+    }
+    alert(error);
+    return;
+  }
+
+  const tab = state.activeTab;
+
   // ── Multi-path batch (global Path video / image is multi-line) ─────────
-  // Single-input ops historically used bestInput() → first line only.
-  // When multiple paths are present, run the same op sequentially for each
-  // (auto-name outputs; clear explicit output_path to avoid clobber).
   const batchField = {
-    mosh: 'moshInput',
-    transmute: 'transmuteInput',
-    deepdream: 'dreamInput',
-    rife: 'rifeInput',
-    convert: 'convertInput',
-    advanced: 'advInput',
+    mosh: 'moshInput', transmute: 'transmuteInput', deepdream: 'dreamInput',
+    rife: 'rifeInput', convert: 'convertInput', advanced: 'advInput',
   }[tab];
 
-  // Ops that already batch lists themselves
-  const selfBatchTabs = new Set(['multi', 'facemorph', 'withoutbg', 'styletransfer', 'pool', 'sequence', 'images', 'cut', 'zoompan', 'notes', 'quick', 'watcher', 'imagesort', 'txt2img', 'img2img', 'agent', 'jobs']);
+  const selfBatchTabs = new Set(['multi', 'facemorph', 'withoutbg', 'styletransfer',
+    'pool', 'sequence', 'images', 'cut', 'zoompan', 'notes', 'quick', 'watcher',
+    'imagesort', 'txt2img', 'img2img', 'agent', 'jobs']);
 
   let paths = [];
   if (batchField && !selfBatchTabs.has(tab)) {
-    paths = allInputPaths(batchField).filter(function(p) {
-      // Prefer videos for video-first tabs; still allow any path if listed
-      return !!p;
-    });
+    paths = allInputPaths(batchField).filter(function(p) { return !!p; });
   }
 
-  // Primary key on body for single-file input
   const pathKey = (tab === 'advanced') ? 'input_arg'
     : (body && body.input_path != null) ? 'input_path'
     : (body && body.content_path != null) ? 'content_path'
@@ -692,20 +675,12 @@ async function runActiveOperation() {
         const path = paths[i];
         const b = Object.assign({}, body);
         b[pathKey] = path;
-        // Avoid writing every result to the same explicit path
-        if (n > 1) {
-          if ('output_path' in b) b.output_path = null;
-        }
+        if (n > 1) { if ('output_path' in b) b.output_path = null; }
         logConsole(`[BATCH]: ${i + 1}/${n} ← ${path}`);
         try {
-          await runOpWithCancel(opId, b, {
-            label: `Batch ${i + 1}/${n}…`,
-          });
+          await runOpWithCancel(opId, b, { label: `Batch ${i + 1}/${n}…` });
           okCount += 1;
-        } catch (_) {
-          failCount += 1;
-          // continue remaining unless user hit Stop
-        }
+        } catch (_) { failCount += 1; }
       }
       logConsole(`[BATCH]: done — ok=${okCount} fail=${failCount} total=${n}`);
     } else {
@@ -765,50 +740,19 @@ function displayOpResult(res) {
   }
 }
 
-
-/**
- * Snapshot current tab op+body for queue (same switch as Run).
- * Returns { opId, body } or null.
- */
-function collectActiveOp() {
-  // Reuse runActiveOperation's collection by temporary dry path:
-  // duplicate minimal: callers should prefer enqueueActiveOperation.
-  return null;
-}
+// ── Job Queue ─────────────────────────────────────────────────────────────
 
 async function enqueueActiveOperation() {
-  // Build body by temporarily invoking the same branches as Run without executing.
-  // Simplest: mirror Run's collection by calling runActiveOperation's logic —
-  // factor: set a one-shot collector.
-  const prev = activeJob.controller;
-  if (prev) {
-    // still allow queue while busy
-  }
-  // Steal collection by running the same switch via a synthetic helper
-  const tab = state.activeTab;
-  let opId = '';
-  let body = null;
-
-  // Invoke the same collection as runActiveOperation by calling a shared internal.
-  // We re-call runActiveOperation's collection by duplicating the entry via
-  // temporary assignment into a probe object:
-  const bag = { opId: '', body: null, aborted: false };
-  const _origAlert = window.alert;
-  const _alerts = [];
-  window.alert = (m) => { _alerts.push(m); bag.aborted = true; };
-  try {
-    // Inline re-use: call runActiveOperation collection only — 
-    // easier path: POST after building via evaluateCollect
-    await _collectForQueue(bag);
-  } finally {
-    window.alert = _origAlert;
-  }
-  if (bag.aborted || !bag.opId || !bag.body) {
-    if (_alerts[0]) logConsole(`[QUEUE]: ${_alerts[0]}`, 'error');
+  const { opId, body, error } = resolveActiveOpAndBody();
+  if (error) {
+    if (error === 'Use the Send button on the Agent tab (not Run).') {
+      logConsole('[QUEUE]: ' + error, 'error');
+      return;
+    }
+    logConsole(`[QUEUE]: ${error}`, 'error');
     return;
   }
-  opId = bag.opId;
-  body = bag.body;
+
   const label = `${opId}${body.input_path ? ' · ' + basename(String(body.input_path)) : ''}`;
   try {
     const res = await fetch('/api/queue', {
@@ -829,90 +773,12 @@ async function enqueueActiveOperation() {
   }
 }
 
-/** Populate bag.opId / bag.body using the same form readers as Run. */
-async function _collectForQueue(bag) {
-  const tab = state.activeTab;
-  // Mirror the key collect branches used by runActiveOperation
-  if (tab === 'rife') {
-    const b = collectRifeBody();
-    if (!b) { bag.aborted = true; return; }
-    bag.opId = 'rife'; bag.body = b; return;
-  }
-  if (tab === 'img2img') {
-    const b = collectImg2ImgBody();
-    if (!b) { bag.aborted = true; return; }
-    bag.opId = 'img2img'; bag.body = b; return;
-  }
-  if (tab === 'txt2img') {
-    const b = collectTxt2ImgBody();
-    if (!b) { bag.aborted = true; return; }
-    bag.opId = 'txt2img'; bag.body = b; return;
-  }
-  if (tab === 'upscale') {
-    const b = collectUpscaleBody();
-    if (!b) { bag.aborted = true; return; }
-    bag.opId = 'upscale'; bag.body = b; return;
-  }
-  if (tab === 'riferecohere') {
-    const b = collectRifeRecohereBody();
-    if (!b) { bag.aborted = true; return; }
-    bag.opId = 'rife_recohere'; bag.body = b; return;
-  }
-  if (tab === 'speedchange') {
-    const b = collectSpeedChangeBody();
-    if (!b) { bag.aborted = true; return; }
-    bag.opId = 'speedchange'; bag.body = b; return;
-  }
-  if (tab === 'convert') {
-    const b = collectConvertBody();
-    if (!b) { bag.aborted = true; return; }
-    bag.opId = 'convert'; bag.body = b; return;
-  }
-  if (tab === 'imagesort') {
-    const b = collectImageSortBody();
-    if (!b) { bag.aborted = true; return; }
-    bag.opId = 'imagesort_rife'; bag.body = b; return;
-  }
-  if (tab === 'cut') {
-    const b = collectCutBody();
-    if (!b) { bag.aborted = true; return; }
-    bag.opId = 'cut'; bag.body = b; return;
-  }
-  if (tab === 'deepdream') {
-    const b = collectDeepDreamBody();
-    if (!b) { bag.aborted = true; return; }
-    bag.opId = b.operation || 'deepdream'; bag.body = b; return;
-  }
-  if (tab === 'facemorph') {
-    const b = collectFaceMorphBody();
-    if (!b) { bag.aborted = true; return; }
-    bag.opId = 'facemorph'; bag.body = b; return;
-  }
-  if (tab === 'withoutbg') {
-    const b = collectWithoutBgBody();
-    if (!b) { bag.aborted = true; return; }
-    bag.opId = 'withoutbg'; bag.body = b; return;
-  }
-  if (tab === 'styletransfer') {
-    const b = collectStyleTransferBody();
-    if (!b) { bag.aborted = true; return; }
-    bag.opId = 'styletransfer'; bag.body = b; return;
-  }
-  if (tab === 'zoompan') {
-    const b = collectZoompanBody();
-    if (!b) { bag.aborted = true; return; }
-    bag.opId = 'zoompan'; bag.body = b; return;
-  }
-  // Fallback: reuse Run path by telling user to use Run when idle for rare tabs
-  bag.aborted = true;
-  window.alert('Add to Queue supports main ops on this tab set; use Run when idle for others.');
-}
-
 export {
   formatJobLine, stopJobProgressPoll, startJobProgressPoll,
   setRunUiBusy, newJobToken, stopActiveOperation,
   runOpWithCancel, runActiveOperation, displayOpResult,
   togglePreviewLive, enqueueActiveOperation,
+  resolveActiveOpAndBody,
 };
 
 // ── Module init: wire static UI elements ──────────────────────────────────

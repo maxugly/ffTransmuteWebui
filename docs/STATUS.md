@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-04  
-> **VERSION:** `000.000.4.64`  
+> **VERSION:** `000.000.4.65`  
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -57,6 +57,8 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | Run-button elapsed | sticky `● m:ss` | `job-control.js` |
 | list-keys (partial ship) | several list tabs | `ui/list-keys.js` |
 | Bottom docs (partial ship) | Image Sort pilot + img2img / txt2img / agent / upscale / recohere | `tool-bottom-docs-spec.md` |
+| **DRY staged job** | `run_staged_job` shared bookend runner; rife / cut / upscale-video / speedramp migrated | `app/staged_job.py`, `coder-dry-platform-prompt.md` · `4.65` |
+| **Run/Queue collect unified** | Single `resolveActiveOpAndBody()` shared by Run + Add to Queue | `js/job-control.js` · `4.65` |
 
 **Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale *(in tree — see §4)*. Root `AGENTS.md`.
 
@@ -71,7 +73,6 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **UI list / sequence keys** | Sequence L/R + scroll-into-view **shipped `4.64`**; some pool edge cases may remain | `ui-list-nav-timer-spec.md` |
 | **Agent polish** | Phase A+API shipped | Streaming, Image Pool send-to, Ollama, multi-tool loop |
 | **Universal persistence** | **Sacred named-project autosave fixed `4.63`**; full desk snapshot still open | `universal-persistence-spec.md` |
-| **DRY / staged job** | **Builder assignment** — not started | [coder-dry-platform-prompt.md](coder-dry-platform-prompt.md) |
 | Image Sort true TSP | Out of scope | Chain is greedy only |
 
 ---
@@ -170,7 +171,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.4.64` (upscale ship, cut encode, job queue, dump watch, list/seq keys).  
+- **Current:** `000.000.4.65` (DRY staged job, Run/Queue collect unified, ops migrated).  
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  

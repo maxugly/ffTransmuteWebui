@@ -6,7 +6,6 @@ See docs/rife-filter-cleanup-spec.md and docs/filter-platform-spec.md.
 """
 from __future__ import annotations
 
-import uuid
 from pathlib import Path
 from typing import Literal
 
@@ -14,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from ..contract import OperationResult, OperationSpec, register
 from ..pathutil import finalize_output_path
+from ..staged_job import StageSpec, run_staged_job
 
 RifeModel = Literal["rife-v4.6", "rife-v4", "rife-v2.4", "rife-v2.3"]
 
@@ -35,143 +35,38 @@ class RifeParams(BaseModel):
 
 async def rife_interpolate(p: RifeParams) -> OperationResult:
     """Thin bookend wrapper around the shared RIFE directory stage."""
-    from ..job_workspace import JobWorkspace
-    from ..video_pipeline import probe, dump, encode, cleanup
-    from ..filters.rife import run_rife_directory, resolve_rife_bin
+    from ..filters.rife import make_rife_directory_fn
 
     input_path = Path(p.input_path).expanduser().resolve()
     if not input_path.is_file():
         return OperationResult(
-            ok=False,
-            operation="rife",
-            error=f"Input not found: {input_path}",
-            dry_run=p.dry_run,
+            ok=False, operation="rife",
+            error=f"Input not found: {input_path}", dry_run=p.dry_run,
         )
 
     out = finalize_output_path(
-        p.output_path,
-        source=input_path,
-        default_suffix="_rife",
-        default_ext=".mp4",
-        allowed_exts=VIDEO_EXTS,
+        p.output_path, source=input_path, default_suffix="_rife",
+        default_ext=".mp4", allowed_exts=VIDEO_EXTS,
     )
 
-    summary = (
-        f"rife {input_path.name} {p.multiplier}x {p.model} "
-        f"(directory stage → {p.multiplier}x frames/fps)"
+    rife_fn = make_rife_directory_fn(
+        multiplier=p.multiplier, model=p.model, tta=p.tta, uhd=p.uhd,
     )
 
-    if p.dry_run:
-        try:
-            bin_path = resolve_rife_bin()
-        except RuntimeError as e:
-            return OperationResult(
-                ok=False, operation="rife", error=str(e), dry_run=True,
-            )
-        dry = (
-            f"# dump\nffmpeg -i {input_path} → frames_in/frame_%06d.png\n"
-            f"# rife directory\n{bin_path} -i frames_in -o frames_out "
-            f"-n <N*{p.multiplier}> -m {p.model} -f frame_%06d.png\n"
-            f"# encode\nffmpeg -framerate <fps*{p.multiplier}> "
-            f"-i frames_out/frame_%06d.png {out}"
-        )
-        return OperationResult(
-            ok=True,
-            operation="rife",
-            output_path=str(out),
-            dry_run=True,
-            command=summary,
-            stdout=dry,
-        )
-
-    info = await probe(input_path)
-    if info["frame_count"] <= 0 or info["fps"] <= 0:
-        return OperationResult(
-            ok=False,
-            operation="rife",
-            error=f"Could not probe video: fps={info['fps']}, frames={info['frame_count']}",
-        )
-
-    ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="rife_")
-    success = False
-    logs: list[str] = [summary]
-
-    try:
-        dump_info = await dump(
-            ws, input_path, start_frame=p.start_frame, end_frame=p.end_frame,
-        )
-        logs.append(
-            f"dump: {dump_info['frame_count']} frames @ {dump_info['fps']} fps "
-            f"(src {p.start_frame}–{p.end_frame if p.end_frame < 999999 else 'end'})"
-        )
-
-        from .. import job_control
-        job_control.report_progress(
-            "rife directory interpolate",
-            phase="rife",
-            current=0,
-            total=dump_info["frame_count"] * p.multiplier,
-            unit="frames",
-        )
-
-        meta = await run_rife_directory(
-            ws.frames_in,
-            ws.frames_out,
-            multiplier=p.multiplier,
-            model=p.model,
-            tta=p.tta,
-            uhd=p.uhd,
-        )
-        logs.append(
-            f"rife: {meta['frame_count_in']} → {meta['frame_count_out']} frames"
-        )
-        logs.append(f"command: {meta['command']}")
-
-        in_n = max(int(meta["frame_count_in"]), 1)
-        out_n = int(meta["frame_count_out"])
-        out_fps = float(dump_info["fps"]) * (out_n / in_n)
-
-        job_control.report_progress(
-            "rife encode",
-            phase="encode",
-            current=0,
-            total=1,
-            unit="pass",
-        )
-
-        result_path = await encode(ws, out, out_fps, mux_audio=True)
-        job_control.report_progress(
-            "encode done",
-            phase="encode",
-            current=1,
-            total=1,
-            unit="pass",
-        )
-        logs.append(f"Output: {result_path} @ {out_fps:.4g} fps")
-        success = True
-
-        return OperationResult(
-            ok=True,
-            operation="rife",
-            output_path=str(result_path),
-            dry_run=False,
-            command=summary,
-            stdout="\n".join(logs),
-        )
-
-    except Exception as e:
-        return OperationResult(
-            ok=False,
-            operation="rife",
-            error=str(e),
-            dry_run=False,
-            command=summary,
-            stdout="\n".join(logs),
-            stderr=str(e),
-        )
-
-    finally:
-        await cleanup(ws, keep_on_failure=not success)
+    return await run_staged_job(
+        op_id="rife",
+        prefix="rife_",
+        input_path=input_path,
+        output_path=out,
+        dry_run=p.dry_run,
+        dump_kwargs={"start_frame": p.start_frame, "end_frame": p.end_frame},
+        stages=[
+            StageSpec("rife", "directory", rife_fn,
+                      progress_total=None),  # progress managed by dir watch
+        ],
+        encode_kwargs={"mux_audio": True},
+        summary=f"rife {input_path.name} {p.multiplier}x {p.model}",
+    )
 
 
 register(OperationSpec(

@@ -192,8 +192,30 @@ Do not reimplement dump/encode inside filters.
 
 ---
 
-## 10. What we will not do
+## 10. `run_staged_job` shared helper (4.65)
 
-- Call 1:N tools “filters” that ignore `output_png` and renumber in a closure without `kind=directory`.
+New filter-platform ops should use `app/staged_job.run_staged_job()` instead of manually repeating the JobWorkspace + dump + stage(s) + encode + cleanup + OperationResult boilerplate.
+
+```python
+from app.staged_job import run_staged_job, StageSpec
+
+async def my_op(p: Params) -> OperationResult:
+    return await run_staged_job(
+        op_id="my_op", prefix="myop_",
+        input_path=p.input_path, output_path=out,
+        dry_run=p.dry_run,
+        dump_kwargs={"start_frame": p.start_frame, "end_frame": p.end_frame},
+        stages=[StageSpec("mystage", "directory", my_dir_fn)],
+        encode_kwargs={"mux_audio": True},
+    )
+```
+
+Migrated: rife, cut, upscale (video), speedramp. See `docs/coder-dry-platform-prompt.md`.
+
+---
+
+## 11. What we will not do
+
+- Call 1:N tools "filters" that ignore `output_png` and renumber in a closure without `kind=directory`.
 - Spawn one heavy binary process per intermediate frame when a directory mode exists.
 - Expand new neural ops until RIFE matches this contract (canary).
