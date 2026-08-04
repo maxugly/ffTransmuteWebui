@@ -569,6 +569,7 @@ function switchTab(tab) {
   if (tab === 'img2img') title = 'Img2Img · OpenVINO GPU';
   if (tab === 'txt2img') title = 'Txt2Img · OpenVINO GPU';
   if (tab === 'agent') title = 'Agent · Vision chat';
+  if (tab === 'upscale') title = 'Upscale · NCNN Vulkan';
   if (tab === 'speedchange') title = 'Speed Change';
   if (tab === 'transmute') title = 'Single-Clip Transmutations';
   if (tab === 'multi') title = 'Layout Templates (Join / Grid)';
