@@ -16,11 +16,17 @@ const DREAM_MODELS = {
   inception_v3: {
     label: 'InceptionV3 (ImageNet) — classic Google DeepDream',
     layers: [
+      { id: 'mixed0', label: 'mixed0', def: 0 },
+      { id: 'mixed1', label: 'mixed1', def: 0 },
+      { id: 'mixed2', label: 'mixed2', def: 0 },
       { id: 'mixed3', label: 'mixed3', def: 0 },
       { id: 'mixed4', label: 'mixed4', def: 1.0 },
       { id: 'mixed5', label: 'mixed5', def: 1.5 },
       { id: 'mixed6', label: 'mixed6', def: 2.0 },
       { id: 'mixed7', label: 'mixed7', def: 2.5 },
+      { id: 'mixed8', label: 'mixed8', def: 0 },
+      { id: 'mixed9', label: 'mixed9', def: 0 },
+      { id: 'mixed10', label: 'mixed10', def: 0 },
     ],
     presets: {
       shallow: 'Shallow — mixed3–4 (fine textures)',

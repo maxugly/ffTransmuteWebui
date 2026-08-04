@@ -81,11 +81,17 @@ class DeepDreamParams(EvolveRifeParams):
         description="Optional explicit {layer_name: weight} map (overrides preset when custom)",
     )
     # Legacy Inception knobs (still accepted)
+    mixed0: float = Field(0.0, ge=0, le=5, description="Custom weight for mixed0 (Inception only)")
+    mixed1: float = Field(0.0, ge=0, le=5, description="Custom weight for mixed1 (Inception only)")
+    mixed2: float = Field(0.0, ge=0, le=5, description="Custom weight for mixed2 (Inception only)")
     mixed3: float = Field(0.0, ge=0, le=5, description="Custom weight for mixed3 (Inception only)")
     mixed4: float = Field(1.0, ge=0, le=5, description="Custom weight for mixed4 (Inception only)")
     mixed5: float = Field(1.5, ge=0, le=5, description="Custom weight for mixed5 (Inception only)")
     mixed6: float = Field(2.0, ge=0, le=5, description="Custom weight for mixed6 (Inception only)")
     mixed7: float = Field(2.5, ge=0, le=5, description="Custom weight for mixed7 (Inception only)")
+    mixed8: float = Field(0.0, ge=0, le=5, description="Custom weight for mixed8 (Inception only)")
+    mixed9: float = Field(0.0, ge=0, le=5, description="Custom weight for mixed9 (Inception only)")
+    mixed10: float = Field(0.0, ge=0, le=5, description="Custom weight for mixed10 (Inception only)")
 
     # Video-only (source video dream)
     frame_step: int = Field(
@@ -418,11 +424,17 @@ async def deepdream(p: DeepDreamParams) -> OperationResult:
         p.layer_preset,
         model_name=p.model_name,
         custom_layer_weights=p.custom_layer_weights,
+        mixed0=p.mixed0,
+        mixed1=p.mixed1,
+        mixed2=p.mixed2,
         mixed3=p.mixed3,
         mixed4=p.mixed4,
         mixed5=p.mixed5,
         mixed6=p.mixed6,
         mixed7=p.mixed7,
+        mixed8=p.mixed8,
+        mixed9=p.mixed9,
+        mixed10=p.mixed10,
         use_custom_weights=(p.layer_preset == "custom"),
     )
 

@@ -69,7 +69,7 @@ MODEL_PRESETS: dict[str, dict[str, dict[str, float]]] = {
 LAYER_PRESETS = MODEL_PRESETS["inception_v3"]
 
 MODEL_CUSTOM_LAYERS: dict[str, list[str]] = {
-    "inception_v3": ["mixed3", "mixed4", "mixed5", "mixed6", "mixed7"],
+    "inception_v3": ["mixed0", "mixed1", "mixed2", "mixed3", "mixed4", "mixed5", "mixed6", "mixed7", "mixed8", "mixed9", "mixed10"],
     "vgg16": [
         "block2_conv2", "block3_conv3", "block4_conv3",
         "block5_conv1", "block5_conv2", "block5_conv3",
