@@ -16,7 +16,7 @@ async function probeGlobalVideo(path, opts) {
   if (!opts.force && path === gi._lastProbedPath && gi._probeOk) {
     try {
       document.dispatchEvent(new CustomEvent('mtapi:video-probed', {
-        detail: { path: path, frames: gi.totalFrames, cached: true },
+        detail: { path: path, frames: gi.totalFrames, cached: true, data: gi._probeData },
       }));
     } catch (_) { /* ignore */ }
     return;
@@ -35,6 +35,7 @@ async function probeGlobalVideo(path, opts) {
       var frames = data.true_frames;
       gi.totalFrames = frames;
       gi._probeOk = true;
+      gi._probeData = data;
       // Reset range to full clip on new probe so In/Out match the file
       gi.frameStart = 1;
       gi.frameEnd = frames;
@@ -54,7 +55,7 @@ async function probeGlobalVideo(path, opts) {
       }
       try {
         document.dispatchEvent(new CustomEvent('mtapi:video-probed', {
-          detail: { path: path, frames: frames, cached: false },
+          detail: { path: path, frames: frames, cached: false, data: data },
         }));
       } catch (_) { /* ignore */ }
     } else {

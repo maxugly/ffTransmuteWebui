@@ -318,6 +318,7 @@ async def _dream_ouroboros(
     from .deepdream.dream import dream_image, transform_frame
 
     ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="dream_ouro_")
+    ws.create()
     success = False
     try:
         seed = ws.root / "seed.png"
@@ -335,12 +336,27 @@ async def _dream_ouroboros(
                     progress_cb(
                         f"ouro {i + 1}/{n_ouro} dreaming…",
                         phase="ouroboros",
-                        current=i + 1,
+                        current=i,
                         total=n_ouro,
                         unit="frames",
                     )
+                
+                def _ouro_prog(msg, **kw):
+                    if progress_cb:
+                        if "current" in kw and "total" in kw:
+                            # Translate inner ascent steps (which now span all octaves)
+                            # into a global step count spanning all Ouroboros frames.
+                            step_total = kw["total"]
+                            step_curr = kw["current"]
+                            kw["total"] = step_total * n_ouro
+                            kw["current"] = (i * step_total) + step_curr
+                            kw["phase"] = "ouroboros"
+                            kw["unit"] = "overall steps"
+                            msg = f"[frame {i + 1}/{n_ouro}] {msg}"
+                        progress_cb(msg, **kw)
+
                 # Mid-ascent live via dream_image → /tmp/mtapi_live/{token}.png
-                dream_image(current, out_fr, progress_cb=progress_cb, **image_kwargs)
+                dream_image(current, out_fr, progress_cb=_ouro_prog, **image_kwargs)
                 # After write: point Live at the finished ouro frame
                 if progress_cb:
                     progress_cb(

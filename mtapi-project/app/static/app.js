@@ -334,6 +334,18 @@ function updateGlobalInputs() {
   updateStatusIndicators();
   // Sync per-tab local fields from global inputs + show/hide frame row
   _syncTabInputFromGlobal();
+  const hasVideo = !!window.globalInputs.video.trim();
+  const hasImage = !!window.globalInputs.image.trim();
+  const hasPathIn = !!window.globalInputs.pathIn.trim();
+  
+  const videoRow = document.querySelector('.global-row[data-input="video"]');
+  const imageRow = document.querySelector('.global-row[data-input="image"]');
+  const pathInRow = document.querySelector('.global-row[data-input="pathIn"]');
+  
+  if (videoRow) videoRow.style.display = (hasImage || hasPathIn) ? 'none' : '';
+  if (imageRow) imageRow.style.display = (hasVideo || hasPathIn) ? 'none' : '';
+  if (pathInRow) pathInRow.style.display = (hasVideo || hasImage) ? 'none' : '';
+
   try { refreshInputPreview(); } catch (_) { /* ignore */ }
 }
 
@@ -346,17 +358,40 @@ function _syncTabInputFromGlobal() {
   if (framesRow) framesRow.style.display = tabUsesFrameRange(tab) ? '' : 'none';
 
   // Probe first video path so range max/total stay current
-  if (tabUsesFrameRange(tab)) {
-    var probePath = '';
-    if (gi.video.trim()) {
-      var lines = gi.video.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
-      if (lines.length) probePath = lines[0];
-    }
-    if (!probePath && gi.image.trim() && detectFileType(gi.image.trim()) === 'video') {
-      probePath = gi.image.trim();
-    }
-    if (probePath && probePath !== gi._lastProbedPath) {
+  // Probe first video path so range max/total stay current
+  var probePath = '';
+  if (gi.video.trim()) {
+    var lines = gi.video.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+    if (lines.length) probePath = lines[0];
+  } else if (gi.image.trim()) {
+    var lines = gi.image.trim().split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+    if (lines.length) probePath = lines[0];
+  }
+
+  if (tabUsesFrameRange(tab) && probePath && detectFileType(probePath) === 'video') {
+    if (probePath !== gi._lastProbedPath) {
       probeGlobalVideo(probePath);
+    }
+  }
+
+  // Update global overlay
+  const overlay = document.getElementById('globalProbeOverlay');
+  if (overlay) {
+    if (probePath) {
+      overlay.style.display = 'block';
+      fetch(`/api/probe?path=${encodeURIComponent(probePath)}`).then(res => res.json()).then(data => {
+        if (data.ok) {
+          const res = `${data.width}x${data.height}`;
+          const frames = data.true_frames ? `${data.true_frames} frames` : (data.frame_count ? `${data.frame_count} frames` : '1 frame');
+          const size = data.file_size ? (data.file_size / (1024*1024)).toFixed(2) + 'MB' : '';
+          const date = data.file_mtime ? new Date(data.file_mtime * 1000).toLocaleString() : '';
+          overlay.textContent = `[ ${res} | ${frames} | ${size} | ${date} ]`;
+        } else {
+          overlay.style.display = 'none';
+        }
+      }).catch(() => { overlay.style.display = 'none'; });
+    } else {
+      overlay.style.display = 'none';
     }
   }
 }

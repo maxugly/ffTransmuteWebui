@@ -229,6 +229,16 @@ function renderDeepDreamForm() {
       </div>
     </div>
 
+    <div class="knob-row">
+      <div class="knob-bank">
+        <button type="button" class="btn" id="btnDreamExportSettings">⤓ Export settings (JSON)</button>
+      </div>
+      <p class="knob-row-legend">
+        Serializes the current panel exactly as Run would POST it — a reusable script body for
+        <code>curl</code>/python. No backend change; the server already speaks this JSON.
+      </p>
+    </div>
+
     <section class="tool-docs" aria-label="About DeepDream">
       <h4 class="tool-docs-title">About · DeepDream</h4>
       <p class="tool-docs-lede">
@@ -684,7 +694,9 @@ function renderDeepDreamForm() {
 
     const auto = document.getElementById('dreamAutoDetect')?.value === '1';
     const media = document.getElementById('dreamMedia')?.value || 'image';
-    const input = document.getElementById('dreamInput')?.value || '';
+    // Resolve input the SAME way collectDeepDreamBody does (local box → global bar).
+    // Without this, a video fed through #giVideo hides the whole video bank.
+    const input = bestInput('dreamInput') || '';
     let showVideo = false;
     if (!ouro) {
       if (auto) {
@@ -711,6 +723,16 @@ function renderDeepDreamForm() {
   document.getElementById('dreamOuro')?.addEventListener('change', syncDreamUiVisibility);
   document.getElementById('dreamInput')?.addEventListener('input', syncDreamUiVisibility);
 
+  // Global bar (#giVideo) drives bestInput too — re-sync when it changes.
+  // Delegated on document (the bar is persistent) so it never stacks per-render.
+  const giVideo = document.getElementById('giVideo');
+  if (giVideo && !giVideo._dreamVisBound) {
+    giVideo._dreamVisBound = true;
+    giVideo.addEventListener('input', () => {
+      if (state.activeTab === 'deepdream') syncDreamUiVisibility();
+    });
+  }
+
   document.getElementById('btnDreamBrowseIn')?.addEventListener('click', () => {
     // Prefer all files so both images and videos are visible
     openFileBrowser('dreamInput', false, 'file', 'all');
@@ -721,6 +743,7 @@ function renderDeepDreamForm() {
   document.getElementById('btnDreamBrowseGuide')?.addEventListener('click', () => {
     openFileBrowser('dreamGuide', false, 'file', 'image');
   });
+  document.getElementById('btnDreamExportSettings')?.addEventListener('click', exportDeepDreamSettings);
 
   // Apply pending send-to path
   if (state.pendingInputPath && state.pendingInputTarget === 'deepdream') {
@@ -807,4 +830,28 @@ function collectDeepDreamBody() {
   });
 }
 
-export { DREAM_MODELS, renderDeepDreamForm, collectDeepDreamBody };
+function exportDeepDreamSettings() {
+  const body = collectDeepDreamBody();
+  if (!body) return; // collector already alerted
+  const json = JSON.stringify(body, null, 2);
+  // Copy to clipboard (best-effort)
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(json).then(
+      () => logConsole('[DEEPDREAM]: settings JSON copied to clipboard'),
+      () => {},
+    );
+  }
+  // Trigger a download
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'deepdream-settings.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  logConsole('[DEEPDREAM]: exported settings → deepdream-settings.json (+ clipboard)');
+}
+
+export { DREAM_MODELS, renderDeepDreamForm, collectDeepDreamBody, exportDeepDreamSettings };

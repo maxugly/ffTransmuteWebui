@@ -331,8 +331,8 @@ def dream_image(
                         f"(baseline loss {baseline_loss:.2f} already ≥ threshold; "
                         f"wrong scale for {model_name} — run full {n_it} steps)",
                         phase="ascent",
-                        current=i + 1,
-                        total=n_it,
+                        current=octave_i * n_it + i + 1,
+                        total=n_octaves * n_it,
                         unit="steps",
                     )
                     effective_max = None
@@ -341,7 +341,7 @@ def dream_image(
                     img, model_name, progress_cb,
                     f"ascent early-stop step {i + 1}/{n_it} loss={loss_f:.2f}",
                     evolve=evolve, evolve_kind="ascent",
-                    phase="ascent", current=i + 1, total=n_it, unit="steps",
+                    phase="ascent", current=octave_i * n_it + i + 1, total=n_octaves * n_it, unit="steps",
                 )
                 break
             if i == 0 or (i + 1) % live_every == 0 or i + 1 == n_it:
@@ -350,7 +350,7 @@ def dream_image(
                     f"ascent step {i + 1}/{n_it} loss={loss_f:.2f}"
                     + (f" (oct {octave_i + 1}/{n_octaves})" if n_octaves > 1 else ""),
                     evolve=evolve, evolve_kind="ascent",
-                    phase="ascent", current=i + 1, total=n_it, unit="steps",
+                    phase="ascent", current=octave_i * n_it + i + 1, total=n_octaves * n_it, unit="steps",
                 )
         return img
 

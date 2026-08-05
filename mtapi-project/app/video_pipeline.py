@@ -81,13 +81,18 @@ async def probe(input_path: str | Path) -> dict[str, Any]:
 
     has_audio = await _probe_has_audio(sp)
 
+    stat = Path(input_path).resolve().stat()
+
     return {
+        "ok": True,
         "fps": round(fps, 3),
         "duration": round(duration, 3),
         "frame_count": frame_count,
         "width": width,
         "height": height,
         "has_audio": has_audio,
+        "file_size": stat.st_size,
+        "file_mtime": stat.st_mtime,
     }
 
 
