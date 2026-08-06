@@ -391,11 +391,26 @@ async def encode(
         extra_vf=extra_vf,
     )
 
+    from . import job_control
+    token = job_control.current_token()
+    if token:
+        job_control.report_progress(
+            f"encode starting → {Path(out_path).name}",
+            phase="encode", current=0, total=1, unit="step", token=token,
+        )
+
     code, _, stderr = await run_command(argv)
     if code != 0:
         raise RuntimeError(
             f"ffmpeg encode failed (exit {code}): {stderr.strip() or 'no stderr'}"
         )
+
+    if token:
+        job_control.report_progress(
+            f"encode done",
+            phase="encode", current=1, total=1, unit="step", token=token,
+        )
+
 
     return out_path
 

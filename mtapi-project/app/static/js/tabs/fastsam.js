@@ -63,8 +63,12 @@ export function renderFastSAMForm() {
   });
 
   document.getElementById('fastsamInput').value = bestInput('');
-  window.api.onSelectFile('btnFastsamBrowseIn', 'fastsamInput', false);
-  window.api.onSelectFile('btnFastsamBrowseOut', 'fastsamOutput', true);
+  document.getElementById('btnFastsamBrowseIn')?.addEventListener('click', () => {
+    openFileBrowser('fastsamInput', false, 'file', 'all');
+  });
+  document.getElementById('btnFastsamBrowseOut')?.addEventListener('click', () => {
+    openFileBrowser('fastsamOutput', true, 'file', 'all');
+  });
 }
 
 export function collectFastSAMBody() {

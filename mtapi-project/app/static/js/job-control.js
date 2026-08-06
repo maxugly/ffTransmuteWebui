@@ -657,9 +657,41 @@ async function runActiveOperation() {
     'pool', 'sequence', 'images', 'cut', 'zoompan', 'notes', 'quick', 'watcher',
     'imagesort', 'txt2img', 'img2img', 'agent', 'jobs']);
 
-  let paths = [];
+  let initialPaths = [];
   if (batchField && !selfBatchTabs.has(tab)) {
-    paths = allInputPaths(batchField).filter(function(p) { return !!p; });
+    initialPaths = allInputPaths(batchField).filter(function(p) { return !!p; });
+  }
+
+  let paths = [];
+  if (initialPaths.length > 0) {
+    if (initialPaths.length === 1 && !selfBatchTabs.has(tab)) {
+      logConsole(`[BATCH]: Checking if input is a directory to expand...`);
+    }
+    for (let i = 0; i < initialPaths.length; i++) {
+      const p = initialPaths[i];
+      try {
+        const res = await fetch(`/api/pool/scan?path=${encodeURIComponent(p)}&recursive=false&kind=all`);
+        if (res.ok) {
+          const scan = await res.json();
+          if (scan.ok) {
+            // It is a directory!
+            if (scan.videos && scan.videos.length > 0) {
+              // Directory has videos -> batch process videos
+              paths.push(...scan.videos.map(v => v.path));
+              logConsole(`[BATCH]: Expanded directory ${p} -> ${scan.videos.length} videos`);
+              continue;
+            } else if (scan.images && scan.images.length > 0) {
+              // Directory has images but no videos -> keep the directory path (e.g. for image-sequence to video)
+              paths.push(p);
+              continue;
+            }
+          }
+        }
+      } catch (err) {
+        // ignore scan failures (probably not a dir)
+      }
+      paths.push(p);
+    }
   }
 
   const pathKey = (tab === 'advanced') ? 'input_arg'

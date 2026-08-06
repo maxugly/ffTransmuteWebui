@@ -438,6 +438,9 @@ function allInputPaths(fieldId) {
   if (!lines.length && (accepts === 'image' || accepts === 'any') && gi.image.trim()) {
     lines = splitLines(gi.image);
   }
+  if (!lines.length && gi.pathIn && gi.pathIn.trim()) {
+    lines = splitLines(gi.pathIn);
+  }
   if (!lines.length && fieldId) {
     const el = document.getElementById(fieldId);
     if (el) lines = splitLines(el.value);

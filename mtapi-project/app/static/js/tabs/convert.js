@@ -174,8 +174,12 @@ function renderConvertForm() {
     openFileBrowser('convertOutput', false, 'file_save', 'all');
   });
 
+  const inp = document.getElementById('convertInput');
+  if (inp) {
+    inp.value = bestInput('');
+  }
+
   if (state.pendingInputPath && state.pendingInputTarget === 'convert') {
-    const inp = document.getElementById('convertInput');
     if (inp) {
       inp.value = state.pendingInputPath;
       inp.dispatchEvent(new Event('input'));

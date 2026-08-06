@@ -42,8 +42,13 @@ async def make_fastsam_directory(conf: float = 0.4, iou: float = 0.9, device: st
             if img is None:
                 continue
             
+            # Map device for OpenVINO to bypass PyTorch CUDA checks (e.g. "GPU" -> "intel:gpu")
+            ov_device = device
+            if ov_device and not ov_device.lower().startswith("intel:") and ov_device.upper() != "CPU":
+                ov_device = f"intel:{ov_device.lower()}"
+                
             # Run inference
-            results = model(img, device=device, conf=conf, iou=iou)
+            results = model(img, device=ov_device, conf=conf, iou=iou)
             
             # Post-process: extract largest mask
             if results and len(results) > 0 and results[0].masks is not None:
