@@ -38,6 +38,8 @@ mtapi-project/
 
 **Read first for frame work:** repo `docs/filter-platform-spec.md` and `docs/resolve-transcode-spec.md`.  
 **Read first for libraries / Cut:** repo `docs/video-image-pools-spec.md` (as-built handoff).  
+**Read first for audio/variant features (Phase 1 & 2):** root `audio_stretch_engine_spec.md`, `audio_pipeline_architecture_spec.md`, `sequence_clip_variant_registry_spec.md`.  
+**Read first for sequence exports/RIFE:** root `sequence_codec_export_spec_2.0.md`, `sequence_rife_interpolation_spec.md`.  
 **Read first for “what’s done”:** repo `docs/STATUS.md`.
 
 ---
