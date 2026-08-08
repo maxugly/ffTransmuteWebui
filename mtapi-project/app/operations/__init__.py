@@ -28,4 +28,5 @@ from . import (  # noqa: F401
     rife_recohere_ops,
     cut_ops,
     fastsam_ops,
+    imageedit_ops,
 )

@@ -107,7 +107,7 @@ def main():
     print("extracting frames…")
     r = subprocess.run(
         ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-         "-i", str(input_path), "-vsync", "0", str(frames_dir / "f_%06d.png")],
+         "-i", str(input_path), "-fps_mode", "passthrough", str(frames_dir / "f_%06d.png")],
         capture_output=True, text=True,
     )
     if r.returncode != 0:

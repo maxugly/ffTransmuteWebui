@@ -66,6 +66,26 @@ class DeepDreamParams(EvolveRifeParams):
         description="Mix dreamed result with original (1 = full dream)",
     )
 
+    # ── Dynamic ramp (per-frame lerp on the video dream path) ──
+    # Each `*_to` is the end value the corresponding base knob ramps toward over
+    # the dumped clip. None = not ramping (constant, identical to today).
+    step_to: float | None = Field(
+        None, description="End step for per-frame linear ramp (video path only)")
+    iterations_to: float | None = Field(
+        None, description="End iterations for per-frame linear ramp (video path only)")
+    num_octave_to: float | None = Field(
+        None, description="End num_octave for per-frame linear ramp (video path only)")
+    octave_scale_to: float | None = Field(
+        None, description="End octave_scale for per-frame linear ramp (video path only)")
+    max_loss_to: float | None = Field(
+        None, description="End max_loss for per-frame linear ramp (video path only)")
+    blend_to: float | None = Field(
+        None, description="End blend for per-frame linear ramp (video path only)")
+    custom_layer_weights_to: dict[str, float] | None = Field(
+        None,
+        description="End custom layer weights (lerped per key, absent key = 0.0)",
+    )
+
     # Binary-style options
     jitter: bool = Field(True, description="Random roll jitter during ascent (stabilizes)")
     reinject_detail: bool = Field(True, description="Reinject lost detail between octaves")
@@ -273,6 +293,14 @@ async def _dream_video(
             optical_flow=p.optical_flow,
             layer_cycle=p.layer_cycle,
             frame_step=p.frame_step,
+            total_frames=len(frames),
+            step_to=p.step_to,
+            iterations_to=p.iterations_to,
+            num_octave_to=p.num_octave_to,
+            octave_scale_to=p.octave_scale_to,
+            max_loss_to=p.max_loss_to,
+            blend_to=p.blend_to,
+            custom_layer_weights_to=p.custom_layer_weights_to,
         )
 
         def _progress(current: int, total_n: int) -> None:

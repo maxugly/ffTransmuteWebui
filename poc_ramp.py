@@ -10,7 +10,7 @@ END = 0.333               # spin_down: end slow
 
 # Dump frames
 tmp = tempfile.mkdtemp(prefix="poc_")
-subprocess.run(["ffmpeg","-y","-v","error","-i",SRC,"-an","-vsync","0",
+subprocess.run(["ffmpeg","-y","-v","error","-i",SRC,"-an","-fps_mode","passthrough",
     "-start_number","0",f"{tmp}/src_%06d.png"], check=True)
 pngs = sorted(f for f in os.listdir(tmp) if f.endswith(".png"))
 total = len(pngs)

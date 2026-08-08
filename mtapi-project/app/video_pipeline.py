@@ -170,7 +170,7 @@ async def dump(
         # Frame-accurate range; renumber timestamps so encode sees a clean sequence
         argv.extend([
             "-vf", f"select='between(n\\,{n0}\\,{n1})',setpts=PTS-STARTPTS",
-            "-vsync", "vfr",
+            "-fps_mode", "vfr",
         ])
     else:
         argv.extend(["-fps_mode", "passthrough"])

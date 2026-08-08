@@ -44,6 +44,7 @@ import { renderImageSortForm, collectImageSortBody } from '/js/tabs/imagesort.js
 import { renderImgCompareForm } from '/js/tabs/imgcompare.js';
 import { renderNotesForm } from '/js/tabs/notes.js';
 import { renderJobsForm, stopJobsPoll } from '/js/tabs/jobs.js';
+import { renderImageEditForm, collectImageEditBody } from '/js/tabs/imageedit.js';
 import { refreshInputPreview, bindInputPreviewListeners } from '/js/ui/input-preview.js';
 import { setupNavSectionCollapse, ensureNavSectionForTab } from '/js/ui/nav-sections.js';
 import {
@@ -200,6 +201,11 @@ let state = {
     overlayOpacity: 50,
     abPosition: 50,
   },
+  imageEdit: {
+    engine: 'ffmpeg', // 'ffmpeg', 'imagemagick', 'pillow'
+    outputFormat: 'png',
+    stack: [], // operations stack
+  },
 };
 
 
@@ -286,6 +292,7 @@ const TAB_ACCEPTS = {
   convert:     'any',
   cut:         'video',
   imagesort:   'image',
+  imageedit:   'image',
   imgcompare:  'image',
   zoompan:     'image',
   notes:       'none',
@@ -655,6 +662,7 @@ function switchTab(tab) {
   if (tab === 'cut') title = 'Cut';
   if (tab === 'imagesort') title = 'Image Sort → Video';
   if (tab === 'imgcompare') title = 'Image Compare';
+  if (tab === 'imageedit') title = 'Image Edit';
   if (tab === 'zoompan') title = 'Pan & Zoom';
   if (tab === 'jobs') title = 'Jobs · Queue';
   if (tab === 'notes') title = 'Notes';
@@ -766,6 +774,8 @@ function renderTabForm(tab) {
     renderZoompanForm();
   } else if (tab === 'imagesort') {
     renderImageSortForm();
+  } else if (tab === 'imageedit') {
+    renderImageEditForm();
   } else if (tab === 'imgcompare') {
     renderImgCompareForm();
   } else if (tab === 'jobs') {

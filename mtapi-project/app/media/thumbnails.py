@@ -48,7 +48,7 @@ def _last_frame_ffmpeg_cmds(
     vf = ["-vf", scale] if scale else []
     common_tail = [
         "-an", "-sn",
-        "-vsync", "0",
+        "-fps_mode", "passthrough",
         *vf,
         "-update", "1",
         "-q:v", str(q),
@@ -118,18 +118,33 @@ async def extract_frame(path: Path, out_path: Path, which: str) -> bool:
     return False
 
 
-async def ensure_thumbs(content_hash: str, source_path: Path, which: str | None = None) -> dict[str, bool]:
+async def ensure_thumbs(
+    content_hash: str,
+    source_path: Path,
+    which: str | None = None,
+    record: dict | None = None,
+) -> dict[str, bool]:
     """Generate missing (or stale last-frame) thumbs for this hash. which=None means both."""
     wanted = [which] if which in ("first", "last") else ["first", "last"]
     result = {}
+    
+    rec = record if record is not None else load_record(content_hash)
+    failed_flags = rec.get("thumb_failed", {}) if rec else {}
+
     if "last" in wanted:
         _invalidate_stale_last_thumb(content_hash)
 
+    needs_save = False
     for w in wanted:
         tp = _thumb_path(content_hash, w)
         if _thumb_is_current(content_hash, w):
             result[w] = True
             continue
+            
+        if failed_flags.get(w) == FRAME_EXTRACT_VERSION:
+            result[w] = False
+            continue
+
         ok = await extract_frame(source_path, tp, w)
         result[w] = ok
         if ok:
@@ -143,7 +158,14 @@ async def ensure_thumbs(content_hash: str, source_path: Path, which: str | None 
                     pass
         else:
             log.warning("thumb %s failed for %s (%s)", w, content_hash, source_path)
-    await ensure_phashes(content_hash, source_path, which=which)
+            if rec is not None:
+                rec.setdefault("thumb_failed", {})[w] = FRAME_EXTRACT_VERSION
+                needs_save = True
+
+    if needs_save and record is None and rec is not None:
+        save_record(rec)
+
+    await ensure_phashes(content_hash, source_path, which=which, record=rec)
     return result
 
 
@@ -204,10 +226,15 @@ async def ensure_phashes(
     content_hash: str,
     source_path: Path | None = None,
     which: str | None = None,
+    record: dict | None = None,
 ) -> dict[str, str | None]:
     """Ensure first/last.phash exist (from thumbs; extract thumbs if needed)."""
     wanted = [which] if which in ("first", "last") else ["first", "last"]
     out: dict[str, str | None] = {}
+    
+    rec = record if record is not None else load_record(content_hash)
+    failed_flags = rec.get("thumb_failed", {}) if rec else {}
+
     for w in wanted:
         existing = load_phash(content_hash, w)
         if existing:
@@ -215,7 +242,10 @@ async def ensure_phashes(
             continue
         tp = _thumb_path(content_hash, w)
         if not (tp.exists() and tp.stat().st_size > 0):
-            if source_path and source_path.is_file():
+            if source_path and source_path.is_file() and failed_flags.get(w) != FRAME_EXTRACT_VERSION:
+                # If we get here and it fails, ensure_thumbs didn't catch it,
+                # but we'll try once and then it'll fail the exists check below.
+                # Ideally ensure_thumbs handles the failure caching.
                 await extract_frame(source_path, tp, w)
         if tp.exists() and tp.stat().st_size > 0:
             hex_h = await asyncio.to_thread(_compute_phash_hex, tp)
@@ -226,13 +256,14 @@ async def ensure_phashes(
                 out[w] = None
         else:
             out[w] = None
-    rec = load_record(content_hash)
+
     if rec is not None:
         rec.setdefault("phashes", {})
         for w, h in out.items():
             if h:
                 rec["phashes"][w] = h
-        save_record(rec)
+        if record is None:
+            save_record(rec)
     return out
 
 
@@ -422,7 +453,7 @@ async def extract_frame_at(
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
         "-i", str(path),
         "-vf", f"select=eq(n\\,{n0}),{scale}",
-        "-vsync", "vfr",
+        "-fps_mode", "vfr",
         "-frames:v", "1",
         "-q:v", "4",
         str(out_path),

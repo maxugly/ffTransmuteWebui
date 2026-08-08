@@ -64,7 +64,7 @@ async def open_media(
                 record["meta_error"] = meta.get("error")
 
         if ensure_thumbs_flag:
-            thumbs = await ensure_thumbs(content_hash, path)
+            thumbs = await ensure_thumbs(content_hash, path, record=record)
             record.setdefault("thumbs", {}).update(thumbs)
 
         if record_open:

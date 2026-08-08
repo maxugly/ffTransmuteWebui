@@ -21,6 +21,7 @@ import { collectZoompanBody } from '/js/tabs/zoompan.js';
 import { collectImageSortBody } from '/js/tabs/imagesort.js';
 import { collectCutBody } from '/js/tabs/cut.js';
 import { collectFastSAMBody } from '/js/tabs/fastsam.js';
+import { collectImageEditBody } from '/js/tabs/imageedit.js';
 import { activeTransmuteOp, transmuteOpsDetails, activeMultiMode } from '/js/tabs/transmute.js';
 import { collectDeepDreamBody } from '/js/tabs/deepdream.js';
 // ── Job run / cooperative stop ────────────────────────────────────────────
@@ -600,6 +601,11 @@ function resolveActiveOpAndBody() {
     const bb = collectCutBody();
     if (!bb) { error = "Please provide valid input for Cut."; return { opId: '', body: null, error }; }
     opId = 'cut';
+    body = bb;
+  } else if (tab === 'imageedit') {
+    const bb = collectImageEditBody();
+    if (!bb) { error = "Please provide valid input for Image Edit."; return { opId: '', body: null, error }; }
+    opId = 'imageedit';
     body = bb;
   } else if (tab === 'advanced') {
     const input = bestInput('advInput');

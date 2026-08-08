@@ -114,6 +114,7 @@ function renderDeepDreamForm() {
         ${knobUnitHtml({ id: 'dreamDetail', label: 'Detail', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
         ${knobUnitHtml({ id: 'dreamAudio', label: 'Audio', value: '1', binary: true, leftCap: 'Drop', rightCap: 'Keep' })}
         ${knobUnitHtml({ id: 'dreamDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+        ${knobUnitHtml({ id: 'dreamDynamic', label: 'Dynamic', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
       </div>
       <p class="knob-row-legend">Detect=Auto uses extension. Force uses Media knob.</p>
     </div>
@@ -131,6 +132,21 @@ function renderDeepDreamForm() {
       <p class="knob-row-legend">Ascent knobs. Preview W 0 = full width.</p>
     </div>
 
+    <div class="knob-row dream-dynamic-only" id="dreamDynamicRampRow">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'dreamStepTo', label: 'Step →', value: '0.01' })}
+        ${knobUnitHtml({ id: 'dreamItersTo', label: 'Iters →', value: '20' })}
+        ${knobUnitHtml({ id: 'dreamOctavesTo', label: 'Octaves →', value: '3' })}
+        ${knobUnitHtml({ id: 'dreamOctScaleTo', label: 'OctScale →', value: '1.4' })}
+        ${knobUnitHtml({ id: 'dreamMaxLossTo', label: 'MaxLoss →', value: '0' })}
+        ${knobUnitHtml({ id: 'dreamBlendTo', label: 'Blend →', value: '1.0' })}
+      </div>
+      <p class="knob-row-legend dream-dynamic-only">
+        <strong>Dynamic ramp</strong> (video only): the start values above lerp to
+        these end values per frame across the clip.
+      </p>
+    </div>
+
     <div class="form-row">
       <label for="dreamModel">Model</label>
       <select id="dreamModel">
@@ -145,6 +161,9 @@ function renderDeepDreamForm() {
 
     <div class="dream-section-title dream-layer-weights" id="dreamLayerWeightsTitle">Custom layer weights</div>
     <div class="knob-bank dream-layer-weights" id="dreamLayerWeightsBank"></div>
+
+    <div class="dream-section-title dream-layer-weights dream-dynamic-only" id="dreamLayerWeightsTitleTo">Custom layer weights → (end)</div>
+    <div class="knob-bank dream-layer-weights dream-dynamic-only" id="dreamLayerWeightsBankTo"></div>
 
     <div class="knob-row dream-video-only" id="dreamVideoBank">
       <div class="knob-bank">
@@ -542,6 +561,30 @@ function renderDeepDreamForm() {
     min: 0, max: 1, step: 0.05, decimals: 2,
   });
   setupContinuousKnob({
+    knobId: 'dreamStepToKnob', indicatorId: 'dreamStepToKnobInd', valueId: 'dreamStepToVal', hiddenId: 'dreamStepTo',
+    min: 0.001, max: 0.1, step: 0.001, decimals: 3,
+  });
+  setupContinuousKnob({
+    knobId: 'dreamItersToKnob', indicatorId: 'dreamItersToKnobInd', valueId: 'dreamItersToVal', hiddenId: 'dreamItersTo',
+    min: 1, max: 100, step: 1, decimals: 0,
+  });
+  setupContinuousKnob({
+    knobId: 'dreamOctavesToKnob', indicatorId: 'dreamOctavesToKnobInd', valueId: 'dreamOctavesToVal', hiddenId: 'dreamOctavesTo',
+    min: 1, max: 8, step: 1, decimals: 0,
+  });
+  setupContinuousKnob({
+    knobId: 'dreamOctScaleToKnob', indicatorId: 'dreamOctScaleToKnobInd', valueId: 'dreamOctScaleToVal', hiddenId: 'dreamOctScaleTo',
+    min: 1.1, max: 2.0, step: 0.05, decimals: 2,
+  });
+  setupContinuousKnob({
+    knobId: 'dreamMaxLossToKnob', indicatorId: 'dreamMaxLossToKnobInd', valueId: 'dreamMaxLossToVal', hiddenId: 'dreamMaxLossTo',
+    min: 0, max: 50, step: 0.5, decimals: 1, format: (v) => (v <= 0 ? 'off' : v.toFixed(1)),
+  });
+  setupContinuousKnob({
+    knobId: 'dreamBlendToKnob', indicatorId: 'dreamBlendToKnobInd', valueId: 'dreamBlendToVal', hiddenId: 'dreamBlendTo',
+    min: 0, max: 1, step: 0.05, decimals: 2,
+  });
+  setupContinuousKnob({
     knobId: 'dreamFrameStepKnob', indicatorId: 'dreamFrameStepKnobInd', valueId: 'dreamFrameStepVal', hiddenId: 'dreamFrameStep',
     min: 1, max: 30, step: 1, decimals: 0,
   });
@@ -614,6 +657,10 @@ function renderDeepDreamForm() {
     leftValue: '0', rightValue: '1', initial: '0',
   });
   setupBinaryKnob({
+    knobId: 'dreamDynamicKnob', indicatorId: 'dreamDynamicKnobInd', hiddenId: 'dreamDynamic',
+    leftValue: '0', rightValue: '1', initial: '0',
+  });
+  setupBinaryKnob({
     knobId: 'dreamOuroKnob', indicatorId: 'dreamOuroKnobInd', hiddenId: 'dreamOuro',
     leftValue: '0', rightValue: '1', initial: '0',
   });
@@ -676,6 +723,25 @@ function renderDeepDreamForm() {
         if (hid) hid.dataset.layerName = L.id;
       });
     }
+    const bankTo = document.getElementById('dreamLayerWeightsBankTo');
+    if (bankTo) {
+      bankTo.innerHTML = spec.layers.map((L) => {
+        const safeId = `dreamLTo_${L.id.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+        return knobUnitHtml({ id: safeId, label: L.label, value: String(L.def) });
+      }).join('');
+      spec.layers.forEach((L) => {
+        const safeId = `dreamLTo_${L.id.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+        setupContinuousKnob({
+          knobId: `${safeId}Knob`,
+          indicatorId: `${safeId}KnobInd`,
+          valueId: `${safeId}Val`,
+          hiddenId: safeId,
+          min: 0, max: 5, step: 0.1, decimals: 1,
+        });
+        const hid = document.getElementById(safeId);
+        if (hid) hid.dataset.layerName = L.id;
+      });
+    }
   }
 
   function syncDreamUiVisibility() {
@@ -708,6 +774,11 @@ function renderDeepDreamForm() {
     document.querySelectorAll('.dream-video-only').forEach((el) => {
       el.classList.toggle('hidden', !showVideo);
     });
+
+    const dynamic = document.getElementById('dreamDynamic')?.value === '1';
+    document.querySelectorAll('.dream-dynamic-only').forEach((el) => {
+      el.classList.toggle('hidden', !(dynamic && showVideo));
+    });
   }
 
   rebuildLayerUiForModel(document.getElementById('dreamModel')?.value || 'inception_v3');
@@ -721,6 +792,7 @@ function renderDeepDreamForm() {
   document.getElementById('dreamAutoDetect')?.addEventListener('change', syncDreamUiVisibility);
   document.getElementById('dreamMedia')?.addEventListener('change', syncDreamUiVisibility);
   document.getElementById('dreamOuro')?.addEventListener('change', syncDreamUiVisibility);
+  document.getElementById('dreamDynamic')?.addEventListener('change', syncDreamUiVisibility);
   document.getElementById('dreamInput')?.addEventListener('input', syncDreamUiVisibility);
 
   // Global bar (#giVideo) drives bestInput too — re-sync when it changes.
@@ -788,7 +860,9 @@ function collectDeepDreamBody() {
     if (name && Number.isFinite(w) && w > 0) custom_layer_weights[name] = w;
   });
 
-  return withFrameRange({
+  const dynamic = document.getElementById('dreamDynamic')?.value === '1';
+
+  const body = withFrameRange({
     input_path: input,
     output_path: output,
     media_kind,
@@ -828,6 +902,28 @@ function collectDeepDreamBody() {
     evolve_max_candidates: 500,
     ...collectEvolveRifeFields('dreamEvolve'),
   });
+
+  // Dynamic ramp: emit *_to endpoints ONLY when Dynamic is On.
+  // Off → body is byte-identical to the pre-ramp payload (no *_to keys).
+  if (dynamic) {
+    body.step_to = parseFloat(document.getElementById('dreamStepTo')?.value || body.step);
+    body.iterations_to = parseInt(document.getElementById('dreamItersTo')?.value || body.iterations, 10);
+    body.num_octave_to = parseInt(document.getElementById('dreamOctavesTo')?.value || body.num_octave, 10);
+    body.octave_scale_to = parseFloat(document.getElementById('dreamOctScaleTo')?.value || body.octave_scale);
+    body.max_loss_to = parseFloat(document.getElementById('dreamMaxLossTo')?.value || body.max_loss);
+    body.blend_to = parseFloat(document.getElementById('dreamBlendTo')?.value || body.blend);
+    if (layer_preset === 'custom') {
+      const toWeights = {};
+      document.querySelectorAll('#dreamLayerWeightsBankTo input[type="hidden"][data-layer-name]').forEach((el) => {
+        const name = el.dataset.layerName;
+        const w = parseFloat(el.value);
+        if (name && Number.isFinite(w) && w > 0) toWeights[name] = w;
+      });
+      body.custom_layer_weights_to = toWeights;
+    }
+  }
+
+  return body;
 }
 
 function exportDeepDreamSettings() {

@@ -413,6 +413,15 @@ async def _probe_has_audio(path: str) -> bool:
     return code == 0 and "audio" in out.strip().lower()
 
 
+async def _probe_has_video(path: str) -> bool:
+    """True only when ffprobe reports an actual video stream (not merely exit 0)."""
+    code, out, _ = await run_command([
+        "ffprobe", "-v", "error", "-select_streams", "v",
+        "-show_entries", "stream=codec_type", "-of", "csv=p=0", path,
+    ])
+    return code == 0 and "video" in out.strip().lower()
+
+
 async def _slice_segment(
     input_path: str,
     output_path: str,
@@ -552,6 +561,7 @@ async def _trim_and_mosh(
             ok_c
             and os.path.exists(tmp_c)
             and os.path.getsize(tmp_c) > 1000
+            and await _probe_has_video(tmp_c)
         )
 
         # Concat the non-empty segments in timeline order.  Part A is absent
@@ -569,6 +579,15 @@ async def _trim_and_mosh(
         # Moshed B may drop audio even when the source had it.
         segment_audio = [await _probe_has_audio(seg) for seg in segments]
         use_audio = bool(segment_audio) and all(segment_audio)
+
+        # Defensive: concat=n=N needs a real [i:v] per input or ffmpeg dies
+        # with "matches no streams". Drop any segment that lost its video
+        # stream (e.g. a zero-duration tail from end_time at/after the last
+        # source frame — common on kdenlive exports mosh-covered to the end).
+        segments = [s for s in segments if await _probe_has_video(s)]
+        if not segments:
+            return OperationResult(ok=False, operation=operation,
+                                   error="Concat failed: no video segments to join")
 
         inputs: list[str] = []
         video_labels: list[str] = []

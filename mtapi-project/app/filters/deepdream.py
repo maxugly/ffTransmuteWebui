@@ -16,6 +16,20 @@ from PIL import Image as PILImage
 from . import register_stage
 
 
+def _lerp(a: float, b: float, t: float) -> float:
+    return a + (b - a) * t
+
+
+def _lerp_dict(from_w, to_w, t: float) -> dict[str, float]:
+    """Key-union lerp. A key absent on either side defaults to 0.0."""
+    from_w = from_w or {}
+    to_w = to_w or {}
+    out: dict[str, float] = {}
+    for k in set(from_w.keys()) | set(to_w.keys()):
+        out[k] = _lerp(float(from_w.get(k, 0.0)), float(to_w.get(k, 0.0)), t)
+    return out
+
+
 def make_deepdream_filter(
     *,
     # dream_image kwargs (passed through)
@@ -37,6 +51,16 @@ def make_deepdream_filter(
     optical_flow: bool = False,
     layer_cycle: bool = False,
     frame_step: int = 1,
+    # dynamic ramp endpoints (None = not ramping → constant from value)
+    step_to: float | None = None,
+    iterations_to: float | None = None,
+    num_octave_to: float | None = None,
+    octave_scale_to: float | None = None,
+    max_loss_to: float | None = None,
+    blend_to: float | None = None,
+    custom_layer_weights_from: dict[str, float] | None = None,
+    custom_layer_weights_to: dict[str, float] | None = None,
+    total_frames: int | None = None,
     **_extra: Any,
 ):
     """Return a per_frame FilterFn with optional temporal state."""
@@ -77,6 +101,18 @@ def make_deepdream_filter(
     frame_step = max(1, int(frame_step))
     use_temporal = (not optical_flow) and (0.0 <= float(temporal_blend) < 1.0 - 1e-9)
 
+    # Per-knob ramp endpoints: only keys with a non-None `_to` actually ramp.
+    ramp_to = {k: v for k, v in {
+        "step": step_to,
+        "iterations": iterations_to,
+        "num_octave": num_octave_to,
+        "octave_scale": octave_scale_to,
+        "max_loss": max_loss_to,
+        "blend": blend_to,
+    }.items() if v is not None}
+
+    ramp_from_layers = custom_layer_weights_from if custom_layer_weights_from is not None else base_layers
+
     last_dream_arr = None
     last_src_arr = None
     seed_dir: Path | None = None
@@ -87,6 +123,28 @@ def make_deepdream_filter(
         if index % frame_step != 0:
             shutil.copy2(src, dst)
             return
+
+        t = (index / (total_frames - 1)) if total_frames and total_frames > 1 else 0.0
+
+        frame_kwargs = dict(image_kwargs)
+        if ramp_to:
+            for name, to_v in ramp_to.items():
+                v = _lerp(float(frame_kwargs[name]), float(to_v), t)
+                if name in ("iterations", "num_octave"):
+                    v = int(round(v))
+                elif name == "blend":
+                    v = max(0.0, min(1.0, v))
+                elif name == "max_loss":
+                    v = v if v >= 0 else 0.0
+                frame_kwargs[name] = v
+        if custom_layer_weights_to is not None:
+            frame_kwargs["layer_weights"] = _lerp_dict(
+                ramp_from_layers, custom_layer_weights_to, t
+            )
+        else:
+            frame_kwargs["layer_weights"] = _cycle_layer_weights(
+                base_layers, index, bool(layer_cycle)
+            )
 
         curr_src = np.asarray(PILImage.open(src).convert("RGB"))
         dream_src: Path = src
@@ -107,11 +165,6 @@ def make_deepdream_filter(
             seed_path = seed_dir / f"seed_{index:06d}.png"
             PILImage.fromarray(blended).save(seed_path)
             dream_src = seed_path
-
-        frame_kwargs = dict(image_kwargs)
-        frame_kwargs["layer_weights"] = _cycle_layer_weights(
-            base_layers, index, bool(layer_cycle)
-        )
 
         await asyncio.to_thread(
             dream_image, dream_src, dst, progress_cb=None, **frame_kwargs
