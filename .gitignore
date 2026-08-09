@@ -55,5 +55,8 @@ mtapi-project/join-*.mp4
 # Agent runtime lock state
 mtapi-project/.codewhale/state/*.lock
 .playwright-mcp/
-mtapi-project/bin/realesrgan-ncnn-vulkan\nmtapi-project/bin/realsr-ncnn-vulkan\nmtapi-project/bin/srmd-ncnn-vulkan
+mtapi-project/bin/realesrgan-ncnn-vulkan\nmtapi-project/bin/realesr-ncnn-vulkan\nmtapi-project/bin/srmd-ncnn-vulkan
 .aider*
+
+# Node modules
+/node_modules/
