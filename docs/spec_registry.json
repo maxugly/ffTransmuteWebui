@@ -332,7 +332,7 @@
         "file": "resolve-transcode-spec.md",
         "path": "docs/resolve-transcode-spec.md",
         "category": "Operation",
-        "status": "Spec ready for implementation",
+        "status": "Implemented",
         "summary": "Convert / Export tab as user-facing bookends of shared video_pipeline (dump/encode) used by filters and PipelineChain. Encode presets (ProRes, DNxHR, H.264/AVC, HEVC, VP9, AV1, FFV1); durable frame dump/import (PNG pipeline-native + WebP/JPG/TIFF); GIF in. Engine-first in Python; optional transmute -C. Not a second ffmpeg stack."
     },
     {
