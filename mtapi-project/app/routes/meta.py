@@ -146,6 +146,34 @@ def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY
         variants = await media_cache.get_variants(Path(path).expanduser().resolve())
         return {"path": str(Path(path).resolve()), "variants": variants}
 
+    @app.post("/api/open-folder", tags=["meta"])
+    async def open_folder(body: dict):
+        path = body.get("path")
+        if not path:
+            raise HTTPException(status_code=400, detail="path is required")
+        import os
+        import platform
+        import subprocess
+        p = Path(path).expanduser().resolve()
+        
+        # If the path is a file, open its parent directory instead
+        if p.is_file():
+            p = p.parent
+            
+        if not p.is_dir():
+            return {"ok": False, "error": f"Directory not found: {p}"}
+            
+        try:
+            if platform.system() == "Windows":
+                os.startfile(str(p))
+            elif platform.system() == "Darwin":
+                subprocess.Popen(["open", str(p)])
+            else:
+                subprocess.Popen(["xdg-open", str(p)])
+            return {"ok": True, "path": str(p)}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
     @app.get("/health", tags=["meta"])
     async def health() -> dict:
         warnings = check_tools()

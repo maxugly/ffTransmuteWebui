@@ -524,11 +524,24 @@ function setupEventListeners() {
     elements.consoleBody.innerHTML = '~ terminal cleared';
   });
 
-  // Folder Opening Shortcut (Simulated info)
-  elements.btnOpenFolder.addEventListener('click', () => {
+  // Folder Opening Shortcut
+  elements.btnOpenFolder.addEventListener('click', async () => {
     const path = elements.mediaPath.textContent;
     if (path) {
-      logConsole(`Output folder: ${path.substring(0, path.lastIndexOf('/'))}`);
+      logConsole(`Opening folder for: ${path}`);
+      try {
+        const res = await fetch('/api/open-folder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: path })
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          logConsole(`[ERROR] Failed to open folder: ${data.error}`);
+        }
+      } catch (err) {
+        logConsole(`[ERROR] Network error opening folder: ${err.message}`);
+      }
     }
   });
 
