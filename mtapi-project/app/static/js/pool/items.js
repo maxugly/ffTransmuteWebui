@@ -154,6 +154,7 @@ function addPathsToPool(paths) {
   let added = 0;
   let skipped = 0;
   const existingPaths = new Set(state.pool.items.map(i => i.path));
+  let firstNew = null;
 
   for (const raw of paths) {
     if (!raw) continue;
@@ -175,12 +176,13 @@ function addPathsToPool(paths) {
       meta: null,
       hash: null,
     });
+    if (!firstNew) firstNew = path;
     added++;
   }
 
   logConsole(`[POOL]: +${added} video(s)${skipped ? `, skipped ${skipped}` : ''}`);
   if (added > 0) scheduleSavePoolState();
-  return added;
+  return { added, firstNew };
 }
 
 async function importPoolFiles() {
@@ -197,11 +199,10 @@ async function importPoolFiles() {
       logConsole('[POOL]: File import cancelled');
       return;
     }
-    addPathsToPool(paths);
+    const { firstNew } = addPathsToPool(paths);
     if (state.activeTab === 'pool') {
       renderPoolForm();
-      const lastAdded = state.pool.items[state.pool.items.length - 1];
-      if (lastAdded) selectPoolItem(lastAdded.path);
+      if (firstNew) selectPoolItem(firstNew);
     } else if (state.activeTab === 'sequence') {
       import('/js/pool/grid.js').then(m => { m.renderSequenceForm(); });
     }
@@ -238,20 +239,16 @@ async function importPoolFolder() {
       return;
     }
     const sizeMap = new Map((scan.videos || []).map(v => [v.path, v.size]));
-    const before = state.pool.items.length;
-    addPathsToPool(paths);
+    const { added, firstNew } = addPathsToPool(paths);
     state.pool.items.forEach(item => {
       if (item.size == null && sizeMap.has(item.path)) {
         item.size = sizeMap.get(item.path);
       }
     });
-    logConsole(`[POOL]: Folder import from ${dir} (${state.pool.items.length - before} new)`);
+    logConsole(`[POOL]: Folder import from ${dir} (${added} new)`);
     if (state.activeTab === 'pool') {
       renderPoolForm();
-      if (before < state.pool.items.length) {
-        const lastAdded = state.pool.items[state.pool.items.length - 1];
-        if (lastAdded) selectPoolItem(lastAdded.path);
-      }
+      if (firstNew) selectPoolItem(firstNew);
     } else if (state.activeTab === 'sequence') {
       import('/js/pool/grid.js').then(m => { m.renderSequenceForm(); });
     }

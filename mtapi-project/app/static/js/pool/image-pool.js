@@ -140,6 +140,7 @@ function addPathsToImagePool(paths) {
   let added = 0;
   let skipped = 0;
   const existing = new Set(ip.items.map(i => i.path));
+  let firstNew = null;
 
   for (const raw of paths) {
     if (!raw) continue;
@@ -163,12 +164,13 @@ function addPathsToImagePool(paths) {
     };
     ip.items.push(item);
     loadImageItemMeta(item);
+    if (!firstNew) firstNew = path;
     added++;
   }
 
   logConsole(`[IMAGE POOL]: +${added} image(s)${skipped ? `, skipped ${skipped}` : ''}`);
   if (added > 0) scheduleSavePoolState();
-  return added;
+  return { added, firstNew };
 }
 
 function selectImageItem(path) {
@@ -191,7 +193,11 @@ function selectImageItem(path) {
     return;
   }
 
-  if (state.activeTab === 'images') renderImagePoolGrid();
+  if (state.activeTab === 'images') {
+    renderImagePoolGrid();
+    const card = Array.from(document.querySelectorAll('.img-pool-card')).find(c => c.dataset.path === path);
+    if (card?.scrollIntoView) card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
 }
 
 function removeImageItem(idx) {
@@ -232,11 +238,10 @@ async function importImageFiles() {
       logConsole('[IMAGE POOL]: File import cancelled');
       return;
     }
-    addPathsToImagePool(paths);
+    const { firstNew } = addPathsToImagePool(paths);
     if (state.activeTab === 'images') {
       renderImagePoolForm();
-      const last = ensureImagePool().items[ensureImagePool().items.length - 1];
-      if (last) selectImageItem(last.path);
+      if (firstNew) selectImageItem(firstNew);
     }
   } catch (err) {
     logConsole(`[IMAGE POOL ERROR]: ${err.message}`, 'error');
@@ -273,15 +278,17 @@ async function importImageFolder() {
       return;
     }
     const sizeMap = new Map((scan.images || []).map(v => [v.path, v.size]));
-    const before = ensureImagePool().items.length;
-    addPathsToImagePool(paths);
+    const { added, firstNew } = addPathsToImagePool(paths);
     ensureImagePool().items.forEach(item => {
       if (item.size == null && sizeMap.has(item.path)) {
         item.size = sizeMap.get(item.path);
       }
     });
-    logConsole(`[IMAGE POOL]: Folder import from ${dir} (${ensureImagePool().items.length - before} new)`);
-    if (state.activeTab === 'images') renderImagePoolForm();
+    logConsole(`[IMAGE POOL]: Folder import from ${dir} (${added} new)`);
+    if (state.activeTab === 'images') {
+      renderImagePoolForm();
+      if (firstNew) selectImageItem(firstNew);
+    }
   } catch (err) {
     logConsole(`[IMAGE POOL ERROR]: ${err.message}`, 'error');
     alert(`Folder import failed: ${err.message}`);
