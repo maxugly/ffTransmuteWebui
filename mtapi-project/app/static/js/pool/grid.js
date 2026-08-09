@@ -18,6 +18,7 @@ import {
   moveSelectedInSequence, removeSequenceAt, updateSeqClipSettings,
   onSeqClipDurationChange, applySeqTokenTimeStyles,
   seqPlay, seqPause, seqStop, seqPrev, seqNext,
+  _maybeAutoRifeAll,
 } from '/js/pool/sequence.js';
 import {
   loadPoolItemMeta, selectPoolItem, removePoolItem, clearPool,
@@ -333,12 +334,24 @@ function _bindSequencePanel() {
   });
   document.getElementById('poolUseRife')?.addEventListener('change', (e) => {
     state.pool.useRife = e.target.checked;
+    if (e.target.checked) {
+      const inst = document.getElementById('poolInstantRife');
+      if (inst && !inst.checked) {
+        inst.checked = true;
+        state.pool.instantRife = true;
+      }
+    }
+    scheduleSavePoolState();
+  });
+  document.getElementById('poolInstantRife')?.addEventListener('change', (e) => {
+    state.pool.instantRife = e.target.checked;
     scheduleSavePoolState();
   });
   document.getElementById('poolTargetFps')?.addEventListener('input', (e) => {
     const v = parseFloat(e.target.value);
     state.pool.targetFps = (v > 0) ? v : null;
     scheduleSavePoolState();
+    _maybeAutoRifeAll();
   });
 
   document.getElementById('matchDistance')?.addEventListener('input', (e) => {
@@ -530,6 +543,9 @@ function _composeHtml() {
               </label>
               <label class="checkbox-label" title="Interpolate low-fps clips to target_fps with RIFE before stitch">
                 <input type="checkbox" id="poolUseRife"> RIFE interpolate
+              </label>
+              <label class="checkbox-label" title="Auto-run RIFE immediately when a clip needs it (instead of waiting for Stitch)">
+                <input type="checkbox" id="poolInstantRife"> Instant RIFE
               </label>
               <label class="pool-opt-label" title="Exact output fps (RIFE overshoots to 2^k then resamples; max ~128× source)">RIFE fps
                 <input type="number" id="poolTargetFps" min="1" step="1" placeholder="auto = max native" class="seq-clip-dur-input">

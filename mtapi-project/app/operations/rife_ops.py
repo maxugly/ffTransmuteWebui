@@ -33,6 +33,7 @@ class RifeParams(BaseModel):
     start_frame: int = start_frame_field()
     end_frame: int = end_frame_field()
     dry_run: bool = Field(False, description="Print command only")
+    register_as_variant: bool = Field(False, description="Register output as 'rifed' variant of input")
 
 
 async def rife_interpolate(p: RifeParams) -> OperationResult:
@@ -55,7 +56,7 @@ async def rife_interpolate(p: RifeParams) -> OperationResult:
         multiplier=p.multiplier, model=p.model, tta=p.tta, uhd=p.uhd,
     )
 
-    return await run_staged_job(
+    result = await run_staged_job(
         op_id="rife",
         prefix="rife_",
         input_path=input_path,
@@ -69,6 +70,27 @@ async def rife_interpolate(p: RifeParams) -> OperationResult:
         encode_kwargs={"mux_audio": True, **({"fps": p.target_fps} if p.target_fps else {})},
         summary=f"rife {input_path.name} {p.multiplier}x {p.model}",
     )
+
+    if result.ok and p.register_as_variant and not p.dry_run:
+        try:
+            from ..media import register_variant
+            from ..video_pipeline import probe
+            info = await probe(str(input_path))
+            await register_variant(
+                str(input_path),
+                kind="rifed",
+                variant_path=str(out),
+                detail={
+                    "multiplier": p.multiplier,
+                    "target_fps": p.target_fps,
+                    "has_audio": bool(info.get("has_audio")),
+                },
+            )
+        except Exception as e:
+            log = __import__("logging").getLogger("mtapi.rife")
+            log.warning("variant registration failed: %s", e)
+
+    return result
 
 
 register(OperationSpec(

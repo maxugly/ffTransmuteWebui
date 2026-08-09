@@ -799,6 +799,57 @@
   color: var(--bg);
 }
 
+.seq-token-rife-status {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 0.65rem;
+  line-height: 1.2;
+  padding: 0 3px;
+  border-radius: 3px;
+  font-weight: 700;
+}
+
+.seq-rife-pending {
+  color: #fbbf24;
+  animation: seq-rife-pulse 1s infinite;
+}
+
+.seq-rife-running {
+  color: #60a5fa;
+  animation: seq-rife-pulse 0.6s infinite;
+}
+
+.seq-rife-done {
+  color: #34d399;
+}
+
+.seq-rife-skipped {
+  color: var(--text-muted);
+  opacity: 0.6;
+}
+
+@keyframes seq-rife-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.seq-rife-needed .seq-token-dur {
+  color: #fbbf24;
+}
+
+.seq-rife-badge {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 0.6rem;
+  line-height: 1.2;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  font-weight: 700;
+}
+
 .seq-variant-menu {
   max-height: 240px;
   overflow-y: auto;

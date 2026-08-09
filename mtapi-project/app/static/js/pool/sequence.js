@@ -19,6 +19,119 @@ function findPoolItem(path) {
   return state.pool.items.find(i => i.path === path) || null;
 }
 
+function _getNativeMeta(path) {
+  const item = findPoolItem(path);
+  return item?.meta || null;
+}
+
+function _timeFactor(targetDuration, nativeDuration) {
+  if (!targetDuration || nativeDuration <= 0.001) return 1.0;
+  const factor = targetDuration / nativeDuration;
+  return factor > 0 ? factor : 1.0;
+}
+
+function _rifeInfoForEntry(entry) {
+  const useRife = !!state.pool.useRife;
+  const targetFps = state.pool.targetFps || null;
+  if (!useRife || !targetFps) return null;
+
+  const meta = _getNativeMeta(entry.path);
+  if (!meta?.fps || !meta?.duration) return null;
+
+  const nativeFps = meta.fps;
+  const reqDur = entry.targetDuration;
+  const factor = _timeFactor(reqDur, meta.duration);
+  const effFps = nativeFps * factor;
+
+  if (effFps >= targetFps - 0.01) return null;
+
+  let m = 1;
+  while (m < targetFps / effFps) m *= 2;
+  m = Math.max(m, 2);
+
+  return { needed: true, effFps, targetFps, multiplier: m };
+}
+
+const INSTANT_RIFE_MAX_FRAMES = 1000;
+
+async function _maybeAutoRifeEntry(entry) {
+  if (!state.pool.instantRife) return;
+  if (entry._rifeStatus === 'pending' || entry._rifeStatus === 'running') return;
+
+  const info = _rifeInfoForEntry(entry);
+  if (!info?.needed) {
+    if (entry._rifeStatus !== 'skipped' && entry._rifeStatus !== 'done') {
+      entry._rifeStatus = null;
+      renderSequenceBox();
+    }
+    return;
+  }
+
+  if (entry._rifeStatus === 'done') return;
+
+  const meta = _getNativeMeta(entry.path);
+  if (!meta?.frames && meta?.duration && meta?.fps) {
+    meta.frames = Math.round(meta.duration * meta.fps);
+  }
+  if (meta?.frames && meta.frames > INSTANT_RIFE_MAX_FRAMES) {
+    entry._rifeStatus = 'skipped';
+    logConsole(`[SEQ RIFE]: skip ${entry.name} — ${meta.frames} frames exceeds instant guard (${INSTANT_RIFE_MAX_FRAMES})`);
+    renderSequenceBox();
+    return;
+  }
+
+  entry._rifeStatus = 'pending';
+  renderSequenceBox();
+
+  try {
+    const body = {
+      input_path: entry.path,
+      multiplier: info.multiplier,
+      target_fps: info.targetFps,
+      register_as_variant: true,
+      dry_run: false,
+    };
+    const res = await fetch('/ops/rife', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      entry._rifeStatus = 'done';
+      // Auto-select the new variant
+      entry.variantPath = data.output_path || entry.variantPath;
+      logConsole(`[SEQ RIFE]: instant RIFE done ${entry.name} → ${basename(entry.variantPath || entry.path)}`);
+    } else {
+      entry._rifeStatus = null;
+      logConsole(`[SEQ RIFE]: instant RIFE failed ${entry.name} — ${data.error || 'unknown'}`, 'error');
+    }
+  } catch (err) {
+    entry._rifeStatus = null;
+    logConsole(`[SEQ RIFE]: instant RIFE error ${entry.name} — ${err.message}`, 'error');
+  }
+  renderSequenceBox();
+  scheduleSavePoolState();
+}
+
+async function _maybeAutoRifeAll() {
+  if (!state.pool.instantRife) return;
+  for (const entry of state.pool.sequence) {
+    entry._rifeStatus = null;
+    await _maybeAutoRifeEntry(entry);
+  }
+}
+
+async function _maybeAutoRifeForPath(path) {
+  if (!state.pool.instantRife) return;
+  for (const entry of state.pool.sequence) {
+    if (entry.path === path) {
+      entry._rifeStatus = null;
+      await _maybeAutoRifeEntry(entry);
+    }
+  }
+}
+
 /** Path shown in the Selection frame: temporary hover, else sticky selection. */
 function displayFocusPath() {
   return state.pool.hoverPath || state.pool.selectedPath || null;
@@ -212,6 +325,7 @@ function addPathToSequence(path, insertAt = null) {
     name,
     targetDuration: null, // seconds; null = native length
     variantPath: (state.pool.selectedVariantPaths || {})[path] || null,
+    _rifeStatus: null, // null | 'pending' | 'running' | 'done' | 'skipped'
   };
   if (insertAt == null || insertAt < 0 || insertAt > state.pool.sequence.length) {
     state.pool.sequence.push(entry);
@@ -225,6 +339,7 @@ function addPathToSequence(path, insertAt = null) {
   refreshPoolToolbarCounts();
   updateSeqTransportUI();
   scheduleSavePoolState();
+  _maybeAutoRifeEntry(entry);
 }
 
 function removeSequenceAt(idx) {
@@ -323,8 +438,30 @@ function renderSequenceBox() {
       <span class="seq-token-name">${escapeHtml(entry.name)}</span>
       <span class="seq-token-dur${speedInfo.stretched ? ' timed' : ''}">${speedInfo.durLabel}</span>
       <button type="button" class="seq-token-var" title="Choose variant" data-variant-path="${escapeHtml(entry.variantPath || '')}">V</button>
+      <span class="seq-token-rife-status" data-status="${entry._rifeStatus || ''}"></span>
       <button type="button" class="seq-token-x" title="Remove">&cross;</button>
     `;
+
+    // RIFE status indicator
+    const rifeStatusEl = tok.querySelector('.seq-token-rife-status');
+    if (rifeStatusEl && entry._rifeStatus) {
+      rifeStatusEl.textContent = entry._rifeStatus === 'pending' ? '…' :
+                                  entry._rifeStatus === 'running' ? '↻' :
+                                  entry._rifeStatus === 'done' ? '✓' :
+                                  entry._rifeStatus === 'skipped' ? '—' : '';
+      rifeStatusEl.className = `seq-token-rife-status seq-rife-${entry._rifeStatus}`;
+    }
+
+    // RIFE needed badge
+    const rifeInfo = _rifeInfoForEntry(entry);
+    if (rifeInfo?.needed) {
+      tok.classList.add('seq-rife-needed');
+      const rifeBadge = document.createElement('span');
+      rifeBadge.className = 'seq-rife-badge';
+      rifeBadge.title = `RIFE ${rifeInfo.multiplier}× (${rifeInfo.effFps.toFixed(1)} → ${rifeInfo.targetFps} fps)`;
+      rifeBadge.textContent = `R${rifeInfo.multiplier}`;
+      tok.appendChild(rifeBadge);
+    }
 
     // Variant picker
     const varBtn = tok.querySelector('.seq-token-var');
@@ -401,6 +538,10 @@ function renderSequenceBox() {
       box.appendChild(sep);
     }
   });
+
+  // Update variant count badges asynchronously
+  _updateSeqVariantBadges();
+
   updateSeqTransportUI();
 }
 
@@ -573,8 +714,13 @@ function onSeqClipDurationChange() {
   updateSeqClipSettings();
   renderSequenceBox(); // refresh token duration labels + speed colors
   updatePoolFocusFrame(displayFocusPath()); // refresh preview timing
-  // Persist immediately (don't wait for debounce \u2014 times are easy to lose)
+  // Persist immediately (don't wait for debounce — times are easy to lose)
   savePoolStateNow();
+  const entry = state.pool.sequence[idx];
+  if (entry) {
+    entry._rifeStatus = null;
+    _maybeAutoRifeEntry(entry);
+  }
 }
 
 /** Update duration labels/colors on existing sequence tokens without full rebind. */
@@ -1015,4 +1161,6 @@ export {
   seqNext,
   _fetchVariants,
   _showSeqVariantMenu,
+  _maybeAutoRifeAll,
+  _maybeAutoRifeForPath,
 };
