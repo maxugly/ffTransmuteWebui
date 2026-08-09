@@ -156,7 +156,13 @@ When modifying files at the root level or coordinating changes across components
 9. **Tool bottom docs (WebUI)**:
    - Long explanations live in a **`.tool-docs`** block at the **bottom** of the action panel (after knobs). Pilot: Image Sort. Pattern: `docs/tool-bottom-docs-spec.md`.
 10. **Ship → update STATUS**:
-   - When landing a feature: bump VERSION DD, update `docs/STATUS.md`, set the feature spec banner to Implemented/Partial, refresh `docs/SESSION-STOPPING-STATE.md` on meaningful stops.
+   - When landing a feature, you MUST bump the version string in ALL of the following places:
+     1. The `VERSION` file.
+     2. `docs/STATUS.md` at the top header (Section 1).
+     3. `docs/STATUS.md` in the footer (Section 7: VERSION & runtime).
+     4. `docs/SESSION-STOPPING-STATE.md` at the top header.
+   - You MUST ALSO update `docs/spec_registry.json` status to Implemented/Partial.
+   - Keep `docs/SESSION-STOPPING-STATE.md` "Shipped this stretch" block up to date. Do not orphan these documents.
 
 11. **Junk / Scratch Directory (`mtapi-project/junk/`)**:
    - All throwaway artifacts live in `mtapi-project/junk/` and are gitignored — NEVER committed, NEVER left in repo root.

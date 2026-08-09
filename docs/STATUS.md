@@ -189,7 +189,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.4.77` (dead helpers/shims removed; shared `frame_range` on video ops).  
+- **Current:** `000.000.4.81` (dead helpers/shims removed; shared `frame_range` on video ops).  
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  
