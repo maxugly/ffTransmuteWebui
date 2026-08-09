@@ -165,7 +165,7 @@ When modifying files at the root level or coordinating changes across components
    - `junk/.gitkeep` is the only tracked file in `junk/` (keeps the dir in git). Everything else inside `junk/` is ignored.
    - `mtapi-project/.gitignore` already covers `junk/*` plus root-level guards (`*.pt`, `*.bak`, `FastSAM*`, `rife-ncnn-vulkan.bak`). If you add a new weight extension, extend `.gitignore` — do not commit weights.
    - Grandfathered: `check_*.py` / `test_*.py` currently committed at repo root were added before this rule; future scratch files go in `junk/`.
-   - Note: `/home/m/snc/cod` (parent of this repo) is a SEPARATE fresh git init. Its `node_modules/`, `package*.json`, `lsp-check.sh` are out of scope here.
+
 
 ---
 
