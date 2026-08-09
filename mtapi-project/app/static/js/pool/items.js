@@ -226,7 +226,8 @@ async function importPoolFolder() {
       return;
     }
     logConsole(`[POOL]: Scanning ${dir}…`);
-    const scanRes = await fetch(`/api/pool/scan?path=${encodeURIComponent(dir)}&recursive=false`);
+    const recursive = document.getElementById('poolRecursiveScan')?.checked ? 'true' : 'false';
+    const scanRes = await fetch(`/api/pool/scan?path=${encodeURIComponent(dir)}&recursive=${recursive}`);
     if (!scanRes.ok) throw new Error(await scanRes.text());
     const scan = await scanRes.json();
     if (!scan.ok) throw new Error(scan.error || 'scan failed');

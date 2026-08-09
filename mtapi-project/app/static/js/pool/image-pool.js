@@ -259,8 +259,9 @@ async function importImageFolder() {
       return;
     }
     logConsole(`[IMAGE POOL]: Scanning ${dir}…`);
+    const recursive = document.getElementById('imgPoolRecursiveScan')?.checked ? 'true' : 'false';
     const scanRes = await fetch(
-      `/api/pool/scan?path=${encodeURIComponent(dir)}&recursive=false&kind=image`
+      `/api/pool/scan?path=${encodeURIComponent(dir)}&recursive=${recursive}&kind=image`
     );
     if (!scanRes.ok) throw new Error(await scanRes.text());
     const scan = await scanRes.json();
@@ -425,6 +426,9 @@ function renderImagePoolForm() {
               autocomplete="off" spellcheck="false">
             <button class="btn btn-primary" id="btnImgPoolImportFiles" type="button">+ Files</button>
             <button class="btn" id="btnImgPoolImportFolder" type="button">+ Folder</button>
+            <label class="pool-recursive-toggle" title="Also scan subdirectories">
+              <input type="checkbox" id="imgPoolRecursiveScan"> Subfolders
+            </label>
             <button class="btn" id="btnImgPoolClear" type="button" ${count === 0 ? 'disabled' : ''}>Clear</button>
           </div>
           <div class="pool-toolbar-meta">

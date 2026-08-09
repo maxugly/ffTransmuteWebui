@@ -129,6 +129,9 @@ function _poolToolbarHtml(count, selected, seqCount, opts) {
 
         <button class="btn btn-primary" id="btnPoolImportFiles" type="button">+ Files</button>
         <button class="btn" id="btnPoolImportFolder" type="button">+ Folder</button>
+        <label class="pool-recursive-toggle" title="Also scan subdirectories">
+          <input type="checkbox" id="poolRecursiveScan"> Subfolders
+        </label>
         <button class="btn" id="btnPoolClear" type="button" ${count === 0 ? 'disabled' : ''}>Clear Video Pool</button>
         ${showSeqTools ? `<button class="btn" id="btnSeqClear" type="button" ${seqCount === 0 ? 'disabled' : ''} title="Remove all clips from the stitch sequence">Clear Sequence</button>` : ''}
         ${showSeqTools ? `<button class="btn pool-toggle-btn" id="btnTogglePool" type="button" title="Show / hide clip grid">${_poolToggleLabel()}</button>` : ''}
