@@ -22,6 +22,9 @@ class FastSAMParams(BaseModel):
     conf: float = Field(0.4, description="Confidence threshold")
     iou: float = Field(0.9, description="Intersection over union threshold")
     device: Literal["GPU", "CPU", "AUTO"] = Field("GPU", description="OpenVINO execution device")
+    mode: Literal["everything", "target"] = Field("target", description="Extraction mode")
+    target_x: float = Field(0.5, description="Target X coordinate (0.0 - 1.0)")
+    target_y: float = Field(0.5, description="Target Y coordinate (0.0 - 1.0)")
     start_frame: int = start_frame_field()
     end_frame: int = end_frame_field()
     dry_run: bool = False
@@ -65,7 +68,7 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
             + (f"  direct image inference\n" if is_image else
                f"  ffmpeg -i {input_path} → frames_in/frame_%06d.png\n")
             + f"# fastsam stage\n"
-            + f"  conf={p.conf} iou={p.iou} device={p.device}\n"
+            + f"  conf={p.conf} iou={p.iou} device={p.device} mode={p.mode}\n"
             + (f"\n# output\n  {out}" if is_image else
                f"\n# encode\n  ffmpeg -framerate <fps> -i frames_out/frame_%06d.png {out}")
         )
@@ -77,7 +80,7 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
     # ── Image path: direct inference ─────────────────────────────────────
     if is_image:
         import cv2
-        from app.filters.fastsam import ensure_openvino_model
+        from app.filters.fastsam import ensure_openvino_model, get_target_mask
         from ultralytics import FastSAM
 
         ov_model_path = ensure_openvino_model(device=p.device)
@@ -97,12 +100,32 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
         results = model(img, device=ov_device, conf=p.conf, iou=p.iou)
 
         if results and len(results) > 0 and results[0].masks is not None:
-            mask = results[0].masks.data[0].cpu().numpy()
-            mask = cv2.resize(mask, (img.shape[1], img.shape[0]))
-            b, g, r = cv2.split(img)
-            alpha = (mask * 255).astype(np.uint8)
-            transparent_img = cv2.merge([b, g, r, alpha])
-            cv2.imwrite(str(out), transparent_img)
+            mask_result = get_target_mask(results[0].masks.data, img.shape, p.mode, p.target_x, p.target_y)
+            
+            if p.mode == "everything" and isinstance(mask_result, list):
+                out_dir = Path(out).parent / f"{Path(out).stem}_assets"
+                out_dir.mkdir(parents=True, exist_ok=True)
+                b, g, r = cv2.split(img)
+                latest_saved = str(out)
+                
+                for i, mask in enumerate(mask_result):
+                    alpha = (mask * 255).astype(np.uint8)
+                    transparent_img = cv2.merge([b, g, r, alpha])
+                    
+                    y_idx, x_idx = np.nonzero(mask)
+                    if len(y_idx) > 0:
+                        y1, y2 = np.min(y_idx), np.max(y_idx)
+                        x1, x2 = np.min(x_idx), np.max(x_idx)
+                        cropped = transparent_img[y1:y2+1, x1:x2+1]
+                        latest_saved = str(out_dir / f"asset_{i:03d}.png")
+                        cv2.imwrite(latest_saved, cropped)
+                out = out_dir
+            else:
+                mask = mask_result
+                b, g, r = cv2.split(img)
+                alpha = (mask * 255).astype(np.uint8)
+                transparent_img = cv2.merge([b, g, r, alpha])
+                cv2.imwrite(str(out), transparent_img)
         else:
             import shutil
             shutil.copy(input_path, out)
@@ -123,7 +146,10 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
 
     # ── Video path: dump → fastsam → encode ──────────────────────────────
     from app.filters.fastsam import make_fastsam_directory
-    stage_fn = await make_fastsam_directory(conf=p.conf, iou=p.iou, device=p.device)
+    stage_fn = await make_fastsam_directory(
+        conf=p.conf, iou=p.iou, device=p.device,
+        mode=p.mode, target_x=p.target_x, target_y=p.target_y
+    )
 
     return await run_staged_job(
         op_id="fastsam",

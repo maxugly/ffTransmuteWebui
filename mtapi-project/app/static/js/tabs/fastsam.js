@@ -26,13 +26,28 @@ export function renderFastSAMForm() {
     </div>
     
     <div class="form-row">
+      <label for="fastsamMode">Mode</label>
+      <select id="fastsamMode">
+        <option value="target" selected>Target (X,Y)</option>
+        <option value="everything">Segment Everything</option>
+      </select>
+      <p class="form-row-hint">Target mode extracts a single object at the X/Y point. Everything mode saves all objects to a folder.</p>
+    </div>
+
+    <div class="form-row">
       <label for="fastsamDevice">Device</label>
       <select id="fastsamDevice">
         <option value="GPU" selected>GPU (Iris Xe)</option>
         <option value="CPU">CPU</option>
         <option value="AUTO">AUTO</option>
       </select>
-      <p class="form-row-hint">Use GPU for best performance with Intel Iris Xe (FP16).</p>
+    </div>
+
+    <div class="knob-row">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'fastsamTargetX', label: 'Target X', value: '0.50' })}
+        ${knobUnitHtml({ id: 'fastsamTargetY', label: 'Target Y', value: '0.50' })}
+      </div>
     </div>
 
     <div class="knob-row">
@@ -44,6 +59,18 @@ export function renderFastSAMForm() {
     </div>
   `;
   elements.actionPanel.innerHTML = html;
+
+  setupContinuousKnob({
+    knobId: 'fastsamTargetXKnob', indicatorId: 'fastsamTargetXKnobInd', hiddenId: 'fastsamTargetX',
+    min: 0.0, max: 1.0, initial: 0.5, step: 0.05,
+    format: (v) => v.toFixed(2),
+  });
+
+  setupContinuousKnob({
+    knobId: 'fastsamTargetYKnob', indicatorId: 'fastsamTargetYKnobInd', hiddenId: 'fastsamTargetY',
+    min: 0.0, max: 1.0, initial: 0.5, step: 0.05,
+    format: (v) => v.toFixed(2),
+  });
 
   setupContinuousKnob({
     knobId: 'fastsamConfKnob', indicatorId: 'fastsamConfKnobInd', hiddenId: 'fastsamConf',
@@ -75,6 +102,9 @@ export function collectFastSAMBody() {
   var p = {
     input_path: (document.getElementById('fastsamInput') || {}).value || bestInput(''),
     output_dir: (document.getElementById('fastsamOutput') || {}).value || '',
+    mode: (document.getElementById('fastsamMode') || {}).value || 'target',
+    target_x: parseFloat((document.getElementById('fastsamTargetX') || {}).value || '0.5'),
+    target_y: parseFloat((document.getElementById('fastsamTargetY') || {}).value || '0.5'),
     conf: parseFloat((document.getElementById('fastsamConf') || {}).value || '0.4'),
     iou: parseFloat((document.getElementById('fastsamIou') || {}).value || '0.9'),
     device: (document.getElementById('fastsamDevice') || {}).value || 'GPU',
