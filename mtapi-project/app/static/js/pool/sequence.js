@@ -211,6 +211,7 @@ function addPathToSequence(path, insertAt = null) {
     path,
     name,
     targetDuration: null, // seconds; null = native length
+    variantPath: (state.pool.selectedVariantPaths || {})[path] || null,
   };
   if (insertAt == null || insertAt < 0 || insertAt > state.pool.sequence.length) {
     state.pool.sequence.push(entry);
@@ -221,7 +222,6 @@ function addPathToSequence(path, insertAt = null) {
   renderSequenceBox();
   renderPoolGrid();
   selectPoolItem(path); // select in library + sequence together
-  // Refresh stitch button / counts without full re-render if possible
   refreshPoolToolbarCounts();
   updateSeqTransportUI();
   scheduleSavePoolState();
@@ -322,8 +322,20 @@ function renderSequenceBox() {
       <span class="seq-token-idx">${idx + 1}</span>
       <span class="seq-token-name">${escapeHtml(entry.name)}</span>
       <span class="seq-token-dur${speedInfo.stretched ? ' timed' : ''}">${speedInfo.durLabel}</span>
+      <button type="button" class="seq-token-var" title="Choose variant" data-variant-path="${escapeHtml(entry.variantPath || '')}">V</button>
       <button type="button" class="seq-token-x" title="Remove">&cross;</button>
     `;
+
+    // Variant picker
+    const varBtn = tok.querySelector('.seq-token-var');
+    if (varBtn) {
+      varBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const currentPath = entry.variantPath || entry.path;
+        const variants = await _fetchVariants(entry.path);
+        _showSeqVariantMenu(varBtn, entry, variants, currentPath);
+      });
+    }
 
     // Proportional width based on effective duration
     const ratio = totalDuration > 0
@@ -912,6 +924,67 @@ const _seqListApi = {
 registerListKeys('sequence', _seqListApi);
 registerListKeys('pool', _seqListApi);
 
+// ── Per-clip variant picker ─────────────────────────────────────────────
+
+async function _fetchVariants(path) {
+  try {
+    const res = await fetch(`/api/variants?path=${encodeURIComponent(path)}`);
+    if (!res.ok) return {};
+    const data = await res.json();
+    return data.variants || {};
+  } catch {
+    return {};
+  }
+}
+
+function _showSeqVariantMenu(anchor, entry, variants, currentPath) {
+  document.querySelectorAll('.seq-variant-menu').forEach(el => el.remove());
+  const menu = document.createElement('div');
+  menu.className = 'seq-variant-menu pool-context-menu';
+
+  const makeRow = (vPath, kind, detail) => {
+    const selected = currentPath === vPath;
+    const label = vPath === entry.path
+      ? 'Original'
+      : `${kind}${detail ? ' · ' + Object.entries(detail).map(([k,val]) => `${k}=${val}`).join(' · ') : ''}`;
+    return `<button type="button" class="seq-var-opt${selected ? ' selected' : ''}" data-vpath="${escapeHtml(vPath)}">${escapeHtml(label)}</button>`;
+  };
+
+  let rows = makeRow(entry.path, 'original', null);
+  for (const [kind, entries] of Object.entries(variants)) {
+    for (const v of entries) {
+      if (v.path) rows += makeRow(v.path, kind, v.detail || null);
+    }
+  }
+
+  menu.innerHTML = rows;
+  const rect = anchor.getBoundingClientRect();
+  menu.style.position = 'fixed';
+  menu.style.left = `${rect.left}px`;
+  menu.style.top = `${rect.bottom + 4}px`;
+  menu.style.zIndex = '10000';
+  document.body.appendChild(menu);
+
+  const close = () => {
+    menu.remove();
+    document.removeEventListener('click', close, true);
+  };
+  menu.querySelectorAll('.seq-var-opt').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const vp = btn.dataset.vpath;
+      const idx = state.pool.sequence.findIndex(s => s.id === entry.id);
+      if (idx >= 0) {
+        state.pool.sequence[idx].variantPath = vp === entry.path ? null : vp;
+        scheduleSavePoolState();
+        renderSequenceBox();
+      }
+      close();
+    });
+  });
+  setTimeout(() => document.addEventListener('click', close, true), 0);
+}
+
 export {
   findPoolItem,
   displayFocusPath,
@@ -940,4 +1013,6 @@ export {
   seqStop,
   seqPrev,
   seqNext,
+  _fetchVariants,
+  _showSeqVariantMenu,
 };

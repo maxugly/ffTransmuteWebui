@@ -57,6 +57,7 @@ function buildPoolStatePayload() {
         path: s.path,
         name: s.name || basename(s.path),
         target_duration: n,
+        variant_path: s.variantPath || null,
       };
     }),
     selected_path: state.pool.selectedPath,
@@ -123,11 +124,13 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
       td = Number(td);
       if (!Number.isFinite(td) || td <= 0) td = null;
     }
+    const vp = s.variant_path ?? s.variantPath ?? null;
     return {
       id: nextSeqId(),
       path: s.path,
       name: s.name || basename(s.path),
       targetDuration: td,
+      variantPath: vp,
     };
   });
   state.pool.selectedPath = data.selected_path || null;
@@ -562,7 +565,13 @@ async function stitchPoolSequence() {
   const anyTimed = durations.some(d => d != null);
 
   const body = {
-    input_paths: paths.map(p => (state.pool.selectedVariantPaths || {})[p] || p),
+    input_paths: paths.map((p, i) => {
+      const entry = state.pool.sequence[i];
+      if (entry && entry.variantPath && entry.variantPath !== entry.path) return entry.variantPath;
+      const globalVariant = (state.pool.selectedVariantPaths || {})[p];
+      if (globalVariant) return globalVariant;
+      return p;
+    }),
     mode,
     aspect,
     durations: anyTimed ? durations : null,

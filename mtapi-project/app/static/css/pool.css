@@ -781,6 +781,51 @@
   background: rgba(239, 68, 68, 0.15);
 }
 
+.seq-token-var {
+  border: 1px solid var(--border);
+  background: var(--bg-inset);
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0 4px;
+  font-size: 0.6rem;
+  line-height: 1.2;
+  border-radius: 3px;
+  margin-left: 4px;
+  font-weight: 700;
+}
+
+.seq-token-var:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.seq-variant-menu {
+  max-height: 240px;
+  overflow-y: auto;
+  min-width: 220px;
+}
+
+.seq-var-opt {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.seq-var-opt:hover {
+  background: var(--bg-inset);
+}
+
+.seq-var-opt.selected {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .seq-sep {
   color: var(--text-muted);
   font-size: 0.75rem;
