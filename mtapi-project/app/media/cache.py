@@ -128,6 +128,7 @@ def _empty_record(content_hash: str, size: int = 0) -> dict[str, Any]:
         "meta": None,
         "thumbs": {"first": False, "last": False},
         "history": [],
+        "variants": {},
         "created_at": now,
         "updated_at": now,
         "open_count": 0,
@@ -168,7 +169,7 @@ def _remember_path(record: dict[str, Any], path: Path) -> None:
     paths: list = record.setdefault("paths", [])
     if p not in paths:
         paths.insert(0, p)
-        del paths[32:]
+        del paths[RECENT_CAP:]
 
 
 def append_history(
@@ -261,6 +262,83 @@ async def record_operation(
                     save_record(rec)
     except Exception as e:
         log.warning("record_operation failed: %s", e)
+
+
+# ── variant registry ────────────────────────────────────────────────────────
+# A clip's derivative files (rifed, export, …) live NEXT TO the original on
+# disk; the central record holds the named association. No sidecar JSON.
+
+RECENT_CAP = 32  # shared cap for recent-path lists and per-kind variant lists
+
+
+async def register_variant(
+    parent_path: str | Path,
+    *,
+    kind: str,
+    variant_path: str | Path,
+    detail: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Attach a derived clip (rifed/export/...) to its original's record.
+
+    - Hashes the variant file (content-addressed, cached).
+    - Loads the ORIGINAL clip's record by path (resolve_hash → record).
+    - Appends a variant_entry under record["variants"][kind] (FIFO capped).
+    - Creates the parent's record (minimal, no thumbs) if it doesn't yet exist,
+      so callers don't need to open_media every clip before registering.
+    No file moves/copies — the caller writes variant_path next to the original.
+    """
+    parent = Path(parent_path).resolve()
+    variant = Path(variant_path).resolve()
+    (parent_hash, _), (variant_hash, _) = await asyncio.gather(
+        resolve_hash(parent), resolve_hash(variant)
+    )
+
+    lock = await _lock_for_hash(parent_hash)
+    async with lock:
+        rec = load_record(parent_hash)
+        if not rec:
+            rec = _empty_record(parent_hash, size=parent.stat().st_size)
+        entry = {
+            "kind": kind,
+            "hash": variant_hash,
+            "path": str(variant),
+            "created_at": time.time(),
+            "detail": detail or {},
+        }
+        lst = rec.setdefault("variants", {}).setdefault(kind, [])
+        lst.append(entry)
+        del lst[:-RECENT_CAP]   # keep newest RECENT_CAP; NOT lst[:RECENT_CAP] (that drops new)
+        _remember_path(rec, variant)
+        save_record(rec)
+        return rec
+
+
+async def get_variants(
+    parent_path: str | Path,
+    *,
+    include_missing: bool = False,
+) -> dict[str, list[dict[str, Any]]]:
+    """Return record['variants'] for the clip at parent_path, or {}.
+
+    - Old records without a 'variants' key return {} (no KeyError).
+    - By default, entries whose 'path' no longer exists on disk are dropped,
+      so callers never load dead files. Pass include_missing=True to keep them
+      (e.g. so the UI can show the variant greyed-out as "missing").
+    """
+    parent = Path(parent_path).resolve()
+    parent_hash = lookup_cached_hash(parent)
+    if not parent_hash:
+        return {}
+    rec = load_record(parent_hash)
+    if not rec:
+        return {}
+    variants = rec.get("variants", {})
+    if include_missing:
+        return variants
+    return {
+        kind: [v for v in entries if v.get("path") and Path(v["path"]).exists()]
+        for kind, entries in variants.items()
+    }
 
 
 # ── stats ──────────────────────────────────────────────────────────────────
