@@ -10,6 +10,7 @@ let _probeCache = { path: '', frames: 0, fps: 24 };
 
 function _buildRifeSummary() {
   var M = parseInt(document.getElementById('rifeMultiplier')?.value || '2', 10);
+  var targetFps = parseFloat(document.getElementById('rifeTargetFps')?.value || '0') || 0;
   var probed = false;
   var nIn = _probeCache.frames || 0;
   var srcFps = _probeCache.fps || 0;
@@ -27,18 +28,20 @@ function _buildRifeSummary() {
   if (srcFps <= 0) return { lines: [{ text: 'Probing…', estimate: true }], tone: 'estimate' };
 
   var nOut = nIn * M;
-  var outFps = srcFps * M;
-  var dur = nIn / Math.max(srcFps, 1e-9);
+  var inDur = nIn / Math.max(srcFps, 1e-9);
+  var outFps = targetFps > 0 ? targetFps : srcFps * M;
+  var outDur = nOut / Math.max(outFps, 1e-9);
 
-  return {
-    lines: [
-      { text: '~' + fmtFrames(nIn) + ' in', estimate: true },
-      { text: '×' + M },
-      { text: '→ ~' + fmtFrames(nOut) + ' frames', estimate: true },
-      { text: '~' + fmtDuration(dur) + ' @ ~' + Math.round(outFps) + ' fps', estimate: true },
-    ],
-    tone: 'estimate',
-  };
+  var lines = [
+    { text: fmtFrames(nIn) + ' frames in @ ' + srcFps.toFixed(2) + ' fps = ' + fmtDuration(inDur), estimate: true },
+    { text: '× ' + M + ' multiplier = ' + fmtFrames(nOut) + ' frames', estimate: true },
+  ];
+  if (targetFps > 0) {
+    lines.push({ text: 'target fps = ' + targetFps, estimate: true });
+  }
+  lines.push({ text: '→ ' + fmtFrames(nOut) + ' frames @ ' + outFps.toFixed(2) + ' fps = ' + fmtDuration(outDur), estimate: true });
+
+  return { lines: lines, tone: 'estimate' };
 }
 
 function _refreshRifeSummary() {
@@ -101,8 +104,15 @@ function renderRifeForm() {
         ${knobUnitHtml({ id: 'rifeUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
         ${knobUnitHtml({ id: 'rifeDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
       </div>
+      <div class="form-row" style="flex:1;min-width:140px;">
+        <label for="rifeTargetFps">Target FPS</label>
+        <div class="input-row">
+          <input type="number" id="rifeTargetFps" placeholder="blank = auto" min="1" max="240" step="1">
+        </div>
+      </div>
       <p class="knob-row-legend">
         <strong>Frame ×</strong> — multiplier (2 = double FPS, 4 = 24→96).<br>
+        <strong>Target FPS</strong> — resample output to fixed FPS after interpolation (blank = auto = source × M).<br>
         <strong>TTA</strong> — cleaner, ~2× slower.<br>
         <strong>UHD</strong> — 4K+ sources (more VRAM).
       </p>
@@ -140,6 +150,9 @@ function renderRifeForm() {
   document.getElementById('rifeMultiplierKnob')?.addEventListener('click', function() {
     setTimeout(_refreshRifeSummary, 100);
   });
+  document.getElementById('rifeTargetFps')?.addEventListener('input', function() {
+    setTimeout(_refreshRifeSummary, 50);
+  });
   document.addEventListener('mtapi:video-probed', function() { _probeCache.path = ''; _refreshRifeProbe(); });
   document.addEventListener('mtapi:frame-range', function() { setTimeout(_refreshRifeSummary, 50); });
 }
@@ -156,6 +169,8 @@ function collectRifeBody() {
   const tta = document.getElementById('rifeTta')?.value === '1';
   const uhd = document.getElementById('rifeUhd')?.value === '1';
   const dryRun = document.getElementById('rifeDryRun')?.value === '1';
+  const targetFpsRaw = document.getElementById('rifeTargetFps')?.value || '';
+  const targetFps = targetFpsRaw ? parseFloat(targetFpsRaw) : null;
 
   return withFrameRange({
     input_path: input,
@@ -164,6 +179,7 @@ function collectRifeBody() {
     model,
     tta,
     uhd,
+    target_fps: targetFps,
     dry_run: dryRun,
   });
 }

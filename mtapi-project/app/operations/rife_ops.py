@@ -29,6 +29,7 @@ class RifeParams(BaseModel):
         "rife-v4.6", description="RIFE model variant. v4.6 is newest/cleanest.")
     tta: bool = Field(False, description="Spatial TTA mode — cleaner but slower")
     uhd: bool = Field(False, description="UHD mode for high-res sources")
+    target_fps: float | None = Field(None, ge=1, le=240, description="Resample output to this FPS after interpolation (blank = keep source FPS × M)")
     start_frame: int = start_frame_field()
     end_frame: int = end_frame_field()
     dry_run: bool = Field(False, description="Print command only")
@@ -65,7 +66,7 @@ async def rife_interpolate(p: RifeParams) -> OperationResult:
             StageSpec("rife", "directory", rife_fn,
                       progress_total=None),  # progress managed by dir watch
         ],
-        encode_kwargs={"mux_audio": True},
+        encode_kwargs={"mux_audio": True, **({"fps": p.target_fps} if p.target_fps else {})},
         summary=f"rife {input_path.name} {p.multiplier}x {p.model}",
     )
 
