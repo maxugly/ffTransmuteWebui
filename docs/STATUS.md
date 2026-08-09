@@ -205,11 +205,10 @@ Build **only when human prioritizes.** Suggested order in §8.
 Agents wait for human assignment.
 
 1. **Close partials:** list/sequence keys, progress polish, tool-docs gaps.  
-2. **Nav category collapse** — small UX win; [`nav-collapse-spec.md`](nav-collapse-spec.md) + [`coder-nav-collapse-prompt.md`](coder-nav-collapse-prompt.md).  
-3. **Universal persistence** — full desk snapshot / inactive knobs.  
-4. **Product choice:** quality rating *or* tilagup mode.  
-5. Agent polish (streaming / Ollama) when vision UX needs it.  
-6. Explicit backlog picks only (depth, flow, facerestore, …).
+2. **Universal persistence** — full desk snapshot / inactive knobs.  
+3. **Product choice:** quality rating *or* tilagup mode.  
+4. Agent polish (streaming / Ollama) when vision UX needs it.  
+5. Explicit backlog picks only (depth, flow, facerestore, …).
 
 ---
 
