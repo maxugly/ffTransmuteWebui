@@ -104,18 +104,17 @@ function renderRifeForm() {
         ${knobUnitHtml({ id: 'rifeUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
         ${knobUnitHtml({ id: 'rifeDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
       </div>
-      <div class="form-row" style="flex:1;min-width:140px;">
-        <label for="rifeTargetFps">Target FPS</label>
-        <div class="input-row">
-          <input type="number" id="rifeTargetFps" placeholder="blank = auto" min="1" max="240" step="1">
-        </div>
-      </div>
       <p class="knob-row-legend">
         <strong>Frame ×</strong> — multiplier (2 = double FPS, 4 = 24→96).<br>
-        <strong>Target FPS</strong> — resample output to fixed FPS after interpolation (blank = auto = source × M).<br>
         <strong>TTA</strong> — cleaner, ~2× slower.<br>
         <strong>UHD</strong> — 4K+ sources (more VRAM).
       </p>
+    </div>
+    <div class="form-row">
+      <label for="rifeTargetFps">Target FPS</label>
+      <div class="input-row">
+        <input type="number" id="rifeTargetFps" placeholder="blank = auto (source × M)" min="1" max="240" step="1">
+      </div>
     </div>
   `;
   elements.actionPanel.innerHTML = html;
