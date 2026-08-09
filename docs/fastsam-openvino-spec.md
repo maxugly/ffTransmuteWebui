@@ -55,7 +55,9 @@ Upload/Pool File -> `operations/fastsam_ops.py` -> `job_workspace` (dump frames)
 - Add a "FastSAM" tool tab in `app/static/js/tabs/`.
 - Use the standard `job_queue` UI for dispatching and tracking progress (`job_control.report_progress()` must be called during inference).
 - Target input: `input_path` (from Video or Image Pool).
-- Knobs: `conf` (slider 0.1 - 0.99), `iou` (slider 0.1 - 0.99), `device` (dropdown: `GPU`, `CPU`, `AUTO`).
+- Knobs: `conf` (slider 0.1 - 0.99), `iou` (slider 0.1 - 0.99), `device` (dropdown: `GPU`, `CPU`, `AUTO`), `mode` (dropdown: `target`, `everything`), `target_x` and `target_y` (coordinates 0.0 - 1.0).
+- **Coordinate Mapping**: To properly map the unpadded UI clicks (0.0-1.0) to the original image dimensions, the backend must test against the unpadded polygon coordinates (`results[0].masks.xy`) using `cv2.pointPolygonTest`, rather than naive tensor masks.
+- **Output Handling**: For `mode="everything"`, the API returns a directory path (e.g. `_assets`) containing all isolated transparent PNGs. The UI uses the native folder opener API (`/api/open-folder`) to reveal it in the system file manager (e.g., Dolphin).
 
 ---
 

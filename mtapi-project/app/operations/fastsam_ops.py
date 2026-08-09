@@ -80,6 +80,7 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
     # ── Image path: direct inference ─────────────────────────────────────
     if is_image:
         import cv2
+        import zipfile
         from app.filters.fastsam import ensure_openvino_model, get_target_mask
         from ultralytics import FastSAM
 
@@ -100,13 +101,12 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
         results = model(img, device=ov_device, conf=p.conf, iou=p.iou)
 
         if results and len(results) > 0 and results[0].masks is not None:
-            mask_result = get_target_mask(results[0].masks.data, img.shape, p.mode, p.target_x, p.target_y)
+            mask_result = get_target_mask(results[0], img.shape, p.mode, p.target_x, p.target_y)
             
             if p.mode == "everything" and isinstance(mask_result, list):
                 out_dir = Path(out).parent / f"{Path(out).stem}_assets"
                 out_dir.mkdir(parents=True, exist_ok=True)
                 b, g, r = cv2.split(img)
-                latest_saved = str(out)
                 
                 for i, mask in enumerate(mask_result):
                     alpha = (mask * 255).astype(np.uint8)
@@ -117,15 +117,22 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
                         y1, y2 = np.min(y_idx), np.max(y_idx)
                         x1, x2 = np.min(x_idx), np.max(x_idx)
                         cropped = transparent_img[y1:y2+1, x1:x2+1]
-                        latest_saved = str(out_dir / f"asset_{i:03d}.png")
-                        cv2.imwrite(latest_saved, cropped)
+                        
+                        asset_name = f"asset_{i:03d}.png"
+                        asset_path = out_dir / asset_name
+                        cv2.imwrite(str(asset_path), cropped)
+                
                 out = out_dir
             else:
                 mask = mask_result
-                b, g, r = cv2.split(img)
-                alpha = (mask * 255).astype(np.uint8)
-                transparent_img = cv2.merge([b, g, r, alpha])
-                cv2.imwrite(str(out), transparent_img)
+                if mask is not None:
+                    b, g, r = cv2.split(img)
+                    alpha = (mask * 255).astype(np.uint8)
+                    transparent_img = cv2.merge([b, g, r, alpha])
+                    cv2.imwrite(str(out), transparent_img)
+                else:
+                    import shutil
+                    shutil.copy(input_path, out)
         else:
             import shutil
             shutil.copy(input_path, out)

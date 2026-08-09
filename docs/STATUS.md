@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-09  \
-> **VERSION:** `000.000.4.81`  \
+> **VERSION:** `000.000.4.82`  \
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -75,6 +75,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Unified Join Frontend** | Format dropdown (populated from `/api/presets`) + RIFE toggle/fps + variant nodes under pool cards | `js/pool/grid.js`, `js/pool/persistence.js`, `sequence_join_unified_frontend_spec.md` · `4.81` |
 | **Simplify pass** | 3-agent review; collapsed per-clip triple-probe → single `probe()`; `asyncio.gather` on probe/hash; shared `RECENT_CAP`; dropped datamosh import | `simplify-code` skill · `4.81` |
 | **/api/variants hardening** | Index-only lookup (`lookup_cached_hash`), never hashes caller input on GET (closes CPU/IO amplification) | `sequence_api_variants_security_spec.md` · `4.81` |
+| **FastSAM fixes** | Accurate unpadded coordinate clicks (`cv2.pointPolygonTest` on `masks.xy`); 'Everything' mode outputs clean `_assets` directory; native system folder opener `/api/open-folder` | `fastsam_ops.py`, `fastsam.py` · `4.82` |
 
 **Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale *(in tree — see §4)*. Root `AGENTS.md`.
 

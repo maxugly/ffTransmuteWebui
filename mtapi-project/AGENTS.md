@@ -80,11 +80,14 @@ One agent per file at a time. Never use `web_search` / `web.run` for localhost W
 
 ### A. Run the server
 
+**CRITICAL WARNING:** The default `python run.py` entrypoint does **NOT** hot-reload code changes! If you modify any backend Python files while the user is running `run.py`, your changes will not take effect until the server process is killed and restarted.
+
+For development with hot-reloading, run the server using uvicorn directly:
 ```bash
-.venv/bin/python run.py
-# or
-.venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 24590
+.venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 24590
 ```
+
+*Note: If the user is running the server themselves via `python run.py`, you MUST instruct them to restart it so your backend fixes take effect! Do not assume your code is active!*
 
 ### B. Health
 

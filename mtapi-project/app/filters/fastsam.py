@@ -26,41 +26,47 @@ def ensure_openvino_model(model_id: str = "FastSAM-s.pt", device: str = "GPU") -
     return result
 
 
-def get_target_mask(masks_tensor, img_shape, mode: str, target_x: float, target_y: float):
-    if masks_tensor is None: return None
-    masks = masks_tensor.cpu().numpy()
-    
+def get_target_mask(results_obj, img_shape, mode: str, target_x: float, target_y: float):
+    if not hasattr(results_obj, "masks") or results_obj.masks is None:
+        return None
+        
     if mode == "everything":
-        return [cv2.resize(m, (img_shape[1], img_shape[0])) for m in masks]
+        masks = []
+        for segment in results_obj.masks.xy:
+            mask = np.zeros((img_shape[0], img_shape[1]), dtype=np.uint8)
+            cv2.fillPoly(mask, [segment.astype(np.int32)], 1)
+            masks.append(mask)
+        return masks
         
     # target mode
-    tx = int(target_x * masks.shape[2])
-    ty = int(target_y * masks.shape[1])
+    tx = int(target_x * img_shape[1])
+    ty = int(target_y * img_shape[0])
     
-    best_mask = masks[0]
+    best_mask_idx = 0
     best_dist = float('inf')
-    found_inside = False
     
-    for m in masks:
-        if m[ty, tx] > 0.5:
-            area = np.sum(m)
-            if area < best_dist:
-                best_dist = area
-                best_mask = m
-                found_inside = True
-                
-    if not found_inside:
-        best_dist = float('inf')
-        for m in masks:
-            y_i, x_i = np.nonzero(m)
-            if len(y_i) == 0: continue
-            cy, cx = np.mean(y_i), np.mean(x_i)
-            dist = (cx - tx)**2 + (cy - ty)**2
-            if dist < best_dist:
-                best_dist = dist
-                best_mask = m
-                
-    return cv2.resize(best_mask, (img_shape[1], img_shape[0]))
+    for i, segment in enumerate(results_obj.masks.xy):
+        if len(segment) == 0: continue
+        dist = cv2.pointPolygonTest(segment, (tx, ty), measureDist=True)
+        if dist >= 0:
+            # point is inside, pick the smallest one (most specific)
+            area = cv2.contourArea(segment)
+            score = area - 1e9
+        else:
+            # outside, pick the closest one
+            score = -dist
+            
+        if score < best_dist:
+            best_dist = score
+            best_mask_idx = i
+            
+    if len(results_obj.masks.xy) == 0 or len(results_obj.masks.xy[best_mask_idx]) == 0:
+        return None
+        
+    best_segment = results_obj.masks.xy[best_mask_idx]
+    mask = np.zeros((img_shape[0], img_shape[1]), dtype=np.uint8)
+    cv2.fillPoly(mask, [best_segment.astype(np.int32)], 1)
+    return mask
 
 
 async def make_fastsam_directory(conf: float = 0.4, iou: float = 0.9, device: str = "GPU", mode: str = "target", target_x: float = 0.5, target_y: float = 0.5, **kwargs):
@@ -90,14 +96,18 @@ async def make_fastsam_directory(conf: float = 0.4, iou: float = 0.9, device: st
                 # Video pipeline only supports target mode (one output frame per input frame)
                 # If they asked for everything on video, we just fall back to center target
                 actual_mode = mode if mode == "target" else "target" 
-                mask = get_target_mask(results[0].masks.data, img.shape, actual_mode, target_x, target_y)
+                mask = get_target_mask(results[0], img.shape, actual_mode, target_x, target_y)
                 
-                b, g, r = cv2.split(img)
-                alpha = (mask * 255).astype(np.uint8)
-                transparent_img = cv2.merge([b, g, r, alpha])
-                
-                out_path = dst_dir / frame_path.name
-                cv2.imwrite(str(out_path), transparent_img)
+                if mask is not None:
+                    b, g, r = cv2.split(img)
+                    alpha = (mask * 255).astype(np.uint8)
+                    transparent_img = cv2.merge([b, g, r, alpha])
+                    
+                    out_path = dst_dir / frame_path.name
+                    cv2.imwrite(str(out_path), transparent_img)
+                else:
+                    import shutil
+                    shutil.copy(frame_path, dst_dir / frame_path.name)
             else:
                 import shutil
                 shutil.copy(frame_path, dst_dir / frame_path.name)
