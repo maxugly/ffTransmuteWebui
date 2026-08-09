@@ -884,11 +884,14 @@ function renderPoolGrid() {
         <button type="button" class="pool-send-item" data-send="speedchange">Speed Change</button>
         <button type="button" class="pool-send-item" data-send="upscale">Upscale</button>
         <button type="button" class="pool-send-item" data-send="fastsam">FastSAM</button>
+        <button type="button" class="pool-send-item" data-send="img2img">Img2Img</button>
+        <button type="button" class="pool-send-item" data-send="agent">Agent</button>
         <button type="button" class="pool-send-item" data-send="convert">Convert / Export</button>
         <button type="button" class="pool-send-item" data-send="transmute">Transmute</button>
         <button type="button" class="pool-send-item" data-send="multi">Multi (Join/Grid)</button>
         <button type="button" class="pool-send-item" data-send="advanced">Raw CLI</button>
         <button type="button" class="pool-send-item" data-send="sequence">Sequence</button>
+        <button type="button" class="pool-send-item" data-send="cut">Cut</button>
         <button type="button" class="pool-send-item" data-send="preview">Preview only</button>
         <div class="pool-send-sep"></div>
         <button type="button" class="pool-send-item" data-send="save_first_png">Save first frame PNG…</button>

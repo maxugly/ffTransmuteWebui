@@ -444,6 +444,21 @@ function sendPoolPathTo(path, target) {
     switchTab('withoutbg');
     renderWithoutBgForm();
     logConsole(`[POOL]: Sent to withoutBG → ${path}`);
+  } else if (target === 'img2img') {
+    switchTab('img2img');
+    const input = document.getElementById('i2iInput');
+    if (input) {
+      input.value = path;
+      input.dispatchEvent(new Event('input'));
+    }
+    logConsole(`[POOL]: Sent to Img2Img → ${path}`);
+  } else if (target === 'agent') {
+    if (!state.agent) state.agent = { backend: 'deepseek', skill: 'chat', model: '', images: [], history: [] };
+    if (!state.agent.images.includes(path)) {
+      state.agent.images.push(path);
+    }
+    switchTab('agent');
+    logConsole(`[POOL]: Sent to Agent → ${path}`);
   } else {
     logConsole(`[POOL]: Unknown send target: ${target}`, 'error');
   }

@@ -431,6 +431,51 @@ function sendImagePathTo(path, target) {
     return;
   }
 
+  if (target === 'img2img') {
+    switchTab('img2img');
+    const input = document.getElementById('i2iInput');
+    if (input) {
+      input.value = path;
+      input.dispatchEvent(new Event('input'));
+    }
+    logConsole(`[IMAGE POOL]: Sent to Img2Img → ${path}`);
+    return;
+  }
+
+  if (target === 'agent') {
+    if (!state.agent) state.agent = { backend: 'deepseek', skill: 'chat', model: '', images: [], history: [] };
+    if (!state.agent.images.includes(path)) {
+      state.agent.images.push(path);
+    }
+    switchTab('agent');
+    logConsole(`[IMAGE POOL]: Sent to Agent → ${path}`);
+    return;
+  }
+
+  if (target === 'imagesort') {
+    if (!state.imageSort) state.imageSort = { images: [], sortMode: 'radial', sortOrder: 'score_asc', sortStrategy: 'balanced', output: '', selected: 0 };
+    if (!state.imageSort.images.some((x) => x.path === path)) {
+      state.imageSort.images.push({ path, name: basename(path), score: null });
+    }
+    switchTab('imagesort');
+    logConsole(`[IMAGE POOL]: Sent to Image Sort → ${path}`);
+    return;
+  }
+
+  if (target === 'zoompan') {
+    if (!state.zoompan) {
+      state.zoompan = { refPath: null, mode: 'overlay', overlayOpacity: 50, abPosition: 50, compareTarget: 'end_ref' };
+    }
+    state.zoompan.refPath = path;
+    if (!state.zoompan.compareTarget || state.zoompan.compareTarget === 'start_end') {
+      state.zoompan.compareTarget = 'end_ref';
+    }
+    if (state.zoompan.mode === 'separate') state.zoompan.mode = 'overlay';
+    switchTab('zoompan');
+    logConsole(`[IMAGE POOL]: Sent to Pan & Zoom → ${path}`);
+    return;
+  }
+
   if (target === 'global_image') {
     const gi = document.getElementById('giImage');
     if (gi) {
@@ -663,10 +708,13 @@ function _showImageSendMenu(anchor, path) {
     <button type="button" data-t="deepdream">DeepDream</button>
     <button type="button" data-t="upscale">Upscale</button>
     <button type="button" data-t="fastsam">FastSAM</button>
+    <button type="button" data-t="img2img">Img2Img</button>
+    <button type="button" data-t="agent">Agent</button>
+    <button type="button" data-t="imagesort">Image Sort</button>
+    <button type="button" data-t="zoompan">Pan &amp; Zoom</button>
     <button type="button" data-t="convert">Convert / Export</button>
     <button type="button" data-t="cut_ref_a">Cut · Ref A</button>
     <button type="button" data-t="cut_ref_b">Cut · Ref B</button>
-    <button type="button" data-t="zoompan_ref">Pan &amp; Zoom · Reference</button>
     <button type="button" data-t="preview">Preview</button>
   `;
   const rect = anchor.getBoundingClientRect();
