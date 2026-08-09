@@ -238,9 +238,6 @@ async function importImageFiles() {
       return;
     }
     const { firstNew } = addPathsToImagePool(paths);
-    ensureImagePool().items.forEach(item => {
-      if (!item.meta && !item.metaError) loadImageItemMeta(item);
-    });
     if (state.activeTab === 'images') {
       renderImagePoolForm();
       if (firstNew) selectImageItem(firstNew);
@@ -292,7 +289,6 @@ async function importImageFolder() {
         if (data.open_count != null) item.open_count = data.open_count;
         if (data.cached) item.cached = data.cached;
       }
-      if (!item.meta && !item.metaError) loadImageItemMeta(item);
     });
     logConsole(`[IMAGE POOL]: Folder import from ${dir} (${added} new)`);
     if (state.activeTab === 'images') {

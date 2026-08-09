@@ -4,7 +4,8 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 
 from .. import media
-from ..media.cache import lookup_cached_hash_batch, load_record
+from ..media.cache import lookup_cached_hash_batch
+from ..media.config import _thumb_path
 
 
 # Still-image extensions for Image Pool folder scan (mirrors frontend IMAGE_EXTS).
@@ -116,19 +117,10 @@ def register(app: FastAPI, is_video_fn, is_image_fn=None) -> None:
                 if h:
                     entry["hash"] = h
                     entry["cached"] = True
-                    rec = load_record(h)
-                    if rec:
-                        meta = rec.get("meta") or {}
-                        entry["meta"] = {
-                            k: v for k, v in meta.items()
-                            if k in (
-                                "width", "height", "fps", "duration", "frames",
-                                "video_codec", "audio_codec", "format_name", "bit_rate",
-                            )
-                        }
-                        entry["thumbs"] = rec.get("thumbs") or {}
-                        entry["history_count"] = len(rec.get("history") or [])
-                        entry["open_count"] = int(rec.get("open_count") or 0)
+                    entry["thumbs"] = {
+                        "first": _thumb_path(h, "first").exists(),
+                        "last": _thumb_path(h, "last").exists(),
+                    }
             videos.sort(key=lambda v: v["name"].lower())
             images.sort(key=lambda v: v["name"].lower())
             payload = {
