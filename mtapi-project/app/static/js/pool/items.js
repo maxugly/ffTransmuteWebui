@@ -1,4 +1,4 @@
-import { state, elements, logConsole, showPreview, renderPoolForm, checkHealth, switchTab, formatBytes } from '/app.js';
+import { state, elements, logConsole, showPreview, renderPoolForm, renderSequenceForm, checkHealth, switchTab, formatBytes } from '/app.js';
 import { isVideoPath, basename, formatDurationExact } from '/js/utils.js';
 import { shortHash, buildPoolMetaHtml, poolThumbUrl, scheduleSavePoolState } from '/js/pool/persistence.js';
 import { applySeqTokenTimeStyles, updateSeqClipSettings, displayFocusPath, updatePoolFocusFrame, setPoolFocus, updateSelectionHighlights, updateSeqTransportUI, seqStop, addPathToSequence } from '/js/pool/sequence.js';
@@ -137,6 +137,7 @@ function removePoolItem(idx) {
   logConsole(`[POOL]: Removed ${removed.name || removed.path}`);
   scheduleSavePoolState();
   if (state.activeTab === 'pool') renderPoolForm();
+  else if (state.activeTab === 'sequence') renderSequenceForm();
 }
 
 function clearPool() {
@@ -148,6 +149,7 @@ function clearPool() {
   logConsole('[POOL]: Cleared');
   scheduleSavePoolState();
   if (state.activeTab === 'pool') renderPoolForm();
+  else if (state.activeTab === 'sequence') renderSequenceForm();
 }
 
 function addPathsToPool(paths) {
