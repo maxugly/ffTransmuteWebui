@@ -17,6 +17,9 @@ shape.
 from __future__ import annotations
 
 import os
+import shutil
+import uuid
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -236,11 +239,269 @@ class JoinParams(BaseModel):
             "null/omit entry = keep native length. Applies temporal stretch via setpts/rubberband (pitch-preserving)."
         ),
     )
+    target: str | None = Field(
+        None,
+        description=(
+            "Preset id from ENCODE_PRESETS, e.g. 'dnxhr_hq'. "
+            "None = legacy H.264 CRF18 via transmute (backward compatible)."
+        ),
+    )
+    use_rife: bool = Field(
+        False,
+        description=(
+            "Interpolate clips below target_fps with RIFE before stitching so the "
+            "sequence is smoothly re-timed to exactly target_fps instead of "
+            "duplicating frames. RIFEd copies are kept next to their originals "
+            "and registered as 'rifed' variants in the media cache."
+        ),
+    )
+    target_fps: float | None = Field(
+        None,
+        gt=0,
+        description=(
+            "Target sequence FPS (exact final rate). With use_rife, clips whose "
+            "effective fps is below this are RIF-interpolated. Omit for "
+            "'max native fps of inputs'. Capped at the RIFE multiplier limit "
+            "(128x source fps)."
+        ),
+    )
     output_path: str | None = Field(None, description="Output path; auto-named (join-<mode>_<W>x<H>.mp4) if omitted")
     dry_run: bool = False
 
 
+_RIFE_EPS = 1e-6  # float tolerance for "below target fps" checks
+
+
+def _rife_multiplier(target_fps: float, effective_fps: float) -> int:
+    """Smallest power of two (>=2) with effective_fps * m >= target_fps.
+
+    RIFE can only multiply by 2^k, so we overshoot to the next 2^k and let the
+    final encode resample down to the exact target_fps (CORRECTED math — the
+    old ceil() produced 72/96fps intermediates that leaked a stutter).
+
+    Raises ValueError if the required multiplier exceeds 128 (AGENTS.md rule 8).
+    """
+    _RIFE_MULTIPLIER_MAX = 128
+    m = 2
+    while effective_fps * m < target_fps - _RIFE_EPS:
+        m *= 2
+        if m > _RIFE_MULTIPLIER_MAX:
+            raise ValueError(
+                f"target_fps={target_fps} needs RIFE multiplier > {_RIFE_MULTIPLIER_MAX}; "
+                f"lower target_fps (max ~{_RIFE_MULTIPLIER_MAX * effective_fps:.0f}fps "
+                f"for {effective_fps:.0f}fps source)"
+            )
+    return m
+
+
+async def _rife_preprocess(
+    input_paths: list[str],
+    durations: list[float | None] | None,
+    target_fps: float | None,
+) -> tuple[list[str], float]:
+    """Interpolate clips whose effective fps is below the target with RIFE.
+
+    For each clip needing interpolation:
+      - dump native frames → run_rife_directory(multiplier) → encode a video-only
+        intermediate at effective_fps * multiplier (neutral libx264 crf 18).
+      - probe the ORIGINAL for an audio stream: if present, mux it into the RIFE
+        video via a single ffmpeg call and persist `<stem>_rifed.mov` NEXT TO the
+        original; if silent, persist the video-only output as the variant.
+      - register the rifed file as a 'rifed' variant of the original.
+
+    Returns (processed_paths, resolved_target_fps) where processed_paths[i] is
+    the rifed file for interpolated clips and the original otherwise.
+    """
+    from ..job_workspace import JobWorkspace
+    from ..video_pipeline import dump, encode, probe, _time_factor
+    from ..filters.rife import resolve_rife_bin, run_rife_directory
+    from ..media import register_variant
+
+    # Fast fail with a clean message if rife-ncnn-vulkan is missing.
+    try:
+        resolve_rife_bin()
+    except RuntimeError as e:
+        raise RuntimeError("RIFE binary not found; install rife-ncnn-vulkan") from e
+
+    infos: list[tuple[float, float, float, bool]] = []
+    for i, p in enumerate(input_paths):
+        info = await probe(str(Path(p).expanduser()))
+        native_fps = float(info.get("fps") or 0.0)
+        native_dur = float(info.get("duration") or 0.0)
+        has_audio = bool(info.get("has_audio"))
+        req_dur = durations[i] if durations and i < len(durations) else None
+        # effective fps after temporal stretch (mirrors concat_clips _time_factor)
+        eff = native_fps * _time_factor(req_dur, native_dur) if req_dur else native_fps
+        infos.append((native_fps, native_dur, eff, has_audio))
+
+    resolved_target = float(target_fps) if target_fps else max(i[2] for i in infos)
+    resolved_target = max(resolved_target, 1.0)
+
+    processed: list[str] = list(input_paths)
+    for i, p in enumerate(input_paths):
+        native_fps, native_dur, eff, has_audio = infos[i]
+        if eff >= resolved_target - _RIFE_EPS:
+            continue  # already fast enough — no interpolation
+
+        multiplier = _rife_multiplier(resolved_target, eff)
+        original = Path(p).expanduser().resolve()
+        parent = original.parent
+        rifed_path = parent / f"{original.stem}_rifed.mov"
+
+        sub = JobWorkspace(uuid.uuid4().hex[:12], prefix="rife_")
+        rife_ok = False
+        try:
+            await dump(sub, original)
+            rife_out = sub.root / "rife_out"
+            await run_rife_directory(sub.frames_in, rife_out, multiplier=multiplier)
+
+            intermediate = sub.root / "rife_video.mp4"
+            await encode(
+                sub, intermediate, eff * multiplier,
+                mux_audio=False,
+                frame_source_dir=rife_out,
+            )
+
+            if has_audio:
+                mux_argv = [
+                    "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+                    "-i", str(intermediate),
+                    "-i", str(original),
+                    "-map", "0:v:0", "-map", "1:a:0",
+                    "-c:v", "copy", "-c:a", "copy",
+                    str(rifed_path),
+                ]
+                code, _, err = await run_command(mux_argv)
+                if code != 0:
+                    raise RuntimeError(
+                        f"ffmpeg rife audio mux failed (exit {code}): {err.strip() or 'no stderr'}"
+                    )
+            else:
+                shutil.copyfile(str(intermediate), str(rifed_path))
+
+            if not rifed_path.is_file():
+                raise RuntimeError(f"RIFE variant not written: {rifed_path}")
+
+            await register_variant(
+                str(original),
+                kind="rifed",
+                variant_path=rifed_path,
+                detail={
+                    "multiplier": multiplier,
+                    "target_fps": resolved_target,
+                    "has_audio": bool(has_audio),
+                },
+            )
+            processed[i] = str(rifed_path)
+            rife_ok = True
+        finally:
+            sub.cleanup(keep_on_failure=not rife_ok, keep_on_success=False)
+
+    return processed, resolved_target
+
+
+async def _join_with_preset(
+    p: JoinParams,
+    *,
+    processed_paths: list[str] | None = None,
+    rife_target_fps: float | None = None,
+) -> OperationResult:
+    from ..convert_presets import ENCODE_PRESETS, VIDEO_EXTS
+    from ..job_workspace import JobWorkspace
+    from ..pathutil import unique_output_path
+
+    target = p.target
+    if target not in ENCODE_PRESETS:
+        return OperationResult(
+            ok=False, operation="join", error=f"Unknown target preset: {target}",
+        )
+    ep = ENCODE_PRESETS[target]
+    ext = (ep.container_ext or ep.container).lower()
+    if ext and not ext.startswith("."):
+        ext = f".{ext}"
+
+    if p.output_path:
+        suggested = Path(p.output_path).expanduser()
+        if not suggested.suffix or suggested.suffix.lower() not in VIDEO_EXTS:
+            suggested = suggested.with_suffix(ext or ".mp4")
+    else:
+        first = Path((processed_paths or p.input_paths)[0]).expanduser()
+        suggested = first.parent / f"{first.stem}_join_{target}{ext or '.mp4'}"
+    out = unique_output_path(suggested)
+
+    inputs = processed_paths if processed_paths is not None else p.input_paths
+
+    summary = f"join {len(inputs)} clips -> {target}"
+    if p.dry_run:
+        return OperationResult(
+            ok=True, operation="join", output_path=str(out), dry_run=True,
+            command=summary,
+            stdout=f"Command: {summary}\nOutput: {out}\n(dry run — no files written)",
+        )
+
+    from ..video_pipeline import concat_clips, dump, encode
+
+    ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="join_")
+    success = False
+    logs: list[str] = [summary]
+    try:
+        intermediate = ws.root / "joined_tmp.mkv"
+        stitched = await concat_clips(
+            ws, inputs, intermediate,
+            mode=p.mode, aspect=p.aspect, durations=p.durations,
+        )
+        dump_info = await dump(ws, intermediate)
+        encode_fps = rife_target_fps if rife_target_fps is not None else dump_info["fps"]
+        result_path = await encode(
+            ws, out, encode_fps,
+            encode_preset=ep,
+            frame_source_dir=ws.frames_in,
+            mux_audio=True,
+            silence_on_no_audio=True,
+        )
+        success = True
+        logs.append(f"Stitched {len(p.input_paths)} clips -> {intermediate}")
+        logs.append(
+            f"Canvas {stitched['width']}x{stitched['height']} @ "
+            f"{dump_info['fps']} fps -> {result_path}"
+        )
+        return OperationResult(
+            ok=True, operation="join", output_path=str(result_path),
+            command=summary, stdout="\n".join(logs),
+        )
+    except Exception as e:
+        return OperationResult(
+            ok=False, operation="join", error=str(e),
+            command=summary, stdout="\n".join(logs), stderr=str(e),
+        )
+    finally:
+        ws.cleanup(keep_on_failure=not success)
+
+
 async def join(p: JoinParams) -> OperationResult:
+    if p.use_rife:
+        if not p.target:
+            return OperationResult(
+                ok=False,
+                operation="join",
+                error=(
+                    "use_rife requires a target preset (the legacy bash H.264 "
+                    "path cannot consume RIFEd inputs)"
+                ),
+            )
+        try:
+            processed_paths, target_fps = await _rife_preprocess(
+                p.input_paths, p.durations, p.target_fps
+            )
+        except Exception as e:
+            return OperationResult(ok=False, operation="join", error=str(e))
+        return await _join_with_preset(
+            p,
+            processed_paths=processed_paths,
+            rife_target_fps=target_fps,
+        )
+    if p.target:
+        return await _join_with_preset(p)
     flags = ["-j", p.mode, "-A", p.aspect or "auto"]
     if p.durations and any(d is not None for d in p.durations):
         # -T 3.0,,5.5  (empty = native)

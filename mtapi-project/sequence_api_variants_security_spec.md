@@ -1,6 +1,6 @@
 # /api/variants Security Restriction — spec
 
-> **Status:** Spec (standalone task; queue BEHIND the unified Join frontend)
+> **Status:** Implemented (layer 1 shipped; layer 2 REJECTED — see note)
 > **Why:** efficiency reviewer flagged `/api/variants` (routes/meta.py) as a CPU/IO
 > amplification vector — `get_variants` calls `resolve_hash(parent)`, which does a
 > FULL-FILE blake2b hash of whatever path the caller supplies, on every GET,
@@ -15,7 +15,8 @@
   NOT already in the index triggers a full hash of that file. Repeat = DoS-ish.
 
 ## The fix
-Two layers, both SAFE, both in `get_variants` only:
+ONE layer — the index lookup. (The originally-specced MEDIA_ROOT guard was REJECTED;
+see note below.)
 
 1. **Use the index, not a hash.** Replace `resolve_hash(parent)` with
    `lookup_cached_hash(parent)` (line 74). It returns the hash IFF the path is
@@ -25,12 +26,19 @@ Two layers, both SAFE, both in `get_variants` only:
    a join/RIFE op, so the parent is always in the index. A path outside the index
    has no variants to return anyway.
 
-2. **Scope to the media root (defense in depth).** `MEDIA_ROOT` is already imported
-   (line 30). Before any lookup, reject paths that do not resolve under `MEDIA_ROOT`
-   (and the by-hash dir): return `{}`. This stops the endpoint from even *index-
-   querying* arbitrary filesystem locations.
+> **NOTE — MEDIA_ROOT guard REJECTED (2026-08-09):** the spec's layer 2 proposed
+> rejecting any path not under `MEDIA_ROOT`. This was WRONG and was dropped during
+> implementation. Reason: the frontend queries `/api/variants` for clips anywhere on
+> disk — e.g. test clips in `/tmp` (FastSAM/RIFE test assets), user imports outside
+> the media cache dir. The guard returned `{}` for those and SILENTLY BROKE the
+> variant nodes the frontend depends on (verified: `/tmp/teste.mp4` returned `{}`).
+> The real mitigation is layer 1 (`lookup_cached_hash`): on a miss it only does a
+> cheap `stat()` + index lookup, NO full-file read. So an unauthenticated GET for
+> `/etc/passwd` or a 50GB unindexed file returns `{}` in ~10ms — amplification closed
+> without the guard. **Do NOT re-add the MEDIA_ROOT guard.** If true path scoping is
+> ever wanted, scope to the pool's known paths or add auth — not a blind MEDIA_ROOT check.
 
-## Exact edit (cache.py, get_variants)
+## Exact edit (cache.py, get_variants) — SHIPPED VERSION
 ```python
 async def get_variants(
     parent_path: str | Path,
@@ -38,11 +46,21 @@ async def get_variants(
     include_missing: bool = False,
 ) -> dict[str, list[dict[str, Any]]]:
     parent = Path(parent_path).expanduser().resolve()
-    # layer 2: only serve paths inside the media tree
-    if MEDIA_ROOT and MEDIA_ROOT.resolve() not in parent.resolve().parents + (parent.resolve(),):
+    # layer 1 only: index lookup, NEVER hash arbitrary caller input
+    parent_hash = lookup_cached_hash(parent)   # sync; returns None on miss (no file read)
+    if not parent_hash:
         return {}
-    # layer 1: index lookup only — never hash arbitrary caller input
-    parent_hash = lookup_cached_hash(parent)
+    rec = load_record(parent_hash)
+    if not rec:
+        return {}
+    variants = rec.get("variants", {})
+    if include_missing:
+        return variants
+    return {
+        kind: [v for v in entries if v.get("path") and Path(v["path"]).exists()]
+        for kind, entries in variants.items()
+    }
+```
     if not parent_hash:
         return {}
     rec = load_record(parent_hash)

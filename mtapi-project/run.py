@@ -30,4 +30,4 @@ if __name__ == "__main__":
             # Fall back to a reasonable X11 display
             os.environ.setdefault("DISPLAY", ":0")
 
-    uvicorn.run("app.main:app", host="0.0.0.0", port=24590)
+    uvicorn.run("app.main:app", host="127.0.0.1", port=24590)

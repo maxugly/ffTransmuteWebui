@@ -558,6 +558,203 @@ def _build_encode_argv(
     return argv
 
 
+# ── D2. Concat clips (python join stitch) ───────────────────────────────────
+# Mirrors `transmute -j`'s reconcile + concat (bin/transmute: join_vf_for_mode,
+# snap_canvas_to_ar, TIME_FACTOR) in pure Python so the join op can chain into
+# the codec preset engine without forking ffmpeg args. The intermediate is a
+# neutral near-lossless temp file — the final encode() does the real codec work.
+
+_ASPECT_NAMES = {
+    "1:1": (1, 1), "square": (1, 1),
+    "16:9": (16, 9), "9:16": (9, 16),
+    "3:2": (3, 2), "2:3": (2, 3),
+    "4:3": (4, 3), "3:4": (3, 4),
+}
+
+
+def _resolve_target_ratio(aspect: str, dims: list[tuple[int, int]]) -> tuple[int, int]:
+    """Resolve -A aspect into a reduced W:H ratio. Mirrors bin/transmute
+    resolve_aspect_ratio: auto = shared AR if all clips match (within 0.5%)
+    else AR of the largest clip by pixel area."""
+    spec = (aspect or "auto").strip().lower()
+    if spec != "auto":
+        if spec in _ASPECT_NAMES:
+            rw, rh = _ASPECT_NAMES[spec]
+        elif ":" in spec or "x" in spec:
+            sep = ":" if ":" in spec else "x"
+            a, _, b = spec.partition(sep)
+            if not (a.isdigit() and b.isdigit() and int(a) > 0 and int(b) > 0):
+                raise ValueError(f"bad aspect spec: {aspect!r} (use W:H or WxH)")
+            rw, rh = int(a), int(b)
+        else:
+            raise ValueError(f"unknown aspect spec: {aspect!r}")
+    else:
+        if not dims:
+            raise ValueError("no clips to resolve auto aspect")
+        fw, fh = dims[0]
+        all_same = True
+        best = dims[0]
+        best_area = fw * fh
+        for w, h in dims[1:]:
+            area = w * h
+            if area > best_area:
+                best_area, best = area, (w, h)
+            # cross-multiply compare w/h vs first_w/first_h (same as bash 0.5%)
+            if abs(w * fh - h * fw) > 0.005 * w * fh:
+                all_same = False
+        rw, rh = (fw, fh) if all_same else best
+    g = math.gcd(rw, rh) or 1
+    return rw // g, rh // g
+
+
+def _snap_canvas_to_ar(max_w: int, max_h: int, rw: int, rh: int) -> tuple[int, int]:
+    """Smallest even canvas WxH with W>=max_w, H>=max_h and W/H ≈ rw/rh.
+    Mirrors bin/transmute snap_canvas_to_ar — always grows, never shrinks."""
+    W = max_w
+    H = int((W * rh) / rw + 0.999)
+    if H < max_h:
+        H = max_h
+        W = int((H * rw) / rh + 0.999)
+    if W % 2:
+        W += 1
+    if H % 2:
+        H += 1
+    if W < max_w:
+        W = max_w + (max_w % 2)
+    if H < max_h:
+        H = max_h + (max_h % 2)
+    return W, H
+
+
+def _time_factor(d: float, src_d: float) -> float:
+    """Per-clip tempo factor (target duration / source duration); 1 = no stretch."""
+    if d is None or src_d <= 0.001:
+        return 1.0
+    factor = d / src_d
+    return factor if factor > 0 else 1.0
+
+
+def _join_vf_fragment(mode: str, i: int, W: int, H: int, factor: float) -> str:
+    """Per-clip video filter fragment → [v{i}]. Mirrors join_vf_for_mode."""
+    if factor in (0, 1):
+        pts = "setpts=PTS-STARTPTS"
+    else:
+        pts = f"setpts=(PTS-STARTPTS)*{factor}"
+    if mode == "pad":
+        return (f"[{i}:v]scale={W}:{H}:force_original_aspect_ratio=decrease:flags=lanczos,"
+                f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,{pts}[v{i}]")
+    if mode == "crop":
+        return (f"[{i}:v]scale={W}:{H}:force_original_aspect_ratio=increase:flags=lanczos,"
+                f"crop={W}:{H}:(iw-ow)/2:(ih-oh)/2,setsar=1,{pts}[v{i}]")
+    if mode == "stretch":
+        return f"[{i}:v]scale={W}:{H}:flags=lanczos,setsar=1,{pts}[v{i}]"
+    raise ValueError(f"unknown join reconcile mode: {mode!r}")
+
+
+def _join_audio_fragment(i: int, has_audio: bool, factor: float, dur: float) -> str:
+    """Per-clip audio fragment: real audio (with rubberband tempo on stretch) or
+    generated silence matching the source clip duration, normalized to stereo."""
+    base: str
+    if has_audio:
+        base = f"[{i}:a]aformat=sample_fmts=fltp:channel_layouts=stereo"
+    else:
+        base = (f"anullsrc=r=44100:cl=stereo,atrim=duration={dur:.6f},"
+                f"aformat=sample_fmts=fltp:channel_layouts=stereo")
+    if factor in (0, 1):
+        return f"{base}[a{i}]"
+    aspeed = 1.0 / factor
+    return f"{base},rubberband=tempo={aspeed:.10f}[a{i}]"
+
+
+async def concat_clips(
+    workspace: JobWorkspace,
+    inputs: list[str | Path],
+    output_path: str | Path,
+    *,
+    mode: str = "pad",
+    aspect: str = "auto",
+    durations: list[float | None] | None = None,
+) -> dict[str, Any]:
+    """Stitch clips end-to-end with pad/crop/stretch reconcile (mirrors
+    `transmute -j MODE -A ASPECT`), producing one stitched intermediate.
+
+    The intermediate is a neutral near-lossless libx264 -crf 18 -preset medium
+    temp file inside `workspace` — NOT the user-facing deliverable. Feed it to
+    encode() (via dump()) to reach a codec preset.
+
+    Returns {output_path, fps, duration, frame_count, width, height, has_audio}.
+    """
+    if len(inputs) == 0:
+        raise ValueError("concat_clips needs at least 1 input")
+    srcs = [Path(p).expanduser() for p in inputs]
+    for sp in srcs:
+        if not sp.is_file():
+            raise RuntimeError(f"concat input not found: {sp}")
+
+    infos = await asyncio.gather(*(probe(sp) for sp in srcs))
+    dims = [(int(info["width"]), int(info["height"])) for info in infos]
+    max_w = max(w for w, _ in dims)
+    max_h = max(h for _, h in dims)
+
+    rw, rh = _resolve_target_ratio(aspect, dims)
+    W, H = _snap_canvas_to_ar(max_w, max_h, rw, rh)
+
+    factors: list[float] = []
+    for i, info in enumerate(infos):
+        d = None
+        if durations and i < len(durations):
+            d = durations[i]
+        factors.append(_time_factor(d, float(info["duration"])))
+
+    has_audio = any(bool(info["has_audio"]) for info in infos)
+
+    # ── Filter graph ────────────────────────────────────────────────────
+    parts: list[str] = []
+    for i in range(len(srcs)):
+        parts.append(_join_vf_fragment(mode, i, W, H, factors[i]))
+    if has_audio:
+        for i, info in enumerate(infos):
+            parts.append(_join_audio_fragment(
+                i, bool(info["has_audio"]), factors[i], float(info["duration"])))
+        labels = "".join(f"[v{i}][a{i}]" for i in range(len(srcs)))
+        parts.append(f"{labels}concat=n={len(srcs)}:v=1:a=1[v][a]")
+    else:
+        labels = "".join(f"[v{i}]" for i in range(len(srcs)))
+        parts.append(f"{labels}concat=n={len(srcs)}:v=1:a=0[v]")
+
+    # ── Build the intermediate ──────────────────────────────────────────
+    out_path = Path(output_path).resolve()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    argv: list[str] = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
+    for sp in srcs:
+        argv.extend(["-i", str(sp)])
+    argv.extend(["-filter_complex", ";".join(parts), "-map", "[v]"])
+    if has_audio:
+        argv.extend(["-map", "[a]", "-c:a", "aac", "-b:a", "192k"])
+    else:
+        argv.append("-an")
+    argv.extend(["-c:v", "libx264", "-crf", "18", "-preset", "medium", str(out_path)])
+
+    code, _, stderr = await run_command(argv)
+    if code != 0:
+        raise RuntimeError(
+            f"ffmpeg concat join failed (exit {code}): {stderr.strip() or 'no stderr'}"
+        )
+    if not out_path.is_file():
+        raise RuntimeError(f"concat join produced no output file: {out_path}")
+
+    info = await probe(out_path)
+    return {
+        "output_path": str(out_path),
+        "fps": info["fps"],
+        "duration": info["duration"],
+        "frame_count": info["frame_count"],
+        "width": info["width"],
+        "height": info["height"],
+        "has_audio": info["has_audio"],
+    }
+
+
 # ── E. Load frames directory ────────────────────────────────────────────────
 
 async def load_frames_dir(

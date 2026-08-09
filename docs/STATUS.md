@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
-> **Updated:** 2026-08-04  
-> **VERSION:** `000.000.4.77`  
+> **Updated:** 2026-08-09  \
+> **VERSION:** `000.000.4.81`  \
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -69,6 +69,12 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Dead-code pass 3** | Dropped unused helpers/shims; wired `frame_range` fields across video ops | `shell`, engines, `*_ops` · `4.77` |
 | **Image Compare tab** | Two stills · separate/overlay/A/B (shared module) · rate via `imagesort_rank` | `js/tabs/imgcompare.js` · `4.68` |
 | **Nav category collapse** | Collapsible sidebar categories + localStorage persist + auto-expand active | `nav-collapse-spec.md` · `js/ui/nav-sections.js` · `4.69` |
+| **Join codec export** | `target` preset id from `/api/presets`; Python `concat_clips` stitch → codec preset encode (DNxHR/ProRes/H.264/HEVC/AV1/FFV1) | `concat_clips` (`video_pipeline.py`), `JoinParams.target`, `/api/presets` · `4.81` |
+| **RIFE in Join** | `use_rife` + `target_fps`; smallest 2^k overshoot + exact resample (no 72/96 leak); mux original audio; registers `rifed` variant | `transmute_ops._rife_preprocess`, `sequence_rife_interpolation_spec.md` · `4.81` |
+| **Clip variant registry** | `register_variant` / `get_variants` + `/api/variants`; kinds original/rifed/export; association in central cache (no sidecar) | `cache.py`, `sequence_clip_variant_registry_spec.md` · `4.81` |
+| **Unified Join Frontend** | Format dropdown (populated from `/api/presets`) + RIFE toggle/fps + variant nodes under pool cards | `js/pool/grid.js`, `js/pool/persistence.js`, `sequence_join_unified_frontend_spec.md` · `4.81` |
+| **Simplify pass** | 3-agent review; collapsed per-clip triple-probe → single `probe()`; `asyncio.gather` on probe/hash; shared `RECENT_CAP`; dropped datamosh import | `simplify-code` skill · `4.81` |
+| **/api/variants hardening** | Index-only lookup (`lookup_cached_hash`), never hashes caller input on GET (closes CPU/IO amplification) | `sequence_api_variants_security_spec.md` · `4.81` |
 
 **Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale *(in tree — see §4)*. Root `AGENTS.md`.
 

@@ -3,6 +3,9 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 
+from ..convert_presets import ENCODE_PRESETS
+from ..media import cache as media_cache
+
 
 def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY) -> None:
     from .. import job_queue
@@ -122,6 +125,26 @@ def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY
             }
             for op_id, spec in REGISTRY.items()
         }
+
+    @app.get("/api/presets", tags=["meta"])
+    async def api_presets() -> dict:
+        return {
+            pid: {
+                "id": ep.id,
+                "label": ep.label,
+                "blurb": ep.blurb,
+                "group": ep.group,
+                "container": ep.container,
+                "codec": ep.codec,
+            }
+            for pid, ep in ENCODE_PRESETS.items()
+        }
+
+    @app.get("/api/variants", tags=["meta"])
+    async def api_variants(path: str):
+        """Return variant map {kind: [entries]} for the clip at `path`."""
+        variants = await media_cache.get_variants(Path(path).expanduser().resolve())
+        return {"path": str(Path(path).resolve()), "variants": variants}
 
     @app.get("/health", tags=["meta"])
     async def health() -> dict:

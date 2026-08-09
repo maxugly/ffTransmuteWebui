@@ -36,11 +36,13 @@ from .cache import (  # noqa: F401
     _save_index,
     _update_index_entry,
     append_history,
+    get_variants,
     hash_file,
     load_record,
     lookup_cached_hash,
     media_cache_stats,
     record_operation,
+    register_variant,
     resolve_hash,
     save_record,
 )

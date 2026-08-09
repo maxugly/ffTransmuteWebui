@@ -33,6 +33,41 @@ import {
   setupTileInfoMenu, showPoolContextMenu,
 } from '/app.js';
 
+// ── Join / Sequence helpers ─────────────────────────────────────────────────
+
+let JOIN_PRESETS = null;
+async function fillJoinTargetOptions() {
+  const sel = document.getElementById('poolTarget');
+  if (!sel || sel.dataset.filled) return;
+  if (!JOIN_PRESETS) {
+    try { JOIN_PRESETS = await (await fetch('/api/presets')).json(); }
+    catch { JOIN_PRESETS = {}; }
+  }
+  const groups = {};
+  for (const [pid, ep] of Object.entries(JOIN_PRESETS)) {
+    (groups[ep.group] ||= []).push(`<option value="${pid}" title="${(ep.blurb||'').replace(/"/g,'&quot;')}">${ep.label}</option>`);
+  }
+  sel.innerHTML = '<option value="">Legacy H.264 (default)</option>' +
+    Object.entries(groups).map(([g, opts]) => `<optgroup label="${g}">${opts.join('')}</optgroup>`).join('');
+  sel.dataset.filled = '1';
+  sel.value = state.pool.target || '';
+}
+
+async function _variantNodeHtml(path) {
+  let variants = {};
+  try { variants = (await (await fetch(`/api/variants?path=${encodeURIComponent(path)}`)).json()).variants || {}; }
+  catch { variants = {}; }
+  const kinds = Object.keys(variants);
+  if (!kinds.length) return '';
+  const rows = kinds.map(kind => variants[kind].map(v => `
+    <div class="variant-row${v.path && state.pool.selectedVariantPaths?.[path] === v.path ? ' selected' : ''}"
+         data-variant-path="${v.path || ''}" data-variant-kind="${kind}">
+      <span class="variant-kind">${kind}</span>
+      ${v.detail ? `<span class="variant-detail">${Object.entries(v.detail).map(([k,val])=>`${k}=${val}`).join(' · ')}</span>` : ''}
+    </div>`).join('')).join('');
+  return `<div class="variant-node"><span class="variant-head">Variants</span>${rows}</div>`;
+}
+
 // ─── Video Pool ───────────────────────────────────────────────────────────
 
 function renderPoolForm() {
@@ -289,6 +324,20 @@ function _bindSequencePanel() {
     scheduleSavePoolState();
   });
 
+  document.getElementById('poolTarget')?.addEventListener('change', (e) => {
+    state.pool.target = e.target.value || null;
+    scheduleSavePoolState();
+  });
+  document.getElementById('poolUseRife')?.addEventListener('change', (e) => {
+    state.pool.useRife = e.target.checked;
+    scheduleSavePoolState();
+  });
+  document.getElementById('poolTargetFps')?.addEventListener('input', (e) => {
+    const v = parseFloat(e.target.value);
+    state.pool.targetFps = (v > 0) ? v : null;
+    scheduleSavePoolState();
+  });
+
   document.getElementById('matchDistance')?.addEventListener('input', (e) => {
     state.pool.matchMaxDistance = parseInt(e.target.value, 10) || 0;
     const val = document.getElementById('matchDistanceVal');
@@ -391,6 +440,12 @@ function _bindSequencePanel() {
     scheduleSavePoolState();
     logConsole(`[SEQ]: Cleared time stretch for ${state.pool.sequence[idx].name}`);
   });
+
+  const useRifeEl = document.getElementById('poolUseRife');
+  const targetFpsEl = document.getElementById('poolTargetFps');
+  if (useRifeEl) useRifeEl.checked = !!state.pool.useRife;
+  if (targetFpsEl) targetFpsEl.value = state.pool.targetFps || '';
+  fillJoinTargetOptions();
 }
 
 function _composeHtml() {
@@ -464,6 +519,18 @@ function _composeHtml() {
                 placeholder="W:H or WxH" title="Custom aspect e.g. 5:4 or 1080x1920"
                 value="${escapeHtml(state.pool.aspectCustom || '')}"
                 style="display:${state.pool.aspect === 'custom' ? 'inline-block' : 'none'}; width: 100px;">
+              <label class="pool-opt-label" title="Export codec (DNxHR / ProRes / H.264 / …)">Format
+                <select id="poolTarget">
+                  <option value="">Legacy H.264 (default)</option>
+                  <!-- options injected by JS from /api/presets -->
+                </select>
+              </label>
+              <label class="checkbox-label" title="Interpolate low-fps clips to target_fps with RIFE before stitch">
+                <input type="checkbox" id="poolUseRife"> RIFE interpolate
+              </label>
+              <label class="pool-opt-label" title="Exact output fps (RIFE overshoots to 2^k then resamples; max ~128× source)">RIFE fps
+                <input type="number" id="poolTargetFps" min="1" step="1" placeholder="auto = max native" class="seq-clip-dur-input">
+              </label>
               <div class="input-row pool-out-row">
                 <input type="text" id="poolOutput" placeholder="Output path (blank = auto .mp4)" value="${escapeHtml(outVal)}">
                 <button class="btn" type="button" id="btnPoolOutBrowse">Save As</button>
@@ -724,6 +791,7 @@ function renderPoolGrid() {
         </div>
       </div>` : `<div class="pool-overlay-text" id="poolMeta-${idx}" style="display:none"></div>`}
       <button class="pool-card-info-btn" type="button" title="Clip info" data-info-idx="${idx}">ⓘ</button>
+      <div id="poolVariants-${idx}"></div>
     `;
 
     card.addEventListener('click', (e) => {
@@ -855,6 +923,24 @@ function renderPoolGrid() {
 
     if (!meta && !item.metaError) {
       loadPoolItemMeta(item, idx);
+    }
+
+    const variantContainer = card.querySelector(`#poolVariants-${idx}`);
+    if (variantContainer) {
+      _variantNodeHtml(item.path).then(html => {
+        variantContainer.innerHTML = html;
+        variantContainer.querySelectorAll('.variant-row').forEach(r => {
+          r.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const p = r.dataset.variantPath;
+            if (!p) return;
+            state.pool.selectedVariantPaths = state.pool.selectedVariantPaths || {};
+            state.pool.selectedVariantPaths[item.path] = p;
+            scheduleSavePoolState();
+            renderPoolGrid();
+          });
+        });
+      });
     }
   });
   _updatePoolFilterCount();

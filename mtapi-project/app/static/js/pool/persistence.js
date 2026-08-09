@@ -65,6 +65,10 @@ function buildPoolStatePayload() {
     aspect: state.pool.aspect || 'auto',
     aspect_custom: state.pool.aspectCustom || '',
     output_path: state.pool.outputPath || '',
+    target: state.pool.target || null,
+    use_rife: !!state.pool.useRife,
+    target_fps: state.pool.targetFps || null,
+    selected_variant_paths: state.pool.selectedVariantPaths || {},
     tile_zoom: state.pool.tileZoom || POOL_ZOOM.reset,
     tile_info: ensureTileInfo(),
     layout: ensurePoolLayout(),
@@ -134,6 +138,10 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
   state.pool.aspect = data.aspect || 'auto';
   state.pool.aspectCustom = data.aspect_custom || '';
   state.pool.outputPath = data.output_path || '';
+  state.pool.target = data.target || null;
+  state.pool.useRife = !!data.use_rife;
+  state.pool.targetFps = data.target_fps || null;
+  state.pool.selectedVariantPaths = data.selected_variant_paths || {};
 
   // Image Pool (v2; missing images → [])
   if (!state.imagePool) {
@@ -228,6 +236,10 @@ async function projectNew() {
   state.pool.focusPath = null;
   state.pool.matchResults = null;
   state.pool.outputPath = '';
+  state.pool.target = null;
+  state.pool.useRife = false;
+  state.pool.targetFps = null;
+  state.pool.selectedVariantPaths = {};
   if (state.imagePool) {
     state.imagePool.items = [];
     state.imagePool.selectedPath = null;
@@ -550,10 +562,13 @@ async function stitchPoolSequence() {
   const anyTimed = durations.some(d => d != null);
 
   const body = {
-    input_paths: paths,
+    input_paths: paths.map(p => (state.pool.selectedVariantPaths || {})[p] || p),
     mode,
     aspect,
     durations: anyTimed ? durations : null,
+    target: state.pool.target || null,
+    use_rife: !!state.pool.useRife,
+    target_fps: state.pool.targetFps || null,
     output_path,
     dry_run: false,
   };
