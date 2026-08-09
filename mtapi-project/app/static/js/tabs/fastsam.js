@@ -17,9 +17,11 @@ export function renderFastSAMForm() {
       </div>
     </div>
     
-    <div id="fastsamPreviewWrapper" style="display: none; text-align: center; position: relative; margin: 10px 0;">
-      <img id="fastsamPreviewImg" style="max-width: 100%; max-height: 400px; cursor: crosshair; border: 1px solid var(--border-color); display: inline-block;" />
-      <div id="fastsamCrosshair" style="position: absolute; width: 12px; height: 12px; border: 2px solid #0f0; border-radius: 50%; box-shadow: 0 0 4px #000; transform: translate(-50%, -50%); pointer-events: none; display: none;"></div>
+    <div id="fastsamPreviewWrapper" style="display: none; text-align: center; margin: 10px 0;">
+      <div style="display: inline-block; position: relative; max-width: 100%;">
+        <img id="fastsamPreviewImg" style="max-width: 100%; max-height: 400px; cursor: crosshair; border: 1px solid var(--border-color); display: block;" />
+        <div id="fastsamCrosshair" style="position: absolute; width: 12px; height: 12px; border: 2px solid #0f0; border-radius: 50%; box-shadow: 0 0 4px #000; transform: translate(-50%, -50%); pointer-events: none; display: none;"></div>
+      </div>
       <p class="form-row-hint" style="margin-top: 5px;">Click on the image to set the Target X/Y coordinate.</p>
     </div>
     
