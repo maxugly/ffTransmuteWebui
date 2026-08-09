@@ -1,0 +1,19 @@
+# ── junk / scratch drawer ────────────────────────────────────────────────
+# All throwaway scripts, model weights, test scaffolds, and scratch output
+# live in junk/ and are NEVER committed. See root AGENTS.md rule 11.
+junk/*
+!junk/.gitkeep
+
+# guard: if a weight/backup is dropped at repo root by mistake, ignore it
+*.pt
+*.bin
+*.onnx
+*.bak
+rife-ncnn-vulkan.bak
+FastSAM*
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/

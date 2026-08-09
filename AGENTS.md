@@ -158,6 +158,15 @@ When modifying files at the root level or coordinating changes across components
 10. **Ship → update STATUS**:
    - When landing a feature: bump VERSION DD, update `docs/STATUS.md`, set the feature spec banner to Implemented/Partial, refresh `docs/SESSION-STOPPING-STATE.md` on meaningful stops.
 
+11. **Junk / Scratch Directory (`mtapi-project/junk/`)**:
+   - All throwaway artifacts live in `mtapi-project/junk/` and are gitignored — NEVER committed, NEVER left in repo root.
+   - What goes there: test/diagnostic scripts (`test_*.py`, `check_*.py`), scratch output, extracted frames, **model weights** (`*.pt`, `*.bin`, `*.onnx`, OpenVINO dirs), and binary backups (`*.bak`).
+   - Rule for agents: if you create a scratch/test/diagnostic file or download a model, put it in `junk/` immediately. Do NOT litter repo root or `app/`.
+   - `junk/.gitkeep` is the only tracked file in `junk/` (keeps the dir in git). Everything else inside `junk/` is ignored.
+   - `mtapi-project/.gitignore` already covers `junk/*` plus root-level guards (`*.pt`, `*.bak`, `FastSAM*`, `rife-ncnn-vulkan.bak`). If you add a new weight extension, extend `.gitignore` — do not commit weights.
+   - Grandfathered: `check_*.py` / `test_*.py` currently committed at repo root were added before this rule; future scratch files go in `junk/`.
+   - Note: `/home/m/snc/cod` (parent of this repo) is a SEPARATE fresh git init. Its `node_modules/`, `package*.json`, `lsp-check.sh` are out of scope here.
+
 ---
 
 ## 🛠️ 4. Agent Workflows & Action Protocols
