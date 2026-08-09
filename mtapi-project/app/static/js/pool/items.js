@@ -1,4 +1,4 @@
-import { state, elements, logConsole, showPreview, renderPoolForm, checkHealth, switchTab, formatBytes } from '/app.js';
+import { state, elements, logConsole, showPreview, renderPoolForm, renderStyleTransferForm, renderFaceMorphForm, renderWithoutBgForm, checkHealth, switchTab, formatBytes } from '/app.js';
 import { isVideoPath, basename, formatDurationExact } from '/js/utils.js';
 import { shortHash, buildPoolMetaHtml, poolThumbUrl, scheduleSavePoolState } from '/js/pool/persistence.js';
 import { applySeqTokenTimeStyles, updateSeqClipSettings, displayFocusPath, updatePoolFocusFrame, setPoolFocus, updateSelectionHighlights, updateSeqTransportUI, seqStop, addPathToSequence } from '/js/pool/sequence.js';
@@ -379,6 +379,70 @@ function sendPoolPathTo(path, target) {
       input.dispatchEvent(new Event('input'));
     }
     logConsole(`[POOL]: Sent to Advanced → ${path}`);
+  } else if (target === 'rife') {
+    switchTab('rife');
+    const input = document.getElementById('rifeInput');
+    if (input) {
+      input.value = path;
+      input.dispatchEvent(new Event('input'));
+    }
+    logConsole(`[POOL]: Sent to RIFE → ${path}`);
+  } else if (target === 'speedchange') {
+    switchTab('speedchange');
+    const input = document.getElementById('scInput');
+    if (input) {
+      input.value = path;
+      input.dispatchEvent(new Event('input'));
+    }
+    logConsole(`[POOL]: Sent to Speed Change → ${path}`);
+  } else if (target === 'upscale') {
+    switchTab('upscale');
+    const input = document.getElementById('upInput');
+    if (input) {
+      input.value = path;
+      input.dispatchEvent(new Event('input'));
+    }
+    logConsole(`[POOL]: Sent to Upscale → ${path}`);
+  } else if (target === 'fastsam') {
+    switchTab('fastsam');
+    const input = document.getElementById('fastsamInput');
+    if (input) {
+      input.value = path;
+      input.dispatchEvent(new Event('input'));
+    }
+    logConsole(`[POOL]: Sent to FastSAM → ${path}`);
+  } else if (target === 'convert') {
+    switchTab('convert');
+    const input = document.getElementById('convertInput');
+    if (input) {
+      input.value = path;
+      input.dispatchEvent(new Event('input'));
+    }
+    logConsole(`[POOL]: Sent to Convert → ${path}`);
+  } else if (target === 'styletransfer') {
+    if (!state.styleTransfer) state.styleTransfer = { contents: [], stylePath: '', output: '', outputDir: '', selected: 0 };
+    if (!state.styleTransfer.contents.some((c) => c.path === path)) {
+      state.styleTransfer.contents.push({ path, name: basename(path) });
+    }
+    switchTab('styletransfer');
+    renderStyleTransferForm();
+    logConsole(`[POOL]: Sent to Style Transfer → ${path}`);
+  } else if (target === 'facemorph') {
+    if (!state.faceMorph) state.faceMorph = { images: [], output: '', selected: 0 };
+    if (!state.faceMorph.images.some((x) => x.path === path)) {
+      state.faceMorph.images.push({ path, name: basename(path) });
+    }
+    switchTab('facemorph');
+    renderFaceMorphForm();
+    logConsole(`[POOL]: Sent to Face Morph → ${path}`);
+  } else if (target === 'withoutbg') {
+    if (!state.withoutbg) state.withoutbg = { images: [], outputDir: '', prefix: 'withoutbg', fmt: 'png', backend: 'local', selected: 0 };
+    if (!state.withoutbg.images.some((x) => x.path === path)) {
+      state.withoutbg.images.push({ path, name: basename(path) });
+    }
+    switchTab('withoutbg');
+    renderWithoutBgForm();
+    logConsole(`[POOL]: Sent to withoutBG → ${path}`);
   } else {
     logConsole(`[POOL]: Unknown send target: ${target}`, 'error');
   }

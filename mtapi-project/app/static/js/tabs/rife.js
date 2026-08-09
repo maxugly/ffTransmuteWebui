@@ -100,21 +100,17 @@ function renderRifeForm() {
     <div class="knob-row">
       <div class="knob-bank">
         ${knobUnitHtml({ id: 'rifeMultiplier', label: 'Frame ×', value: '2' })}
+        ${knobUnitHtml({ id: 'rifeTargetFps', label: 'Target FPS', value: '', placeholder: 'auto' })}
         ${knobUnitHtml({ id: 'rifeTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
         ${knobUnitHtml({ id: 'rifeUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
         ${knobUnitHtml({ id: 'rifeDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
       </div>
       <p class="knob-row-legend">
         <strong>Frame ×</strong> — multiplier (2 = double FPS, 4 = 24→96).<br>
+        <strong>Target FPS</strong> — resample output after interpolation (blank = auto = source × M).<br>
         <strong>TTA</strong> — cleaner, ~2× slower.<br>
         <strong>UHD</strong> — 4K+ sources (more VRAM).
       </p>
-    </div>
-    <div class="form-row">
-      <label for="rifeTargetFps">Target FPS</label>
-      <div class="input-row">
-        <input type="number" id="rifeTargetFps" placeholder="blank = auto (source × M)" min="1" max="240" step="1">
-      </div>
     </div>
   `;
   elements.actionPanel.innerHTML = html;
@@ -122,6 +118,10 @@ function renderRifeForm() {
   setupContinuousKnob({
     knobId: 'rifeMultiplierKnob', indicatorId: 'rifeMultiplierKnobInd', valueId: 'rifeMultiplierVal', hiddenId: 'rifeMultiplier',
     min: 2, max: 128, step: 1, decimals: 0,
+  });
+  setupContinuousKnob({
+    knobId: 'rifeTargetFpsKnob', indicatorId: 'rifeTargetFpsKnobInd', valueId: 'rifeTargetFpsVal', hiddenId: 'rifeTargetFps',
+    min: 1, max: 240, step: 1, decimals: 0,
   });
   setupBinaryKnob({
     knobId: 'rifeTtaKnob', indicatorId: 'rifeTtaKnobInd', hiddenId: 'rifeTta',
@@ -149,7 +149,7 @@ function renderRifeForm() {
   document.getElementById('rifeMultiplierKnob')?.addEventListener('click', function() {
     setTimeout(_refreshRifeSummary, 100);
   });
-  document.getElementById('rifeTargetFps')?.addEventListener('input', function() {
+  document.getElementById('rifeTargetFpsVal')?.addEventListener('change', function() {
     setTimeout(_refreshRifeSummary, 50);
   });
   document.addEventListener('mtapi:video-probed', function() { _probeCache.path = ''; _refreshRifeProbe(); });

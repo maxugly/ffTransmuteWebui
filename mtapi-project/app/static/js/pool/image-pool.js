@@ -389,13 +389,45 @@ function sendImagePathTo(path, target) {
       input.value = path;
       input.dispatchEvent(new Event('input'));
     }
-    // also push to global image bar
     const gi = document.getElementById('giImage');
     if (gi) {
       gi.value = path;
       gi.dispatchEvent(new Event('input'));
     }
     logConsole(`[IMAGE POOL]: Sent to DeepDream → ${path}`);
+    return;
+  }
+
+  if (target === 'upscale') {
+    switchTab('upscale');
+    const input = document.getElementById('upInput');
+    if (input) {
+      input.value = path;
+      input.dispatchEvent(new Event('input'));
+    }
+    logConsole(`[IMAGE POOL]: Sent to Upscale → ${path}`);
+    return;
+  }
+
+  if (target === 'fastsam') {
+    switchTab('fastsam');
+    const input = document.getElementById('fastsamInput');
+    if (input) {
+      input.value = path;
+      input.dispatchEvent(new Event('input'));
+    }
+    logConsole(`[IMAGE POOL]: Sent to FastSAM → ${path}`);
+    return;
+  }
+
+  if (target === 'convert') {
+    switchTab('convert');
+    const input = document.getElementById('convertInput');
+    if (input) {
+      input.value = path;
+      input.dispatchEvent(new Event('input'));
+    }
+    logConsole(`[IMAGE POOL]: Sent to Convert → ${path}`);
     return;
   }
 
@@ -629,6 +661,9 @@ function _showImageSendMenu(anchor, path) {
     <button type="button" data-t="style_content">Style content</button>
     <button type="button" data-t="style_ref">Style reference</button>
     <button type="button" data-t="deepdream">DeepDream</button>
+    <button type="button" data-t="upscale">Upscale</button>
+    <button type="button" data-t="fastsam">FastSAM</button>
+    <button type="button" data-t="convert">Convert / Export</button>
     <button type="button" data-t="cut_ref_a">Cut · Ref A</button>
     <button type="button" data-t="cut_ref_b">Cut · Ref B</button>
     <button type="button" data-t="zoompan_ref">Pan &amp; Zoom · Reference</button>

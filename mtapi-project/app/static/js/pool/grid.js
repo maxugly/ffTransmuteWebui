@@ -864,6 +864,11 @@ function renderPoolGrid() {
         <div class="pool-send-sep"></div>
         <button type="button" class="pool-send-item" data-send="mosh">Datamosh</button>
         <button type="button" class="pool-send-item" data-send="deepdream">DeepDream</button>
+        <button type="button" class="pool-send-item" data-send="rife">RIFE</button>
+        <button type="button" class="pool-send-item" data-send="speedchange">Speed Change</button>
+        <button type="button" class="pool-send-item" data-send="upscale">Upscale</button>
+        <button type="button" class="pool-send-item" data-send="fastsam">FastSAM</button>
+        <button type="button" class="pool-send-item" data-send="convert">Convert / Export</button>
         <button type="button" class="pool-send-item" data-send="transmute">Transmute</button>
         <button type="button" class="pool-send-item" data-send="multi">Multi (Join/Grid)</button>
         <button type="button" class="pool-send-item" data-send="advanced">Raw CLI</button>

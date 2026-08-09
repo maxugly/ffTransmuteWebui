@@ -199,6 +199,11 @@ function showPoolContextMenu(x, y, path) {
     <button type="button" class="pool-ctx-item" data-act="preview">Preview</button>
     <button type="button" class="pool-ctx-item" data-act="mosh">Send → Datamosh</button>
     <button type="button" class="pool-ctx-item" data-act="deepdream">Send → DeepDream</button>
+    <button type="button" class="pool-ctx-item" data-act="rife">Send → RIFE</button>
+    <button type="button" class="pool-ctx-item" data-act="speedchange">Send → Speed Change</button>
+    <button type="button" class="pool-ctx-item" data-act="upscale">Send → Upscale</button>
+    <button type="button" class="pool-ctx-item" data-act="fastsam">Send → FastSAM</button>
+    <button type="button" class="pool-ctx-item" data-act="convert">Send → Convert / Export</button>
     <button type="button" class="pool-ctx-item" data-act="transmute">Send → Transmute</button>
     <button type="button" class="pool-ctx-item" data-act="multi">Send → Multi</button>
     <button type="button" class="pool-ctx-item" data-act="advanced">Send → Raw CLI</button>
