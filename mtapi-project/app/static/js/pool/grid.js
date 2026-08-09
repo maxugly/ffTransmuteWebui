@@ -342,16 +342,26 @@ function _bindSequencePanel() {
       }
     }
     scheduleSavePoolState();
+    renderSequenceBox();
+    if (state.pool.useRife && state.pool.instantRife) _maybeAutoRifeAll();
   });
   document.getElementById('poolInstantRife')?.addEventListener('change', (e) => {
     state.pool.instantRife = e.target.checked;
     scheduleSavePoolState();
+    if (state.pool.instantRife && state.pool.useRife) _maybeAutoRifeAll();
+  });
+  document.getElementById('poolTargetFps')?.addEventListener('change', (e) => {
+    const v = parseFloat(e.target.value);
+    state.pool.targetFps = (v > 0) ? v : null;
+    scheduleSavePoolState();
+    if (state.pool.instantRife && state.pool.useRife) _maybeAutoRifeAll();
   });
   document.getElementById('poolTargetFps')?.addEventListener('input', (e) => {
     const v = parseFloat(e.target.value);
     state.pool.targetFps = (v > 0) ? v : null;
     scheduleSavePoolState();
-    _maybeAutoRifeAll();
+    // refresh badges live; Instant scan on change/blur only (avoid spam mid-type)
+    renderSequenceBox();
   });
 
   document.getElementById('matchDistance')?.addEventListener('input', (e) => {
@@ -458,8 +468,10 @@ function _bindSequencePanel() {
   });
 
   const useRifeEl = document.getElementById('poolUseRife');
+  const instantRifeEl = document.getElementById('poolInstantRife');
   const targetFpsEl = document.getElementById('poolTargetFps');
   if (useRifeEl) useRifeEl.checked = !!state.pool.useRife;
+  if (instantRifeEl) instantRifeEl.checked = !!state.pool.instantRife;
   if (targetFpsEl) targetFpsEl.value = state.pool.targetFps || '';
   fillJoinTargetOptions();
 }
@@ -541,13 +553,13 @@ function _composeHtml() {
                   <!-- options injected by JS from /api/presets -->
                 </select>
               </label>
-              <label class="checkbox-label" title="Interpolate low-fps clips to target_fps with RIFE before stitch">
+              <label class="checkbox-label" title="Before stitch: densify clips whose content fps after time-stretch is below target (slow-mo needs RIFE)">
                 <input type="checkbox" id="poolUseRife"> RIFE interpolate
               </label>
-              <label class="checkbox-label" title="Auto-run RIFE immediately when a clip needs it (instead of waiting for Stitch)">
+              <label class="checkbox-label" title="Queue RIFE for clips that need it. Uses main Run busy state + Stop (one encode at a time; long clips allowed).">
                 <input type="checkbox" id="poolInstantRife"> Instant RIFE
               </label>
-              <label class="pool-opt-label" title="Exact output fps (RIFE overshoots to 2^k then resamples; max ~128× source)">RIFE fps
+              <label class="pool-opt-label" title="Sequence content fps target. Empty = max native fps in sequence. Slowed clips need denser frames to stay smooth at this rate.">RIFE fps
                 <input type="number" id="poolTargetFps" min="1" step="1" placeholder="auto = max native" class="seq-clip-dur-input">
               </label>
               <div class="input-row pool-out-row">

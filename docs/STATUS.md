@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-09  \
-> **VERSION:** `000.000.4.82`  \
+> **VERSION:** `000.000.4.84`  \
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -76,6 +76,8 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Simplify pass** | 3-agent review; collapsed per-clip triple-probe → single `probe()`; `asyncio.gather` on probe/hash; shared `RECENT_CAP`; dropped datamosh import | `simplify-code` skill · `4.81` |
 | **/api/variants hardening** | Index-only lookup (`lookup_cached_hash`), never hashes caller input on GET (closes CPU/IO amplification) | `sequence_api_variants_security_spec.md` · `4.81` |
 | **FastSAM fixes** | Accurate unpadded coordinate clicks (`cv2.pointPolygonTest` on `masks.xy`); 'Everything' mode outputs clean `_assets` directory; native system folder opener `/api/open-folder` | `fastsam_ops.py`, `fastsam.py` · `4.82` |
+| **Seq Instant RIFE fix** | Correct slow-mo effective-fps (content density); Instant job progress | `sequence.js`, `transmute_ops._rife_preprocess` · `4.83` |
+| **Instant RIFE queue + Stop** | FIFO client queue (no frame skip); main Run busy for whole batch; Stop cancels current + drops queue; Stitch via same path | `sequence.js`, `job-control.js`, `persistence.js` · `4.84` |
 
 **Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale *(in tree — see §4)*. Root `AGENTS.md`.
 
@@ -190,7 +192,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.4.81` (dead helpers/shims removed; shared `frame_range` on video ops).  
+- **Current:** `000.000.4.84` (Instant RIFE queue + main Stop; no long-clip skip).  
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  

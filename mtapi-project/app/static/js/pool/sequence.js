@@ -12,6 +12,10 @@ import {
   poolThumbUrl, shortHash, nextSeqId,
   scheduleSavePoolState, savePoolStateNow, refreshPoolToolbarCounts,
 } from '/js/pool/persistence.js';
+import {
+  runOpWithCancel, onStopRequest, isMainJobBusy,
+  setClientBusy, clearClientBusy,
+} from '/js/job-control.js';
 
 // ── Sequence composer ─────────────────────────────────────────────────────
 
@@ -30,104 +34,326 @@ function _timeFactor(targetDuration, nativeDuration) {
   return factor > 0 ? factor : 1.0;
 }
 
+/**
+ * Content frame density after temporal stretch (spec §2).
+ * Slow-mo (req > native) *lowers* effective fps → more likely to need RIFE.
+ *   eff = native_fps × (native_dur / req_dur) = native_fps / stretch
+ */
+function _effectiveContentFps(nativeFps, nativeDur, reqDur) {
+  const fps = Number(nativeFps) || 0;
+  if (fps <= 0) return 0;
+  if (reqDur == null || !(reqDur > 0) || !(nativeDur > 0.001)) return fps;
+  const stretch = reqDur / nativeDur;
+  if (!(stretch > 0)) return fps;
+  return fps / stretch;
+}
+
+/** Target FPS for need-RIFE: explicit pool setting, else max native in sequence. */
+function _resolvedTargetFps() {
+  const t = state.pool.targetFps;
+  if (t != null && t > 0) return t;
+  let max = 0;
+  for (const e of state.pool.sequence || []) {
+    const m = _getNativeMeta(e.path);
+    if (m?.fps > 0) max = Math.max(max, m.fps);
+  }
+  return max > 0 ? max : null;
+}
+
+/**
+ * @returns {null | { needed: true, effFps, targetFps, multiplier, nativeFps, stretch, reason? }}
+ *          or { needed: false, reason } when we can explain a skip
+ */
 function _rifeInfoForEntry(entry) {
-  const useRife = !!state.pool.useRife;
-  const targetFps = state.pool.targetFps || null;
-  if (!useRife || !targetFps) return null;
+  if (!state.pool.useRife) return { needed: false, reason: 'RIFE interpolate off' };
+
+  const targetFps = _resolvedTargetFps();
+  if (!targetFps) {
+    return { needed: false, reason: 'no target fps (set RIFE fps or load clip meta)' };
+  }
 
   const meta = _getNativeMeta(entry.path);
-  if (!meta?.fps || !meta?.duration) return null;
+  if (!meta?.fps) {
+    return { needed: false, reason: 'clip meta missing fps (wait for probe)' };
+  }
+  if (!meta?.duration) {
+    return { needed: false, reason: 'clip meta missing duration' };
+  }
 
   const nativeFps = meta.fps;
   const reqDur = entry.targetDuration;
-  const factor = _timeFactor(reqDur, meta.duration);
-  const effFps = nativeFps * factor;
+  const stretch = _timeFactor(reqDur, meta.duration);
+  const effFps = _effectiveContentFps(nativeFps, meta.duration, reqDur);
 
-  if (effFps >= targetFps - 0.01) return null;
+  if (effFps >= targetFps - 0.01) {
+    return {
+      needed: false,
+      reason: `dense enough (${effFps.toFixed(1)} ≥ ${targetFps} fps)`,
+      effFps,
+      targetFps,
+      nativeFps,
+      stretch,
+    };
+  }
 
   let m = 1;
-  while (m < targetFps / effFps) m *= 2;
+  while (m < targetFps / Math.max(effFps, 1e-6)) m *= 2;
   m = Math.max(m, 2);
+  if (m > 128) m = 128;
 
-  return { needed: true, effFps, targetFps, multiplier: m };
+  return {
+    needed: true,
+    effFps,
+    targetFps,
+    multiplier: m,
+    nativeFps,
+    stretch,
+  };
 }
 
-const INSTANT_RIFE_MAX_FRAMES = 1000;
+/**
+ * Instant RIFE client queue — one job at a time via runOpWithCancel so:
+ *  - Run button shows busy elapsed + Stop works (same as any op)
+ *  - Nothing else can start while the batch drains
+ *  - Stop cancels the current encode and drops the rest of the queue
+ * No frame-count skip: long clips are allowed (they just take longer).
+ */
+const _instantRifeQueue = []; // { entryId, path, name, multiplier, effFps, targetFps, stretch }
+let _instantRifeDraining = false;
+let _instantRifeStop = false;
+let _instantRifeStopHookBound = false;
 
-async function _maybeAutoRifeEntry(entry) {
-  if (!state.pool.instantRife) return;
-  if (entry._rifeStatus === 'pending' || entry._rifeStatus === 'running') return;
-
-  const info = _rifeInfoForEntry(entry);
-  if (!info?.needed) {
-    if (entry._rifeStatus !== 'skipped' && entry._rifeStatus !== 'done') {
-      entry._rifeStatus = null;
+function _bindInstantRifeStopHook() {
+  if (_instantRifeStopHookBound) return;
+  _instantRifeStopHookBound = true;
+  onStopRequest(() => {
+    if (!_instantRifeDraining && _instantRifeQueue.length === 0) return;
+    _instantRifeStop = true;
+    const dropped = _instantRifeQueue.splice(0);
+    for (const job of dropped) {
+      const entry = state.pool.sequence.find((e) => e.id === job.entryId);
+      if (entry && entry._rifeStatus === 'pending') {
+        entry._rifeStatus = null;
+      }
+    }
+    if (dropped.length) {
+      logConsole(`[SEQ RIFE]: Stop — dropped ${dropped.length} queued job(s)`);
       renderSequenceBox();
     }
-    return;
-  }
+  });
+}
 
-  if (entry._rifeStatus === 'done') return;
+function _findQueuedRife(entryId) {
+  return _instantRifeQueue.find((j) => j.entryId === entryId) || null;
+}
 
-  const meta = _getNativeMeta(entry.path);
-  if (!meta?.frames && meta?.duration && meta?.fps) {
-    meta.frames = Math.round(meta.duration * meta.fps);
+function _queueInstantRife(entry, info) {
+  _bindInstantRifeStopHook();
+
+  // Already denser than needed
+  if (entry._rifeStatus === 'done' && entry.variantPath) {
+    const prevM = entry._rifeMultiplier || 0;
+    if (prevM >= info.multiplier) return false;
   }
-  if (meta?.frames && meta.frames > INSTANT_RIFE_MAX_FRAMES) {
-    entry._rifeStatus = 'skipped';
-    logConsole(`[SEQ RIFE]: skip ${entry.name} — ${meta.frames} frames exceeds instant guard (${INSTANT_RIFE_MAX_FRAMES})`);
-    renderSequenceBox();
-    return;
+  if (entry._rifeStatus === 'running') return false;
+
+  const existing = _findQueuedRife(entry.id);
+  if (existing) {
+    if (info.multiplier > existing.multiplier) {
+      existing.multiplier = info.multiplier;
+      existing.effFps = info.effFps;
+      existing.targetFps = info.targetFps;
+      existing.stretch = info.stretch;
+      logConsole(
+        `[SEQ RIFE]: queue update ${entry.name} → ×${info.multiplier}`,
+      );
+    }
+    return true;
   }
 
   entry._rifeStatus = 'pending';
+  _instantRifeQueue.push({
+    entryId: entry.id,
+    path: entry.path,
+    name: entry.name,
+    multiplier: info.multiplier,
+    effFps: info.effFps,
+    targetFps: info.targetFps,
+    stretch: info.stretch,
+  });
+  logConsole(
+    `[SEQ RIFE]: queued ${entry.name} — ×${info.multiplier} `
+    + `(content ${info.effFps.toFixed(1)} → ${info.targetFps} fps`
+    + (info.stretch > 1.001 ? `, ${info.stretch.toFixed(2)}× slower` : '')
+    + (info.stretch < 0.999 ? `, ${info.stretch.toFixed(2)}× faster` : '')
+    + `) · queue depth ${_instantRifeQueue.length}`,
+  );
   renderSequenceBox();
+  _drainInstantRifeQueue();
+  return true;
+}
+
+async function _drainInstantRifeQueue() {
+  if (_instantRifeDraining) return;
+  _instantRifeDraining = true;
+  _instantRifeStop = false;
+  _bindInstantRifeStopHook();
+  // Hold main busy for the whole batch (between encodes too) so Stop works and
+  // nothing else (Run / Stitch / other Instant) can sneak in.
+  setClientBusy(`Instant RIFE queue (${_instantRifeQueue.length})`);
 
   try {
-    const body = {
-      input_path: entry.path,
-      multiplier: info.multiplier,
-      target_fps: info.targetFps,
-      register_as_variant: true,
-      dry_run: false,
-    };
-    const res = await fetch('/ops/rife', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (data.ok) {
-      entry._rifeStatus = 'done';
-      // Auto-select the new variant
-      entry.variantPath = data.output_path || entry.variantPath;
-      logConsole(`[SEQ RIFE]: instant RIFE done ${entry.name} → ${basename(entry.variantPath || entry.path)}`);
-    } else {
-      entry._rifeStatus = null;
-      logConsole(`[SEQ RIFE]: instant RIFE failed ${entry.name} — ${data.error || 'unknown'}`, 'error');
+    while (_instantRifeQueue.length > 0 && !_instantRifeStop) {
+      const job = _instantRifeQueue.shift();
+      const entry = state.pool.sequence.find((e) => e.id === job.entryId);
+      if (!entry) continue;
+
+      // Re-check need (user may have cleared stretch while queued)
+      const info = _rifeInfoForEntry(entry);
+      if (!info?.needed) {
+        entry._rifeStatus = entry.variantPath ? 'done' : null;
+        logConsole(`[SEQ RIFE]: skip ${job.name} — no longer needed`);
+        renderSequenceBox();
+        setClientBusy(
+          _instantRifeQueue.length
+            ? `Instant RIFE queue (${_instantRifeQueue.length})`
+            : 'Instant RIFE…',
+        );
+        continue;
+      }
+      if (entry._rifeStatus === 'done' && entry.variantPath
+          && (entry._rifeMultiplier || 0) >= info.multiplier) {
+        continue;
+      }
+
+      const remaining = _instantRifeQueue.length;
+      const label = remaining > 0
+        ? `Instant RIFE ×${info.multiplier} · ${entry.name} (+${remaining} queued)`
+        : `Instant RIFE ×${info.multiplier} · ${entry.name}`;
+      setClientBusy(label);
+
+      entry._rifeStatus = 'running';
+      renderSequenceBox();
+      logConsole(`[SEQ RIFE]: start ${entry.name} — ×${info.multiplier} (${remaining} more in queue)`);
+
+      try {
+        const body = {
+          input_path: entry.path,
+          multiplier: info.multiplier,
+          // Native×M timeline; join setpts applies stretch
+          target_fps: null,
+          register_as_variant: true,
+          dry_run: false,
+        };
+        // allowDuringClientBusy: we hold the batch lock ourselves
+        const data = await runOpWithCancel('rife', body, {
+          label,
+          allowDuringClientBusy: true,
+        });
+
+        if (_instantRifeStop || (data && data.error === 'Cancelled by user')) {
+          entry._rifeStatus = null;
+          logConsole(`[SEQ RIFE]: stopped on ${entry.name}`, 'error');
+          const dropped = _instantRifeQueue.splice(0);
+          for (const j of dropped) {
+            const e = state.pool.sequence.find((x) => x.id === j.entryId);
+            if (e && e._rifeStatus === 'pending') e._rifeStatus = null;
+          }
+          if (dropped.length) {
+            logConsole(`[SEQ RIFE]: cleared ${dropped.length} remaining queued job(s)`);
+          }
+          break;
+        }
+
+        if (data && data.ok) {
+          entry._rifeStatus = 'done';
+          entry.variantPath = data.output_path || entry.variantPath;
+          entry._rifeMultiplier = info.multiplier;
+          logConsole(
+            `[SEQ RIFE]: done ${entry.name} → ${basename(entry.variantPath || entry.path)}`,
+          );
+        } else {
+          entry._rifeStatus = null;
+          logConsole(
+            `[SEQ RIFE]: failed ${entry.name} — ${(data && data.error) || 'unknown'}`,
+            'error',
+          );
+        }
+      } catch (err) {
+        entry._rifeStatus = null;
+        if (_instantRifeStop || /already running|Cancelled/i.test(err.message || '')) {
+          logConsole(`[SEQ RIFE]: aborted — ${err.message}`, 'error');
+          _instantRifeQueue.splice(0);
+          break;
+        }
+        logConsole(`[SEQ RIFE]: error ${entry.name} — ${err.message}`, 'error');
+      }
+      renderSequenceBox();
+      scheduleSavePoolState();
+      if (_instantRifeQueue.length && !_instantRifeStop) {
+        setClientBusy(`Instant RIFE queue (${_instantRifeQueue.length})`);
+      }
     }
-  } catch (err) {
-    entry._rifeStatus = null;
-    logConsole(`[SEQ RIFE]: instant RIFE error ${entry.name} — ${err.message}`, 'error');
+  } finally {
+    _instantRifeDraining = false;
+    clearClientBusy();
+    if (_instantRifeStop) {
+      _instantRifeStop = false;
+      for (const e of state.pool.sequence) {
+        if (e._rifeStatus === 'pending' || e._rifeStatus === 'running') {
+          e._rifeStatus = null;
+        }
+      }
+    }
+    renderSequenceBox();
+    scheduleSavePoolState();
   }
-  renderSequenceBox();
-  scheduleSavePoolState();
 }
 
-async function _maybeAutoRifeAll() {
+/** Enqueue Instant RIFE for one sequence entry (if needed). Non-blocking. */
+function _maybeAutoRifeEntry(entry, { quiet = false } = {}) {
   if (!state.pool.instantRife) return;
+  if (!state.pool.useRife) return;
+
+  const info = _rifeInfoForEntry(entry);
+  if (!info?.needed) {
+    if (entry._rifeStatus === 'done' && entry.variantPath) {
+      // keep
+    } else if (entry._rifeStatus !== 'running' && entry._rifeStatus !== 'pending') {
+      entry._rifeStatus = null;
+      renderSequenceBox();
+    }
+    if (!quiet && info?.reason && state.pool.useRife) {
+      logConsole(`[SEQ RIFE]: ${entry.name} — ${info.reason}`);
+    }
+    return;
+  }
+
+  _queueInstantRife(entry, info);
+}
+
+function _maybeAutoRifeAll({ quiet = true } = {}) {
+  if (!state.pool.instantRife) return;
+  if (!state.pool.useRife) {
+    logConsole('[SEQ RIFE]: Instant on but RIFE interpolate is off — enable both');
+    return;
+  }
+  const target = _resolvedTargetFps();
+  if (!target) {
+    logConsole('[SEQ RIFE]: no target fps yet — set “RIFE fps” or wait for clip probes');
+    return;
+  }
+  logConsole(`[SEQ RIFE]: scan ${state.pool.sequence.length} clip(s) @ target ${target} fps`);
   for (const entry of state.pool.sequence) {
-    entry._rifeStatus = null;
-    await _maybeAutoRifeEntry(entry);
+    _maybeAutoRifeEntry(entry, { quiet });
   }
 }
 
-async function _maybeAutoRifeForPath(path) {
+function _maybeAutoRifeForPath(path) {
   if (!state.pool.instantRife) return;
   for (const entry of state.pool.sequence) {
     if (entry.path === path) {
-      entry._rifeStatus = null;
-      await _maybeAutoRifeEntry(entry);
+      _maybeAutoRifeEntry(entry);
     }
   }
 }
@@ -442,23 +668,37 @@ function renderSequenceBox() {
       <button type="button" class="seq-token-x" title="Remove">&cross;</button>
     `;
 
-    // RIFE status indicator
+    // RIFE status indicator (pending = queued, running = main job)
     const rifeStatusEl = tok.querySelector('.seq-token-rife-status');
     if (rifeStatusEl && entry._rifeStatus) {
-      rifeStatusEl.textContent = entry._rifeStatus === 'pending' ? '…' :
-                                  entry._rifeStatus === 'running' ? '↻' :
-                                  entry._rifeStatus === 'done' ? '✓' :
-                                  entry._rifeStatus === 'skipped' ? '—' : '';
+      const qIdx = _instantRifeQueue.findIndex((j) => j.entryId === entry.id);
+      rifeStatusEl.textContent = entry._rifeStatus === 'pending'
+        ? (qIdx >= 0 ? `#${qIdx + 1}` : '…')
+        : entry._rifeStatus === 'running' ? '↻'
+          : entry._rifeStatus === 'done' ? '✓'
+            : entry._rifeStatus === 'skipped' ? '—' : '';
+      rifeStatusEl.title = entry._rifeStatus === 'pending'
+        ? (qIdx >= 0 ? `Queued #${qIdx + 1} for Instant RIFE` : 'Queued for Instant RIFE')
+        : entry._rifeStatus === 'running'
+          ? 'RIFE running — use main Stop to cancel batch'
+          : entry._rifeStatus === 'done' ? 'RIFE variant ready' : '';
       rifeStatusEl.className = `seq-token-rife-status seq-rife-${entry._rifeStatus}`;
     }
 
-    // RIFE needed badge
+    // RIFE needed badge (content density after stretch vs target)
     const rifeInfo = _rifeInfoForEntry(entry);
     if (rifeInfo?.needed) {
       tok.classList.add('seq-rife-needed');
       const rifeBadge = document.createElement('span');
       rifeBadge.className = 'seq-rife-badge';
-      rifeBadge.title = `RIFE ${rifeInfo.multiplier}× (${rifeInfo.effFps.toFixed(1)} → ${rifeInfo.targetFps} fps)`;
+      const stretchNote = rifeInfo.stretch > 1.001
+        ? ` · ${rifeInfo.stretch.toFixed(2)}× slower`
+        : rifeInfo.stretch < 0.999
+          ? ` · ${rifeInfo.stretch.toFixed(2)}× faster`
+          : '';
+      rifeBadge.title =
+        `RIFE ×${rifeInfo.multiplier} — content ${rifeInfo.effFps.toFixed(1)} fps`
+        + ` → target ${rifeInfo.targetFps}${stretchNote}`;
       rifeBadge.textContent = `R${rifeInfo.multiplier}`;
       tok.appendChild(rifeBadge);
     }
@@ -718,8 +958,11 @@ function onSeqClipDurationChange() {
   savePoolStateNow();
   const entry = state.pool.sequence[idx];
   if (entry) {
-    entry._rifeStatus = null;
-    _maybeAutoRifeEntry(entry);
+    // Keep 'done' so we only re-RIFE when multiplier must increase
+    if (entry._rifeStatus !== 'done' || !entry.variantPath) {
+      entry._rifeStatus = null;
+    }
+    _maybeAutoRifeEntry(entry, { quiet: false });
   }
 }
 

@@ -9,7 +9,7 @@ import { seqStop } from '/js/pool/sequence.js';
 import { ensurePoolLayout } from '/js/pool/layout.js';
 import { ensureTileInfo } from '/app.js';
 import { basename, escapeHtml, formatDurationExact } from '/js/utils.js';
-import { displayOpResult } from '/js/job-control.js';
+import { displayOpResult, runOpWithCancel, isMainJobBusy } from '/js/job-control.js';
 import { POOL_ZOOM, POOL_LAYOUT_DEFAULTS } from '/js/pool/constants.js';
 
 let _poolSeqId = 1;
@@ -584,8 +584,11 @@ async function stitchPoolSequence() {
     dry_run: false,
   };
 
-  elements.statusDot.className = 'status-dot loading';
-  elements.statusText.textContent = 'Stitching…';
+  if (isMainJobBusy()) {
+    alert('A job is already running — use Stop first, or wait.');
+    return;
+  }
+
   const btn = document.getElementById('btnPoolStitch');
   if (btn) {
     btn.disabled = true;
@@ -593,28 +596,24 @@ async function stitchPoolSequence() {
     btn.innerHTML = 'Stitching…';
   }
 
-  logConsole(`[STITCH]: POST /ops/join\n${JSON.stringify(body, null, 2)}`);
+  logConsole(`[STITCH]: POST /ops/join (main job + Stop)\n${JSON.stringify(body, null, 2)}`);
 
   try {
-    const response = await fetch('/ops/join', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+    // Same busy Run/Stop path as Instant RIFE and tab Run
+    const data = await runOpWithCancel('join', body, {
+      label: `Stitch ${paths.length} clips`,
     });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-    }
-    const data = await response.json();
-    displayOpResult(data);
+    // displayOpResult already called inside runOpWithCancel
 
-    // Auto-import the stitched result into the pool
-    if (data.ok && data.output_path) {
+    if (data && data.ok && data.output_path) {
       addPathsToPool([data.output_path]);
       if (state.activeTab === 'pool') {
         renderPoolGrid();
         refreshPoolToolbarCounts();
       }
       logConsole(`[STITCH]: Output added to pool → ${data.output_path}`);
+    } else if (data && data.error === 'Cancelled by user') {
+      logConsole('[STITCH]: stopped by user', 'error');
     }
   } catch (err) {
     elements.statusDot.className = 'status-dot error';

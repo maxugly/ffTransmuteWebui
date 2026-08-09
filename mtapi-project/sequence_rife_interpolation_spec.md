@@ -28,12 +28,18 @@ folder. It is video-only — it has no audio. This spec handles that explicitly 
 - If the frontend provides `target_fps` in the payload, use it.
 - Otherwise `target_fps = max(native_fps of all input clips)`.
 
-**Per-clip effective fps** (mirrors `concat_clips`' `_time_factor`, video_pipeline.py:633):
+**Per-clip effective fps** (content density after setpts stretch — **not** `native × stretch`):
 - No duration stretch: `effective_fps = native_fps`
-- Duration stretch (slowed): `effective_fps = native_fps * (native_duration / requested_duration)`
+- Duration stretch: `effective_fps = native_fps * (native_duration / requested_duration)`
+  = `native_fps / stretch` where `stretch = requested / native` (`_time_factor`)
+- **Slow-mo lowers effective fps** (same frames over longer time → need denser source)
 
 **RIFE condition:** if `effective_fps < target_fps - ε` (small float tolerance), the clip
 needs RIFE. Otherwise leave it alone.
+
+**Encode intermediate:** dump/RIFE are on the *native* timeline → tag at
+`native_fps × multiplier`. Join applies setpts afterward so density becomes
+`(native × M) / stretch`.
 
 ---
 

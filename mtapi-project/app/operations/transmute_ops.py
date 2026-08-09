@@ -330,18 +330,28 @@ async def _rife_preprocess(
         native_dur = float(info.get("duration") or 0.0)
         has_audio = bool(info.get("has_audio"))
         req_dur = durations[i] if durations and i < len(durations) else None
-        # effective fps after temporal stretch (mirrors concat_clips _time_factor)
-        eff = native_fps * _time_factor(req_dur, native_dur) if req_dur else native_fps
+        # Content density after stretch (spec §2): slow-mo lowers effective fps.
+        # stretch = req/native via _time_factor; eff = native / stretch.
+        if req_dur is not None and native_dur > 0.001 and native_fps > 0:
+            stretch = _time_factor(float(req_dur), native_dur)
+            eff = native_fps / stretch if stretch > 0 else native_fps
+        else:
+            eff = native_fps
         infos.append((native_fps, native_dur, eff, has_audio))
 
-    resolved_target = float(target_fps) if target_fps else max(i[2] for i in infos)
+    if target_fps:
+        resolved_target = float(target_fps)
+    else:
+        # max *native* fps when target omitted (not max effective — slows would win)
+        natives = [i[0] for i in infos if i[0] > 0]
+        resolved_target = max(natives) if natives else 24.0
     resolved_target = max(resolved_target, 1.0)
 
     processed: list[str] = list(input_paths)
     for i, p in enumerate(input_paths):
         native_fps, native_dur, eff, has_audio = infos[i]
         if eff >= resolved_target - _RIFE_EPS:
-            continue  # already fast enough — no interpolation
+            continue  # already dense enough after stretch — no interpolation
 
         multiplier = _rife_multiplier(resolved_target, eff)
         original = Path(p).expanduser().resolve()
@@ -355,9 +365,12 @@ async def _rife_preprocess(
             rife_out = sub.root / "rife_out"
             await run_rife_directory(sub.frames_in, rife_out, multiplier=multiplier)
 
+            # Dump/RIFE are on the *native* timeline — tag intermediate at native×M.
+            # Join applies setpts stretch afterward; density becomes (native×M)/stretch.
             intermediate = sub.root / "rife_video.mp4"
+            encode_fps = max(native_fps, 1.0) * multiplier
             await encode(
-                sub, intermediate, eff * multiplier,
+                sub, intermediate, encode_fps,
                 mux_audio=False,
                 frame_source_dir=rife_out,
             )

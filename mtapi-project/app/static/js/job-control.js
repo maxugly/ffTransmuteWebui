@@ -29,6 +29,48 @@ import { collectDeepDreamBody } from '/js/tabs/deepdream.js';
 // loops exit soon. ffmpeg/transmute mid-process may still finish the current
 // subprocess — that's a hard limit of shelling out without process groups.
 
+/** Callbacks fired when user hits Stop (before cancel API). Instant RIFE queue uses this. */
+const _stopHooks = [];
+
+function onStopRequest(fn) {
+  if (typeof fn !== 'function') return () => {};
+  _stopHooks.push(fn);
+  return () => {
+    const i = _stopHooks.indexOf(fn);
+    if (i >= 0) _stopHooks.splice(i, 1);
+  };
+}
+
+/** Client-side batch hold (e.g. Instant RIFE queue between encodes). */
+let clientBusyLabel = null;
+
+function isMainJobBusy() {
+  return !!(
+    clientBusyLabel
+    || (activeJob && (activeJob.controller || activeJob.token))
+  );
+}
+
+/**
+ * Keep Run disabled + Stop visible across a multi-step batch.
+ * Call clearClientBusy() when the batch fully ends.
+ */
+function setClientBusy(label) {
+  clientBusyLabel = label || 'Busy…';
+  if (elements.statusText) elements.statusText.textContent = clientBusyLabel;
+  if (elements.statusDot) elements.statusDot.className = 'status-dot loading';
+  // Don't reset startedAt if a real job is already running
+  if (!activeJob.startedAt) activeJob.startedAt = Date.now();
+  setRunUiBusy(true);
+}
+
+function clearClientBusy() {
+  clientBusyLabel = null;
+  if (!activeJob.controller && !activeJob.token) {
+    setRunUiBusy(false);
+  }
+}
+
 let activeJob = {
   token: null,
   controller: null,
@@ -242,8 +284,21 @@ function newJobToken() {
 }
 
 async function stopActiveOperation() {
+  // Always notify queue consumers (Instant RIFE batch, etc.) so pending work is dropped
+  for (const fn of _stopHooks.slice()) {
+    try { fn(); } catch (_) { /* ignore hook errors */ }
+  }
+
   if (!activeJob.token && !activeJob.controller) {
-    logConsole('[STOP]: Nothing running');
+    // Batch hold only (queue between jobs, or hold with nothing yet started)
+    if (clientBusyLabel) {
+      clearClientBusy();
+      logConsole('[STOP]: Cleared batch (no encode in flight)');
+      elements.statusText.textContent = 'Stopped';
+      elements.statusDot.className = 'status-dot';
+    } else {
+      logConsole('[STOP]: Nothing running');
+    }
     return;
   }
   activeJob.stopping = true;
@@ -271,11 +326,17 @@ async function stopActiveOperation() {
 /**
  * POST /ops/<id> with job token + abort support. Shared by Run, Stitch, Quick.
  */
-async function runOpWithCancel(opId, body, { label = 'Processing…' } = {}) {
+async function runOpWithCancel(opId, body, { label = 'Processing…', allowDuringClientBusy = false } = {}) {
   if (activeJob.controller) {
     // one job at a time in the UI
     logConsole('[JOB]: Already running — stop first or wait', 'error');
     throw new Error('A job is already running');
+  }
+  // Block starting a *new* top-level op while Instant RIFE batch holds the UI
+  // (batch itself passes allowDuringClientBusy when draining)
+  if (clientBusyLabel && !allowDuringClientBusy) {
+    logConsole('[JOB]: Instant RIFE queue busy — stop first or wait', 'error');
+    throw new Error('Instant RIFE queue is running — hit Stop or wait');
   }
 
   const token = newJobToken();
@@ -290,15 +351,17 @@ async function runOpWithCancel(opId, body, { label = 'Processing…' } = {}) {
     startedAt: Date.now(),
     lastPhase: '',
     lastSnap: null,
+    label: label || 'Processing…',
   };
 
   elements.statusDot.className = 'status-dot loading';
+  elements.statusText.textContent = label || 'Processing…';
   setRunUiBusy(true);
   startJobProgressPoll(token);
   paintStickyJobUi();
 
-  logConsole(`[EXECUTE]: POST /ops/${opId} (job ${token.slice(0, 8)}…)\nParameters: ${JSON.stringify(body, null, 2)}`);
-  logConsole('[JOB]: sticky timer on status bar / Run button — console only logs phase changes');
+  logConsole(`[EXECUTE]: POST /ops/${opId} (job ${token.slice(0, 8)}…) · ${label}\nParameters: ${JSON.stringify(body, null, 2)}`);
+  logConsole('[JOB]: sticky timer on Run + Stop button — console only logs phase changes');
 
   try {
     const response = await fetch(`/ops/${opId}`, {
@@ -389,17 +452,24 @@ async function runOpWithCancel(opId, body, { label = 'Processing…' } = {}) {
     } catch (_) {
       logConsole(`[JOB]: done in ${totalLabel}`);
     }
+    const keepBatch = !!clientBusyLabel;
     activeJob = {
       token: null,
       controller: null,
       stopping: false,
       pollTimer: null,
       tickTimer: null,
-      startedAt: 0,
+      startedAt: keepBatch ? (activeJob.startedAt || Date.now()) : 0,
       lastPhase: '',
       lastSnap: null,
     };
-    setRunUiBusy(false);
+    if (keepBatch) {
+      // Instant RIFE (etc.) still has more work — keep Run disabled + Stop visible
+      if (elements.statusText) elements.statusText.textContent = clientBusyLabel;
+      setRunUiBusy(true);
+    } else {
+      setRunUiBusy(false);
+    }
   }
 }
 
@@ -635,8 +705,8 @@ function resolveActiveOpAndBody() {
 // ── Running Operations ────────────────────────────────────────────────────
 
 async function runActiveOperation() {
-  if (activeJob.controller) {
-    alert('A job is already running. Hit Stop first, or wait for it to finish.');
+  if (isMainJobBusy()) {
+    alert('A job is already running (or Instant RIFE queue). Hit Stop first, or wait.');
     return;
   }
 
@@ -823,6 +893,7 @@ export {
   runOpWithCancel, runActiveOperation, displayOpResult,
   togglePreviewLive, enqueueActiveOperation,
   resolveActiveOpAndBody,
+  isMainJobBusy, onStopRequest, setClientBusy, clearClientBusy,
 };
 
 // ── Module init: wire static UI elements ──────────────────────────────────

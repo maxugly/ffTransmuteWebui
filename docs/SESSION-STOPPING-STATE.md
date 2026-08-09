@@ -1,17 +1,18 @@
 # Session stopping state — handoff
 
 > **Date:** 2026-08-09  
-> **VERSION:** `000.000.4.81`  
+> **VERSION:** `000.000.4.84`  
 > **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 4.80)
+## 1. Shipped this stretch (through 4.84)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
+| **Instant RIFE queue + Stop** | Slow-mo eff fps = native/stretch; FIFO Instant queue; main Run busy + Stop cancels batch; Stitch via `runOpWithCancel` | `sequence.js`, `job-control.js`, `persistence.js`, `transmute_ops` · **`4.83`–`4.84`** |
 | **FastSAM OpenVINO** | Implemented batch asset extraction filter using OpenVINO IR on Intel GPU | `fastsam.py`, `fastsam.js` · **`4.78`** |
 | **Dead-code pass 3** | Removed `shell.probe_duration`, dead `stylize_batch` / `morph_directory` / watcher `_save_config` / `_needs_audio_for_preset` / `ensure_withoutbg_available` / `get_target_group`; unused imports; video ops use `start_frame_field`/`end_frame_field` | **`4.77`** |
 | **DeepDream dead-path scrub** | Dropped unused sync `dream_video` / `dream_ouroboros` (~260 lines); ops only use filter + workspace paths; shared `rifeModelSelectHtml` on rife/imagesort/speed/recohere/transmute | `dream.py`, `evolve-rife.js` · **`4.76`** |
