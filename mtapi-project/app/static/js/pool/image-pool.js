@@ -163,7 +163,6 @@ function addPathsToImagePool(paths) {
       hash: null,
     };
     ip.items.push(item);
-    loadImageItemMeta(item);
     if (!firstNew) firstNew = path;
     added++;
   }
@@ -239,6 +238,9 @@ async function importImageFiles() {
       return;
     }
     const { firstNew } = addPathsToImagePool(paths);
+    ensureImagePool().items.forEach(item => {
+      if (!item.meta && !item.metaError) loadImageItemMeta(item);
+    });
     if (state.activeTab === 'images') {
       renderImagePoolForm();
       if (firstNew) selectImageItem(firstNew);
@@ -277,12 +279,20 @@ async function importImageFolder() {
       alert('No image files found in that folder.');
       return;
     }
-    const sizeMap = new Map((scan.images || []).map(v => [v.path, v.size]));
+    const scanData = new Map((scan.images || []).map(v => [v.path, v]));
     const { added, firstNew } = addPathsToImagePool(paths);
     ensureImagePool().items.forEach(item => {
-      if (item.size == null && sizeMap.has(item.path)) {
-        item.size = sizeMap.get(item.path);
+      const data = scanData.get(item.path);
+      if (data) {
+        if (item.size == null) item.size = data.size;
+        if (data.hash) item.hash = data.hash;
+        if (data.meta) item.meta = data.meta;
+        if (data.thumbs) item.thumbs = data.thumbs;
+        if (data.history_count != null) item.history_count = data.history_count;
+        if (data.open_count != null) item.open_count = data.open_count;
+        if (data.cached) item.cached = data.cached;
       }
+      if (!item.meta && !item.metaError) loadImageItemMeta(item);
     });
     logConsole(`[IMAGE POOL]: Folder import from ${dir} (${added} new)`);
     if (state.activeTab === 'images') {

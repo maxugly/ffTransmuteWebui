@@ -13,6 +13,7 @@ from .config import HASH_ALGO
 from .cache import (
     _empty_record,
     _lock_for_hash,
+    _load_index,
     _remember_path,
     load_record,
     resolve_hash,
@@ -39,7 +40,8 @@ async def open_media(
         return {"ok": False, "error": "File not found"}
 
     t0 = time.time()
-    content_hash, was_cached = await resolve_hash(path)
+    index = _load_index()
+    content_hash, was_cached = await resolve_hash(path, index=index)
     lock = await _lock_for_hash(content_hash)
 
     async with lock:
@@ -50,7 +52,8 @@ async def open_media(
 
         _remember_path(record, path)
         st = path.stat()
-        record["size"] = st.st_size
+        if not was_cached or record.get("size") != st.st_size:
+            record["size"] = st.st_size
 
         if not record.get("meta") and probe_fn is not None:
             meta = await probe_fn(path)

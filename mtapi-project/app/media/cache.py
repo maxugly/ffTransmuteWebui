@@ -33,23 +33,37 @@ from .config import (
 
 log = logging.getLogger("mtapi.media_store")
 
+_index_cache: tuple[float, dict[str, Any]] | None = None
+
 
 # ── index (path → hash, skipped when size/mtime match) ─────────────────────
 
 def _load_index() -> dict[str, Any]:
+    global _index_cache
+    try:
+        current_mtime = INDEX_PATH.stat().st_mtime
+    except OSError:
+        _index_cache = None
+        return {"version": 1, "paths": {}}
+    if _index_cache is not None:
+        cache_mtime, data = _index_cache
+        if cache_mtime == current_mtime:
+            return data
     _ensure_dirs()
     if not INDEX_PATH.exists():
-        return {"version": 1, "paths": {}}
-    try:
-        data = json.loads(INDEX_PATH.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
+        data = {"version": 1, "paths": {}}
+    else:
+        try:
+            data = json.loads(INDEX_PATH.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                return {"version": 1, "paths": {}}
+            data.setdefault("version", 1)
+            data.setdefault("paths", {})
+        except Exception as e:
+            log.warning("media index load failed: %s", e)
             return {"version": 1, "paths": {}}
-        data.setdefault("version", 1)
-        data.setdefault("paths", {})
-        return data
-    except Exception as e:
-        log.warning("media index load failed: %s", e)
-        return {"version": 1, "paths": {}}
+    _index_cache = (current_mtime, data)
+    return data
 
 
 def _save_index(index: dict[str, Any]) -> None:
@@ -57,6 +71,7 @@ def _save_index(index: dict[str, Any]) -> None:
     tmp = INDEX_PATH.with_suffix(".tmp")
     tmp.write_text(json.dumps(index, indent=2, sort_keys=True), encoding="utf-8")
     tmp.replace(INDEX_PATH)
+    _index_cache = None
 
 
 async def _update_index_entry(path: Path, content_hash: str, size: int, mtime_ns: int) -> None:
@@ -71,13 +86,14 @@ async def _update_index_entry(path: Path, content_hash: str, size: int, mtime_ns
         _save_index(index)
 
 
-def lookup_cached_hash(path: Path) -> str | None:
+def lookup_cached_hash(path: Path, index: dict[str, Any] | None = None) -> str | None:
     """Return content hash if path is indexed and size+mtime still match."""
     try:
         st = path.stat()
     except OSError:
         return None
-    index = _load_index()
+    if index is None:
+        index = _load_index()
     entry = index.get("paths", {}).get(_path_key(path))
     if not entry:
         return None
@@ -86,6 +102,30 @@ def lookup_cached_hash(path: Path) -> str | None:
         if h and _record_path(h).exists():
             return h
     return None
+
+
+def lookup_cached_hash_batch(paths: list[Path], index: dict[str, Any] | None = None) -> dict[str, str | None]:
+    """Batch version: return mapping of resolved_path -> hash (or None)."""
+    if index is None:
+        index = _load_index()
+    out: dict[str, str | None] = {}
+    for path in paths:
+        try:
+            st = path.stat()
+        except OSError:
+            out[str(path.resolve())] = None
+            continue
+        entry = index.get("paths", {}).get(_path_key(path))
+        if not entry:
+            out[str(path.resolve())] = None
+            continue
+        if entry.get("size") == st.st_size and entry.get("mtime_ns") == st.st_mtime_ns:
+            h = entry.get("hash")
+            if h and _record_path(h).exists():
+                out[str(path.resolve())] = h
+                continue
+        out[str(path.resolve())] = None
+    return out
 
 
 # ── hashing ────────────────────────────────────────────────────────────────
@@ -198,10 +238,10 @@ def append_history(
 
 # ── resolve ────────────────────────────────────────────────────────────────
 
-async def resolve_hash(path: Path) -> tuple[str, bool]:
+async def resolve_hash(path: Path, index: dict[str, Any] | None = None) -> tuple[str, bool]:
     """Return (content_hash, was_cached)."""
     path = path.resolve()
-    cached = lookup_cached_hash(path)
+    cached = lookup_cached_hash(path, index=index)
     if cached:
         return cached, True
 

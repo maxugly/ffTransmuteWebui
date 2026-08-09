@@ -244,11 +244,18 @@ async function importPoolFolder() {
       alert('No video files found in that folder.');
       return;
     }
-    const sizeMap = new Map((scan.videos || []).map(v => [v.path, v.size]));
+    const scanData = new Map((scan.videos || []).map(v => [v.path, v]));
     const { added, firstNew } = addPathsToPool(paths);
     state.pool.items.forEach(item => {
-      if (item.size == null && sizeMap.has(item.path)) {
-        item.size = sizeMap.get(item.path);
+      const data = scanData.get(item.path);
+      if (data) {
+        if (item.size == null) item.size = data.size;
+        if (data.hash) item.hash = data.hash;
+        if (data.meta) item.meta = data.meta;
+        if (data.thumbs) item.thumbs = data.thumbs;
+        if (data.history_count != null) item.history_count = data.history_count;
+        if (data.open_count != null) item.open_count = data.open_count;
+        if (data.cached) item.cached = data.cached;
       }
     });
     logConsole(`[POOL]: Folder import from ${dir} (${added} new)`);

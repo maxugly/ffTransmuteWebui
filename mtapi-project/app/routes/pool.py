@@ -4,6 +4,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 
 from .. import media
+from ..media.cache import lookup_cached_hash_batch, load_record
 
 
 # Still-image extensions for Image Pool folder scan (mirrors frontend IMAGE_EXTS).
@@ -87,6 +88,7 @@ def register(app: FastAPI, is_video_fn, is_image_fn=None) -> None:
         images = []
         try:
             iterator = path_obj.rglob("*") if recursive else path_obj.iterdir()
+            all_paths = []
             for item in iterator:
                 if item.name.startswith("."):
                     continue
@@ -101,10 +103,32 @@ def register(app: FastAPI, is_video_fn, is_image_fn=None) -> None:
                     }
                     if want_video and is_video_fn(item):
                         videos.append(entry)
+                        all_paths.append(item)
                     elif want_image and _is_image(item):
                         images.append(entry)
+                        all_paths.append(item)
                 except Exception:
                     continue
+            index = media.cache._load_index()
+            hash_map = lookup_cached_hash_batch(all_paths, index=index)
+            for entry in videos + images:
+                h = hash_map.get(entry["path"])
+                if h:
+                    entry["hash"] = h
+                    entry["cached"] = True
+                    rec = load_record(h)
+                    if rec:
+                        meta = rec.get("meta") or {}
+                        entry["meta"] = {
+                            k: v for k, v in meta.items()
+                            if k in (
+                                "width", "height", "fps", "duration", "frames",
+                                "video_codec", "audio_codec", "format_name", "bit_rate",
+                            )
+                        }
+                        entry["thumbs"] = rec.get("thumbs") or {}
+                        entry["history_count"] = len(rec.get("history") or [])
+                        entry["open_count"] = int(rec.get("open_count") or 0)
             videos.sort(key=lambda v: v["name"].lower())
             images.sort(key=lambda v: v["name"].lower())
             payload = {
