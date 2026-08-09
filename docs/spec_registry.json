@@ -315,6 +315,13 @@
         "summary": "Render-time freehand parameter envelopes for per_frame filters. Normalized t/v; styletransfer strength first; filter-platform factory sampling; no directory-stage or setpts automation. Supersedes automation-spec.md for builders."
     },
     {
+        "file": "nav-collapse-spec.md",
+        "path": "docs/nav-collapse-spec.md",
+        "category": "Frontend",
+        "status": "Implemented",
+        "summary": "Collapsible sidebar sections + `mtapi_nav_sections`."
+    },
+    {
         "file": "pipeline-spec.md",
         "path": "docs/pipeline-spec.md",
         "category": "Core Architecture",
@@ -346,7 +353,7 @@
         "file": "rife-migration-spec.md",
         "path": "docs/rife-migration-spec.md",
         "category": "Core Architecture",
-        "status": "Specification Phase",
+        "status": "Implemented",
         "summary": "Currently, `rife_ops.py` uses the deprecated `PngFramePipeline`. It performs a custom video dump, runs `rife-ncnn-vulkan` as a single subprocess over an entire directory (`-i frames_in -o frames_out`), and then manually encodes the output while dropping audio (`-an`)."
     },
     {
