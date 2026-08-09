@@ -63,6 +63,7 @@
 | [universal-persistence-spec.md](universal-persistence-spec.md) | Desk save / inactive knobs |
 | [tilagup-mtapi-mode-spec.md](tilagup-mtapi-mode-spec.md) | Agent tiled SD |
 | [image-quality-rating-spec.md](image-quality-rating-spec.md) | Pool quality scores |
+| [fastsam-sam-multimodel-spec.md](fastsam-sam-multimodel-spec.md) | **FastSAM + SAM multimodel selector** — stronger backends on Intel OpenVINO |
 
 Full backlog: **[STATUS.md §5](STATUS.md)**. Build order: **[STATUS.md §8](STATUS.md)**.
 

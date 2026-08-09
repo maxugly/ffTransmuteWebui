@@ -80,7 +80,6 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
     # ── Image path: direct inference ─────────────────────────────────────
     if is_image:
         import cv2
-        import zipfile
         from app.filters.fastsam import ensure_openvino_model, get_target_mask
         from ultralytics import FastSAM
 

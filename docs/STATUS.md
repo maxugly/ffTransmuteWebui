@@ -109,6 +109,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 | 3 | [universal-persistence-spec.md](universal-persistence-spec.md) | Stop autosave clobbering named projects | Bug #1 |
 | 4 | [tilagup-mtapi-mode-spec.md](tilagup-mtapi-mode-spec.md) | Multi-step agent tiled SD | Sibling `/home/m/snc/cod/tilagup` |
 | 5 | [image-quality-rating-spec.md](image-quality-rating-spec.md) | Pool tech/aesthetic scores | **Fix pool normalize first** |
+| 6 | [fastsam-sam-multimodel-spec.md](fastsam-sam-multimodel-spec.md) | **FastSAM + SAM multimodel selector** — stronger backends (FastSAM-x, SAM ViT-L/H) on OpenVINO/Intel, AUTO device fallback | **`4.82`+ proposed** |
 
 ### 5.2 Recently shipped (orientation)
 

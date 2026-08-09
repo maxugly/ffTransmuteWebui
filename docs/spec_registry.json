@@ -434,6 +434,20 @@
         "summary": "Directory-backed progress and phase-local ETA for long jobs."
     },
     {
+        "file": "fastsam-sam-multimodel-spec.md",
+        "path": "docs/fastsam-sam-multimodel-spec.md",
+        "category": "Operation",
+        "status": "Proposed",
+        "summary": "Extend FastSAM tab with model selector (FastSAM-s/x, SAM ViT-L/H) and AUTO device fallback for Intel OpenVINO paths."
+    },
+    {
+        "file": "fastsam-openvino-spec.md",
+        "path": "docs/fastsam-openvino-spec.md",
+        "category": "Operation",
+        "status": "Implemented",
+        "summary": "FastSAM OpenVINO asset extraction filter. Polygon-contour mask extraction with target/everything modes and no-mask fallback."
+    },
+    {
         "file": "zoompan-spec.md",
         "path": "docs/zoompan-spec.md",
         "category": "Operation",

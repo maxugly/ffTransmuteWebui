@@ -4,6 +4,8 @@
 > **Audience:** Builders integrating FastSAM via OpenVINO for Intel iGPU
 > **Related:** `filter-platform-spec.md`, `withoutbg-spec.md`
 
+> **Note (2026-08-09):** The shipped implementation uses polygon-contour mask extraction (`results_obj.masks.xy` + `cv2.fillPoly`) with `cv2.pointPolygonTest` for target-mode selection, rather than the original tensor-resize path in §4.2 below. When masks are not detected, the original frame is copied unchanged instead of writing a blank/transparent output.
+
 ---
 
 ## 1. Goal
@@ -34,8 +36,8 @@ This feature integrates into the established `ffTransmuteWebui` **Filter Platfor
 
 ```text
 Upload/Pool File -> `operations/fastsam_ops.py` -> `job_workspace` (dump frames)
-                                                   -> `filters/fastsam.py` (OpenVINO inference)
-                                                   -> encode/export (transparent PNGs or video)
+                                                    -> `filters/fastsam.py` (OpenVINO inference)
+                                                    -> encode/export (transparent PNGs or video)
 ```
 
 ### 3.1 Backend Components
@@ -89,47 +91,83 @@ from ultralytics import FastSAM
 from app.staged_job import StageSpec
 from app.job_control import report_progress
 
-async def make_fastsam_directory(conf: float = 0.4, iou: float = 0.9, device: str = "GPU"):
-    
-    # Initialization happens here to run once per batch
-    ov_model_path = ensure_openvino_model()
-    # Ultralytics transparently handles OpenVINO models if path points to the exported dir
+def get_target_mask(results_obj, img_shape, mode: str, target_x: float, target_y: float):
+    if not hasattr(results_obj, "masks") or results_obj.masks is None:
+        return None
+
+    if mode == "everything":
+        masks = []
+        for segment in results_obj.masks.xy:
+            mask = np.zeros((img_shape[0], img_shape[1]), dtype=np.uint8)
+            cv2.fillPoly(mask, [segment.astype(np.int32)], 1)
+            masks.append(mask)
+        return masks
+
+    tx = int(target_x * img_shape[1])
+    ty = int(target_y * img_shape[0])
+
+    best_mask_idx = 0
+    best_dist = float('inf')
+
+    for i, segment in enumerate(results_obj.masks.xy):
+        if len(segment) == 0: continue
+        dist = cv2.pointPolygonTest(segment, (tx, ty), measureDist=True)
+        if dist >= 0:
+            area = cv2.contourArea(segment)
+            score = area - 1e9
+        else:
+            score = -dist
+
+        if score < best_dist:
+            best_dist = score
+            best_mask_idx = i
+
+    if len(results_obj.masks.xy) == 0 or len(results_obj.masks.xy[best_mask_idx]) == 0:
+        return None
+
+    best_segment = results_obj.masks.xy[best_mask_idx]
+    mask = np.zeros((img_shape[0], img_shape[1]), dtype=np.uint8)
+    cv2.fillPoly(mask, [best_segment.astype(np.int32)], 1)
+    return mask
+
+
+async def make_fastsam_directory(conf: float = 0.4, iou: float = 0.9, device: str = "GPU", mode: str = "target", target_x: float = 0.5, target_y: float = 0.5, **kwargs):
+    ov_model_path = ensure_openvino_model(device=device)
     model = FastSAM(ov_model_path)
-    
+
     async def fastsam_directory(src_dir: Path, dst_dir: Path) -> dict:
         frames = sorted(list(src_dir.glob("frame_*.png")))
         total = len(frames)
-        
+
         for idx, frame_path in enumerate(frames):
             img = cv2.imread(str(frame_path))
-            
-            # Run inference
+
             results = model(img, device=device, conf=conf, iou=iou)
-            
-            # Post-process: extract largest mask (assuming central object for asset)
-            if results and results[0].masks is not None:
-                mask = results[0].masks.data[0].cpu().numpy()
-                mask = cv2.resize(mask, (img.shape[1], img.shape[0]))
-                
-                # Apply mask to alpha channel
-                b, g, r = cv2.split(img)
-                alpha = (mask * 255).astype(np.uint8)
-                transparent_img = cv2.merge([b, g, r, alpha])
-                
-                out_path = dst_dir / frame_path.name
-                cv2.imwrite(str(out_path), transparent_img)
+
+            if results and len(results) > 0 and results[0].masks is not None:
+                mask = get_target_mask(results[0], img.shape, mode, target_x, target_y)
+
+                if mask is not None:
+                    b, g, r = cv2.split(img)
+                    alpha = (mask * 255).astype(np.uint8)
+                    transparent_img = cv2.merge([b, g, r, alpha])
+
+                    out_path = dst_dir / frame_path.name
+                    cv2.imwrite(str(out_path), transparent_img)
+                else:
+                    import shutil
+                    shutil.copy(frame_path, dst_dir / frame_path.name)
             else:
-                # Fallback: copy original or transparent blank
                 import shutil
                 shutil.copy(frame_path, dst_dir / frame_path.name)
-            
+
             report_progress(
                 phase="fastsam",
                 current=idx + 1,
                 total=total,
                 unit="frames"
             )
-            
+
         return {"frame_count": total}
 
     return fastsam_directory
@@ -141,31 +179,139 @@ async def make_fastsam_directory(conf: float = 0.4, iou: float = 0.9, device: st
 from fastapi import APIRouter
 from pydantic import BaseModel
 from app.contract import OperationResult, ok
-from app.staged_job import run_staged_job, StageSpec
+from app.staged_job import StageSpec, run_staged_job
 from app.filters.fastsam import make_fastsam_directory
+from app.pathutil import finalize_output_path
 
 router = APIRouter()
 
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff", ".gif"}
+VIDEO_EXTS = {".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi"}
+
 class FastSAMParams(BaseModel):
     input_path: str
+    output_dir: str | None = None
     conf: float = 0.4
     iou: float = 0.9
-    device: str = "GPU"
+    device: Literal["GPU", "CPU", "AUTO"] = "GPU"
+    mode: Literal["everything", "target"] = "target"
+    target_x: float = 0.5
+    target_y: float = 0.5
+    start_frame: int = 1
+    end_frame: int = 999999
     dry_run: bool = False
 
 @router.post("/fastsam", response_model=OperationResult)
 async def op_fastsam(p: FastSAMParams):
-    out = generate_output_path(p.input_path, "_fastsam") # standard helper
+    input_path = Path(p.input_path).expanduser().resolve()
+    if not input_path.is_file():
+        return OperationResult(ok=False, operation="fastsam", error=f"Input not found: {input_path}", dry_run=p.dry_run)
+
+    ext = input_path.suffix.lower()
+    is_image = ext in IMAGE_EXTS
+
+    if is_image:
+        out = finalize_output_path(None, source=input_path, default_suffix="_fastsam", default_ext=input_path.suffix or ".png", allowed_exts=IMAGE_EXTS, output_dir=p.output_dir or None)
+    else:
+        out = finalize_output_path(None, source=input_path, default_suffix="_fastsam", default_ext=".mov", allowed_exts=VIDEO_EXTS, output_dir=p.output_dir or None)
+
+    summary = f"fastsam {input_path.name}"
+
+    if p.dry_run:
+        dry = (
+            f"# {'image' if is_image else 'dump'}\n"
+            + (f"  direct image inference\n" if is_image else f"  ffmpeg -i {input_path} → frames_in/frame_%06d.png\n")
+            + f"# fastsam stage\n"
+            + f"  conf={p.conf} iou={p.iou} device={p.device} mode={p.mode}\n"
+            + (f"\n# output\n  {out}" if is_image else f"\n# encode\n  ffmpeg -framerate <fps> -i frames_out/frame_%06d.png {out}")
+        )
+        return OperationResult(ok=True, operation="fastsam", output_path=str(out), dry_run=True, command=summary, stdout=dry)
+
+    if is_image:
+        import cv2
+        from app.filters.fastsam import ensure_openvino_model, get_target_mask
+        from ultralytics import FastSAM
+
+        ov_model_path = ensure_openvino_model(device=p.device)
+        model = FastSAM(ov_model_path)
+
+        ov_device = p.device
+        if ov_device and not ov_device.lower().startswith("intel:") and ov_device.upper() != "CPU":
+            ov_device = f"intel:{ov_device.lower()}"
+
+        img = cv2.imread(str(input_path))
+        if img is None:
+            return OperationResult(ok=False, operation="fastsam", error=f"Failed to read image: {input_path}")
+
+        results = model(img, device=ov_device, conf=p.conf, iou=p.iou)
+
+        if results and len(results) > 0 and results[0].masks is not None:
+            mask_result = get_target_mask(results[0], img.shape, p.mode, p.target_x, p.target_y)
+
+            if p.mode == "everything" and isinstance(mask_result, list):
+                out_dir = Path(out).parent / f"{Path(out).stem}_assets"
+                out_dir.mkdir(parents=True, exist_ok=True)
+                b, g, r = cv2.split(img)
+
+                for i, mask in enumerate(mask_result):
+                    alpha = (mask * 255).astype(np.uint8)
+                    transparent_img = cv2.merge([b, g, r, alpha])
+
+                    y_idx, x_idx = np.nonzero(mask)
+                    if len(y_idx) > 0:
+                        y1, y2 = np.min(y_idx), np.max(y_idx)
+                        x1, x2 = np.min(x_idx), np.max(x_idx)
+                        cropped = transparent_img[y1:y2+1, x1:x2+1]
+
+                        asset_name = f"asset_{i:03d}.png"
+                        asset_path = out_dir / asset_name
+                        cv2.imwrite(str(asset_path), cropped)
+
+                out = out_dir
+            else:
+                mask = mask_result
+                if mask is not None:
+                    b, g, r = cv2.split(img)
+                    alpha = (mask * 255).astype(np.uint8)
+                    transparent_img = cv2.merge([b, g, r, alpha])
+                    cv2.imwrite(str(out), transparent_img)
+                else:
+                    import shutil
+                    shutil.copy(input_path, out)
+        else:
+            import shutil
+            shutil.copy(input_path, out)
+
+        from app import job_control
+        token = job_control.current_token()
+        if token:
+            job_control.report_progress("fastsam done", phase="done", current=1, total=1, unit="pass", latest_frame=str(out), token=token)
+
+        return OperationResult(ok=True, operation="fastsam", output_path=str(out), dry_run=False, command=summary)
+
+    from app.filters.fastsam import make_fastsam_directory
+    stage_fn = await make_fastsam_directory(conf=p.conf, iou=p.iou, device=p.device, mode=p.mode, target_x=p.target_x, target_y=p.target_y)
+
     return await run_staged_job(
         op_id="fastsam",
         prefix="fastsam_",
-        input_path=p.input_path,
-        output_path=out,
+        input_path=input_path,
+        output_path=str(out),
         dry_run=p.dry_run,
-        dump_kwargs={},
-        stages=[StageSpec("fastsam", "directory", await make_fastsam_directory(p.conf, p.iou, p.device))],
-        encode_kwargs={"codec": "prores_4444"} # or PNG sequence for images
+        dump_kwargs={"start_frame": p.start_frame, "end_frame": p.end_frame},
+        stages=[StageSpec("fastsam", "directory", stage_fn)],
+        encode_kwargs={"codec": "prores", "pix_fmt": "yuva444p10le"},
+        summary=summary,
     )
+
+register(OperationSpec(
+    id="fastsam",
+    summary="FastSAM object extraction via OpenVINO",
+    description="Extracts main subjects from video or images using Fast Segment Anything Model (Intel Iris Xe FP16 optimized). Output is transparent.",
+    params_model=FastSAMParams,
+    handler=op_fastsam,
+    tags=["fastsam", "openvino", "matting", "video", "image", "filter"],
+))
 ```
 
 ---
@@ -189,3 +335,6 @@ async def op_fastsam(p: FastSAMParams):
 4. Verify the output PNG contains a transparent background outlining the subject.
 5. Check backend logs to ensure `GPU` (Iris Xe) was selected and utilized by OpenVINO.
 6. Verify no JS errors in the browser console.
+7. For `target` mode, confirm that clicking near a subject selects that mask rather than a random segment.
+8. For `everything` mode, confirm that an `_assets/` folder is created with cropped transparent PNGs.
+9. For frames where no mask is detected, confirm the original frame is copied unchanged rather than producing a black/transparent output.
