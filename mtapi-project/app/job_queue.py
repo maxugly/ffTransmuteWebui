@@ -108,16 +108,32 @@ async def enqueue(op_id: str, body: dict[str, Any], label: str | None = None) ->
 
 
 async def snapshot() -> dict[str, Any]:
+    """Read-only desk view: FIFO queue + live server ops (job_control)."""
+    from . import job_control
+
     async with _lock:
-        return {
-            "ok": True,
-            "busy": is_busy(),
-            "direct_busy": _direct_busy,
+        fifo = {
             "running": _item_public(_running) if _running else None,
             "pending": [_item_public(x) for x in _pending],
             "history": [_item_public(x) for x in list(_history)[:HISTORY_CAP]],
             "pending_count": len(_pending),
         }
+    live = job_control.list_live_and_recent(recent_cap=40)
+    return {
+        "ok": True,
+        "busy": is_busy(),
+        "direct_busy": _direct_busy,
+        "gate_locked": _direct_gate.locked(),
+        # FIFO "Add to Queue" worker
+        "running": fifo["running"],
+        "pending": fifo["pending"],
+        "history": fifo["history"],
+        "pending_count": fifo["pending_count"],
+        # Any in-flight /ops/* progress (Run button, Instant densify, queue worker)
+        "live_ops": live["live"],
+        "recent_ops": live["recent"],
+        "live_count": live["live_count"],
+    }
 
 
 async def remove_pending(item_id: str) -> dict[str, Any]:

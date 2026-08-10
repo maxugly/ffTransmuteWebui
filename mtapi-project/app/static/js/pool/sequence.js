@@ -2239,4 +2239,49 @@ export {
   applySeqTokenSize,
   setSeqTokenSize,
   ensureSequenceMetaAndInstantScan,
+  getInstantRifeQueueSnapshot,
 };
+
+/**
+ * Read-only Instant RIFE queue for Jobs tab — never mutates queue/run state.
+ */
+function getInstantRifeQueueSnapshot() {
+  const runningEntry = (_instantRifeRunningId != null)
+    ? (state.pool.sequence || []).find((e) => e.id === _instantRifeRunningId)
+    : null;
+  return {
+    enabled: !!(state.pool.instantRife && state.pool.useRife),
+    draining: !!_instantRifeDraining,
+    stopRequested: !!_instantRifeStop,
+    queueDepth: _instantRifeQueue.length,
+    queue: _instantRifeQueue.map((j, i) => ({
+      position: i + 1,
+      entryId: j.entryId,
+      name: j.name,
+      path: j.path,
+      multiplier: j.multiplier,
+      targetFps: j.targetFps,
+      effFps: j.effFps,
+    })),
+    running: runningEntry
+      ? {
+          entryId: runningEntry.id,
+          name: runningEntry.name,
+          path: runningEntry.path,
+          status: runningEntry._rifeStatus,
+          multiplier: runningEntry._rifeRunningMultiplier || runningEntry._rifeMultiplier,
+        }
+      : null,
+    // Sequence entries that still claim densify work (for desk overview)
+    sequenceNeed: (state.pool.sequence || [])
+      .filter((e) => e._rifeStatus === 'pending' || e._rifeStatus === 'running'
+        || e._rifeStatus === 'failed')
+      .map((e) => ({
+        id: e.id,
+        name: e.name,
+        status: e._rifeStatus,
+        mult: e._rifeMultiplier || e._rifeRunningMultiplier || null,
+        error: e._rifeError || null,
+      })),
+  };
+}

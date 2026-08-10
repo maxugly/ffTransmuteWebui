@@ -1561,26 +1561,71 @@ input.daw-knob-value-input:focus {
 }
 
 
-/* Jobs queue panel */
-.jobs-panel { max-width: 42rem; }
+/* Jobs queue panel — live desk view */
+.jobs-panel { max-width: 48rem; }
 .jobs-h {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin: 1rem 0 0.4rem;
+  margin: 1.1rem 0 0.4rem;
   font-size: 0.95rem;
+  flex-wrap: wrap;
 }
-.jobs-section { display: flex; flex-direction: column; gap: 0.35rem; }
+.jobs-section { display: flex; flex-direction: column; gap: 0.4rem; }
 .jobs-row {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 0.75rem;
-  padding: 0.45rem 0.55rem;
+  padding: 0.5rem 0.65rem;
   border: 1px solid var(--border, #333);
-  border-radius: 4px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.18);
 }
 .jobs-main { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
 .jobs-meta { font-size: 0.8em; opacity: 0.8; word-break: break-all; }
 .jobs-progress { font-size: 0.85em; margin: 0.25rem 0 0; opacity: 0.9; }
-.jobs-running { border-color: var(--accent, #6af); }
+.jobs-running { border-color: rgba(96, 165, 250, 0.55); background: rgba(59, 130, 246, 0.08); }
+.jobs-pending { border-color: rgba(251, 191, 36, 0.35); }
+.jobs-history { opacity: 0.92; }
+.jobs-actions { flex-shrink: 0; display: flex; align-items: center; gap: 0.35rem; }
+.jobs-pill {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--text-muted, #94a3b8);
+  white-space: nowrap;
+}
+.jobs-pill-live {
+  border-color: rgba(96, 165, 250, 0.45);
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.12);
+}
+.jobs-pill-instant {
+  border-color: rgba(52, 211, 153, 0.45);
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.12);
+}
+.jobs-status {
+  margin: 0.5rem 0 0;
+  padding: 0.4rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.jobs-status-busy {
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  color: #bfdbfe;
+}
+.jobs-status-idle {
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: var(--text-muted, #94a3b8);
+  font-weight: 500;
+}
+.jobs-fail-note { color: #fca5a5; margin: 0.25rem 0; }

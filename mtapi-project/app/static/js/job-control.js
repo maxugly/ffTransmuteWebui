@@ -973,6 +973,34 @@ async function enqueueActiveOperation() {
   }
 }
 
+/**
+ * Read-only snapshot for Jobs tab — does not change run/cancel behavior.
+ */
+function getMainJobSnapshot() {
+  return {
+    busy: isMainJobBusy(),
+    clientBusyLabel: clientBusyLabel || null,
+    token: activeJob.token || null,
+    label: activeJob.label || null,
+    startedAt: activeJob.startedAt || 0,
+    stopping: !!activeJob.stopping,
+    hasFetch: !!activeJob.controller,
+    lastPhase: activeJob.lastPhase || '',
+    lastSnap: activeJob.lastSnap
+      ? {
+          phase: activeJob.lastSnap.phase,
+          current: activeJob.lastSnap.current,
+          total: activeJob.lastSnap.total,
+          unit: activeJob.lastSnap.unit,
+          message: activeJob.lastSnap.message,
+          status: activeJob.lastSnap.status,
+          eta_h: activeJob.lastSnap.eta_h || activeJob.lastSnap.eta_s,
+          rate_h: activeJob.lastSnap.rate_h,
+        }
+      : null,
+  };
+}
+
 export {
   formatJobLine, stopJobProgressPoll, startJobProgressPoll,
   setRunUiBusy, newJobToken, stopActiveOperation,
@@ -980,7 +1008,7 @@ export {
   togglePreviewLive, enqueueActiveOperation,
   resolveActiveOpAndBody,
   isMainJobBusy, onStopRequest, setClientBusy, clearClientBusy,
-  abortMainJob,
+  abortMainJob, getMainJobSnapshot,
 };
 
 // ── Module init: wire static UI elements ──────────────────────────────────

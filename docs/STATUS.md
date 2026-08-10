@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-09  \
-> **VERSION:** `000.000.4.97`  \
+> **VERSION:** `000.000.4.98`  \
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -84,6 +84,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Instant RIFE force probe** | Turning Instant ON probes all seq clips then queues densify; explicit empty-state strip | `ensureSequenceMetaAndInstantScan` · `4.88` |
 | **Instant RIFE crash fix** | Fixed missing `_updateSeqVariantBadges` (broke all sequence render + Instant) | `sequence.js` · `4.89` |
 | **Instant RIFE densest-wins** | Mid-flight Time/target raise soft-aborts and re-densifies; keep highest M (drop frames later) | `sequence.js`, `abortMainJob soft` · `4.90` |
+| **Jobs tab live desk** | Read-only: live server ops + FIFO + Instant queue + done | `jobs.js`, `job_control.list_live_and_recent`, queue snapshot · `4.98` |
 | **Sequence token size + layout** | Two-row chips; W/H ± size; min-width stops badge spill | `sequence.js`, `pool.css` · `4.97` |
 | **Match click selects pool card** | Clear filter, uncollapse pool, re-render + scroll on match row/Select | `grid.js` · `4.96` |
 | **Select RIFED sets multiplier** | Variant menu writes `_rifeMultiplier`; badge uses haveM so NEED does not stick after pick | `sequence.js` · `4.95` |
@@ -206,7 +207,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.4.97` (Instant reuses registered densify; no re-RIFE if M covers need).
+- **Current:** `000.000.4.98` (Instant reuses registered densify; no re-RIFE if M covers need).
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  

@@ -384,6 +384,35 @@ def get_progress(token: str) -> dict[str, Any] | None:
         return out
 
 
+def list_live_and_recent(*, recent_cap: int = 40) -> dict[str, Any]:
+    """Read-only overview for the Jobs tab (does not affect cancellation or run).
+
+    - live: tokens currently registered (in-flight server ops, including direct Run)
+    - recent: finished/cancelled/error snapshots still held in memory
+    """
+    live: list[dict[str, Any]] = []
+    recent: list[dict[str, Any]] = []
+    with _lock:
+        for token, snap in _progress.items():
+            out = dict(snap)
+            out.pop("_samples", None)
+            out["history"] = list(snap.get("history") or [])
+            out["active"] = token in _jobs
+            out["token"] = token
+            status = (out.get("status") or "").lower()
+            if token in _jobs or status in ("running", "cancelling", "start"):
+                live.append(out)
+            elif status in ("done", "cancelled", "error", "failed"):
+                recent.append(out)
+    recent.sort(key=lambda s: float(s.get("updated_at") or 0), reverse=True)
+    live.sort(key=lambda s: float(s.get("started_at") or 0))
+    return {
+        "live": live,
+        "recent": recent[: max(1, int(recent_cap))],
+        "live_count": len(live),
+    }
+
+
 def cancel_callback() -> Callable[[], None]:
     def _cb() -> None:
         check_cancelled()
