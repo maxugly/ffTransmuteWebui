@@ -1,11 +1,16 @@
 """
 JobWorkspace — isolated per-job temp directory for the unified video pipeline.
 
-Each workspace lives at /tmp/mtapi_jobs/{job_id}/ and contains:
+Each workspace lives under WORKSPACE_ROOT/{job_id}/ and contains:
   frames_in/       dumped PNGs from input video
   frames_out/      processed PNGs after filter function
   audio.ext        extracted audio stream for muxing
   metadata.json    fps, duration, frame count, input path, operation
+
+Default root is on real disk (~/.cache/mtapi/jobs), NOT /tmp.
+On many Linux setups /tmp is a small tmpfs (~RAM/2). A multi-minute join
+dumping hundreds of thousands of PNGs will hit ENOSPC long before the 1TB+
+data drive is full. Override with env MTAPI_JOBS_ROOT.
 
 Lifecycle:
   - Created on job start. One workspace per concurrent job — no collisions.
@@ -17,11 +22,25 @@ Lifecycle:
 from __future__ import annotations
 
 import json
+import logging
+import os
 import shutil
 from pathlib import Path
 from typing import Any
 
-WORKSPACE_ROOT = Path("/tmp/mtapi_jobs")
+log = logging.getLogger("mtapi.job_workspace")
+
+
+def _default_workspace_root() -> Path:
+    # Prefer explicit env (absolute path on a big disk).
+    env = (os.environ.get("MTAPI_JOBS_ROOT") or "").strip()
+    if env:
+        return Path(env).expanduser().resolve()
+    # Real disk under user cache — survives small /tmp tmpfs.
+    return (Path.home() / ".cache" / "mtapi" / "jobs").resolve()
+
+
+WORKSPACE_ROOT = _default_workspace_root()
 
 
 class JobWorkspace:
@@ -29,6 +48,7 @@ class JobWorkspace:
 
     def __init__(self, job_id: str, prefix: str = "job_") -> None:
         self.job_id = job_id
+        # Resolve root at construct time so env changes mid-process are rare/OK
         self.root = WORKSPACE_ROOT / f"{prefix}{job_id}"
         self.frames_in = self.root / "frames_in"
         self.frames_out = self.root / "frames_out"
@@ -40,9 +60,19 @@ class JobWorkspace:
         """Create all subdirectories. Idempotent — safe to call multiple times."""
         if self._created:
             return
-        self.frames_in.mkdir(parents=True, exist_ok=True)
-        self.frames_out.mkdir(parents=True, exist_ok=True)
+        try:
+            self.frames_in.mkdir(parents=True, exist_ok=True)
+            self.frames_out.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            log.error(
+                "Cannot create job workspace under %s (%s). "
+                "If this is ENOSPC on /tmp, set MTAPI_JOBS_ROOT to a path on a large disk.",
+                self.root,
+                e,
+            )
+            raise
         self._created = True
+        log.debug("job workspace ready: %s", self.root)
 
     def write_metadata(self, data: dict[str, Any]) -> None:
         """Write (or update) metadata.json."""
