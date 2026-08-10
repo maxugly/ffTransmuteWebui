@@ -165,11 +165,16 @@ When modifying files at the root level or coordinating changes across components
    - Keep `docs/SESSION-STOPPING-STATE.md` "Shipped this stretch" block up to date. Do not orphan these documents.
 
 11. **Junk / Scratch Directory (`mtapi-project/junk/`)**:
-   - All throwaway artifacts live in `mtapi-project/junk/` and are gitignored — NEVER committed, NEVER left in repo root.
-   - What goes there: test/diagnostic scripts (`test_*.py`, `check_*.py`), scratch output, extracted frames, **model weights** (`*.pt`, `*.bin`, `*.onnx`, OpenVINO dirs), and binary backups (`*.bak`).
-   - Rule for agents: if you create a scratch/test/diagnostic file or download a model, put it in `junk/` immediately. Do NOT litter repo root or `app/`.
+   - All throwaway artifacts live in `mtapi-project/junk/` and are gitignored — NEVER committed, NEVER left in repo root or `mtapi-project/` root.
+   - What goes there:
+     - test/diagnostic scripts (`test_*.py`, `check_*.py`)
+     - scratch output and extracted frames
+     - **screenshots / browser captures** (Playwright, manual UI snaps, `*_tab.png`, `*_run_state.png`, `Screenshot_*.png`, `.playwright-mcp/` dumps)
+     - **model weights** (`*.pt`, `*.bin`, `*.onnx`, OpenVINO dirs) and binary backups (`*.bak`)
+   - Rule for agents: if you create a scratch/test/diagnostic file, take a screenshot, dump a browser capture, or download a model — write it under `mtapi-project/junk/` **immediately**. Do not litter repo root, `docs/`, or `app/`.
+   - Preferred paths: `mtapi-project/junk/<name>.png`, `mtapi-project/junk/playwright/…`, `mtapi-project/junk/models/…`.
    - `junk/.gitkeep` is the only tracked file in `junk/` (keeps the dir in git). Everything else inside `junk/` is ignored.
-   - `mtapi-project/.gitignore` already covers `junk/*` plus root-level guards (`*.pt`, `*.bak`, `FastSAM*`, `rife-ncnn-vulkan.bak`). If you add a new weight extension, extend `.gitignore` — do not commit weights.
+   - `mtapi-project/.gitignore` covers `junk/*` plus root-level guards (`*.pt`, `*.bak`, `FastSAM*`, `rife-ncnn-vulkan.bak`). Root `.gitignore` also ignores common screenshot litter at the monorepo root. If you add a new weight extension, extend `.gitignore` — do not commit weights.
    - Grandfathered: `check_*.py` / `test_*.py` currently committed at repo root were added before this rule; future scratch files go in `junk/`.
 
 

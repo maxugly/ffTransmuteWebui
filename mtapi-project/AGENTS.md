@@ -21,6 +21,7 @@ mtapi-project/
 ├── run.py                 # uvicorn :24590; TFHUB_CACHE_DIR etc.
 ├── requirements.txt
 ├── AGENTS.md              # This file
+├── junk/                  # THROWAWAY ONLY (gitignored except .gitkeep)
 ├── app/
 │   ├── main.py            # Dynamic /ops/* from REGISTRY; media; static
 │   ├── contract.py        # OperationResult / OperationSpec
@@ -64,6 +65,11 @@ mtapi-project/
 7. **Progress** — `report_progress` every loop item; **dir watch** for opaque writers that fill `frames_in`/`frames_out` (RIFE already wired). Spec: `docs/workspace-progress-spec.md`.
 8. **RIFE multiplier** — API/UI range **2–128** (not list length). Image Sort list min 2, no max count.
 9. **WebUI long docs** — bottom of panel (`.tool-docs`); Image Sort is the pilot (`docs/tool-bottom-docs-spec.md`).
+10. **Junk drawer (`junk/`)** — all throwaways go here (gitignored). That includes:
+    - screenshots / Playwright / browser captures (`*.png` snaps of the UI)
+    - scratch/test scripts, extracted frames, model weights, binary backups
+    - Write under `mtapi-project/junk/` immediately — never repo root, never next to `app/`.
+    - Full policy: root `AGENTS.md` §3.11.
 
 ---
 
@@ -138,7 +144,8 @@ Canonical doc: **`docs/video-image-pools-spec.md`**.
 Use Playwright MCP (`mcp_mcp_browser_*`) when available.  
 If MCP is missing, use local Playwright + Chromium (`~/.cache/ms-playwright`) — still browser-test.  
 **Never** `web.run` / `web_search` for localhost.  
-**Never** claim WebUI DONE from curl alone.
+**Never** claim WebUI DONE from curl alone.  
+**Screenshots / captures:** write only under `junk/` (e.g. `junk/playwright/…` or `junk/<feature>_tab.png`). Never drop PNGs at monorepo root or `mtapi-project/` root.
 
 Tabs of note: **Convert / Export**, RIFE, **RIFE Recohere**, **Speed**, DeepDream, **Image Sort**, **Img2img**, **Txt2img**, **Agent**, **Upscale**, **Cut** (encode), **Jobs** (queue), **Video Pool**, **Image Pool**, Sequence, Watcher.
 

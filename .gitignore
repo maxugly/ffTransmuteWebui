@@ -39,12 +39,6 @@ mtapi-project/test*.json
 asdg
 respones001.txt
 
-# Optional: user may want screenshots tracked — leave example*.png in for now
-# Uncomment to ignore large screenshots:
-# example*.png
-# compare_*.png
-# mtapi_ui.png
-# sorry2bugYa.png
 mtapi-project/test_small.mp4
 mtapi-project/test_big.mp4
 mtapi-project/join-*.mp4
@@ -54,9 +48,24 @@ mtapi-project/join-*.mp4
 
 # Agent runtime lock state
 mtapi-project/.codewhale/state/*.lock
-.playwright-mcp/
-mtapi-project/bin/realesrgan-ncnn-vulkan\nmtapi-project/bin/realesr-ncnn-vulkan\nmtapi-project/bin/srmd-ncnn-vulkan
 .aider*
+
+# Screenshots / browser captures → put under mtapi-project/junk/ (see AGENTS.md §3.11)
+# Never leave these at monorepo root or mtapi-project root.
+.playwright-mcp/
+Screenshot_*.png
+*_tab.png
+*_run_state.png
+/compare_*.png
+/example*.png
+/mtapi_ui.png
+/sorry2bugYa.png
+/theLeftOneIsSelected.png
+/wrongColor.png
+
+mtapi-project/bin/realesrgan-ncnn-vulkan
+mtapi-project/bin/realesr-ncnn-vulkan
+mtapi-project/bin/srmd-ncnn-vulkan
 
 # Node modules
 /node_modules/

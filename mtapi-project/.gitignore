@@ -1,16 +1,21 @@
 # ── junk / scratch drawer ────────────────────────────────────────────────
-# All throwaway scripts, model weights, test scaffolds, and scratch output
-# live in junk/ and are NEVER committed. See root AGENTS.md rule 11.
+# All throwaway scripts, model weights, screenshots, browser captures,
+# test scaffolds, and scratch output live in junk/ and are NEVER committed.
+# See root AGENTS.md rule 11 and this package's AGENTS.md §3.10.
 junk/*
 !junk/.gitkeep
 
-# guard: if a weight/backup is dropped at repo root by mistake, ignore it
+# guard: if a weight/backup is dropped at package root by mistake, ignore it
 *.pt
 *.bin
 *.onnx
 *.bak
 rife-ncnn-vulkan.bak
 FastSAM*
+# UI snaps mistakenly left next to app/ (prefer junk/<name>.png)
+*_tab.png
+*_run_state.png
+Screenshot_*.png
 
 # python
 __pycache__/
