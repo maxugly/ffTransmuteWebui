@@ -1405,6 +1405,11 @@
   background: rgba(59, 130, 246, 0.08);
 }
 
+.pool-match-row.is-selected {
+  background: rgba(59, 130, 246, 0.16);
+  outline: 1px solid rgba(96, 165, 250, 0.45);
+}
+
 .pool-match-pair {
   display: flex;
   align-items: center;

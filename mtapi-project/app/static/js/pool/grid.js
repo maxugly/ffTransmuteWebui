@@ -1164,6 +1164,56 @@ function renderMatchResults(data) {
 
   box.innerHTML = header + `<div class="pool-match-list">${rows}</div>`;
 
+  /**
+   * Clicking a match must actually select that clip in the pool grid.
+   * Failures that made this feel "dead":
+   *  - fuzzy filter still on → card not in DOM → no highlight/scroll
+   *  - pool panel collapsed on Sequence → card not visible
+   *  - row click only soft-previewed without full select in some paths
+   */
+  function selectMatchInPool(path) {
+    if (!path) return;
+    // Show the pool grid if user hid it on Sequence
+    try {
+      const L = ensurePoolLayout();
+      if (L.collapsed.pool) {
+        L.collapsed.pool = false;
+        applyPoolLayout();
+      }
+    } catch (_) { /* ignore */ }
+    // Drop filter so the target card is actually rendered
+    if (state.pool.filterQuery) {
+      state.pool.filterQuery = '';
+      const filterEl = document.getElementById('poolFilter');
+      if (filterEl) filterEl.value = '';
+    }
+    if (!findPoolItem(path)) {
+      addPathsToPool([path]);
+    }
+    // Full select (preview + focus + toolbar + sequence sync)
+    selectPoolItem(path);
+    // Rebuild grid so .selected lands on a real card, then scroll to it
+    try {
+      renderPoolGrid();
+      _updatePoolFilterCount();
+    } catch (_) { /* ignore */ }
+    // Second pass: highlights + scroll after cards exist
+    try {
+      updateSelectionHighlights();
+      const card = Array.from(document.querySelectorAll('.pool-card'))
+        .find((c) => c.dataset.path === path);
+      if (card?.scrollIntoView) {
+        card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        card.classList.add('selected');
+      }
+    } catch (_) { /* ignore */ }
+    // Mark the match row as active for feedback in the matches list
+    box.querySelectorAll('.pool-match-row').forEach((r) => {
+      r.classList.toggle('is-selected', r.dataset.path === path);
+    });
+    logConsole(`[MATCH]: selected ${basename(path)}`);
+  }
+
   box.querySelectorAll('.pool-match-row').forEach(row => {
     const path = row.dataset.path;
     row.querySelectorAll('[data-act]').forEach(btn => {
@@ -1171,21 +1221,21 @@ function renderMatchResults(data) {
         e.stopPropagation();
         const act = btn.dataset.act;
         if (act === 'select') {
-          if (!findPoolItem(path)) addPathsToPool([path]);
-          selectPoolItem(path);
-          setPoolFocus(path);
+          selectMatchInPool(path);
         } else if (act === 'seq') {
           if (!findPoolItem(path)) addPathsToPool([path]);
+          selectMatchInPool(path);
           addPathToSequence(path);
         } else if (act === 'preview') {
+          selectMatchInPool(path);
           showPreview(path);
-          setPoolFocus(path);
         }
       });
     });
-    row.addEventListener('click', () => {
-      setPoolFocus(path);
-      showPreview(path);
+    // Whole row click = select in pool (same as Select button)
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('[data-act]')) return;
+      selectMatchInPool(path);
     });
   });
 }
