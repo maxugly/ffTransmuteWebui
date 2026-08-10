@@ -112,7 +112,8 @@ function _densityInfoForEntry(entry) {
 
 /**
  * Whether Instant/join should densify this entry (density + RIFE interpolate on).
- * Honors already-on-disk densify: if we have a rifed file at M ≥ need, not needed.
+ * Honors densify on disk / in memory (haveM), even if user currently stitches ORIG.
+ * Selecting a rifed path must set _rifeMultiplier or NEED stays wrong forever.
  */
 function _rifeInfoForEntry(entry) {
   if (!state.pool.useRife) return { needed: false, reason: 'RIFE interpolate off' };
@@ -120,11 +121,15 @@ function _rifeInfoForEntry(entry) {
   if (!dens.needed) return dens;
   const haveM = _bestHaveM(entry);
   const needM = dens.multiplier || 2;
-  if (entry.variantPath && entry.variantPath !== entry.path && haveM >= needM) {
+  // Known densify strength covers need (registry hydrate, menu pick, or prior encode)
+  if (haveM >= needM) {
+    const where = (entry.variantPath && entry.variantPath !== entry.path)
+      ? basename(entry.variantPath)
+      : 'on disk / registry';
     return {
       ...dens,
       needed: false,
-      reason: `already densified ×${haveM} (≥ need ×${needM}): ${basename(entry.variantPath)}`,
+      reason: `already densified ×${haveM} (≥ need ×${needM}): ${where}`,
       haveM,
     };
   }
@@ -157,16 +162,17 @@ let _instantRifeRestart = null; // { entryId, info }
 function _rifeBadgeForEntry(entry) {
   const useRife = !!state.pool.useRife;
   const instant = !!state.pool.instantRife;
-  // Density independent of master switch so NEED/RIFE? still show when RIFE is off
-  const info = _densityInfoForEntry(entry);
+  // Raw stretch math (for titles) + Instant-aware need (honors haveM)
+  const dens = _densityInfoForEntry(entry);
+  const info = useRife ? _rifeInfoForEntry(entry) : dens;
   const qIdx = _instantRifeQueue.findIndex((j) => j.entryId === entry.id);
   const st = entry._rifeStatus;
   const hasVar = !!(entry.variantPath && entry.variantPath !== entry.path);
-  const mHave = entry._rifeMultiplier || null;
-  const stretchNote = (info && info.stretch > 1.001)
-    ? `\nTime stretch: ${info.stretch.toFixed(2)}× slower (fewer unique frames per second).`
-    : (info && info.stretch < 0.999)
-      ? `\nTime stretch: ${info.stretch.toFixed(2)}× faster.`
+  const mHave = _bestHaveM(entry);
+  const stretchNote = (dens && dens.stretch > 1.001)
+    ? `\nTime stretch: ${dens.stretch.toFixed(2)}× slower (fewer unique frames per second).`
+    : (dens && dens.stretch < 0.999)
+      ? `\nTime stretch: ${dens.stretch.toFixed(2)}× faster.`
       : '';
 
   if (st === 'running') {
@@ -177,7 +183,7 @@ function _rifeBadgeForEntry(entry) {
         'STATE: RUN — Instant RIFE is encoding this clip now.',
         'Watch the main Run button (top) for elapsed time / progress.',
         'Stop (top bar) cancels this encode and drops the rest of the queue.',
-        info?.needed ? `Target density: ×${info.multiplier} (${info.effFps.toFixed(1)} → ${info.targetFps} fps).` : '',
+        dens?.needed ? `Target density: ×${dens.multiplier} (${dens.effFps.toFixed(1)} → ${dens.targetFps} fps).` : '',
       ].filter(Boolean).join('\n'),
     };
   }
@@ -191,7 +197,7 @@ function _rifeBadgeForEntry(entry) {
         `STATE: Q${n} — waiting in Instant RIFE queue (position ${n}).`,
         'Earlier clips finish first; then this one encodes.',
         'Stop (top bar) cancels the whole queue.',
-        info?.multiplier ? `Will densify ×${info.multiplier}.` : '',
+        dens?.multiplier ? `Will densify ×${dens.multiplier}.` : '',
       ].filter(Boolean).join('\n'),
     };
   }
@@ -209,7 +215,7 @@ function _rifeBadgeForEntry(entry) {
   }
 
   // Waiting for probe (no badge state yet for queue)
-  if (!info?.targetFps && (useRife || instant)) {
+  if (!dens?.targetFps && (useRife || instant)) {
     return {
       text: 'PROBE',
       cls: 'seq-rife-badge is-hint',
@@ -220,11 +226,12 @@ function _rifeBadgeForEntry(entry) {
     };
   }
 
-  // Densified enough already (variant + multiplier covers need)
-  const needM = info?.needed ? (info.multiplier || 2) : 0;
-  const covered = hasVar && (mHave || 0) >= needM && (st === 'done' || hasVar);
-  if ((st === 'done' || hasVar) && (!info?.needed || (mHave || 0) >= needM)) {
-    const label = mHave ? `OK×${mHave}` : 'OK';
+  // Densified enough: haveM covers need, OR rifed file selected with known/assumed M
+  const needM = dens?.needed ? (dens.multiplier || 2) : 0;
+  const covered = mHave > 0 && (!dens?.needed || mHave >= needM);
+  const selectedRifed = hasVar && (mHave >= needM || (mHave > 0 && !dens?.needed) || (hasVar && mHave >= 2 && dens?.needed && mHave >= needM));
+  if (st === 'done' || covered || (hasVar && mHave >= needM && needM > 0) || (hasVar && !dens?.needed)) {
+    const label = mHave ? `OK×${mHave}` : (hasVar ? 'OK' : 'OK');
     return {
       text: label,
       cls: 'seq-rife-badge is-done',
@@ -232,21 +239,37 @@ function _rifeBadgeForEntry(entry) {
         'STATE: OK — densified variant is ready for stitch.',
         `Active file: ${basename(entry.variantPath || entry.path)}`,
         `Original: ${basename(entry.path)}`,
+        mHave ? `Known densify strength: ×${mHave}` : '',
+        dens?.needed && mHave && mHave < needM
+          ? `Note: stretch wants ×${needM}; have ×${mHave} — Instant may densify further.`
+          : '',
         'Click ORIG/RIFED to switch which file Stitch uses.',
-      ].join('\n'),
+      ].filter(Boolean).join('\n'),
     };
   }
 
-  // Still needs denser frames (math) — and not yet covered by a strong enough variant
-  if (info?.needed) {
-    const m = info.multiplier;
+  // Still needs denser frames — use Instant-aware info (false if haveM covers)
+  if (info?.needed || dens?.needed) {
+    // If dens needed but Instant-aware says not, show OK path already handled
+    if (!info?.needed && useRife) {
+      const label = mHave ? `OK×${mHave}` : 'OK';
+      return {
+        text: label,
+        cls: 'seq-rife-badge is-done',
+        title: [
+          'STATE: OK — densify already covers this stretch.',
+          info.reason || '',
+        ].filter(Boolean).join('\n'),
+      };
+    }
+    const m = dens.multiplier || info.multiplier;
     if (!useRife) {
       return {
         text: 'RIFE?',
         cls: 'seq-rife-badge is-hint',
         title: [
           'STATE: RIFE? — this stretch is sparse, but “RIFE interpolate” is OFF.',
-          `Content ~${info.effFps.toFixed(1)} fps after stretch; target ${info.targetFps} fps.`,
+          `Content ~${dens.effFps.toFixed(1)} fps after stretch; target ${dens.targetFps} fps.`,
           'Turn on Instant RIFE (enables densify) or RIFE interpolate + Stitch.',
           stretchNote.trim(),
         ].filter(Boolean).join('\n'),
@@ -258,7 +281,8 @@ function _rifeBadgeForEntry(entry) {
         cls: 'seq-rife-badge is-need',
         title: [
           `STATE: NEED×${m} — needs denser frames for smooth motion.`,
-          `Content ~${info.effFps.toFixed(1)} fps after stretch < target ${info.targetFps} fps.`,
+          `Content ~${dens.effFps.toFixed(1)} fps after stretch < target ${dens.targetFps} fps.`,
+          mHave ? `Have densify ×${mHave} on file — not enough for ×${m}.` : 'No densify file recorded yet.',
           'Instant RIFE is OFF — densify runs when you Stitch.',
           'Turn Instant RIFE ON to encode now (main Run/Stop).',
           stretchNote.trim(),
@@ -270,7 +294,8 @@ function _rifeBadgeForEntry(entry) {
       cls: 'seq-rife-badge is-need',
       title: [
         `STATE: NEED×${m} — will densify ×${m} (queued automatically).`,
-        `Content ~${info.effFps.toFixed(1)} fps < target ${info.targetFps} fps.`,
+        `Content ~${dens.effFps.toFixed(1)} fps < target ${dens.targetFps} fps.`,
+        mHave ? `Have ×${mHave} — need higher.` : 'No densify on record yet.',
         stretchNote.trim(),
       ].filter(Boolean).join('\n'),
     };
@@ -2034,6 +2059,27 @@ function _invalidateVariantsCache(path) {
   else _variantsCache.clear();
 }
 
+/**
+ * Multiplier for a densify path from registry map (or filename fallback).
+ */
+function _multiplierForVariantPath(vPath, variants, entry) {
+  if (!vPath || vPath === entry.path) return 0;
+  const list = (variants && variants.rifed) || [];
+  for (const v of list) {
+    if (v && v.path === vPath) {
+      const m = Number(v.detail && v.detail.multiplier);
+      return Number.isFinite(m) && m >= 2 ? m : 2;
+    }
+  }
+  // Same path already on entry
+  if (entry.variantPath === vPath && _bestHaveM(entry) >= 2) {
+    return _bestHaveM(entry);
+  }
+  // Filename heuristic: *_rife*.mp4 is densify
+  if (/_rife/i.test(basename(vPath))) return 2;
+  return 2;
+}
+
 function _showSeqVariantMenu(anchor, entry, variants, currentPath) {
   document.querySelectorAll('.seq-variant-menu').forEach(el => el.remove());
   const menu = document.createElement('div');
@@ -2042,10 +2088,12 @@ function _showSeqVariantMenu(anchor, entry, variants, currentPath) {
   const makeRow = (vPath, kind, detail) => {
     const selected = currentPath === vPath;
     const base = basename(vPath);
+    const m = detail && detail.multiplier != null ? Number(detail.multiplier) : '';
     const label = vPath === entry.path
       ? `Original — ${base}`
       : `${kind || 'variant'} — ${base}${detail ? ' · ' + Object.entries(detail).map(([k, val]) => `${k}=${val}`).join(' · ') : ''}`;
-    return `<button type="button" class="seq-var-opt${selected ? ' selected' : ''}" data-vpath="${escapeHtml(vPath)}" title="${escapeHtml(vPath)}">${escapeHtml(label)}</button>`;
+    const mAttr = (m >= 2) ? ` data-multiplier="${m}"` : '';
+    return `<button type="button" class="seq-var-opt${selected ? ' selected' : ''}" data-vpath="${escapeHtml(vPath)}"${mAttr} data-kind="${escapeHtml(kind || '')}" title="${escapeHtml(vPath)}">${escapeHtml(label)}</button>`;
   };
 
   let rows = makeRow(entry.path, 'original', null);
@@ -2086,9 +2134,32 @@ function _showSeqVariantMenu(anchor, entry, variants, currentPath) {
       const vp = btn.dataset.vpath;
       const idx = state.pool.sequence.findIndex(s => s.id === entry.id);
       if (idx >= 0) {
-        state.pool.sequence[idx].variantPath = vp === entry.path ? null : vp;
+        const ent = state.pool.sequence[idx];
+        if (vp === entry.path) {
+          // Stitch original — keep known densify M so Instant does not re-encode
+          ent.variantPath = null;
+          // do not clear _rifeMultiplier
+          const dens = _densityInfoForEntry(ent);
+          const needM = dens.needed ? (dens.multiplier || 2) : 0;
+          ent._rifeStatus = (_bestHaveM(ent) >= needM && needM > 0) || (!_densityInfoForEntry(ent).needed)
+            ? 'done'
+            : ent._rifeStatus;
+        } else {
+          // Selecting densify file MUST record M — otherwise badge stays NEED×N forever
+          const fromAttr = parseInt(btn.dataset.multiplier || '', 10);
+          const m = (fromAttr >= 2)
+            ? fromAttr
+            : _multiplierForVariantPath(vp, variants, ent);
+          ent.variantPath = vp;
+          ent._rifeMultiplier = m;
+          ent._rifeStatus = 'done';
+          ent._rifeError = null;
+          logConsole(
+            `[SEQ]: ${ent.name} → use densify ${basename(vp)} (×${m})`,
+          );
+        }
         scheduleSavePoolState();
-        renderSequenceBox();
+        renderSequenceBox({ skipInstantKick: true });
       }
       close();
     });
