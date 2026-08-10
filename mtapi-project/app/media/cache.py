@@ -364,11 +364,18 @@ async def get_variants(
     - By default, entries whose 'path' no longer exists on disk are dropped,
       so callers never load dead files. Pass include_missing=True to keep them
       (e.g. so the UI can show the variant greyed-out as "missing").
+    - If the path index is cold (mtime miss / never indexed), resolve_hash once
+      so Instant RIFE can see already-registered densify files. GET must not
+      stay forever empty when the rifed sibling is already in the record.
     """
     parent = Path(parent_path).resolve()
     parent_hash = lookup_cached_hash(parent)
     if not parent_hash:
-        return {}
+        # Cold index: one hash (cached thereafter). Empty variants if unknown file.
+        try:
+            parent_hash, _ = await resolve_hash(parent)
+        except OSError:
+            return {}
     rec = load_record(parent_hash)
     if not rec:
         return {}

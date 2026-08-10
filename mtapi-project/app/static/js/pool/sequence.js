@@ -112,10 +112,23 @@ function _densityInfoForEntry(entry) {
 
 /**
  * Whether Instant/join should densify this entry (density + RIFE interpolate on).
+ * Honors already-on-disk densify: if we have a rifed file at M ≥ need, not needed.
  */
 function _rifeInfoForEntry(entry) {
   if (!state.pool.useRife) return { needed: false, reason: 'RIFE interpolate off' };
-  return _densityInfoForEntry(entry);
+  const dens = _densityInfoForEntry(entry);
+  if (!dens.needed) return dens;
+  const haveM = _bestHaveM(entry);
+  const needM = dens.multiplier || 2;
+  if (entry.variantPath && entry.variantPath !== entry.path && haveM >= needM) {
+    return {
+      ...dens,
+      needed: false,
+      reason: `already densified ×${haveM} (≥ need ×${needM}): ${basename(entry.variantPath)}`,
+      haveM,
+    };
+  }
+  return dens;
 }
 
 /**
@@ -375,7 +388,72 @@ function _findQueuedRife(entryId) {
 }
 
 function _bestHaveM(entry) {
-  return Math.max(0, entry._rifeMultiplier || 0);
+  return Math.max(0, Number(entry._rifeMultiplier) || 0);
+}
+
+/**
+ * Pick densest existing rifed variant from /api/variants map.
+ * @returns {{ path: string, multiplier: number } | null}
+ */
+function _pickBestRifed(variants) {
+  const list = (variants && variants.rifed) || [];
+  let best = null;
+  let bestM = -1;
+  for (const v of list) {
+    if (!v || !v.path) continue;
+    // detail.multiplier is set by register_variant; missing → treat as ×2 (legacy)
+    const m = Number(v.detail && v.detail.multiplier);
+    const score = Number.isFinite(m) && m >= 2 ? m : 2;
+    if (score > bestM) {
+      bestM = score;
+      best = { path: v.path, multiplier: score };
+    }
+  }
+  return best;
+}
+
+/**
+ * Load registry densify for this source clip into entry.variantPath / _rifeMultiplier.
+ * This is the memory Instant lost on reload — without it every clip is NEED forever.
+ * @returns {Promise<{ path: string, multiplier: number } | null>}
+ */
+async function _hydrateEntryFromVariants(entry) {
+  if (!entry || !entry.path) return null;
+  const variants = await _fetchVariants(entry.path);
+  const best = _pickBestRifed(variants);
+
+  // Session already points at a densify file — fill missing M from registry
+  if (entry.variantPath && entry.variantPath !== entry.path) {
+    const list = (variants && variants.rifed) || [];
+    const match = list.find((v) => v.path === entry.variantPath);
+    if (match) {
+      const m = Number(match.detail && match.detail.multiplier);
+      entry._rifeMultiplier = Number.isFinite(m) && m >= 2 ? m : Math.max(_bestHaveM(entry), 2);
+    } else if (!_bestHaveM(entry)) {
+      // Path remembered in project but not in registry detail — keep file, assume ×2
+      entry._rifeMultiplier = 2;
+    }
+  }
+
+  if (best) {
+    const have = _bestHaveM(entry);
+    // Adopt densest registry file if we have nothing, or registry is denser
+    if (!entry.variantPath || entry.variantPath === entry.path || best.multiplier >= have) {
+      entry.variantPath = best.path;
+      entry._rifeMultiplier = best.multiplier;
+    }
+  }
+
+  if (entry.variantPath && entry.variantPath !== entry.path && _bestHaveM(entry) > 0) {
+    // Only mark done if density need is covered (or no stretch need yet)
+    const dens = _densityInfoForEntry(entry);
+    const needM = dens.needed ? (dens.multiplier || 2) : 0;
+    if (!dens.needed || _bestHaveM(entry) >= needM) {
+      entry._rifeStatus = 'done';
+      entry._rifeError = null;
+    }
+  }
+  return best;
 }
 
 /**
@@ -484,24 +562,37 @@ function _queueInstantRife(entry, info, opts) {
  * Auto-enqueue every sequence clip that currently NEEDS densify.
  * Call only on real events (Instant ON, Time change, meta load, add clip) —
  * never from every renderSequenceBox (that caused an infinite re-render storm).
+ * Always hydrate from /api/variants first so existing RIFED files are not re-done.
  */
-function _kickInstantRifeScan() {
+async function _kickInstantRifeScan() {
   if (!state.pool.instantRife || !state.pool.useRife) return;
   if (!state.pool.sequence?.length) return;
 
   let changed = 0;
+  let reused = 0;
   for (const entry of state.pool.sequence) {
+    try {
+      await _hydrateEntryFromVariants(entry);
+    } catch (_) { /* ignore hydrate errors */ }
     const info = _rifeInfoForEntry(entry);
-    if (!info?.needed) continue;
+    if (!info?.needed) {
+      if (entry.variantPath && entry.variantPath !== entry.path) reused += 1;
+      continue;
+    }
     // Only true when queue membership or M actually changes
     if (_queueInstantRife(entry, info, { skipRender: true })) changed += 1;
+  }
+  if (reused > 0) {
+    logConsole(`[SEQ RIFE]: reusing ${reused} existing densified clip(s) — not re-encoding`);
   }
   if (changed > 0) {
     renderSequenceBox({ skipInstantKick: true });
     _drainInstantRifeQueue();
   } else {
     // Cheap strip/badge refresh only — no kick, no variant flood
+    renderSequenceBox({ skipInstantKick: true });
     _updateInstantRifeStrip();
+    try { scheduleSavePoolState(); } catch (_) { /* ignore */ }
   }
 }
 
@@ -511,9 +602,9 @@ function _scheduleInstantRifeKick() {
   if (_kickRifeTimer != null) clearTimeout(_kickRifeTimer);
   _kickRifeTimer = setTimeout(() => {
     _kickRifeTimer = null;
-    try { _kickInstantRifeScan(); } catch (e) {
+    _kickInstantRifeScan().catch((e) => {
       console.error('[SEQ RIFE] kick failed', e);
-    }
+    });
   }, 120);
 }
 
@@ -800,8 +891,20 @@ async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
     const target = _resolvedTargetFps();
     if (!target) {
       logConsole('[SEQ RIFE]: still no fps after probe — cannot densify');
+      clearClientBusy();
       _updateInstantRifeStrip();
       return { queued: 0, reason: 'no fps' };
+    }
+
+    // CRITICAL: pull existing densify from media registry BEFORE queueing.
+    // Without this every Instant ON re-encodes clips that already have *_rife.mp4.
+    setClientBusy('Instant RIFE: checking existing densify…');
+    for (const entry of seq) {
+      try {
+        await _hydrateEntryFromVariants(entry);
+      } catch (e) {
+        logConsole(`[SEQ RIFE]: variant lookup failed ${entry.name} — ${e.message}`, 'error');
+      }
     }
 
     let need = 0;
@@ -810,7 +913,10 @@ async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
     for (const entry of seq) {
       const info = _rifeInfoForEntry(entry);
       if (!info?.needed) {
-        if (entry.variantPath && entry._rifeStatus === 'done') already += 1;
+        if (entry.variantPath && entry.variantPath !== entry.path) {
+          already += 1;
+          entry._rifeStatus = 'done';
+        }
         continue;
       }
       need += 1;
@@ -819,8 +925,7 @@ async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
 
     logConsole(
       `[SEQ RIFE]: scan complete — ${seq.length} clips, ${need} need densify, `
-      + `${queued} queued, target ${target} fps`
-      + (already ? `, ${already} already OK` : ''),
+      + `${queued} queued, ${already} already densified (reused), target ${target} fps`,
     );
 
     renderSequenceBox();
@@ -865,11 +970,16 @@ function _maybeAutoRifeAll({ quiet = true } = {}) {
 function _maybeAutoRifeForPath(path) {
   if (!state.pool.instantRife) return;
   if (!state.pool.useRife) state.pool.useRife = true;
-  for (const entry of state.pool.sequence) {
-    if (entry.path === path) {
+  (async () => {
+    for (const entry of state.pool.sequence) {
+      if (entry.path !== path) continue;
+      try {
+        await _hydrateEntryFromVariants(entry);
+      } catch (_) { /* ignore */ }
       _maybeAutoRifeEntry(entry);
     }
-  }
+    try { renderSequenceBox({ skipInstantKick: true }); } catch (_) { /* ignore */ }
+  })();
 }
 
 /** Path shown in the Selection frame: temporary hover, else sticky selection. */

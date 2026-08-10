@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-09  \
-> **VERSION:** `000.000.4.93`  \
+> **VERSION:** `000.000.4.94`  \
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -84,6 +84,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Instant RIFE force probe** | Turning Instant ON probes all seq clips then queues densify; explicit empty-state strip | `ensureSequenceMetaAndInstantScan` · `4.88` |
 | **Instant RIFE crash fix** | Fixed missing `_updateSeqVariantBadges` (broke all sequence render + Instant) | `sequence.js` · `4.89` |
 | **Instant RIFE densest-wins** | Mid-flight Time/target raise soft-aborts and re-densifies; keep highest M (drop frames later) | `sequence.js`, `abortMainJob soft` · `4.90` |
+| **Instant reuses existing densify** | Hydrate from /api/variants + persist rife_multiplier; NEED only if M insufficient | `sequence.js`, `persistence.js`, `cache.get_variants` · `4.94` |
 | **Single-flight restore** | Soft-cancel must not abort fetch (orphaned server job); server rejects concurrent /ops/* | `job-control.js`, `job_queue.py`, `main.py` · `4.93` |
 | **Instant re-render storm fix** | Queue no-op no longer re-renders; variants cache; failed no tight-retry; dual RIFE killed | `sequence.js`, `grid.js` · `4.92` |
 | **Settings tab (blank)** | Workspace · bare chrome (no global/preview/Run); scaffold for perf prefs | `js/tabs/settings.js`, `css/settings.css` · `4.91` |
@@ -202,7 +203,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.4.93` (single-flight: soft-cancel no fetch-abort; server op gate).  
+- **Current:** `000.000.4.94` (Instant reuses registered densify; no re-RIFE if M covers need).
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  

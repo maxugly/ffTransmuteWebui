@@ -58,6 +58,10 @@ function buildPoolStatePayload() {
         name: s.name || basename(s.path),
         target_duration: n,
         variant_path: s.variantPath || null,
+        // Remember densify strength so Instant does not re-RIFE after reload
+        rife_multiplier: (s._rifeMultiplier != null && s._rifeMultiplier > 0)
+          ? Number(s._rifeMultiplier)
+          : null,
       };
     }),
     selected_path: state.pool.selectedPath,
@@ -126,12 +130,21 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
       if (!Number.isFinite(td) || td <= 0) td = null;
     }
     const vp = s.variant_path ?? s.variantPath ?? null;
+    let rm = s.rife_multiplier ?? s._rifeMultiplier ?? null;
+    if (rm != null) {
+      rm = Number(rm);
+      if (!Number.isFinite(rm) || rm < 2) rm = null;
+    }
+    // If we have a densify path but no M (legacy sessions), assume at least ×2
+    if (vp && rm == null) rm = 2;
     return {
       id: nextSeqId(),
       path: s.path,
       name: s.name || basename(s.path),
       targetDuration: td,
       variantPath: vp,
+      _rifeMultiplier: rm,
+      _rifeStatus: (vp && rm) ? 'done' : null,
     };
   });
   state.pool.selectedPath = data.selected_path || null;
