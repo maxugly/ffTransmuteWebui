@@ -218,11 +218,20 @@ def _make_endpoint(spec):
 
         output_dir_ctx.set_output_dir(x_mtapi_output_dir)
         token = (x_job_token or "").strip() or job_control.new_token()
-        job_queue.set_direct_busy(True)
+        # Hard single-flight: never run two /ops/* at once (client soft-abort
+        # used to orphan a live server job and open a second POST).
+        acquired = await job_queue.try_begin_direct()
+        if not acquired:
+            return OperationResult(
+                ok=False,
+                operation=spec.id,
+                error="A job is already running",
+                dry_run=False,
+            )
         try:
             return await run_registered_op(spec, params, token=token)
         finally:
-            job_queue.set_direct_busy(False)
+            job_queue.end_direct()
 
     endpoint.__name__ = f"run_{spec.id}"
     return endpoint

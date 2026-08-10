@@ -339,10 +339,15 @@ function newJobToken() {
 }
 
 /**
- * Cancel the in-flight main job (token + fetch abort).
+ * Cancel the in-flight main job.
  * @param {{ soft?: boolean, reason?: string }} [opts]
- *   soft=true: do NOT fire stop hooks (Instant RIFE can restart without wiping the queue).
- *   soft=false (default): user Stop — hooks clear Instant queue etc.
+ *   soft=true: cooperative cancel only — do NOT abort the fetch.
+ *     Instant densest-wins restart relies on this: if we AbortController.abort()
+ *     the browser drops the POST while rife-ncnn is still running on the server,
+ *     finally clears activeJob, and the next densify starts → TWO jobs at once.
+ *     Soft cancel asks the server to stop; runOpWithCancel stays open until the
+ *     server actually exits, then the Instant drain may start the next encode.
+ *   soft=false (default): user Stop — stop hooks + cancel + fetch abort.
  */
 async function abortMainJob(opts = {}) {
   const soft = !!opts.soft;
@@ -371,7 +376,9 @@ async function abortMainJob(opts = {}) {
     elements.statusText.textContent = 'Stopping…';
     logConsole('[STOP]: Cancel requested — waiting for cooperative exit…');
   } else {
-    logConsole(`[JOB]: soft-abort (${reason}) — will restart densify if needed`);
+    logConsole(
+      `[JOB]: soft-cancel (${reason}) — waiting for current op to exit before next`,
+    );
   }
 
   const token = activeJob.token;
@@ -386,9 +393,12 @@ async function abortMainJob(opts = {}) {
   } catch (err) {
     logConsole(`[STOP]: cancel API: ${err.message}`, 'error');
   }
-  try {
-    activeJob.controller?.abort();
-  } catch (_) { /* ignore */ }
+  // HARD stop only: drop the fetch. Soft keep POST open until server finishes.
+  if (!soft) {
+    try {
+      activeJob.controller?.abort();
+    } catch (_) { /* ignore */ }
+  }
   return { ok: true, soft, reason };
 }
 
@@ -400,8 +410,10 @@ async function stopActiveOperation() {
  * POST /ops/<id> with job token + abort support. Shared by Run, Stitch, Quick.
  */
 async function runOpWithCancel(opId, body, { label = 'Processing…', allowDuringClientBusy = false } = {}) {
-  if (activeJob.controller) {
-    // one job at a time in the UI
+  // Single-flight: token OR controller means a POST is still owned by the UI.
+  // Soft-cancel leaves the controller alive until the server exits — do not
+  // start another op while either is set.
+  if (activeJob.controller || activeJob.token) {
     logConsole('[JOB]: Already running — stop first or wait', 'error');
     throw new Error('A job is already running');
   }
@@ -415,13 +427,14 @@ async function runOpWithCancel(opId, body, { label = 'Processing…', allowDurin
   const token = newJobToken();
   const controller = new AbortController();
   stopJobProgressPoll();
+  const keepStarted = clientBusyLabel && activeJob.startedAt ? activeJob.startedAt : Date.now();
   activeJob = {
     token,
     controller,
     stopping: false,
     pollTimer: null,
     tickTimer: null,
-    startedAt: Date.now(),
+    startedAt: keepStarted,
     lastPhase: '',
     lastSnap: null,
     label: label || 'Processing…',

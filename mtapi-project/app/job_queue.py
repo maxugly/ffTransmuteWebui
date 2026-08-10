@@ -39,17 +39,46 @@ _lock = asyncio.Lock()
 _wake = asyncio.Event()
 _worker_task: asyncio.Task | None = None
 _direct_busy = False  # true while a direct /ops/* POST is in flight
+# Gates concurrent direct /ops/* (and vs queue worker) — only one handler body.
+_direct_gate = asyncio.Lock()
 
 
 def set_direct_busy(busy: bool) -> None:
+    """Legacy flag setter; prefer try_begin_direct / end_direct for ops routes."""
     global _direct_busy
     _direct_busy = bool(busy)
     if not busy:
         _wake.set()
 
 
+async def try_begin_direct() -> bool:
+    """Acquire exclusive direct-op slot. False if anything already running."""
+    global _direct_busy
+    # Non-blocking: if queue job or another direct op holds the world, refuse.
+    if _running is not None or _direct_busy or _direct_gate.locked():
+        return False
+    await _direct_gate.acquire()
+    if _running is not None:
+        _direct_gate.release()
+        return False
+    _direct_busy = True
+    return True
+
+
+def end_direct() -> None:
+    """Release exclusive direct-op slot."""
+    global _direct_busy
+    _direct_busy = False
+    if _direct_gate.locked():
+        try:
+            _direct_gate.release()
+        except RuntimeError:
+            pass
+    _wake.set()
+
+
 def is_busy() -> bool:
-    return _running is not None or _direct_busy
+    return _running is not None or _direct_busy or _direct_gate.locked()
 
 
 def _item_public(it: QueueItem) -> dict[str, Any]:
