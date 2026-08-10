@@ -139,13 +139,30 @@ Canonical doc: **`docs/video-image-pools-spec.md`**.
 
 ---
 
-## 5. WebUI Testing (MANDATORY)
+## 5. WebUI Testing (MANDATORY — every time, no reminder required)
 
-Use Playwright MCP (`mcp_mcp_browser_*`) when available.  
-If MCP is missing, use local Playwright + Chromium (`~/.cache/ms-playwright`) — still browser-test.  
+**After any change to ops, static JS/CSS/HTML, pool/sequence, jobs, or server
+routes that the UI hits:** run a browser smoke **before** you say it works.
+The human should not have to ask. This is the default builder gate.
+
+Use Playwright MCP when available; otherwise local Playwright + Chromium
+(`~/.cache/ms-playwright`).  
 **Never** `web.run` / `web_search` for localhost.  
-**Never** claim WebUI DONE from curl alone.  
-**Screenshots / captures:** write only under `junk/` (e.g. `junk/playwright/…` or `junk/<feature>_tab.png`). Never drop PNGs at monorepo root or `mtapi-project/` root.
+**Never** claim DONE from curl, unit tests, or `page.evaluate`-only “tests”
+that never click a real control.
+
+**Minimum path (every ship):**
+
+1. Navigate to `http://127.0.0.1:24590/`  
+2. **Click** the tab you changed  
+3. Exercise the control (Run / Stitch / Format / Instant / match / etc.)  
+4. Wait for success; check console; verify output or the fixed behavior  
+5. Only then report DONE  
+
+Details and test assets: root `AGENTS.md` §D.  
+
+**Screenshots / captures:** only under `junk/` (e.g. `junk/playwright/…`).
+Never drop PNGs at monorepo root or package root.
 
 Tabs of note: **Convert / Export**, RIFE, **RIFE Recohere**, **Speed**, DeepDream, **Image Sort**, **Img2img**, **Txt2img**, **Agent**, **Upscale**, **Cut** (encode), **Jobs** (queue), **Video Pool**, **Image Pool**, Sequence, Watcher.
 

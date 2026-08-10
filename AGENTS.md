@@ -269,6 +269,11 @@ You're the decider. You say what to build and why. The rest of us make it real.
 
 ### D. Verification — MANDATORY BEFORE CLAIMING DONE
 
+**Default for every ship that touches ops, jobs, pool/sequence, or static UI:**
+do a **real browser smoke** yourself. Do **not** wait for the human to say
+“test it in the UI.” Do **not** claim DONE from unit tests, Python one-shots,
+or curl alone.
+
 #### Test Assets
 
 | file | what | size |
@@ -288,42 +293,43 @@ ffmpeg -y -f lavfi -i "testsrc=duration=1:size=320x240:rate=1" \
   -vframes 1 /tmp/teste.png
 ```
 
-#### How to Test (use the WebUI — not curl)
+#### How to Test (WebUI — click things)
 
-Testing through the API proves the backend works. Testing through the WebUI
-proves the whole stack works — the form collects the right params, the button
-fires the POST, the response displays correctly, and no JS errors swallow the
-result. **Use the WebUI for all verification.**
+API/curl proves the backend. **Playwright proves the product:** tab renders,
+controls bind, buttons fire, params POST, result lands, no JS errors.
 
-Start Playwright once per session:
+Use Playwright MCP (or local Playwright + Chromium under `~/.cache/ms-playwright`).
+**Never** `web_search` / external browse for `localhost`.
 
-```
-start_mcp_server with @playwright/mcp
-```
+For **each** surface you touched (op tab, Sequence, Pool, Jobs, etc.):
 
-Then for each op you touched:
+1. **Navigate** to `http://localhost:24590/` (hard-refresh / cache-bust if needed).
+2. **Click** the real nav item for that surface (not only `switchTab()` in evaluate).
+3. **Snapshot / find** — form and knobs present.
+4. **Interact for real:** type paths, change selects, toggle checkboxes, click
+   **Run** / **Stitch** / **Find matches** / whatever the change is.
+5. **Wait for finish** — status back to ready; no hang on busy forever.
+6. **Console** — zero unexpected JS errors.
+7. **Prove the outcome** — `ok` / output file exists (`media_info` or on disk);
+   assert the *bug you fixed* is gone (e.g. log says “no PNG dump”, badge is
+   OK×N, match click selects a pool card).
 
-1. **`browser_navigate`** to `http://localhost:24590/`
-2. **`browser_click`** the tab for the op you changed (e.g. "RIFE Slow-Mo")
-3. **`browser_snapshot`** — verify the form rendered with all controls
-4. **`browser_type`** into the input field: `/tmp/teste.mp4` (or `.png` for image ops)
-5. **`browser_click`** the Run Operation button
-6. **`browser_console`** — check for JS errors
-7. Watch the terminal output — the server now streams ffmpeg progress in real-time
+Optional: `page.evaluate` to seed pool/sequence state is OK **after** you have
+clicked into the tab, if file pickers are painful — but the **primary action
+must still be a real click** on the control under test.
 
-**You are testing ONE thing: does it run without choking?** Not output quality.
-Not correctness. Just: the form submits, the server accepts it, ffmpeg runs,
-and you get an `ok: True` response with no JS errors in console.
+**Minimum bar:** does the UI path run without choking, and does the specific
+fix/feature show the expected side-effect? Not cinema quality.
 
-If the form doesn't render, the button does nothing, or the console shows
-errors — fix before continuing. The server terminal will show ffmpeg
-progress and any subprocess failures as they happen.
+If the form doesn't render, the button does nothing, or the console errors —
+**fix before claiming DONE.**
 
-Clean up test outputs: `rm -f /tmp/teste_rife.mp4 /tmp/teste_crop.mp4 /tmp/teste_withoutbg.png`
+Clean up throwaway outputs under `/tmp/` or `junk/` (never litter repo root).
 
-#### Quick Backend-Only Check (when the WebUI is not available)
+#### Quick Backend-Only Check (supplement only)
 
-If you can't use the browser for some reason, fall back to curl:
+Curl is fine **in addition** to UI, or when the browser truly cannot run.
+It is **not** a substitute for UI smoke on WebUI-facing work.
 
 ```bash
 curl -s -X POST http://localhost:24590/ops/<op_id> \
@@ -332,10 +338,8 @@ curl -s -X POST http://localhost:24590/ops/<op_id> \
   | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('ok'), d.get('error',''))"
 ```
 
-But prefer the WebUI path — it catches form and JS bugs that curl can't.
-
-**No agent claims DONE without running `/tmp/teste.mp4` (or `.png`) through
-the WebUI form for every op touched, with zero JS console errors.**
+**No agent claims DONE** on ops/UI/pool/jobs work without a Playwright (or
+equivalent) pass that **clicked** the relevant control and checked the result.
 
 ---
 
