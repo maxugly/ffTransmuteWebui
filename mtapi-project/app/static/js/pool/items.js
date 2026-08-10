@@ -30,7 +30,23 @@ async function loadPoolItemMeta(item, idx) {
     item.meta = { video_codec: '?', audio_codec: '?', duration: null, fps: null, frames: null, size: item.size };
   }
 
-  if (state.activeTab !== 'pool') return;
+  // Sequence Instant RIFE must run even when Sequence tab is active (meta often
+  // finishes after the user is already on Sequence, not Video Pool).
+  if (state.pool.sequence?.some(s => s.path === item.path)) {
+    try {
+      applySeqTokenTimeStyles();
+      updateSeqClipSettings();
+      _maybeAutoRifeForPath(item.path);
+    } catch (_) { /* ignore */ }
+  }
+  if (displayFocusPath() === item.path) {
+    try { updatePoolFocusFrame(item.path); } catch (_) { /* ignore */ }
+  }
+  if (item.hash) {
+    try { scheduleSavePoolState(); } catch (_) { /* ignore */ }
+  }
+
+  if (state.activeTab !== 'pool' && state.activeTab !== 'sequence') return;
   const liveIdx = state.pool.items.findIndex(i => i.path === item.path);
   if (liveIdx < 0) return;
   const el = document.getElementById(`poolMeta-${liveIdx}`);
@@ -49,16 +65,6 @@ async function loadPoolItemMeta(item, idx) {
       });
     }
   }
-
-  if (state.pool.sequence.some(s => s.path === item.path)) {
-    applySeqTokenTimeStyles();
-    updateSeqClipSettings();
-    _maybeAutoRifeForPath(item.path);
-  }
-  if (displayFocusPath() === item.path) {
-    updatePoolFocusFrame(item.path);
-  }
-  if (item.hash) scheduleSavePoolState();
 }
 
 function scrollToSelected() {

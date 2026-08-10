@@ -347,8 +347,18 @@ function _bindSequencePanel() {
   });
   document.getElementById('poolInstantRife')?.addEventListener('change', (e) => {
     state.pool.instantRife = e.target.checked;
+    // Instant implies RIFE interpolate — turn both on together
+    if (e.target.checked) {
+      state.pool.useRife = true;
+      const ur = document.getElementById('poolUseRife');
+      if (ur) ur.checked = true;
+    }
     scheduleSavePoolState();
-    if (state.pool.instantRife && state.pool.useRife) _maybeAutoRifeAll();
+    renderSequenceBox();
+    if (state.pool.instantRife) {
+      // Probe + queue immediately — no re-touching Time
+      _maybeAutoRifeAll({ quiet: false });
+    }
   });
   document.getElementById('poolTargetFps')?.addEventListener('change', (e) => {
     const v = parseFloat(e.target.value);
@@ -420,6 +430,7 @@ function _bindSequencePanel() {
   durInput?.addEventListener('change', onSeqClipDurationChange);
   durInput?.addEventListener('blur', onSeqClipDurationChange);
   let _durInputSaveTimer = null;
+  let _durRifeTimer = null;
   durInput?.addEventListener('input', () => {
     const idx = findSelectedSeqIndex();
     if (idx < 0) return;
@@ -428,6 +439,8 @@ function _bindSequencePanel() {
     if (Number.isFinite(v) && v > 0) {
       state.pool.sequence[idx].targetDuration = v;
       state.pool.selectedSeqId = state.pool.sequence[idx].id;
+    } else if (!raw) {
+      state.pool.sequence[idx].targetDuration = null;
     }
     applySeqTokenTimeStyles();
     const hint = document.getElementById('seqClipDurHint');
@@ -447,6 +460,17 @@ function _bindSequencePanel() {
     }
     if (_durInputSaveTimer) clearTimeout(_durInputSaveTimer);
     _durInputSaveTimer = setTimeout(() => scheduleSavePoolState(), 300);
+    // Auto Instant RIFE while typing Time — supersedes in-flight densify if need rises
+    if (_durRifeTimer) clearTimeout(_durRifeTimer);
+    _durRifeTimer = setTimeout(() => {
+      if (entry && state.pool.instantRife && state.pool.useRife) {
+        // Do NOT clear _rifeStatus when running — queue path will soft-abort & restart denser
+        renderSequenceBox(); // kick + supersede
+        _maybeAutoRifeAll({ quiet: true });
+      } else {
+        renderSequenceBox();
+      }
+    }, 250);
   });
   durInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -465,6 +489,7 @@ function _bindSequencePanel() {
     renderSequenceBox();
     scheduleSavePoolState();
     logConsole(`[SEQ]: Cleared time stretch for ${state.pool.sequence[idx].name}`);
+    if (state.pool.instantRife && state.pool.useRife) _maybeAutoRifeAll({ quiet: true });
   });
 
   const useRifeEl = document.getElementById('poolUseRife');

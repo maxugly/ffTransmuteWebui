@@ -52,7 +52,7 @@ function isMainJobBusy() {
 }
 
 /**
- * Keep Run disabled + Stop visible across a multi-step batch.
+ * Keep Run disabled + Stop pulsing across a multi-step batch.
  * Call clearClientBusy() when the batch fully ends.
  */
 function setClientBusy(label) {
@@ -62,11 +62,23 @@ function setClientBusy(label) {
   // Don't reset startedAt if a real job is already running
   if (!activeJob.startedAt) activeJob.startedAt = Date.now();
   setRunUiBusy(true);
+  // Tick elapsed on Run/Stop while batch is held (even between encodes)
+  if (!activeJob.tickTimer) {
+    activeJob.tickTimer = setInterval(() => {
+      if (!isMainJobBusy()) return;
+      paintStickyJobUi();
+    }, 1000);
+  }
+  paintStickyJobUi();
 }
 
 function clearClientBusy() {
   clientBusyLabel = null;
   if (!activeJob.controller && !activeJob.token) {
+    if (activeJob.tickTimer) {
+      clearInterval(activeJob.tickTimer);
+      activeJob.tickTimer = null;
+    }
     setRunUiBusy(false);
   }
 }
@@ -172,12 +184,13 @@ function stopJobProgressPoll() {
   }
 }
 
-/** Update sticky status bar + Run button with live elapsed (no new console lines). */
+/** Update sticky status bar + Run/Stop with live elapsed (no new console lines). */
 function paintStickyJobUi() {
-  if (!activeJob.token || !activeJob.startedAt) return;
+  if (!isMainJobBusy() || !activeJob.startedAt) return;
   const elapsed = formatElapsedMs(Date.now() - activeJob.startedAt);
   const p = activeJob.lastSnap;
   const stopping = activeJob.stopping;
+  const label = clientBusyLabel || activeJob.label || '';
 
   // Status bar — sticky single place, rewrites in place
   if (elements.statusText) {
@@ -185,6 +198,7 @@ function paintStickyJobUi() {
     if (stopping) bits.push('Stopping');
     else bits.push('Running');
     bits.push(elapsed);
+    if (label && !(p && p.found && p.phase)) bits.push(label);
     if (p && p.found) {
       if (p.phase) bits.push(p.phase);
       if (p.total > 0) {
@@ -202,8 +216,15 @@ function paintStickyJobUi() {
   // Run button — sticky timer on the control itself
   if (elements.btnRun && elements.btnRun.disabled) {
     elements.btnRun.innerHTML = stopping
-      ? `<span style="animation: pulse-dot 1s infinite;">●</span> Stopping… ${elapsed}`
-      : `<span style="animation: pulse-dot 1s infinite;">●</span> ${elapsed}`;
+      ? `<span class="job-pulse-dot" aria-hidden="true">●</span> Stopping… ${elapsed}`
+      : `<span class="job-pulse-dot" aria-hidden="true">●</span> ${elapsed}`;
+  }
+
+  // Stop — keep pulse + elapsed so it's obvious work is active
+  if (elements.btnStop && !elements.btnStop.hidden) {
+    elements.btnStop.innerHTML = stopping
+      ? `<span class="job-pulse-dot" aria-hidden="true">■</span> Stopping…`
+      : `<span class="job-pulse-dot" aria-hidden="true">■</span> Stop ${elapsed}`;
   }
 }
 
@@ -254,15 +275,22 @@ function startJobProgressPoll(token) {
 }
 
 function setRunUiBusy(busy, { stopping = false } = {}) {
+  document.body.classList.toggle('job-running', !!busy && !stopping);
+  document.body.classList.toggle('job-stopping', !!busy && !!stopping);
+
   if (elements.btnRun) {
     elements.btnRun.disabled = busy;
+    elements.btnRun.classList.toggle('is-job-busy', !!busy);
     if (busy) {
       const elapsed = activeJob.startedAt
         ? formatElapsedMs(Date.now() - activeJob.startedAt)
         : '0:00';
       elements.btnRun.innerHTML = stopping
-        ? `<span style="animation: pulse-dot 1s infinite;">●</span> Stopping… ${elapsed}`
-        : `<span style="animation: pulse-dot 1s infinite;">●</span> ${elapsed}`;
+        ? `<span class="job-pulse-dot" aria-hidden="true">●</span> Stopping… ${elapsed}`
+        : `<span class="job-pulse-dot" aria-hidden="true">●</span> ${elapsed}`;
+      elements.btnRun.title = stopping
+        ? 'Stopping current job…'
+        : (clientBusyLabel || activeJob.label || 'Job running — use Stop to cancel');
     } else {
       elements.btnRun.innerHTML = `
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -270,11 +298,38 @@ function setRunUiBusy(busy, { stopping = false } = {}) {
         </svg>
         Run Operation
       `;
+      elements.btnRun.title = 'Run the active tab operation';
     }
   }
   if (elements.btnStop) {
     elements.btnStop.hidden = !busy;
     elements.btnStop.disabled = stopping;
+    elements.btnStop.classList.toggle('is-live', !!busy && !stopping);
+    elements.btnStop.classList.toggle('is-stopping', !!busy && !!stopping);
+    if (busy) {
+      const elapsed = activeJob.startedAt
+        ? formatElapsedMs(Date.now() - activeJob.startedAt)
+        : '0:00';
+      elements.btnStop.innerHTML = stopping
+        ? `<span class="job-pulse-dot" aria-hidden="true">■</span> Stopping…`
+        : `<span class="job-pulse-dot" aria-hidden="true">■</span> Stop ${elapsed}`;
+      elements.btnStop.title = stopping
+        ? 'Cancel already requested — waiting for cooperative exit'
+        : 'STOP — cancel current encode and any Instant RIFE queue';
+    } else {
+      elements.btnStop.innerHTML = `
+        <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" width="14" height="14">
+          <rect x="6" y="6" width="12" height="12" rx="1"/>
+        </svg>
+        Stop
+      `;
+      elements.btnStop.title = 'Stop (shown when a job is running)';
+    }
+  }
+  if (elements.statusDot) {
+    elements.statusDot.className = busy
+      ? (stopping ? 'status-dot loading' : 'status-dot loading')
+      : 'status-dot';
   }
 }
 
@@ -283,28 +338,41 @@ function newJobToken() {
   return `${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
 }
 
-async function stopActiveOperation() {
-  // Always notify queue consumers (Instant RIFE batch, etc.) so pending work is dropped
-  for (const fn of _stopHooks.slice()) {
-    try { fn(); } catch (_) { /* ignore hook errors */ }
+/**
+ * Cancel the in-flight main job (token + fetch abort).
+ * @param {{ soft?: boolean, reason?: string }} [opts]
+ *   soft=true: do NOT fire stop hooks (Instant RIFE can restart without wiping the queue).
+ *   soft=false (default): user Stop — hooks clear Instant queue etc.
+ */
+async function abortMainJob(opts = {}) {
+  const soft = !!opts.soft;
+  const reason = opts.reason || (soft ? 'restart' : 'user');
+
+  if (!soft) {
+    for (const fn of _stopHooks.slice()) {
+      try { fn(); } catch (_) { /* ignore hook errors */ }
+    }
   }
 
   if (!activeJob.token && !activeJob.controller) {
-    // Batch hold only (queue between jobs, or hold with nothing yet started)
-    if (clientBusyLabel) {
+    if (!soft && clientBusyLabel) {
       clearClientBusy();
       logConsole('[STOP]: Cleared batch (no encode in flight)');
       elements.statusText.textContent = 'Stopped';
       elements.statusDot.className = 'status-dot';
-    } else {
-      logConsole('[STOP]: Nothing running');
     }
-    return;
+    return { ok: false, reason: 'nothing running' };
   }
+
   activeJob.stopping = true;
+  activeJob.abortReason = reason;
   setRunUiBusy(true, { stopping: true });
-  elements.statusText.textContent = 'Stopping…';
-  logConsole('[STOP]: Cancel requested — waiting for cooperative exit…');
+  if (!soft) {
+    elements.statusText.textContent = 'Stopping…';
+    logConsole('[STOP]: Cancel requested — waiting for cooperative exit…');
+  } else {
+    logConsole(`[JOB]: soft-abort (${reason}) — will restart densify if needed`);
+  }
 
   const token = activeJob.token;
   try {
@@ -321,6 +389,11 @@ async function stopActiveOperation() {
   try {
     activeJob.controller?.abort();
   } catch (_) { /* ignore */ }
+  return { ok: true, soft, reason };
+}
+
+async function stopActiveOperation() {
+  return abortMainJob({ soft: false, reason: 'user' });
 }
 
 /**
@@ -894,6 +967,7 @@ export {
   togglePreviewLive, enqueueActiveOperation,
   resolveActiveOpAndBody,
   isMainJobBusy, onStopRequest, setClientBusy, clearClientBusy,
+  abortMainJob,
 };
 
 // ── Module init: wire static UI elements ──────────────────────────────────

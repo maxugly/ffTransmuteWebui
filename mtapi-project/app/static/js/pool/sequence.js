@@ -14,7 +14,7 @@ import {
 } from '/js/pool/persistence.js';
 import {
   runOpWithCancel, onStopRequest, isMainJobBusy,
-  setClientBusy, clearClientBusy,
+  setClientBusy, clearClientBusy, abortMainJob,
 } from '/js/job-control.js';
 
 // ── Sequence composer ─────────────────────────────────────────────────────
@@ -61,12 +61,11 @@ function _resolvedTargetFps() {
 }
 
 /**
- * @returns {null | { needed: true, effFps, targetFps, multiplier, nativeFps, stretch, reason? }}
- *          or { needed: false, reason } when we can explain a skip
+ * Density after time-stretch (ignores RIFE master switch — used for badges + Instant).
+ * @returns {{ needed: boolean, reason?: string, effFps?: number, targetFps?: number,
+ *             multiplier?: number, nativeFps?: number, stretch?: number }}
  */
-function _rifeInfoForEntry(entry) {
-  if (!state.pool.useRife) return { needed: false, reason: 'RIFE interpolate off' };
-
+function _densityInfoForEntry(entry) {
   const targetFps = _resolvedTargetFps();
   if (!targetFps) {
     return { needed: false, reason: 'no target fps (set RIFE fps or load clip meta)' };
@@ -112,6 +111,14 @@ function _rifeInfoForEntry(entry) {
 }
 
 /**
+ * Whether Instant/join should densify this entry (density + RIFE interpolate on).
+ */
+function _rifeInfoForEntry(entry) {
+  if (!state.pool.useRife) return { needed: false, reason: 'RIFE interpolate off' };
+  return _densityInfoForEntry(entry);
+}
+
+/**
  * Instant RIFE client queue — one job at a time via runOpWithCancel so:
  *  - Run button shows busy elapsed + Stop works (same as any op)
  *  - Nothing else can start while the batch drains
@@ -122,11 +129,231 @@ const _instantRifeQueue = []; // { entryId, path, name, multiplier, effFps, targ
 let _instantRifeDraining = false;
 let _instantRifeStop = false;
 let _instantRifeStopHookBound = false;
+/** Currently encoding entry id (for status strip). */
+let _instantRifeRunningId = null;
+/**
+ * After soft-abort of a running densify, re-queue this entry at a higher M.
+ * Policy: keep the highest frame density we ever produce (drop frames later if needed).
+ */
+let _instantRifeRestart = null; // { entryId, info }
+
+/**
+ * One badge per clip describing Instant/join RIFE state. Hover title is the full story.
+ * @returns {{ text: string, cls: string, title: string } | null}
+ */
+function _rifeBadgeForEntry(entry) {
+  const useRife = !!state.pool.useRife;
+  const instant = !!state.pool.instantRife;
+  // Density independent of master switch so NEED/RIFE? still show when RIFE is off
+  const info = _densityInfoForEntry(entry);
+  const qIdx = _instantRifeQueue.findIndex((j) => j.entryId === entry.id);
+  const st = entry._rifeStatus;
+  const hasVar = !!(entry.variantPath && entry.variantPath !== entry.path);
+  const mHave = entry._rifeMultiplier || null;
+  const stretchNote = (info && info.stretch > 1.001)
+    ? `\nTime stretch: ${info.stretch.toFixed(2)}× slower (fewer unique frames per second).`
+    : (info && info.stretch < 0.999)
+      ? `\nTime stretch: ${info.stretch.toFixed(2)}× faster.`
+      : '';
+
+  if (st === 'running') {
+    return {
+      text: 'RUN',
+      cls: 'seq-rife-badge is-running',
+      title: [
+        'STATE: RUN — Instant RIFE is encoding this clip now.',
+        'Watch the main Run button (top) for elapsed time / progress.',
+        'Stop (top bar) cancels this encode and drops the rest of the queue.',
+        info?.needed ? `Target density: ×${info.multiplier} (${info.effFps.toFixed(1)} → ${info.targetFps} fps).` : '',
+      ].filter(Boolean).join('\n'),
+    };
+  }
+
+  if (st === 'pending' || qIdx >= 0) {
+    const n = qIdx >= 0 ? qIdx + 1 : 1;
+    return {
+      text: `Q${n}`,
+      cls: 'seq-rife-badge is-queued',
+      title: [
+        `STATE: Q${n} — waiting in Instant RIFE queue (position ${n}).`,
+        'Earlier clips finish first; then this one encodes.',
+        'Stop (top bar) cancels the whole queue.',
+        info?.multiplier ? `Will densify ×${info.multiplier}.` : '',
+      ].filter(Boolean).join('\n'),
+    };
+  }
+
+  if (st === 'failed') {
+    return {
+      text: 'FAIL',
+      cls: 'seq-rife-badge is-failed',
+      title: [
+        'STATE: FAIL — Instant RIFE failed for this clip.',
+        entry._rifeError || 'See server / job result for the error.',
+        'Fix the issue, then change Time or toggle Instant to retry.',
+      ].join('\n'),
+    };
+  }
+
+  // Waiting for probe (no badge state yet for queue)
+  if (!info?.targetFps && (useRife || instant)) {
+    return {
+      text: 'PROBE',
+      cls: 'seq-rife-badge is-hint',
+      title: [
+        'STATE: PROBE — waiting for fps/duration from the server.',
+        'Instant RIFE cannot densify until probe finishes (automatic).',
+      ].join('\n'),
+    };
+  }
+
+  // Densified enough already (variant + multiplier covers need)
+  const needM = info?.needed ? (info.multiplier || 2) : 0;
+  const covered = hasVar && (mHave || 0) >= needM && (st === 'done' || hasVar);
+  if ((st === 'done' || hasVar) && (!info?.needed || (mHave || 0) >= needM)) {
+    const label = mHave ? `OK×${mHave}` : 'OK';
+    return {
+      text: label,
+      cls: 'seq-rife-badge is-done',
+      title: [
+        'STATE: OK — densified variant is ready for stitch.',
+        `Active file: ${basename(entry.variantPath || entry.path)}`,
+        `Original: ${basename(entry.path)}`,
+        'Click ORIG/RIFED to switch which file Stitch uses.',
+      ].join('\n'),
+    };
+  }
+
+  // Still needs denser frames (math) — and not yet covered by a strong enough variant
+  if (info?.needed) {
+    const m = info.multiplier;
+    if (!useRife) {
+      return {
+        text: 'RIFE?',
+        cls: 'seq-rife-badge is-hint',
+        title: [
+          'STATE: RIFE? — this stretch is sparse, but “RIFE interpolate” is OFF.',
+          `Content ~${info.effFps.toFixed(1)} fps after stretch; target ${info.targetFps} fps.`,
+          'Turn on Instant RIFE (enables densify) or RIFE interpolate + Stitch.',
+          stretchNote.trim(),
+        ].filter(Boolean).join('\n'),
+      };
+    }
+    if (!instant) {
+      return {
+        text: `NEED×${m}`,
+        cls: 'seq-rife-badge is-need',
+        title: [
+          `STATE: NEED×${m} — needs denser frames for smooth motion.`,
+          `Content ~${info.effFps.toFixed(1)} fps after stretch < target ${info.targetFps} fps.`,
+          'Instant RIFE is OFF — densify runs when you Stitch.',
+          'Turn Instant RIFE ON to encode now (main Run/Stop).',
+          stretchNote.trim(),
+        ].filter(Boolean).join('\n'),
+      };
+    }
+    return {
+      text: `NEED×${m}`,
+      cls: 'seq-rife-badge is-need',
+      title: [
+        `STATE: NEED×${m} — will densify ×${m} (queued automatically).`,
+        `Content ~${info.effFps.toFixed(1)} fps < target ${info.targetFps} fps.`,
+        stretchNote.trim(),
+      ].filter(Boolean).join('\n'),
+    };
+  }
+
+  return null;
+}
+
+function _ensureInstantRifeStrip() {
+  const box = document.getElementById('poolSequenceBox');
+  if (!box || !box.parentElement) return null;
+  let strip = document.getElementById('seqInstantRifeStrip');
+  if (!strip) {
+    strip = document.createElement('div');
+    strip.id = 'seqInstantRifeStrip';
+    strip.className = 'seq-instant-strip';
+    box.parentElement.insertBefore(strip, box);
+  }
+  return strip;
+}
+
+function _updateInstantRifeStrip() {
+  const strip = _ensureInstantRifeStrip();
+  if (!strip) return;
+
+  const useRife = !!state.pool.useRife;
+  const instant = !!state.pool.instantRife;
+  const q = _instantRifeQueue.length;
+  const running = state.pool.sequence.find((e) => e.id === _instantRifeRunningId)
+    || state.pool.sequence.find((e) => e._rifeStatus === 'running');
+  const doneN = state.pool.sequence.filter(
+    (e) => e._rifeStatus === 'done' || (e.variantPath && e.variantPath !== e.path),
+  ).length;
+  const needN = state.pool.sequence.filter((e) => {
+    const d = _densityInfoForEntry(e);
+    if (!d?.needed) return false;
+    const mHave = e._rifeMultiplier || 0;
+    // Already densified enough for this stretch
+    if (e.variantPath && e.variantPath !== e.path && mHave >= (d.multiplier || 2)) return false;
+    return true;
+  }).length;
+
+  let text = '';
+  let title = '';
+  let cls = 'seq-instant-strip';
+
+  if (!useRife && !instant) {
+    text = 'RIFE: off — turn on “RIFE interpolate” (and Instant) to densify slow clips.';
+    title = 'RIFE interpolate densifies sparse clips on Stitch. Instant RIFE does it as soon as a clip needs it.';
+    cls += ' is-off';
+  } else if (useRife && !instant) {
+    text = `RIFE: on Stitch only · Instant off · ${needN} clip(s) would need densify`;
+    title = [
+      'RIFE interpolate is ON: Stitch will densify sparse clips.',
+      'Instant RIFE is OFF: nothing runs until you press Stitch.',
+      'Badge NEED×N = this clip is sparse after time stretch.',
+      'Badge OK = already has a densified variant.',
+    ].join('\n');
+    cls += needN ? ' is-warn' : ' is-idle';
+  } else if (running) {
+    text = `Instant RIFE: encoding ${running.name} · ${q} waiting · Stop cancels all`;
+    title = [
+      'Main Run button (top) is busy with this encode.',
+      'Stop cancels the current encode and clears the queue.',
+      'Token badges: RUN = encoding, Q# = waiting, NEED = still sparse, OK = done.',
+    ].join('\n');
+    cls += ' is-busy';
+  } else if (q > 0 || _instantRifeDraining) {
+    text = `Instant RIFE: queue ${q} · starting next… · Stop cancels all`;
+    title = 'Queue is draining. Main Run/Stop control the batch.';
+    cls += ' is-busy';
+  } else if (instant) {
+    text = `Instant RIFE: idle · ${needN} need densify · ${doneN} OK · badges explain on hover`;
+    title = [
+      'Instant is ON and nothing is encoding right now.',
+      'NEED×N = sparse after stretch (should queue soon if Instant works).',
+      'Q# = waiting · RUN = encoding · OK = densified · FAIL = error.',
+      'ORIG/RIFED button = which file Stitch uses (hover for paths).',
+    ].join('\n');
+    cls += needN ? ' is-warn' : ' is-idle';
+  } else {
+    text = 'RIFE: —';
+    cls += ' is-off';
+  }
+
+  strip.className = cls;
+  strip.textContent = text;
+  strip.title = title;
+}
 
 function _bindInstantRifeStopHook() {
   if (_instantRifeStopHookBound) return;
   _instantRifeStopHookBound = true;
   onStopRequest(() => {
+    // User Stop — cancel restart intent and wipe queue
+    _instantRifeRestart = null;
     if (!_instantRifeDraining && _instantRifeQueue.length === 0) return;
     _instantRifeStop = true;
     const dropped = _instantRifeQueue.splice(0);
@@ -147,50 +374,140 @@ function _findQueuedRife(entryId) {
   return _instantRifeQueue.find((j) => j.entryId === entryId) || null;
 }
 
-function _queueInstantRife(entry, info) {
+function _bestHaveM(entry) {
+  return Math.max(0, entry._rifeMultiplier || 0);
+}
+
+/**
+ * If densify is already running for this entry at a lower M, soft-abort and
+ * restart at the higher M. If in-flight M already covers need, keep it.
+ */
+function _maybeSupersedeRunningRife(entry, info) {
+  if (entry._rifeStatus !== 'running' || _instantRifeRunningId !== entry.id) {
+    return false;
+  }
+  const runM = entry._rifeRunningMultiplier || 0;
+  const needM = info.multiplier || 2;
+  if (needM <= runM) {
+    logConsole(
+      `[SEQ RIFE]: ${entry.name} — in-flight ×${runM} already covers need ×${needM}; keeping it`,
+    );
+    return true; // handled (no new queue)
+  }
+  // Request higher density: abort current, re-queue after cancel
+  if (
+    _instantRifeRestart
+    && _instantRifeRestart.entryId === entry.id
+    && (_instantRifeRestart.info.multiplier || 0) >= needM
+  ) {
+    return true; // restart already requested at least this high
+  }
+  _instantRifeRestart = {
+    entryId: entry.id,
+    info: { ...info, multiplier: needM },
+  };
+  logConsole(
+    `[SEQ RIFE]: ${entry.name} — speed/target changed; abort ×${runM} → restart ×${needM}`,
+  );
+  setClientBusy(`Instant RIFE: restarting ${entry.name} at ×${needM}…`);
+  abortMainJob({ soft: true, reason: `rife-restart-x${needM}` });
+  return true;
+}
+
+/**
+ * @param {{ skipRender?: boolean }} [opts]  skipRender=true when batching many enqueues
+ */
+function _queueInstantRife(entry, info, opts) {
+  opts = opts || {};
   _bindInstantRifeStopHook();
 
-  // Already denser than needed
-  if (entry._rifeStatus === 'done' && entry.variantPath) {
-    const prevM = entry._rifeMultiplier || 0;
-    if (prevM >= info.multiplier) return false;
+  const needM = info.multiplier || 2;
+
+  // Policy: keep the densest variant we already have (can drop frames later)
+  if (entry.variantPath && _bestHaveM(entry) >= needM) {
+    entry._rifeStatus = 'done';
+    return false;
   }
-  if (entry._rifeStatus === 'running') return false;
+
+  // Running densify for this clip — supersede if need is higher
+  if (entry._rifeStatus === 'running') {
+    return _maybeSupersedeRunningRife(entry, info);
+  }
 
   const existing = _findQueuedRife(entry.id);
   if (existing) {
-    if (info.multiplier > existing.multiplier) {
-      existing.multiplier = info.multiplier;
+    if (needM > existing.multiplier) {
+      existing.multiplier = needM;
       existing.effFps = info.effFps;
       existing.targetFps = info.targetFps;
       existing.stretch = info.stretch;
       logConsole(
-        `[SEQ RIFE]: queue update ${entry.name} → ×${info.multiplier}`,
+        `[SEQ RIFE]: queue update ${entry.name} → ×${needM} (keep highest density)`,
       );
+      if (!opts.skipRender) renderSequenceBox();
     }
     return true;
   }
 
   entry._rifeStatus = 'pending';
+  entry._rifeError = null;
   _instantRifeQueue.push({
     entryId: entry.id,
     path: entry.path,
     name: entry.name,
-    multiplier: info.multiplier,
+    multiplier: needM,
     effFps: info.effFps,
     targetFps: info.targetFps,
     stretch: info.stretch,
   });
   logConsole(
-    `[SEQ RIFE]: queued ${entry.name} — ×${info.multiplier} `
+    `[SEQ RIFE]: queued ${entry.name} — ×${needM} `
     + `(content ${info.effFps.toFixed(1)} → ${info.targetFps} fps`
     + (info.stretch > 1.001 ? `, ${info.stretch.toFixed(2)}× slower` : '')
     + (info.stretch < 0.999 ? `, ${info.stretch.toFixed(2)}× faster` : '')
     + `) · queue depth ${_instantRifeQueue.length}`,
   );
-  renderSequenceBox();
+  if (!opts.skipRender) renderSequenceBox();
   _drainInstantRifeQueue();
   return true;
+}
+
+/**
+ * Auto-enqueue every sequence clip that currently NEEDS densify.
+ * Called after render / meta load / duration — no manual "redo Time".
+ */
+function _kickInstantRifeScan() {
+  if (!state.pool.instantRife || !state.pool.useRife) return;
+  if (!state.pool.sequence?.length) return;
+
+  let added = 0;
+  for (const entry of state.pool.sequence) {
+    const info = _rifeInfoForEntry(entry);
+    if (!info?.needed) continue;
+    // Running/pending: still call queue — may raise M or supersede in-flight
+    if (entry._rifeStatus === 'running' || entry._rifeStatus === 'pending'
+        || _findQueuedRife(entry.id)) {
+      if (_queueInstantRife(entry, info, { skipRender: true })) added += 1;
+      continue;
+    }
+    if (_queueInstantRife(entry, info, { skipRender: true })) added += 1;
+  }
+  if (added > 0) {
+    renderSequenceBox();
+    _drainInstantRifeQueue();
+  }
+}
+
+let _kickRifeMicrotask = false;
+function _scheduleInstantRifeKick() {
+  if (_kickRifeMicrotask) return;
+  _kickRifeMicrotask = true;
+  queueMicrotask(() => {
+    _kickRifeMicrotask = false;
+    try { _kickInstantRifeScan(); } catch (e) {
+      console.error('[SEQ RIFE] kick failed', e);
+    }
+  });
 }
 
 async function _drainInstantRifeQueue() {
@@ -232,15 +549,19 @@ async function _drainInstantRifeQueue() {
         : `Instant RIFE ×${info.multiplier} · ${entry.name}`;
       setClientBusy(label);
 
+      const runM = info.multiplier;
       entry._rifeStatus = 'running';
+      entry._rifeError = null;
+      entry._rifeRunningMultiplier = runM;
+      _instantRifeRunningId = entry.id;
       renderSequenceBox();
-      logConsole(`[SEQ RIFE]: start ${entry.name} — ×${info.multiplier} (${remaining} more in queue)`);
+      logConsole(`[SEQ RIFE]: start ${entry.name} — ×${runM} (${remaining} more in queue)`);
 
       try {
         const body = {
           input_path: entry.path,
-          multiplier: info.multiplier,
-          // Native×M timeline; join setpts applies stretch
+          multiplier: runM,
+          // Native×M timeline; join setpts applies stretch. Keep densest; drop later if needed.
           target_fps: null,
           register_as_variant: true,
           dry_run: false,
@@ -251,8 +572,37 @@ async function _drainInstantRifeQueue() {
           allowDuringClientBusy: true,
         });
 
-        if (_instantRifeStop || (data && data.error === 'Cancelled by user')) {
+        const cancelled = _instantRifeStop
+          || (data && data.error === 'Cancelled by user');
+
+        // Soft restart: Time/speed changed mid-encode → denser M requested
+        if (cancelled && _instantRifeRestart && _instantRifeRestart.entryId === entry.id) {
+          const restart = _instantRifeRestart;
+          _instantRifeRestart = null;
+          entry._rifeStatus = 'pending';
+          entry._rifeRunningMultiplier = null;
+          _instantRifeRunningId = null;
+          // Front of queue so new densify runs next (keep other queued clips)
+          _instantRifeQueue.unshift({
+            entryId: entry.id,
+            path: entry.path,
+            name: entry.name,
+            multiplier: restart.info.multiplier,
+            effFps: restart.info.effFps,
+            targetFps: restart.info.targetFps,
+            stretch: restart.info.stretch,
+          });
+          logConsole(
+            `[SEQ RIFE]: ${entry.name} — restarting densify at ×${restart.info.multiplier}`,
+          );
+          renderSequenceBox();
+          continue; // drain loop picks restart job
+        }
+
+        if (cancelled) {
           entry._rifeStatus = null;
+          entry._rifeRunningMultiplier = null;
+          _instantRifeRunningId = null;
           logConsole(`[SEQ RIFE]: stopped on ${entry.name}`, 'error');
           const dropped = _instantRifeQueue.splice(0);
           for (const j of dropped) {
@@ -266,27 +616,93 @@ async function _drainInstantRifeQueue() {
         }
 
         if (data && data.ok) {
+          // Keep densest file only
+          const prevM = entry._rifeMultiplier || 0;
+          if (!entry.variantPath || runM >= prevM) {
+            entry.variantPath = data.output_path || entry.variantPath;
+            entry._rifeMultiplier = runM;
+          }
+          entry._rifeError = null;
+          entry._rifeRunningMultiplier = null;
+
+          // If Time/target changed during the run and we need higher M, immediately re-queue
+          const still = _rifeInfoForEntry(entry);
+          const restartM = _instantRifeRestart?.entryId === entry.id
+            ? (_instantRifeRestart.info.multiplier || 0)
+            : 0;
+          const wantM = Math.max(
+            still?.needed ? (still.multiplier || 0) : 0,
+            restartM,
+          );
+          _instantRifeRestart = null;
+
+          if (wantM > (entry._rifeMultiplier || 0)) {
+            entry._rifeStatus = 'pending';
+            _instantRifeQueue.unshift({
+              entryId: entry.id,
+              path: entry.path,
+              name: entry.name,
+              multiplier: wantM,
+              effFps: still?.effFps ?? info.effFps,
+              targetFps: still?.targetFps ?? info.targetFps,
+              stretch: still?.stretch ?? info.stretch,
+            });
+            logConsole(
+              `[SEQ RIFE]: ${entry.name} — finished ×${entry._rifeMultiplier} but need ×${wantM}; re-queuing denser pass`,
+            );
+            renderSequenceBox();
+            continue;
+          }
+
           entry._rifeStatus = 'done';
-          entry.variantPath = data.output_path || entry.variantPath;
-          entry._rifeMultiplier = info.multiplier;
           logConsole(
-            `[SEQ RIFE]: done ${entry.name} → ${basename(entry.variantPath || entry.path)}`,
+            `[SEQ RIFE]: done ${entry.name} → ${basename(entry.variantPath || entry.path)} (×${entry._rifeMultiplier})`,
           );
         } else {
-          entry._rifeStatus = null;
+          entry._rifeStatus = 'failed';
+          entry._rifeError = (data && data.error) || 'unknown error';
+          entry._rifeRunningMultiplier = null;
           logConsole(
-            `[SEQ RIFE]: failed ${entry.name} — ${(data && data.error) || 'unknown'}`,
+            `[SEQ RIFE]: failed ${entry.name} — ${entry._rifeError}`,
             'error',
           );
         }
       } catch (err) {
-        entry._rifeStatus = null;
-        if (_instantRifeStop || /already running|Cancelled/i.test(err.message || '')) {
+        // Soft restart via abort may throw AbortError
+        if (_instantRifeRestart && _instantRifeRestart.entryId === entry.id) {
+          const restart = _instantRifeRestart;
+          _instantRifeRestart = null;
+          entry._rifeStatus = 'pending';
+          entry._rifeRunningMultiplier = null;
+          _instantRifeRunningId = null;
+          _instantRifeQueue.unshift({
+            entryId: entry.id,
+            path: entry.path,
+            name: entry.name,
+            multiplier: restart.info.multiplier,
+            effFps: restart.info.effFps,
+            targetFps: restart.info.targetFps,
+            stretch: restart.info.stretch,
+          });
+          logConsole(
+            `[SEQ RIFE]: ${entry.name} — restarting densify at ×${restart.info.multiplier}`,
+          );
+          renderSequenceBox();
+          continue;
+        }
+        if (_instantRifeStop || /already running|Cancelled|abort/i.test(err.message || '')) {
+          entry._rifeStatus = null;
+          entry._rifeRunningMultiplier = null;
           logConsole(`[SEQ RIFE]: aborted — ${err.message}`, 'error');
           _instantRifeQueue.splice(0);
           break;
         }
-        logConsole(`[SEQ RIFE]: error ${entry.name} — ${err.message}`, 'error');
+        entry._rifeStatus = 'failed';
+        entry._rifeError = err.message || String(err);
+        entry._rifeRunningMultiplier = null;
+        logConsole(`[SEQ RIFE]: error ${entry.name} — ${entry._rifeError}`, 'error');
+      } finally {
+        if (_instantRifeRunningId === entry.id) _instantRifeRunningId = null;
       }
       renderSequenceBox();
       scheduleSavePoolState();
@@ -319,9 +735,9 @@ function _maybeAutoRifeEntry(entry, { quiet = false } = {}) {
   if (!info?.needed) {
     if (entry._rifeStatus === 'done' && entry.variantPath) {
       // keep
-    } else if (entry._rifeStatus !== 'running' && entry._rifeStatus !== 'pending') {
+    } else if (entry._rifeStatus !== 'running' && entry._rifeStatus !== 'pending'
+        && entry._rifeStatus !== 'failed') {
       entry._rifeStatus = null;
-      renderSequenceBox();
     }
     if (!quiet && info?.reason && state.pool.useRife) {
       logConsole(`[SEQ RIFE]: ${entry.name} — ${info.reason}`);
@@ -332,25 +748,115 @@ function _maybeAutoRifeEntry(entry, { quiet = false } = {}) {
   _queueInstantRife(entry, info);
 }
 
+/**
+ * Probe every sequence source for fps/duration, then queue Instant densify.
+ * Call when Instant is turned on — do not require the user to re-touch Time.
+ */
+async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
+  if (!state.pool.instantRife) return { queued: 0, reason: 'instant off' };
+  // Instant always implies join densify path
+  state.pool.useRife = true;
+  const ur = document.getElementById('poolUseRife');
+  if (ur) ur.checked = true;
+
+  const seq = state.pool.sequence || [];
+  if (!seq.length) {
+    logConsole('[SEQ RIFE]: Instant on but sequence is empty — add clips first');
+    _updateInstantRifeStrip();
+    return { queued: 0, reason: 'empty sequence' };
+  }
+
+  setClientBusy('Instant RIFE: probing clips…');
+  _updateInstantRifeStrip();
+
+  try {
+    // Ensure pool items exist + meta for every sequence path
+    for (const entry of seq) {
+      let item = findPoolItem(entry.path);
+      if (!item) {
+        // Sequence path not in pool (edge case) — still probe
+        item = { path: entry.path, name: entry.name || basename(entry.path), meta: null };
+        state.pool.items.push(item);
+      }
+      const needProbe = force || !item.meta?.fps || !item.meta?.duration;
+      if (needProbe) {
+        try {
+          await loadPoolItemMeta(item, state.pool.items.indexOf(item));
+        } catch (e) {
+          logConsole(`[SEQ RIFE]: probe failed ${entry.name} — ${e.message}`, 'error');
+        }
+      }
+    }
+
+    // If RIFE fps empty, keep auto = max native (now that meta exists)
+    const target = _resolvedTargetFps();
+    if (!target) {
+      logConsole('[SEQ RIFE]: still no fps after probe — cannot densify');
+      _updateInstantRifeStrip();
+      return { queued: 0, reason: 'no fps' };
+    }
+
+    let need = 0;
+    let queued = 0;
+    let already = 0;
+    for (const entry of seq) {
+      const info = _rifeInfoForEntry(entry);
+      if (!info?.needed) {
+        if (entry.variantPath && entry._rifeStatus === 'done') already += 1;
+        continue;
+      }
+      need += 1;
+      if (_queueInstantRife(entry, info, { skipRender: true })) queued += 1;
+    }
+
+    logConsole(
+      `[SEQ RIFE]: scan complete — ${seq.length} clips, ${need} need densify, `
+      + `${queued} queued, target ${target} fps`
+      + (already ? `, ${already} already OK` : ''),
+    );
+
+    renderSequenceBox();
+    if (queued > 0) {
+      _drainInstantRifeQueue();
+    } else {
+      // No densify work — release the "probing" busy hold
+      clearClientBusy();
+      _updateInstantRifeStrip();
+      if (need === 0 && seq.length) {
+        // Make the strip explicit so "turn on Instant" is never silent
+        const strip = document.getElementById('seqInstantRifeStrip');
+        if (strip) {
+          strip.className = 'seq-instant-strip is-idle';
+          strip.textContent =
+            `Instant RIFE: nothing to densify @ ${target} fps `
+            + `(set Time longer than native to slow, or raise RIFE fps above native)`;
+          strip.title = [
+            'Instant only densifies when content fps after Time stretch is below target fps.',
+            'Example: 24fps clip stretched to 2× length → needs ×2 at target 24.',
+            'Or set RIFE fps to 60 to densify even without stretch.',
+          ].join('\n');
+        }
+      }
+    }
+    return { queued, need, target };
+  } catch (e) {
+    logConsole(`[SEQ RIFE]: scan error — ${e.message}`, 'error');
+    clearClientBusy();
+    throw e;
+  }
+}
+
 function _maybeAutoRifeAll({ quiet = true } = {}) {
   if (!state.pool.instantRife) return;
-  if (!state.pool.useRife) {
-    logConsole('[SEQ RIFE]: Instant on but RIFE interpolate is off — enable both');
-    return;
-  }
-  const target = _resolvedTargetFps();
-  if (!target) {
-    logConsole('[SEQ RIFE]: no target fps yet — set “RIFE fps” or wait for clip probes');
-    return;
-  }
-  logConsole(`[SEQ RIFE]: scan ${state.pool.sequence.length} clip(s) @ target ${target} fps`);
-  for (const entry of state.pool.sequence) {
-    _maybeAutoRifeEntry(entry, { quiet });
-  }
+  // Full probe+scan so "turn Instant on" always does real work when needed
+  ensureSequenceMetaAndInstantScan({ force: false }).catch((e) => {
+    console.error('[SEQ RIFE] ensureSequenceMetaAndInstantScan', e);
+  });
 }
 
 function _maybeAutoRifeForPath(path) {
   if (!state.pool.instantRife) return;
+  if (!state.pool.useRife) state.pool.useRife = true;
   for (const entry of state.pool.sequence) {
     if (entry.path === path) {
       _maybeAutoRifeEntry(entry);
@@ -625,6 +1131,7 @@ function renderSequenceBox() {
 
   if (state.pool.sequence.length === 0) {
     box.innerHTML = `<div class="seq-placeholder">Drop videos here to build a stitch sequence…</div>`;
+    _updateInstantRifeStrip();
     updateSeqTransportUI();
     return;
   }
@@ -659,59 +1166,57 @@ function renderSequenceBox() {
     tok.dataset.idx = String(idx);
     tok.title = seqClipTokenTitle(entry, speedInfo);
 
+    const usingRifed = !!(entry.variantPath && entry.variantPath !== entry.path);
+    const fileBtnLabel = usingRifed ? 'RIFED' : 'ORIG';
+    const fileBtnTitle = usingRifed
+      ? [
+          'FILE: RIFED — Stitch will use the densified file.',
+          `Active: ${basename(entry.variantPath)}`,
+          `Original: ${basename(entry.path)}`,
+          'Click to open the file menu (Original vs densified).',
+        ].join('\n')
+      : [
+          'FILE: ORIG — Stitch will use the original source file.',
+          `Active: ${basename(entry.path)}`,
+          entry.variantPath
+            ? `Densified available — click to switch.`
+            : 'No densified variant yet (or not selected).',
+          'Click to open the file menu.',
+        ].join('\n');
+
     tok.innerHTML = `
       <span class="seq-token-idx">${idx + 1}</span>
       <span class="seq-token-name">${escapeHtml(entry.name)}</span>
       <span class="seq-token-dur${speedInfo.stretched ? ' timed' : ''}">${speedInfo.durLabel}</span>
-      <button type="button" class="seq-token-var" title="Choose variant" data-variant-path="${escapeHtml(entry.variantPath || '')}">V</button>
-      <span class="seq-token-rife-status" data-status="${entry._rifeStatus || ''}"></span>
-      <button type="button" class="seq-token-x" title="Remove">&cross;</button>
+      <button type="button" class="seq-token-var${usingRifed ? ' is-rifed' : ''}" data-variant-path="${escapeHtml(entry.variantPath || '')}">${fileBtnLabel}</button>
+      <span class="seq-token-rife-host"></span>
+      <button type="button" class="seq-token-x" title="Remove from sequence">&cross;</button>
     `;
 
-    // RIFE status indicator (pending = queued, running = main job)
-    const rifeStatusEl = tok.querySelector('.seq-token-rife-status');
-    if (rifeStatusEl && entry._rifeStatus) {
-      const qIdx = _instantRifeQueue.findIndex((j) => j.entryId === entry.id);
-      rifeStatusEl.textContent = entry._rifeStatus === 'pending'
-        ? (qIdx >= 0 ? `#${qIdx + 1}` : '…')
-        : entry._rifeStatus === 'running' ? '↻'
-          : entry._rifeStatus === 'done' ? '✓'
-            : entry._rifeStatus === 'skipped' ? '—' : '';
-      rifeStatusEl.title = entry._rifeStatus === 'pending'
-        ? (qIdx >= 0 ? `Queued #${qIdx + 1} for Instant RIFE` : 'Queued for Instant RIFE')
-        : entry._rifeStatus === 'running'
-          ? 'RIFE running — use main Stop to cancel batch'
-          : entry._rifeStatus === 'done' ? 'RIFE variant ready' : '';
-      rifeStatusEl.className = `seq-token-rife-status seq-rife-${entry._rifeStatus}`;
-    }
-
-    // RIFE needed badge (content density after stretch vs target)
-    const rifeInfo = _rifeInfoForEntry(entry);
-    if (rifeInfo?.needed) {
-      tok.classList.add('seq-rife-needed');
-      const rifeBadge = document.createElement('span');
-      rifeBadge.className = 'seq-rife-badge';
-      const stretchNote = rifeInfo.stretch > 1.001
-        ? ` · ${rifeInfo.stretch.toFixed(2)}× slower`
-        : rifeInfo.stretch < 0.999
-          ? ` · ${rifeInfo.stretch.toFixed(2)}× faster`
-          : '';
-      rifeBadge.title =
-        `RIFE ×${rifeInfo.multiplier} — content ${rifeInfo.effFps.toFixed(1)} fps`
-        + ` → target ${rifeInfo.targetFps}${stretchNote}`;
-      rifeBadge.textContent = `R${rifeInfo.multiplier}`;
-      tok.appendChild(rifeBadge);
-    }
-
-    // Variant picker
     const varBtn = tok.querySelector('.seq-token-var');
     if (varBtn) {
+      varBtn.title = fileBtnTitle;
       varBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const currentPath = entry.variantPath || entry.path;
         const variants = await _fetchVariants(entry.path);
         _showSeqVariantMenu(varBtn, entry, variants, currentPath);
       });
+    }
+
+    // Single state badge (NEED / Q# / RUN / OK / FAIL) — hover for full explanation
+    const badge = _rifeBadgeForEntry(entry);
+    const host = tok.querySelector('.seq-token-rife-host');
+    if (badge && host) {
+      if (badge.cls.includes('is-need') || badge.cls.includes('is-queued') || badge.cls.includes('is-running')) {
+        tok.classList.add('seq-rife-needed');
+      }
+      const el = document.createElement('span');
+      el.className = badge.cls;
+      el.textContent = badge.text;
+      el.title = badge.title;
+      el.setAttribute('role', 'status');
+      host.appendChild(el);
     }
 
     // Proportional width based on effective duration
@@ -733,7 +1238,7 @@ function renderSequenceBox() {
     }
 
     tok.addEventListener('click', (e) => {
-      if (e.target.closest('.seq-token-x')) return;
+      if (e.target.closest('.seq-token-x') || e.target.closest('.seq-token-var') || e.target.closest('.seq-rife-badge')) return;
       state.pool.playback.index = idx;
       state.pool.selectedSeqId = entry.id;
       selectPoolItem(entry.path); // also selects matching library tile
@@ -779,10 +1284,42 @@ function renderSequenceBox() {
     }
   });
 
-  // Update variant count badges asynchronously
+  // Optional async variant polish (must never throw — broke Instant RIFE when missing)
   _updateSeqVariantBadges();
 
+  _updateInstantRifeStrip();
   updateSeqTransportUI();
+  // Auto-queue any NEED clips (meta may have just arrived; duration may have changed)
+  _scheduleInstantRifeKick();
+}
+
+/**
+ * Async polish for ORIG/RIFED button titles from /api/variants.
+ * Safe no-op on failure — render already set labels from entry.variantPath.
+ */
+async function _updateSeqVariantBadges() {
+  try {
+    const tokens = document.querySelectorAll('#poolSequenceBox .seq-token');
+    for (const tok of tokens) {
+      const path = tok.dataset.path;
+      const id = tok.dataset.id;
+      if (!path) continue;
+      const entry = state.pool.sequence.find((e) => String(e.id) === String(id));
+      if (!entry) continue;
+      const btn = tok.querySelector('.seq-token-var');
+      if (!btn) continue;
+      const variants = await _fetchVariants(path);
+      const n = Object.values(variants).reduce((a, arr) => a + (arr?.length || 0), 0);
+      const using = entry.variantPath && entry.variantPath !== entry.path;
+      btn.classList.toggle('is-rifed', !!using);
+      btn.textContent = using ? 'RIFED' : 'ORIG';
+      if (n > 0 && !btn.title.includes('Registered variants')) {
+        btn.title = (btn.title || '') + `\nRegistered variants: ${n}`;
+      }
+    }
+  } catch (e) {
+    console.warn('[SEQ] _updateSeqVariantBadges', e);
+  }
 }
 
 // ── Sequence playback (preview in right media viewer) ─────────────────────
@@ -1333,17 +1870,31 @@ function _showSeqVariantMenu(anchor, entry, variants, currentPath) {
 
   const makeRow = (vPath, kind, detail) => {
     const selected = currentPath === vPath;
+    const base = basename(vPath);
     const label = vPath === entry.path
-      ? 'Original'
-      : `${kind}${detail ? ' · ' + Object.entries(detail).map(([k,val]) => `${k}=${val}`).join(' · ') : ''}`;
-    return `<button type="button" class="seq-var-opt${selected ? ' selected' : ''}" data-vpath="${escapeHtml(vPath)}">${escapeHtml(label)}</button>`;
+      ? `Original — ${base}`
+      : `${kind || 'variant'} — ${base}${detail ? ' · ' + Object.entries(detail).map(([k, val]) => `${k}=${val}`).join(' · ') : ''}`;
+    return `<button type="button" class="seq-var-opt${selected ? ' selected' : ''}" data-vpath="${escapeHtml(vPath)}" title="${escapeHtml(vPath)}">${escapeHtml(label)}</button>`;
   };
 
   let rows = makeRow(entry.path, 'original', null);
-  for (const [kind, entries] of Object.entries(variants)) {
+  const seen = new Set([entry.path]);
+  // Always list the active densified path even if /api/variants is empty
+  if (entry.variantPath && entry.variantPath !== entry.path && !seen.has(entry.variantPath)) {
+    rows += makeRow(entry.variantPath, 'rifed', entry._rifeMultiplier
+      ? { multiplier: entry._rifeMultiplier } : null);
+    seen.add(entry.variantPath);
+  }
+  for (const [kind, entries] of Object.entries(variants || {})) {
     for (const v of entries) {
-      if (v.path) rows += makeRow(v.path, kind, v.detail || null);
+      if (v.path && !seen.has(v.path)) {
+        rows += makeRow(v.path, kind, v.detail || null);
+        seen.add(v.path);
+      }
     }
+  }
+  if (seen.size <= 1) {
+    rows += `<div class="seq-var-empty">No densified file yet. Enable Instant RIFE (or Stitch with RIFE) when a clip shows NEED.</div>`;
   }
 
   menu.innerHTML = rows;
@@ -1406,4 +1957,5 @@ export {
   _showSeqVariantMenu,
   _maybeAutoRifeAll,
   _maybeAutoRifeForPath,
+  ensureSequenceMetaAndInstantScan,
 };

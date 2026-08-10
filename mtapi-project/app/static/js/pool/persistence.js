@@ -5,7 +5,7 @@ import {
   checkHealth, switchTab, formatBytes, addPathsToPool,
 } from '/app.js';
 import { loadPoolItemMeta } from '/js/pool/items.js';
-import { seqStop } from '/js/pool/sequence.js';
+import { seqStop, _maybeAutoRifeAll } from '/js/pool/sequence.js';
 import { ensurePoolLayout } from '/js/pool/layout.js';
 import { ensureTileInfo } from '/app.js';
 import { basename, escapeHtml, formatDurationExact } from '/js/utils.js';
@@ -201,10 +201,20 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
     logConsole(`[PROJECT]: ${missing.length} missing path(s) skipped:\n${missing.slice(0, 8).join('\n')}`);
   }
 
-  // Warm meta
+  // Warm meta (loadPoolItemMeta kicks Instant RIFE when sequence uses that path)
   state.pool.items.forEach((item, idx) => {
     loadPoolItemMeta(item, idx);
   });
+  // Re-scan after probes settle (meta is async)
+  setTimeout(() => {
+    try {
+      if (state.pool.instantRife && state.pool.useRife) {
+        _maybeAutoRifeAll({ quiet: true });
+      }
+    } catch (e) {
+      console.error('[SEQ RIFE] post-load scan failed', e);
+    }
+  }, 1500);
   // Image thumbs/meta (lazy; image-pool module loads deeper meta when tab opens)
   state.imagePool.items.forEach((item) => {
     if (!item.hash) {
@@ -244,6 +254,7 @@ async function projectNew() {
   state.pool.target = null;
   state.pool.useRife = false;
   state.pool.targetFps = null;
+  state.pool.instantRife = false;
   state.pool.selectedVariantPaths = {};
   if (state.imagePool) {
     state.imagePool.items = [];

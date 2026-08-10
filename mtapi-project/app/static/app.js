@@ -139,6 +139,7 @@ let state = {
     target: null,             // preset id from /api/presets (null = legacy H.264)
     useRife: false,           // RIFE interpolate before stitch
     targetFps: null,          // exact output fps when useRife is true
+    instantRife: false,       // auto densify NEED clips via Instant queue
     selectedVariantPaths: {}, // original path -> chosen variant path (rifed/export/...)
     // Sequence preview playback
     playback: {
