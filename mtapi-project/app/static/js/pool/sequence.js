@@ -1269,10 +1269,38 @@ function clearSequence(opts = {}) {
  * @param {{ skipInstantKick?: boolean }} [opts]
  *   skipInstantKick — avoid re-entrancy (queue → render → kick → render…).
  */
+/** Apply W/H size levels to the sequence strip (CSS data attributes). */
+function applySeqTokenSize() {
+  const box = document.getElementById('poolSequenceBox');
+  if (!box) return;
+  const w = Math.max(0, Math.min(5, state.pool.seqTokenW ?? 2));
+  const h = Math.max(0, Math.min(5, state.pool.seqTokenH ?? 2));
+  state.pool.seqTokenW = w;
+  state.pool.seqTokenH = h;
+  box.dataset.seqW = String(w);
+  box.dataset.seqH = String(h);
+  // Min width px per level (must match CSS --seq-token-min-w table)
+  const minWs = [110, 128, 152, 180, 220, 260];
+  box.style.setProperty('--seq-token-min-w', `${minWs[w]}px`);
+}
+
+function setSeqTokenSize(dim, delta) {
+  if (dim === 'w') {
+    state.pool.seqTokenW = Math.max(0, Math.min(5, (state.pool.seqTokenW ?? 2) + delta));
+  } else if (dim === 'h') {
+    state.pool.seqTokenH = Math.max(0, Math.min(5, (state.pool.seqTokenH ?? 2) + delta));
+  }
+  applySeqTokenSize();
+  // Re-layout tokens so min-width / flex recompute
+  renderSequenceBox({ skipInstantKick: true });
+  try { scheduleSavePoolState(); } catch (_) { /* ignore */ }
+}
+
 function renderSequenceBox(opts) {
   opts = opts || {};
   const box = document.getElementById('poolSequenceBox');
   if (!box) return;
+  applySeqTokenSize();
 
   const stitchBtn = document.getElementById('btnPoolStitch');
   if (stitchBtn) stitchBtn.disabled = state.pool.sequence.length < 2;
@@ -1332,13 +1360,19 @@ function renderSequenceBox(opts) {
           'Click to open the file menu.',
         ].join('\n');
 
+    // Two-row layout: name on top; controls (dur / ORIG / badge / ×) on bottom
+    // so badges never spill onto neighboring chips.
     tok.innerHTML = `
-      <span class="seq-token-idx">${idx + 1}</span>
-      <span class="seq-token-name">${escapeHtml(entry.name)}</span>
-      <span class="seq-token-dur${speedInfo.stretched ? ' timed' : ''}">${speedInfo.durLabel}</span>
-      <button type="button" class="seq-token-var${usingRifed ? ' is-rifed' : ''}" data-variant-path="${escapeHtml(entry.variantPath || '')}">${fileBtnLabel}</button>
-      <span class="seq-token-rife-host"></span>
-      <button type="button" class="seq-token-x" title="Remove from sequence">&cross;</button>
+      <span class="seq-token-row seq-token-row-top">
+        <span class="seq-token-idx">${idx + 1}</span>
+        <span class="seq-token-name">${escapeHtml(entry.name)}</span>
+        <button type="button" class="seq-token-x" title="Remove from sequence">&cross;</button>
+      </span>
+      <span class="seq-token-row seq-token-row-bot">
+        <span class="seq-token-dur${speedInfo.stretched ? ' timed' : ''}">${speedInfo.durLabel}</span>
+        <button type="button" class="seq-token-var${usingRifed ? ' is-rifed' : ''}" data-variant-path="${escapeHtml(entry.variantPath || '')}">${fileBtnLabel}</button>
+        <span class="seq-token-rife-host"></span>
+      </span>
     `;
 
     const varBtn = tok.querySelector('.seq-token-var');
@@ -1367,11 +1401,14 @@ function renderSequenceBox(opts) {
       host.appendChild(el);
     }
 
-    // Proportional width based on effective duration
+    // Proportional width, but never below size-level min-width (prevents control crush)
     const ratio = totalDuration > 0
       ? (durations[idx] / totalDuration) * 100
       : (100 / state.pool.sequence.length);
-    tok.style.flexBasis = ratio.toFixed(2) + '%';
+    const minW = getComputedStyle(box).getPropertyValue('--seq-token-min-w').trim() || '152px';
+    tok.style.flex = `1 1 max(${minW}, ${ratio.toFixed(2)}%)`;
+    tok.style.minWidth = minW;
+    tok.style.maxWidth = '100%';
 
     // Color the TIME text for beat-sync at a glance (not just token chrome)
     const durEl = tok.querySelector('.seq-token-dur');
@@ -2199,5 +2236,7 @@ export {
   _showSeqVariantMenu,
   _maybeAutoRifeAll,
   _maybeAutoRifeForPath,
+  applySeqTokenSize,
+  setSeqTokenSize,
   ensureSequenceMetaAndInstantScan,
 };

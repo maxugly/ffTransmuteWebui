@@ -1,7 +1,7 @@
 # Session stopping state — handoff
 
 > **Date:** 2026-08-09  
-> **VERSION:** `000.000.4.96`  
+> **VERSION:** `000.000.4.97`  
 > **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.

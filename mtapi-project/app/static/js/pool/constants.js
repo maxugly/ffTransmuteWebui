@@ -34,4 +34,16 @@ const POOL_ZOOM = {
   step: 28,
 };
 
-export { POOL_LAYOUT_DEFAULTS, VIDEO_EXTS, IMAGE_EXTS, TILE_INFO_FIELDS, POOL_ZOOM };
+/** Sequence strip token size (levels applied as data-seq-w / data-seq-h). */
+const SEQ_TOKEN_SIZE = {
+  wMin: 0,
+  wMax: 5,
+  wDefault: 2, // ~148px min width — room for ORIG + badge
+  hMin: 0,
+  hMax: 5,
+  hDefault: 2, // two-row layout, comfortable padding
+};
+
+export {
+  POOL_LAYOUT_DEFAULTS, VIDEO_EXTS, IMAGE_EXTS, TILE_INFO_FIELDS, POOL_ZOOM, SEQ_TOKEN_SIZE,
+};

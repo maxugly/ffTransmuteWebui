@@ -644,16 +644,23 @@
 }
 
 .pool-sequence-box {
+  --seq-token-min-w: 152px;
+  --seq-token-pad-y: 8px;
+  --seq-token-pad-x: 8px;
+  --seq-token-font: 0.78rem;
+  --seq-token-gap: 6px;
+  --seq-box-min-h: 100px;
+  --seq-box-max-h: 220px;
   flex: 1;
-  min-height: 72px;
-  max-height: 140px;
+  min-height: var(--seq-box-min-h);
+  max-height: var(--seq-box-max-h);
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;
   flex-wrap: wrap;
   align-content: flex-start;
-  align-items: center;
-  gap: 6px 4px;
+  align-items: stretch;
+  gap: 8px 6px;
   padding: 10px 12px;
   border-radius: var(--radius-md);
   border: 1px dashed rgba(255, 255, 255, 0.14);
@@ -662,6 +669,45 @@
     rgba(0, 0, 0, 0.25);
   font-family: 'Fira Code', monospace;
   transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Height levels (padding / font / strip max height) */
+.pool-sequence-box[data-seq-h="0"] {
+  --seq-token-pad-y: 4px;
+  --seq-token-font: 0.68rem;
+  --seq-box-min-h: 72px;
+  --seq-box-max-h: 140px;
+  --seq-token-gap: 4px;
+}
+.pool-sequence-box[data-seq-h="1"] {
+  --seq-token-pad-y: 6px;
+  --seq-token-font: 0.72rem;
+  --seq-box-min-h: 88px;
+  --seq-box-max-h: 180px;
+}
+.pool-sequence-box[data-seq-h="2"] {
+  --seq-token-pad-y: 8px;
+  --seq-token-font: 0.78rem;
+  --seq-box-min-h: 100px;
+  --seq-box-max-h: 220px;
+}
+.pool-sequence-box[data-seq-h="3"] {
+  --seq-token-pad-y: 10px;
+  --seq-token-font: 0.84rem;
+  --seq-box-min-h: 120px;
+  --seq-box-max-h: 280px;
+}
+.pool-sequence-box[data-seq-h="4"] {
+  --seq-token-pad-y: 12px;
+  --seq-token-font: 0.9rem;
+  --seq-box-min-h: 140px;
+  --seq-box-max-h: 320px;
+}
+.pool-sequence-box[data-seq-h="5"] {
+  --seq-token-pad-y: 14px;
+  --seq-token-font: 0.95rem;
+  --seq-box-min-h: 160px;
+  --seq-box-max-h: 380px;
 }
 
 .pool-sequence-box.drag-over {
@@ -683,19 +729,41 @@
 
 .seq-token {
   display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 60px;
-  padding: 4px 6px 4px 6px;
-  border-radius: 6px;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: var(--seq-token-gap, 6px);
+  min-width: var(--seq-token-min-w, 152px);
+  box-sizing: border-box;
+  padding: var(--seq-token-pad-y, 8px) var(--seq-token-pad-x, 8px);
+  border-radius: 8px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.05);
   color: #e5e7eb;
-  font-size: 0.72rem;
-  line-height: 1.2;
+  font-size: var(--seq-token-font, 0.78rem);
+  line-height: 1.25;
   cursor: grab;
   user-select: none;
+  overflow: hidden; /* never spill badges onto neighboring chips */
+  position: relative;
   transition: flex-basis 0.2s ease, border-color 0.12s ease, background 0.12s ease, transform 0.12s ease;
+}
+
+.seq-token-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+}
+
+.seq-token-row-top {
+  gap: 6px;
+}
+
+.seq-token-row-bot {
+  gap: 6px;
+  flex-wrap: nowrap;
 }
 
 .seq-token:hover {
@@ -742,12 +810,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 16px;
-  height: 16px;
+  min-width: 1.35em;
+  height: 1.35em;
+  flex-shrink: 0;
   border-radius: 4px;
   background: rgba(59, 130, 246, 0.25);
   color: #93c5fd;
-  font-size: 0.65rem;
+  font-size: 0.85em;
   font-weight: 700;
 }
 
@@ -755,14 +824,17 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
+  font-weight: 600;
 }
 
 .seq-token-dur {
   color: var(--text-muted);
-  font-size: 0.62rem;
+  font-size: 0.88em;
   white-space: nowrap;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .seq-token-x {
@@ -770,10 +842,12 @@
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 0 2px;
-  font-size: 0.7rem;
+  padding: 2px 4px;
+  font-size: 0.95em;
   line-height: 1;
   border-radius: 3px;
+  flex-shrink: 0;
+  margin-left: auto;
 }
 
 .seq-token-x:hover {
@@ -782,21 +856,22 @@
 }
 
 .seq-token-var {
-  border: 1px solid var(--border);
-  background: var(--bg-inset);
-  color: var(--accent);
+  border: 1px solid var(--border, rgba(255,255,255,0.14));
+  background: var(--bg-inset, rgba(0,0,0,0.25));
+  color: var(--accent, #93c5fd);
   cursor: pointer;
-  padding: 0 4px;
-  font-size: 0.6rem;
+  padding: 2px 6px;
+  font-size: 0.82em;
   line-height: 1.2;
-  border-radius: 3px;
-  margin-left: 4px;
+  border-radius: 4px;
+  margin-left: 0;
   font-weight: 700;
+  flex-shrink: 0;
 }
 
 .seq-token-var:hover {
-  background: var(--accent);
-  color: var(--bg);
+  background: var(--accent, #3b82f6);
+  color: var(--bg, #0b1220);
 }
 
 .seq-token-var.is-rifed {
@@ -808,8 +883,25 @@
 .seq-token-rife-host {
   display: inline-flex;
   align-items: center;
-  margin-left: 3px;
+  margin-left: 0;
   flex-shrink: 0;
+  max-width: 100%;
+}
+
+/* Size control cluster in sequence header */
+.seq-token-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 2px;
+}
+.seq-size-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #94a3b8);
+  padding: 0 2px 0 4px;
+  user-select: none;
 }
 
 @keyframes seq-rife-pulse {
@@ -824,17 +916,20 @@
 /* Unified Instant RIFE state badge — hover title has full explanation */
 .seq-rife-badge {
   display: inline-block;
-  margin-left: 2px;
-  font-size: 0.58rem;
+  margin-left: 0;
+  font-size: 0.82em;
   line-height: 1.25;
-  padding: 1px 5px;
-  border-radius: 3px;
+  padding: 2px 6px;
+  border-radius: 4px;
   font-weight: 700;
   letter-spacing: 0.02em;
   cursor: help;
   white-space: nowrap;
   border: 1px solid transparent;
   user-select: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 7.5em;
 }
 
 .seq-rife-badge.is-need {

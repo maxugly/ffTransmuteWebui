@@ -153,6 +153,9 @@ let state = {
     tileZoom: 200, // minmax track size in px (reset = current default)
     tileInfo: null, // filled from defaultTileInfo()
     tileInfoMenuOpen: false,
+    // Sequence token chip size (0–5 levels; see SEQ_TOKEN_SIZE)
+    seqTokenW: 2,
+    seqTokenH: 2,
     // Frame match (pHash next-clip finder)
     matchMaxDistance: 10,
     matchMode: 'next', // next | prev | both

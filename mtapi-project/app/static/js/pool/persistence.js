@@ -77,6 +77,8 @@ function buildPoolStatePayload() {
     selected_variant_paths: state.pool.selectedVariantPaths || {},
     tile_zoom: state.pool.tileZoom || POOL_ZOOM.reset,
     tile_info: ensureTileInfo(),
+    seq_token_w: state.pool.seqTokenW ?? 2,
+    seq_token_h: state.pool.seqTokenH ?? 2,
     layout: ensurePoolLayout(),
     project_name: state.project.name || null,
     project_path: state.project.path || null,
@@ -182,6 +184,15 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
     state.pool.tileZoom = Math.max(POOL_ZOOM.min, Math.min(POOL_ZOOM.max, data.tile_zoom));
   } else {
     state.pool.tileZoom = POOL_ZOOM.reset;
+  }
+  {
+    const clampLvl = (v, d) => {
+      const n = parseInt(v, 10);
+      if (!Number.isFinite(n)) return d;
+      return Math.max(0, Math.min(5, n));
+    };
+    state.pool.seqTokenW = clampLvl(data.seq_token_w ?? data.seqTokenW, 2);
+    state.pool.seqTokenH = clampLvl(data.seq_token_h ?? data.seqTokenH, 2);
   }
   if (data.tile_info && typeof data.tile_info === 'object') {
     state.pool.tileInfo = { ...defaultTileInfo(), ...data.tile_info };

@@ -18,7 +18,7 @@ import {
   moveSelectedInSequence, removeSequenceAt, updateSeqClipSettings,
   onSeqClipDurationChange, applySeqTokenTimeStyles,
   seqPlay, seqPause, seqStop, seqPrev, seqNext,
-  _maybeAutoRifeAll,
+  _maybeAutoRifeAll, setSeqTokenSize, applySeqTokenSize,
 } from '/js/pool/sequence.js';
 import {
   loadPoolItemMeta, selectPoolItem, removePoolItem, clearPool,
@@ -438,6 +438,25 @@ function _bindSequencePanel() {
     }
   });
 
+  // Sequence chip size (width / height levels)
+  document.getElementById('btnSeqTokenWMinus')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setSeqTokenSize('w', -1);
+  });
+  document.getElementById('btnSeqTokenWPlus')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setSeqTokenSize('w', +1);
+  });
+  document.getElementById('btnSeqTokenHMinus')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setSeqTokenSize('h', -1);
+  });
+  document.getElementById('btnSeqTokenHPlus')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setSeqTokenSize('h', +1);
+  });
+  try { applySeqTokenSize(); } catch (_) { /* ignore */ }
+
   const durInput = document.getElementById('seqClipDuration');
   durInput?.addEventListener('change', onSeqClipDurationChange);
   durInput?.addEventListener('blur', onSeqClipDurationChange);
@@ -545,10 +564,20 @@ function _composeHtml() {
             <button type="button" class="btn seq-ctrl seq-remove" id="btnSeqRemove" title="Remove selected from sequence" disabled>&minus;</button>
             <span class="seq-reorder-sep" aria-hidden="true"></span>
             <button type="button" class="btn seq-ctrl seq-clear-all" id="btnSeqClearDock" title="Clear entire sequence" ${seqCount === 0 ? 'disabled' : ''}>Clear</button>
+            <span class="seq-reorder-sep" aria-hidden="true"></span>
+            <span class="seq-token-size" title="Sequence chip size" onclick="event.stopPropagation()">
+              <span class="seq-size-label">W</span>
+              <button type="button" class="btn seq-ctrl" id="btnSeqTokenWMinus" title="Narrower chips">−</button>
+              <button type="button" class="btn seq-ctrl" id="btnSeqTokenWPlus" title="Wider chips">+</button>
+              <span class="seq-size-label">H</span>
+              <button type="button" class="btn seq-ctrl" id="btnSeqTokenHMinus" title="Shorter chips">−</button>
+              <button type="button" class="btn seq-ctrl" id="btnSeqTokenHPlus" title="Taller chips">+</button>
+            </span>
           </div>
         </div>
         <div class="pool-section-body" data-section="sequence">
-          <div class="pool-sequence-box" id="poolSequenceBox" tabindex="0"></div>
+          <div class="pool-sequence-box" id="poolSequenceBox" tabindex="0"
+            data-seq-w="${state.pool.seqTokenW ?? 2}" data-seq-h="${state.pool.seqTokenH ?? 2}"></div>
           <div class="seq-clip-settings" id="seqClipSettings" hidden>
             <span class="seq-clip-settings-label">Selected clip</span>
             <span class="seq-clip-settings-name" id="seqClipName">—</span>
