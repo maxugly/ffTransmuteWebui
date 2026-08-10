@@ -55,9 +55,14 @@ async function fillJoinTargetOptions() {
 }
 
 async function _variantNodeHtml(path) {
+  // Use shared cached /api/variants (sequence.js) — never raw-fetch per card paint
   let variants = {};
-  try { variants = (await (await fetch(`/api/variants?path=${encodeURIComponent(path)}`)).json()).variants || {}; }
-  catch { variants = {}; }
+  try {
+    const { _fetchVariants } = await import('/js/pool/sequence.js');
+    variants = await _fetchVariants(path);
+  } catch {
+    variants = {};
+  }
   const kinds = Object.keys(variants);
   if (!kinds.length) return '';
   const rows = kinds.map(kind => variants[kind].map(v => `
@@ -352,9 +357,16 @@ function _bindSequencePanel() {
       state.pool.useRife = true;
       const ur = document.getElementById('poolUseRife');
       if (ur) ur.checked = true;
+      // Clear prior FAIL so a fresh Instant ON can re-queue (no tight auto-retry)
+      for (const ent of state.pool.sequence || []) {
+        if (ent._rifeStatus === 'failed') {
+          ent._rifeStatus = null;
+          ent._rifeError = null;
+        }
+      }
     }
     scheduleSavePoolState();
-    renderSequenceBox();
+    renderSequenceBox({ skipInstantKick: true });
     if (state.pool.instantRife) {
       // Probe + queue immediately — no re-touching Time
       _maybeAutoRifeAll({ quiet: false });

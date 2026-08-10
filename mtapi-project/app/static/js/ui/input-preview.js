@@ -13,7 +13,7 @@ import {
 import { basename, escapeHtml, isVideoPath, isImagePath } from '/js/utils.js';
 
 const HIDE_TABS = new Set([
-  'pool', 'sequence', 'images', 'jobs', 'notes', 'watcher', 'txt2img',
+  'pool', 'sequence', 'images', 'jobs', 'notes', 'settings', 'watcher', 'txt2img',
 ]);
 
 /** @typedef {{ label: string, path: string|null }} InputSlot */

@@ -140,11 +140,28 @@ def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY
             for pid, ep in ENCODE_PRESETS.items()
         }
 
+    # Short TTL cache — protects the server when a buggy client storms this endpoint
+    _variants_resp_cache: dict[str, tuple[float, dict]] = {}
+    _VARIANTS_RESP_TTL = 5.0
+
     @app.get("/api/variants", tags=["meta"])
     async def api_variants(path: str):
         """Return variant map {kind: [entries]} for the clip at `path`."""
-        variants = await media_cache.get_variants(Path(path).expanduser().resolve())
-        return {"path": str(Path(path).resolve()), "variants": variants}
+        import time as _time
+        key = str(Path(path).expanduser().resolve())
+        now = _time.time()
+        hit = _variants_resp_cache.get(key)
+        if hit and (now - hit[0]) < _VARIANTS_RESP_TTL:
+            return hit[1]
+        variants = await media_cache.get_variants(Path(key))
+        payload = {"path": key, "variants": variants}
+        _variants_resp_cache[key] = (now, payload)
+        # Bound memory if a client hammers many paths
+        if len(_variants_resp_cache) > 256:
+            oldest = sorted(_variants_resp_cache.items(), key=lambda kv: kv[1][0])[:64]
+            for k, _ in oldest:
+                _variants_resp_cache.pop(k, None)
+        return payload
 
     @app.post("/api/open-folder", tags=["meta"])
     async def open_folder(body: dict):

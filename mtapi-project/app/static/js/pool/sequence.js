@@ -416,6 +416,7 @@ function _maybeSupersedeRunningRife(entry, info) {
 
 /**
  * @param {{ skipRender?: boolean }} [opts]  skipRender=true when batching many enqueues
+ * @returns {boolean} true only when queue membership or multiplier actually changed
  */
 function _queueInstantRife(entry, info, opts) {
   opts = opts || {};
@@ -426,6 +427,12 @@ function _queueInstantRife(entry, info, opts) {
   // Policy: keep the densest variant we already have (can drop frames later)
   if (entry.variantPath && _bestHaveM(entry) >= needM) {
     entry._rifeStatus = 'done';
+    return false;
+  }
+
+  // Do not auto-retry failures in a tight loop — user re-enables Instant or
+  // changes Time / target to clear failed and re-queue.
+  if (entry._rifeStatus === 'failed') {
     return false;
   }
 
@@ -444,9 +451,10 @@ function _queueInstantRife(entry, info, opts) {
       logConsole(
         `[SEQ RIFE]: queue update ${entry.name} → ×${needM} (keep highest density)`,
       );
-      if (!opts.skipRender) renderSequenceBox();
+      if (!opts.skipRender) renderSequenceBox({ skipInstantKick: true });
+      return true; // multiplier raised
     }
-    return true;
+    return false; // already queued at ≥ need — no state change
   }
 
   entry._rifeStatus = 'pending';
@@ -467,47 +475,46 @@ function _queueInstantRife(entry, info, opts) {
     + (info.stretch < 0.999 ? `, ${info.stretch.toFixed(2)}× faster` : '')
     + `) · queue depth ${_instantRifeQueue.length}`,
   );
-  if (!opts.skipRender) renderSequenceBox();
+  if (!opts.skipRender) renderSequenceBox({ skipInstantKick: true });
   _drainInstantRifeQueue();
   return true;
 }
 
 /**
  * Auto-enqueue every sequence clip that currently NEEDS densify.
- * Called after render / meta load / duration — no manual "redo Time".
+ * Call only on real events (Instant ON, Time change, meta load, add clip) —
+ * never from every renderSequenceBox (that caused an infinite re-render storm).
  */
 function _kickInstantRifeScan() {
   if (!state.pool.instantRife || !state.pool.useRife) return;
   if (!state.pool.sequence?.length) return;
 
-  let added = 0;
+  let changed = 0;
   for (const entry of state.pool.sequence) {
     const info = _rifeInfoForEntry(entry);
     if (!info?.needed) continue;
-    // Running/pending: still call queue — may raise M or supersede in-flight
-    if (entry._rifeStatus === 'running' || entry._rifeStatus === 'pending'
-        || _findQueuedRife(entry.id)) {
-      if (_queueInstantRife(entry, info, { skipRender: true })) added += 1;
-      continue;
-    }
-    if (_queueInstantRife(entry, info, { skipRender: true })) added += 1;
+    // Only true when queue membership or M actually changes
+    if (_queueInstantRife(entry, info, { skipRender: true })) changed += 1;
   }
-  if (added > 0) {
-    renderSequenceBox();
+  if (changed > 0) {
+    renderSequenceBox({ skipInstantKick: true });
     _drainInstantRifeQueue();
+  } else {
+    // Cheap strip/badge refresh only — no kick, no variant flood
+    _updateInstantRifeStrip();
   }
 }
 
-let _kickRifeMicrotask = false;
+let _kickRifeTimer = null;
 function _scheduleInstantRifeKick() {
-  if (_kickRifeMicrotask) return;
-  _kickRifeMicrotask = true;
-  queueMicrotask(() => {
-    _kickRifeMicrotask = false;
+  // Debounce: meta loads + duration edits often fire in bursts
+  if (_kickRifeTimer != null) clearTimeout(_kickRifeTimer);
+  _kickRifeTimer = setTimeout(() => {
+    _kickRifeTimer = null;
     try { _kickInstantRifeScan(); } catch (e) {
       console.error('[SEQ RIFE] kick failed', e);
     }
-  });
+  }, 120);
 }
 
 async function _drainInstantRifeQueue() {
@@ -530,7 +537,7 @@ async function _drainInstantRifeQueue() {
       if (!info?.needed) {
         entry._rifeStatus = entry.variantPath ? 'done' : null;
         logConsole(`[SEQ RIFE]: skip ${job.name} — no longer needed`);
-        renderSequenceBox();
+        renderSequenceBox({ skipInstantKick: true });
         setClientBusy(
           _instantRifeQueue.length
             ? `Instant RIFE queue (${_instantRifeQueue.length})`
@@ -554,7 +561,7 @@ async function _drainInstantRifeQueue() {
       entry._rifeError = null;
       entry._rifeRunningMultiplier = runM;
       _instantRifeRunningId = entry.id;
-      renderSequenceBox();
+      renderSequenceBox({ skipInstantKick: true });
       logConsole(`[SEQ RIFE]: start ${entry.name} — ×${runM} (${remaining} more in queue)`);
 
       try {
@@ -595,7 +602,7 @@ async function _drainInstantRifeQueue() {
           logConsole(
             `[SEQ RIFE]: ${entry.name} — restarting densify at ×${restart.info.multiplier}`,
           );
-          renderSequenceBox();
+          renderSequenceBox({ skipInstantKick: true });
           continue; // drain loop picks restart job
         }
 
@@ -624,6 +631,7 @@ async function _drainInstantRifeQueue() {
           }
           entry._rifeError = null;
           entry._rifeRunningMultiplier = null;
+          _invalidateVariantsCache(entry.path);
 
           // If Time/target changed during the run and we need higher M, immediately re-queue
           const still = _rifeInfoForEntry(entry);
@@ -650,7 +658,7 @@ async function _drainInstantRifeQueue() {
             logConsole(
               `[SEQ RIFE]: ${entry.name} — finished ×${entry._rifeMultiplier} but need ×${wantM}; re-queuing denser pass`,
             );
-            renderSequenceBox();
+            renderSequenceBox({ skipInstantKick: true });
             continue;
           }
 
@@ -687,7 +695,7 @@ async function _drainInstantRifeQueue() {
           logConsole(
             `[SEQ RIFE]: ${entry.name} — restarting densify at ×${restart.info.multiplier}`,
           );
-          renderSequenceBox();
+          renderSequenceBox({ skipInstantKick: true });
           continue;
         }
         if (_instantRifeStop || /already running|Cancelled|abort/i.test(err.message || '')) {
@@ -704,7 +712,7 @@ async function _drainInstantRifeQueue() {
       } finally {
         if (_instantRifeRunningId === entry.id) _instantRifeRunningId = null;
       }
-      renderSequenceBox();
+      renderSequenceBox({ skipInstantKick: true });
       scheduleSavePoolState();
       if (_instantRifeQueue.length && !_instantRifeStop) {
         setClientBusy(`Instant RIFE queue (${_instantRifeQueue.length})`);
@@ -721,7 +729,7 @@ async function _drainInstantRifeQueue() {
         }
       }
     }
-    renderSequenceBox();
+    renderSequenceBox({ skipInstantKick: true });
     scheduleSavePoolState();
   }
 }
@@ -1122,7 +1130,12 @@ function clearSequence(opts = {}) {
   scheduleSavePoolState();
 }
 
-function renderSequenceBox() {
+/**
+ * @param {{ skipInstantKick?: boolean }} [opts]
+ *   skipInstantKick — avoid re-entrancy (queue → render → kick → render…).
+ */
+function renderSequenceBox(opts) {
+  opts = opts || {};
   const box = document.getElementById('poolSequenceBox');
   if (!box) return;
 
@@ -1284,13 +1297,28 @@ function renderSequenceBox() {
     }
   });
 
-  // Optional async variant polish (must never throw — broke Instant RIFE when missing)
+  // Variant count polish is cached/coalesced — never flood /api/variants
   _updateSeqVariantBadges();
 
   _updateInstantRifeStrip();
   updateSeqTransportUI();
-  // Auto-queue any NEED clips (meta may have just arrived; duration may have changed)
-  _scheduleInstantRifeKick();
+  // Do NOT auto-kick Instant on every paint — that re-entered forever when
+  // anything was already queued (queue returned true → render → kick → …).
+  // Kick only on real events: Instant ON, Time change, meta load, add clip.
+  if (!opts.skipInstantKick && state.pool.instantRife && state.pool.useRife) {
+    // Soft: only if there are NEED clips that are not pending/running/failed
+    const hasIdleNeed = (state.pool.sequence || []).some((e) => {
+      if (e._rifeStatus === 'pending' || e._rifeStatus === 'running'
+          || e._rifeStatus === 'failed' || _findQueuedRife(e.id)) {
+        return false;
+      }
+      const d = _densityInfoForEntry(e);
+      if (!d?.needed) return false;
+      if (e.variantPath && (_bestHaveM(e) >= (d.multiplier || 2))) return false;
+      return true;
+    });
+    if (hasIdleNeed) _scheduleInstantRifeKick();
+  }
 }
 
 /**
@@ -1300,10 +1328,13 @@ function renderSequenceBox() {
 async function _updateSeqVariantBadges() {
   try {
     const tokens = document.querySelectorAll('#poolSequenceBox .seq-token');
+    // Dedupe paths — same source can appear multiple times in the sequence
+    const seen = new Set();
     for (const tok of tokens) {
       const path = tok.dataset.path;
       const id = tok.dataset.id;
-      if (!path) continue;
+      if (!path || seen.has(path + '\0' + id)) continue;
+      seen.add(path + '\0' + id);
       const entry = state.pool.sequence.find((e) => String(e.id) === String(id));
       if (!entry) continue;
       const btn = tok.querySelector('.seq-token-var');
@@ -1489,15 +1520,20 @@ function onSeqClipDurationChange() {
     logConsole(`[SEQ]: ${state.pool.sequence[idx].name} target time = ${v}s`);
   }
   updateSeqClipSettings();
-  renderSequenceBox(); // refresh token duration labels + speed colors
+  renderSequenceBox({ skipInstantKick: true }); // refresh token duration labels + speed colors
   updatePoolFocusFrame(displayFocusPath()); // refresh preview timing
   // Persist immediately (don't wait for debounce — times are easy to lose)
   savePoolStateNow();
   const entry = state.pool.sequence[idx];
   if (entry) {
-    // Keep 'done' so we only re-RIFE when multiplier must increase
-    if (entry._rifeStatus !== 'done' || !entry.variantPath) {
+    // Keep 'done' + variant so we only re-RIFE when M must increase.
+    // Clear failed so a Time edit can retry once (no tight auto-retry loop).
+    if (entry._rifeStatus === 'failed') {
       entry._rifeStatus = null;
+      entry._rifeError = null;
+    } else if (entry._rifeStatus !== 'done' || !entry.variantPath) {
+      entry._rifeStatus = null;
+      entry._rifeError = null;
     }
     _maybeAutoRifeEntry(entry, { quiet: false });
   }
@@ -1852,15 +1888,40 @@ registerListKeys('pool', _seqListApi);
 
 // ── Per-clip variant picker ─────────────────────────────────────────────
 
+/** In-flight + short TTL cache — stops render storms from melting the server. */
+const _variantsCache = new Map(); // path → { at, data }
+const _variantsInflight = new Map(); // path → Promise
+const VARIANTS_TTL_MS = 15000;
+
 async function _fetchVariants(path) {
-  try {
-    const res = await fetch(`/api/variants?path=${encodeURIComponent(path)}`);
-    if (!res.ok) return {};
-    const data = await res.json();
-    return data.variants || {};
-  } catch {
-    return {};
-  }
+  if (!path) return {};
+  const hit = _variantsCache.get(path);
+  if (hit && (Date.now() - hit.at) < VARIANTS_TTL_MS) return hit.data;
+
+  const pending = _variantsInflight.get(path);
+  if (pending) return pending;
+
+  const p = (async () => {
+    try {
+      const res = await fetch(`/api/variants?path=${encodeURIComponent(path)}`);
+      if (!res.ok) return {};
+      const data = await res.json();
+      const variants = data.variants || {};
+      _variantsCache.set(path, { at: Date.now(), data: variants });
+      return variants;
+    } catch {
+      return hit?.data || {};
+    } finally {
+      _variantsInflight.delete(path);
+    }
+  })();
+  _variantsInflight.set(path, p);
+  return p;
+}
+
+function _invalidateVariantsCache(path) {
+  if (path) _variantsCache.delete(path);
+  else _variantsCache.clear();
 }
 
 function _showSeqVariantMenu(anchor, entry, variants, currentPath) {

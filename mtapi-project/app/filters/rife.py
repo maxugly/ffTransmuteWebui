@@ -14,6 +14,17 @@ from . import register_stage
 
 _DEFAULT_BIN = "/usr/bin/rife-ncnn-vulkan"
 
+# Global lock: rife-ncnn-vulkan pegs GPU/CPU; never run two Instant/join densifies
+# at once (soft-abort races used to spawn concurrent -n 496 jobs).
+_rife_lock: asyncio.Lock | None = None
+
+
+def _get_rife_lock() -> asyncio.Lock:
+    global _rife_lock
+    if _rife_lock is None:
+        _rife_lock = asyncio.Lock()
+    return _rife_lock
+
 
 def resolve_rife_bin() -> str:
     found = shutil.which("rife-ncnn-vulkan")
@@ -103,56 +114,59 @@ async def run_rife_directory(
         argv.append("-v")
 
     job_control.check_cancelled()
-
     token = job_control.current_token()
-    if token:
-        job_control.start_dir_watch(
-            token,
-            directory=dst,
-            total=out_target,
-            phase="rife",
-            unit="frames",
-            message=f"RIFE {0}/{out_target} frames",
-        )
 
-    proc = await asyncio.create_subprocess_exec(
-        *argv,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    try:
-        # Cancel-friendly wait: poll instead of blocking communicate()
-        while proc.returncode is None:
-            job_control.check_cancelled()
-            await asyncio.sleep(0.5)
-        _out_b, err_b = await proc.communicate()
-    except asyncio.CancelledError:
-        proc.kill()
-        await proc.wait()
+    # Serialize GPU densify — Instant soft-restart used to spawn two binaries
+    async with _get_rife_lock():
+        job_control.check_cancelled()
         if token:
-            job_control.stop_dir_watch(token)
-        raise
-    finally:
+            job_control.start_dir_watch(
+                token,
+                directory=dst,
+                total=out_target,
+                phase="rife",
+                unit="frames",
+                message=f"RIFE {0}/{out_target} frames",
+            )
+
+        proc = await asyncio.create_subprocess_exec(
+            *argv,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            # Cancel-friendly wait: poll instead of blocking communicate()
+            while proc.returncode is None:
+                job_control.check_cancelled()
+                await asyncio.sleep(0.5)
+            _out_b, err_b = await proc.communicate()
+        except (asyncio.CancelledError, job_control.JobCancelled):
+            proc.kill()
+            await proc.wait()
+            if token:
+                job_control.stop_dir_watch(token)
+            raise
+        finally:
+            if token:
+                job_control.stop_dir_watch(token)
+
+        if proc.returncode != 0:
+            err = (err_b or b"").decode(errors="replace")[-500:]
+            raise RuntimeError(
+                f"rife-ncnn-vulkan failed (exit {proc.returncode}): {err or 'no stderr'}"
+            )
+
+        out_count = normalize_frame_sequence(dst)
+        if out_count <= 0:
+            raise RuntimeError(f"rife produced no frames in {dst}")
+
+        # Final accurate count after normalization
         if token:
-            job_control.stop_dir_watch(token)
-
-    if proc.returncode != 0:
-        err = (err_b or b"").decode(errors="replace")[-500:]
-        raise RuntimeError(
-            f"rife-ncnn-vulkan failed (exit {proc.returncode}): {err or 'no stderr'}"
-        )
-
-    out_count = normalize_frame_sequence(dst)
-    if out_count <= 0:
-        raise RuntimeError(f"rife produced no frames in {dst}")
-
-    # Final accurate count after normalization
-    if token:
-        job_control.report_progress(
-            f"rife done: {out_count} frames",
-            phase="rife", current=out_count, total=out_count, unit="frames",
-            token=token, watch_dir=str(dst), watch_count=out_count,
-        )
+            job_control.report_progress(
+                f"rife done: {out_count} frames",
+                phase="rife", current=out_count, total=out_count, unit="frames",
+                token=token, watch_dir=str(dst), watch_count=out_count,
+            )
 
     return {
         "frame_count_in": in_count,

@@ -1,17 +1,19 @@
 # Session stopping state — handoff
 
 > **Date:** 2026-08-09  
-> **VERSION:** `000.000.4.84`  
+> **VERSION:** `000.000.4.92`  
 > **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 4.84)
+## 1. Shipped this stretch (through 4.91)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
+| **Settings tab (blank)** | Workspace bare chrome (no global inputs / preview / Run); scaffold for pool perf prefs | `js/tabs/settings.js`, `css/settings.css` · **`4.91`** |
+| **Instant RIFE densest-wins** | Mid-flight Time raise soft-aborts; keep highest M | `sequence.js`, `job-control` · **`4.90`** |
 | **Instant RIFE queue + Stop** | Slow-mo eff fps = native/stretch; FIFO Instant queue; main Run busy + Stop cancels batch; Stitch via `runOpWithCancel` | `sequence.js`, `job-control.js`, `persistence.js`, `transmute_ops` · **`4.83`–`4.84`** |
 | **FastSAM OpenVINO** | Implemented batch asset extraction filter using OpenVINO IR on Intel GPU | `fastsam.py`, `fastsam.js` · **`4.78`** |
 | **Dead-code pass 3** | Removed `shell.probe_duration`, dead `stylize_batch` / `morph_directory` / watcher `_save_config` / `_needs_audio_for_preset` / `ensure_withoutbg_available` / `get_target_group`; unused imports; video ops use `start_frame_field`/`end_frame_field` | **`4.77`** |

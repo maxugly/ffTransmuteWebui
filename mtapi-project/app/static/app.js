@@ -43,6 +43,7 @@ import { renderZoompanForm, collectZoompanBody } from '/js/tabs/zoompan.js';
 import { renderImageSortForm, collectImageSortBody } from '/js/tabs/imagesort.js';
 import { renderImgCompareForm } from '/js/tabs/imgcompare.js';
 import { renderNotesForm } from '/js/tabs/notes.js';
+import { renderSettingsForm } from '/js/tabs/settings.js';
 import { renderJobsForm, stopJobsPoll } from '/js/tabs/jobs.js';
 import { renderImageEditForm, collectImageEditBody } from '/js/tabs/imageedit.js';
 import { refreshInputPreview, bindInputPreviewListeners } from '/js/ui/input-preview.js';
@@ -302,6 +303,7 @@ const TAB_ACCEPTS = {
   imgcompare:  'image',
   zoompan:     'image',
   notes:       'none',
+  settings:    'none',
 };
 
 /** Tabs that show the global frame-range row (video pipeline / mosh / convert). */
@@ -685,6 +687,7 @@ function switchTab(tab) {
   if (tab === 'zoompan') title = 'Pan & Zoom';
   if (tab === 'jobs') title = 'Jobs · Queue';
   if (tab === 'notes') title = 'Notes';
+  if (tab === 'settings') title = 'Settings';
   // Library tabs: drop the big header title (sidebar already shows active item)
   if (tab === 'pool' || tab === 'sequence' || tab === 'images') title = '';
   elements.tabTitle.textContent = title;
@@ -692,7 +695,8 @@ function switchTab(tab) {
   // Hide Run / Queue on library / settings-only tabs (compare is interactive, not a job)
   const hideRun = (
     tab === 'pool' || tab === 'sequence' || tab === 'images'
-    || tab === 'quick' || tab === 'watcher' || tab === 'notes' || tab === 'agent' || tab === 'jobs'
+    || tab === 'quick' || tab === 'watcher' || tab === 'notes' || tab === 'settings'
+    || tab === 'agent' || tab === 'jobs'
     || tab === 'imgcompare'
   );
   if (elements.btnRun) {
@@ -719,8 +723,9 @@ function switchTab(tab) {
     );
   }
 
-  // Notes: bare workspace (sidebar + two text boxes only)
+  // Notes / Settings: bare workspace (sidebar + panel only; no global / preview)
   document.body.classList.toggle('notes-tab-active', tab === 'notes');
+  document.body.classList.toggle('settings-tab-active', tab === 'settings');
 
   // Render Form for the Tab
   renderTabForm(tab);
@@ -739,6 +744,7 @@ function renderTabForm(tab) {
   if (root) {
     root.classList.remove('pool-active');
     root.classList.remove('notes-active');
+    root.classList.remove('settings-active');
   }
 
   if (tab === 'mosh') {
@@ -801,6 +807,8 @@ function renderTabForm(tab) {
     renderJobsForm();
   } else if (tab === 'notes') {
     renderNotesForm();
+  } else if (tab === 'settings') {
+    renderSettingsForm();
   }
 
   // Bottom input preview (after form chrome; survives form-only re-renders)
