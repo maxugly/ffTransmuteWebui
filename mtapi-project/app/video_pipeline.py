@@ -558,11 +558,127 @@ def _build_encode_argv(
     return argv
 
 
+def _video_codec_argv_for_preset(encode_preset: Any) -> list[str]:
+    """Codec/pix_fmt/extra flags shared by PNG-sequence encode and file→file transcode."""
+    ep = encode_preset
+    if ep.codec == "prores_ks":
+        return [
+            "-c:v", "prores_ks",
+            "-profile:v", str(ep.profile or 3),
+            "-pix_fmt", ep.pix_fmt,
+        ]
+    if ep.codec == "dnxhd":
+        return ["-c:v", "dnxhd", *list(ep.extra or []), "-pix_fmt", ep.pix_fmt]
+    if ep.codec in ("libx264", "libx265"):
+        return [
+            "-c:v", ep.codec,
+            "-preset", ep.preset or "medium",
+            "-crf", str(ep.crf),
+            "-pix_fmt", ep.pix_fmt,
+            *list(ep.extra or []),
+        ]
+    if ep.codec == "libvpx-vp9":
+        return [
+            "-c:v", "libvpx-vp9",
+            "-crf", str(ep.crf),
+            "-b:v", "0",
+            "-pix_fmt", ep.pix_fmt,
+            *list(ep.extra or []),
+        ]
+    if ep.codec == "libsvtav1":
+        return [
+            "-c:v", "libsvtav1",
+            "-crf", str(ep.crf),
+            "-preset", ep.preset or "6",
+            "-pix_fmt", ep.pix_fmt,
+        ]
+    if ep.codec == "ffv1":
+        return ["-c:v", "ffv1", *list(ep.extra or []), "-pix_fmt", ep.pix_fmt]
+    return [
+        "-c:v", ep.codec,
+        "-preset", getattr(ep, "preset", None) or "medium",
+        "-crf", str(getattr(ep, "crf", 23) or 23),
+        "-pix_fmt", ep.pix_fmt or "yuv420p",
+    ]
+
+
+async def transcode_with_preset(
+    input_path: str | Path,
+    output_path: str | Path,
+    encode_preset: Any,
+    *,
+    copy_audio: bool = True,
+) -> str:
+    """Re-encode an already-muxed video with an EncodePreset — no PNG dump.
+
+    Normal ffmpeg path: demux → decode → encode → mux. Used by join-to-preset
+    after concat_clips. Frame-effect ops still use dump → stages → encode().
+    """
+    inp = Path(input_path).expanduser().resolve()
+    out = Path(output_path).expanduser().resolve()
+    if not inp.is_file():
+        raise RuntimeError(f"transcode input not found: {inp}")
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    ep = encode_preset
+    even_floor = bool(getattr(ep, "even_floor", False))
+    info = await probe(inp)
+    has_audio = bool(info.get("has_audio")) and copy_audio
+
+    argv: list[str] = [
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+        "-i", str(inp),
+        "-map", "0:v:0",
+    ]
+    if has_audio:
+        argv.extend(["-map", "0:a:0?"])
+
+    if even_floor:
+        argv.extend(["-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2"])
+
+    argv.extend(_video_codec_argv_for_preset(ep))
+
+    if has_audio:
+        ac = getattr(ep, "audio_codec", None) or "aac"
+        ab = getattr(ep, "audio_bitrate", None) or ""
+        argv.extend(["-c:a", ac])
+        if ab:
+            argv.extend(["-b:a", ab])
+    else:
+        argv.append("-an")
+
+    argv.append(str(out))
+
+    from . import job_control
+    token = job_control.current_token()
+    if token:
+        job_control.report_progress(
+            f"transcode → {out.name}",
+            phase="encode", current=0, total=1, unit="step", token=token,
+        )
+
+    code, _, stderr = await run_command(argv)
+    if code != 0:
+        raise RuntimeError(
+            f"ffmpeg transcode failed (exit {code}): {stderr.strip() or 'no stderr'}"
+        )
+    if not out.is_file():
+        raise RuntimeError(f"transcode produced no file: {out}")
+
+    if token:
+        job_control.report_progress(
+            "transcode done",
+            phase="encode", current=1, total=1, unit="step", token=token,
+        )
+    return str(out)
+
+
 # ── D2. Concat clips (python join stitch) ───────────────────────────────────
 # Mirrors `transmute -j`'s reconcile + concat (bin/transmute: join_vf_for_mode,
 # snap_canvas_to_ar, TIME_FACTOR) in pure Python so the join op can chain into
-# the codec preset engine without forking ffmpeg args. The intermediate is a
-# neutral near-lossless temp file — the final encode() does the real codec work.
+# the codec preset engine without forking ffmpeg args. Intermediate is a
+# neutral near-lossless temp video — final delivery uses transcode_with_preset
+# (file→file), NOT dump→PNG→encode.
 
 _ASPECT_NAMES = {
     "1:1": (1, 1), "square": (1, 1),
@@ -679,8 +795,9 @@ async def concat_clips(
     `transmute -j MODE -A ASPECT`), producing one stitched intermediate.
 
     The intermediate is a neutral near-lossless libx264 -crf 18 -preset medium
-    temp file inside `workspace` — NOT the user-facing deliverable. Feed it to
-    encode() (via dump()) to reach a codec preset.
+    temp file inside `workspace` — NOT the user-facing deliverable. Re-encode
+    with ``transcode_with_preset()`` for DNxHR/ProRes/etc. Do **not** PNG-dump
+    unless a frame filter stage actually needs image sequences.
 
     Returns {output_path, fps, duration, frame_count, width, height, has_audio}.
     """

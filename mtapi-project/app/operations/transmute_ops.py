@@ -452,32 +452,33 @@ async def _join_with_preset(
             stdout=f"Command: {summary}\nOutput: {out}\n(dry run — no files written)",
         )
 
-    from ..video_pipeline import concat_clips, dump, encode
+    # Normal render path: concat (ffmpeg filter graph) → file→file transcode.
+    # PNG dump is for frame *filters* only — re-encoding is not a filter.
+    from ..video_pipeline import concat_clips, transcode_with_preset
 
     ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="join_")
     success = False
     logs: list[str] = [summary]
     try:
+        ws.create()
         intermediate = ws.root / "joined_tmp.mkv"
         stitched = await concat_clips(
             ws, inputs, intermediate,
             mode=p.mode, aspect=p.aspect, durations=p.durations,
         )
-        dump_info = await dump(ws, intermediate)
-        encode_fps = rife_target_fps if rife_target_fps is not None else dump_info["fps"]
-        result_path = await encode(
-            ws, out, encode_fps,
-            encode_preset=ep,
-            frame_source_dir=ws.frames_in,
-            mux_audio=True,
-            silence_on_no_audio=True,
+        result_path = await transcode_with_preset(
+            intermediate, out, ep, copy_audio=True,
         )
         success = True
-        logs.append(f"Stitched {len(p.input_paths)} clips -> {intermediate}")
+        fps = stitched.get("fps")
+        logs.append(f"Stitched {len(inputs)} clips → intermediate (no PNG dump)")
         logs.append(
-            f"Canvas {stitched['width']}x{stitched['height']} @ "
-            f"{dump_info['fps']} fps -> {result_path}"
+            f"Canvas {stitched['width']}x{stitched['height']}"
+            + (f" @ {fps} fps" if fps else "")
+            + f" → {result_path} ({target})"
         )
+        if rife_target_fps is not None:
+            logs.append(f"(RIFE target fps was {rife_target_fps}; delivery fps follows intermediate)")
         return OperationResult(
             ok=True, operation="join", output_path=str(result_path),
             command=summary, stdout="\n".join(logs),
