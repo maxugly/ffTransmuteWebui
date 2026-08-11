@@ -1,6 +1,6 @@
 # Session stopping state — handoff
 
-> **Date:** 2026-08-09  
+> **Date:** 2026-08-10  
 > **VERSION:** `000.000.5.00`  
 > **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
@@ -8,27 +8,28 @@
 
 ---
 
-## 1. Shipped this stretch (through 4.91)
+## 1. Shipped this stretch (through 5.00)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
-| **Settings tab (blank)** | Workspace bare chrome (no global inputs / preview / Run); scaffold for pool perf prefs | `js/tabs/settings.js`, `css/settings.css` · **`4.91`** |
+| **Join preset = transcode** | No dump→PNG for DNxHR/ProRes stitch; normal ffmpeg re-encode | `transcode_with_preset`, `_join_with_preset` · **`5.00`** |
+| **Job workspace on disk** | Default `~/.cache/mtapi/jobs` | `job_workspace.py` · **`4.99`** |
+| **Jobs tab live desk** | Read-only live server ops + FIFO + Instant queue + done | `jobs.js` · **`4.98`** |
+| **Sequence token size + layout** | Two-row chips; min-width stops badge spill | `sequence.js`, `pool.css` · **`4.97`** |
+| **Match click selects pool card** | Clear filter, uncollapse pool, scroll on match row/Select | `grid.js` · **`4.96`** |
+| **Select RIFED sets multiplier** | Variant menu writes `_rifeMultiplier`; badge uses haveM | `sequence.js` · **`4.95`** |
+| **Instant reuses densify** | Hydrate from /api/variants + persist rife_multiplier | `sequence.js`, `persistence.js` · **`4.94`** |
+| **Single-flight restore** | Soft-cancel must not abort fetch; server rejects concurrent ops | `job-control.js`, `job_queue.py` · **`4.93`** |
+| **Instant re-render fixes** | Queue no-op no re-render; variants cache; dual RIFE killed | `sequence.js`, `grid.js` · **`4.92`** |
+| **Settings tab (blank)** | Workspace bare chrome; scaffold for pool perf prefs | `js/tabs/settings.js` · **`4.91`** |
 | **Instant RIFE densest-wins** | Mid-flight Time raise soft-aborts; keep highest M | `sequence.js`, `job-control` · **`4.90`** |
-| **Instant RIFE queue + Stop** | Slow-mo eff fps = native/stretch; FIFO Instant queue; main Run busy + Stop cancels batch; Stitch via `runOpWithCancel` | `sequence.js`, `job-control.js`, `persistence.js`, `transmute_ops` · **`4.83`–`4.84`** |
-| **FastSAM OpenVINO** | Implemented batch asset extraction filter using OpenVINO IR on Intel GPU | `fastsam.py`, `fastsam.js` · **`4.78`** |
-| **Dead-code pass 3** | Removed `shell.probe_duration`, dead `stylize_batch` / `morph_directory` / watcher `_save_config` / `_needs_audio_for_preset` / `ensure_withoutbg_available` / `get_target_group`; unused imports; video ops use `start_frame_field`/`end_frame_field` | **`4.77`** |
-| **DeepDream dead-path scrub** | Dropped unused sync `dream_video` / `dream_ouroboros` (~260 lines); ops only use filter + workspace paths; shared `rifeModelSelectHtml` on rife/imagesort/speed/recohere/transmute | `dream.py`, `evolve-rife.js` · **`4.76`** |
-| **Evolve DRY cleanup** | Shared `EvolveRifeParams` (Pydantic) + `js/ui/evolve-rife.js` knobs/collect/master toggle | `evolve_video.py`, `evolve-rife.js` · **`4.75`** |
-| **Style Evolve + shared bookend** | Strength ramp 0→full (1 Magenta pass) → optional RIFE → `*_styled_evolve.mp4` | `evolve_video.py`, `styletransfer_*` · **`4.74`** |
-| **DeepDream Evolve** | Mid-ascent capture → Image Sort dedupe → optional RIFE → `*_dream_evolve.mp4` (stills) | `deepdream-evolve-video-spec.md` · **`4.73`** |
-| **DeepDream fidelity** | Max loss default off; auto-ignore wrong-scale max_loss; VGG×40 / ResNet×120 step scale | `dream.py` / `models.py` · **`4.72`** |
-| **Live mid-ascent preview** | `/tmp/mtapi_live/{token}.png` + `latest_frame` | **`4.71`** |
-| **Live preview wiring** | Frame writers push `latest_frame` | **`4.70`** |
-| **Nav category collapse** | Collapsible sidebar sections + `mtapi_nav_sections` | `nav-sections.js` · **`4.69`** |
-| **Image Compare tab** | A/B + Image Sort metrics | `imgcompare.js` · **`4.68`** |
-| **DeepDream bottom docs** | Full knob story | `deepdream.js` · **`4.67`** |
-| **Bottom input preview** | Thumbs at panel bottom | `input-preview.js` · **`4.66`** |
-| **DRY staged job + Run/Queue collect** | `run_staged_job`, `resolveActiveOpAndBody` | **`4.65`** |
+| **Instant RIFE queue + Stop** | FIFO Instant queue; main Run busy + Stop cancels batch | `sequence.js`, `job-control.js` · **`4.83`–`4.89`** |
+| **FastSAM OpenVINO / fixes** | Batch asset extraction filter on Intel GPU; coordinate fixes | `fastsam.py`, `fastsam.js` · **`4.78`–`4.82`** |
+| **Join codec export & RIFE** | DNxHR/ProRes export; exact resample RIFE; UI dropdowns | `sequence_join_unified_frontend_spec.md` · **`4.81`** |
+| **Dead-code pass & DRY** | Removed dead paths; shared `EvolveRifeParams` | **`4.75`–`4.77`** |
+| **Style & DeepDream Evolve** | Mid-ascent capture, dedupe, optional RIFE, strength ramp | `evolve_video.py` · **`4.72`–`4.74`** |
+| **Live mid-ascent preview** | `/tmp/mtapi_live/{token}.png` + `latest_frame` | **`4.70`–`4.71`** |
+| **UI Polish** | Nav collapse, Image Compare A/B, Input previews | **`4.65`–`4.69`** |
 | Upscale / Cut / Job queue | Earlier `4.64` | ops + Jobs tab |
 
 Earlier stable: filter platform, dual pools, Convert, neural ops, Prompt Library, Recohere, Agent, OpenVINO stills.

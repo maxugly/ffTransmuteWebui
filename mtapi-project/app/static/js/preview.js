@@ -130,6 +130,21 @@ function showPreview(filePath) {
     video.autoplay = true;
     video.loop = true;
     video.muted = true;
+    
+    // If previewing a sequence item, apply its target playback speed
+    if (state.pool.selectedSeqId != null) {
+      const seqEntry = state.pool.sequence?.find(s => s.id === state.pool.selectedSeqId);
+      if (seqEntry && seqEntry.path === filePath) {
+        const item = findPoolItem(filePath);
+        const nativeDur = item?.meta?.duration;
+        if (nativeDur && seqEntry.targetDuration > 0) {
+          const speed = nativeDur / seqEntry.targetDuration;
+          video.defaultPlaybackRate = speed;
+          video.playbackRate = speed;
+        }
+      }
+    }
+
     video.addEventListener('loadedmetadata', () => {
       if (video.videoWidth && video.videoHeight) {
         setPreviewAspect(video.videoWidth, video.videoHeight);

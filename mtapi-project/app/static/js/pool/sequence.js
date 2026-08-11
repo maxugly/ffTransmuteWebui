@@ -1693,6 +1693,7 @@ function onSeqClipDurationChange() {
   }
   updateSeqClipSettings();
   renderSequenceBox({ skipInstantKick: true }); // refresh token duration labels + speed colors
+  applySeqTokenTimeStyles(); // live-update video playbackRate for active preview / sequence player
   updatePoolFocusFrame(displayFocusPath()); // refresh preview timing
   // Persist immediately (don't wait for debounce — times are easy to lose)
   savePoolStateNow();
@@ -1742,6 +1743,23 @@ function applySeqTokenTimeStyles() {
       tok.style.borderColor = '';
     }
     tok.title = seqClipTokenTitle(entry, speedInfo);
+
+    // LIVE UPDATE: push new speed to every visible video for this clip.
+    // playback.video is the authoritative sequence-player element, but the
+    // static preview (showPreview) may have replaced #mediaViewer with a
+    // different <video> while playback.video still points at the old one.
+    const previewVid = elements.mediaViewer.querySelector('video');
+    if (state.pool.playback.index === idx && state.pool.playback.video) {
+      state.pool.playback.video.defaultPlaybackRate = speedInfo.speed;
+      state.pool.playback.video.playbackRate = speedInfo.speed;
+      if (previewVid && previewVid !== state.pool.playback.video) {
+        previewVid.defaultPlaybackRate = speedInfo.speed;
+        previewVid.playbackRate = speedInfo.speed;
+      }
+    } else if (state.pool.selectedSeqId === entry.id && previewVid) {
+      previewVid.defaultPlaybackRate = speedInfo.speed;
+      previewVid.playbackRate = speedInfo.speed;
+    }
   });
 }
 
@@ -1891,6 +1909,10 @@ function seqLoadClip(index, { autoplay = true } = {}) {
 
   _detachPlaybackVideo();
   state.pool.playback.video = video;
+
+  const speedInfo = seqClipSpeedInfo(entry);
+  video.defaultPlaybackRate = speedInfo.speed;
+  video.playbackRate = speedInfo.speed;
 
   video.onended = () => {
     if (!state.pool.playback.playing) return;

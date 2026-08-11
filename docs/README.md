@@ -23,6 +23,7 @@
 | [filter-platform-spec.md](filter-platform-spec.md) | dump → filters → encode |
 | [video-image-pools-spec.md](video-image-pools-spec.md) | Dual pools / Cut |
 | [resolve-transcode-spec.md](resolve-transcode-spec.md) | Convert / bookends |
+| [file-to-file-transcode-spec.md](file-to-file-transcode-spec.md) | Direct ffmpeg transcode |
 | [image-sort-rife-spec.md](image-sort-rife-spec.md) | Image Sort + chain |
 | [img2img-openvino-spec.md](img2img-openvino-spec.md) | Img2img OpenVINO |
 | [agent-vision-tab-spec.md](agent-vision-tab-spec.md) | Agent + vision APIs |
@@ -36,17 +37,17 @@
 
 ---
 
-## At a glance — `000.000.4.74` (2026-08-04)
+## At a glance — `000.000.5.00` (2026-08-10)
 
 ### Shipped recently
 | Doc / feature | Ver |
 |---------------|-----|
-| Style Evolve (strength ramp) + shared `evolve_video` | **4.74** |
-| DeepDream Evolve (mid-ascent + dedupe + RIFE) | **4.73** |
-| DeepDream max_loss / VGG·ResNet step scale | **4.72** |
-| Live mid-ascent + `latest_frame` | **4.70–4.71** |
+| Join preset transcode, Job workspace on disk, Jobs tab live desk | **4.98–5.00** |
+| Instant RIFE densest-wins, Single-flight restore, Instant re-render fixes | **4.90–4.97** |
+| Join codec export, RIFE in Join, Unified Join Frontend, Clip variants | **4.81–4.89** |
+| FastSAM OpenVINO, Dead-code passes, Evolve DRY cleanup | **4.75–4.80** |
+| Style/DeepDream Evolve, max_loss, live mid-ascent preview | **4.70–4.74** |
 | Nav collapse, Image Compare, bottom input preview | **4.66–4.69** |
-| Prompt library / Recohere / Agent / OpenVINO | **4.55–4.61** |
 
 ### Partial / in progress
 | Doc | Status |
