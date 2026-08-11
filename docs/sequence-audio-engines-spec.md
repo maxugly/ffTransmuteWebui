@@ -5,11 +5,11 @@ Currently, when a sequence of video clips is stitched together (`concat_clips`) 
 
 The goal is to introduce an "Audio Engine" dropdown to the Sequence global settings, allowing the user to select *how* audio is manipulated when sequence timings are altered.
 
-For this initial MVP, we will only make **Rubberband** live (as it's already functioning and is the default), and provide the other engines as disabled/marked placeholders in the UI for future implementation.
+For this MVP, we will only make **Rubberband** live (as it's already functioning and is the default), and provide the other engines as disabled/marked placeholders in the UI for future implementation. This MVP is scoped strictly to the `concat_clips` pipeline layer and does not interact with any broader audio frameworks.
 
 ## 🏗️ 2. Proposed Options
 
-The Sequence UI will feature a new dropdown (e.g. `id="poolAudioEngine"`) in the top global tool bar of the Sequence tab, offering these options:
+The Sequence UI will feature a new dropdown (e.g. `id="poolAudioEngine"`) in the Sequence tab's control panel, offering these options:
 
 1. **Rubberband** `value="rubberband"` *(Default, LIVE)*: High-quality pitch-preserving stretch. Uses ffmpeg `rubberband=tempo=X` filter.
 2. **Standard (atempo)** `value="atempo"` *(Placeholder)*: Fast WSOLA algorithm, pitch-preserving but can sound robotic on large stretches. Will use ffmpeg `atempo=X` filter.
@@ -29,27 +29,31 @@ The Sequence UI will feature a new dropdown (e.g. `id="poolAudioEngine"`) in the
   )
   ```
 - Pass `p.audio_engine` down through `_join_with_preset()` and into `video_pipeline.concat_clips()`.
+- *Legacy Behavior:* The legacy bash join path (`_run_transmute("join", ...)`, used when target=None) does not need to accept this parameter. It will continue its default CLI behavior.
 
 ### B. Backend (`mtapi-project/app/video_pipeline.py`)
 - Update `concat_clips` signature to accept `audio_engine: str = "rubberband"`.
 - Pass `audio_engine` down to `_join_audio_fragment(..., audio_engine)`.
-- Inside `_join_audio_fragment`, add a `match` or `if/elif` block:
+- Inside `_join_audio_fragment`, add an `if/elif` block:
   - `if audio_engine == "rubberband": return f"{base},rubberband=tempo={aspeed:.10f}[a{i}]"`
-  - *For the placeholders, you may raise a `NotImplementedError` or fallback to rubberband for now until the builder implements the ffmpeg filter chains in a future milestone.*
+  - *For the placeholders, raise a `NotImplementedError` so backend calls explicitly fail if a placeholder engine is requested.*
 
-### C. Frontend UI (`mtapi-project/app/static/index.html` & `js/pool/grid.js`)
-- **HTML:** Add a new `<select id="poolAudioEngine" class="pool-engine-select">` near the `Target FPS` and `Reconcile Mode` inputs in the Sequence tab's `pool-toolbar-meta` area.
+### C. Frontend UI (`mtapi-project/app/static/js/`)
+- **State (`app.js`):** Add `audioEngine: 'rubberband'` to the default `state.pool` object.
+- **HTML (`pool/grid.js`):** Add a new `<select id="poolAudioEngine" class="pool-engine-select">` inside the `.pool-sequence-opts` div rendered by `_composeHtml()`.
   - Option 1: `<option value="rubberband" selected>Audio: Rubberband (Pitch-Preserved)</option>`
   - Option 2: `<option value="atempo" disabled>Audio: atempo (Standard) [Coming Soon]</option>`
   - Option 3: `<option value="pitch" disabled>Audio: Pitch-Shift (Vinyl) [Coming Soon]</option>`
   - Option 4: `<option value="mute" disabled>Audio: Mute [Coming Soon]</option>`
-- **State (`constants.js`):** Add `audioEngine: 'rubberband'` to the default `poolState` block.
-- **JS Binding (`grid.js`):** Add event listeners to sync `poolAudioEngine` with `state.pool.audioEngine` and trigger `scheduleSavePoolState()`.
-- **API Call (`grid.js`):** In `stitchPoolSequence()`, ensure `audio_engine: state.pool.audioEngine` is passed in the payload to `/ops/transmute`.
+- **JS Binding (`pool/grid.js`):** Add event listeners to sync `poolAudioEngine` with `state.pool.audioEngine` and trigger `scheduleSavePoolState()`. Ensure the selected value populates correctly on render.
+- **API Call (`pool/persistence.js`):** In `stitchPoolSequence()`, ensure `audio_engine: state.pool.audioEngine` is passed in the JSON payload to `/ops/join`.
+- **Persistence (`pool/persistence.js`):** Ensure the `audioEngine` state is saved and restored:
+  - Add `audio_engine: state.pool.audioEngine || 'rubberband',` to `buildPoolStatePayload()`.
+  - Add `state.pool.audioEngine = data.audio_engine || 'rubberband';` to `applyPoolData()`.
 
 ## 🚨 4. System Invariants & Pitfalls
-- **Default Integrity:** The default behavior MUST remain exactly as it is today (which uses rubberband under the hood). If the user doesn't touch the dropdown, the API must receive `rubberband` and the backend must execute exactly what it executes today.
-- **State Persistence:** Ensure the selected engine is saved to the pool's JSON state (`savePoolStateNow`) so the user's choice persists across reloads.
+- **Default Integrity:** The default behavior MUST remain exactly as it is today (which uses rubberband under the hood).
+- **Backend Error Handling:** The backend must throw a `NotImplementedError` if a placeholder engine is submitted, rather than silently falling back. This prevents obscuring unimplemented features if triggered outside the UI.
 
 ## 🧪 5. Verification (For the Builder)
 1. **UI Load:** Open the UI, check the Sequence tab, and verify the dropdown is present, showing Rubberband as default and the others as disabled placeholders.

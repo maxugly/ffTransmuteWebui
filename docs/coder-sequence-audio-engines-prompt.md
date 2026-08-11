@@ -18,20 +18,23 @@ File: `mtapi-project/app/operations/transmute_ops.py`
       description="Audio time-stretching engine. Currently only 'rubberband' is fully wired."
   )
   ```
-- Ensure `audio_engine` is passed from `p.audio_engine` into `_join_with_preset()` and subsequently down into `concat_clips()`.
+- Ensure `audio_engine` is passed from `p.audio_engine` into `_join_with_preset()` and subsequently down into `concat_clips()`. Note: The legacy bash join path (`_run_transmute("join", ...)`) does not need to accept `audio_engine` for this MVP. It can continue using default transmute CLI behavior.
 
 ### 2. Update Video Pipeline
 File: `mtapi-project/app/video_pipeline.py`
 - Update the `concat_clips` signature to accept `audio_engine: str = "rubberband"`.
 - Pass this argument into `_join_audio_fragment(...)`.
-- Inside `_join_audio_fragment`, add a branch to handle `audio_engine == "rubberband"`. The existing logic already returns the correct `rubberband=tempo={aspeed}` string. For the placeholders, you can raise `NotImplementedError` or fallback to rubberband for now.
+- Inside `_join_audio_fragment`, add a branch to handle `audio_engine == "rubberband"`. The existing logic already returns the correct `rubberband=tempo={aspeed}` string. For the placeholders, raise a `NotImplementedError` so that backend users explicitly know it's not implemented yet.
 
 ### 3. Update Frontend UI & State
-Files: `mtapi-project/app/static/index.html`, `js/pool/grid.js`, `js/pool/constants.js`
-- **HTML**: In the `pool-toolbar-meta` area of the Sequence tab, add a new `<select id="poolAudioEngine" class="pool-engine-select">`. Add the 4 options, with the last 3 disabled and marked as `[Coming Soon]`.
-- **State**: Add `audioEngine: 'rubberband'` to the default `poolState` in `constants.js`.
-- **JS Binding**: In `grid.js`, bind the change event of the new select element to update `state.pool.audioEngine` and call `scheduleSavePoolState()`. Also ensure the select element is populated from the state when the UI initializes.
-- **API Call**: In `stitchPoolSequence()`, ensure `audio_engine: state.pool.audioEngine` is included in the payload sent to `/ops/transmute`.
+Files: `mtapi-project/app/static/js/app.js`, `mtapi-project/app/static/js/pool/grid.js`, `mtapi-project/app/static/js/pool/persistence.js`
+- **State (`app.js`)**: Add `audioEngine: 'rubberband'` to the default `state.pool` object (around line 150).
+- **HTML (`grid.js`)**: In the `_composeHtml()` template string for the Sequence tab, add a new `<select id="poolAudioEngine" class="pool-engine-select">` inside the `.pool-sequence-opts` div. Add the 4 options, with the last 3 disabled and marked as `[Coming Soon]`.
+- **JS Binding (`grid.js`)**: Bind the change event of the new select element to update `state.pool.audioEngine` and call `scheduleSavePoolState()`. Ensure the select element is populated from the state when the UI initializes (e.g. by setting `value` during `_composeHtml` or after rendering).
+- **API Call (`persistence.js`)**: In `stitchPoolSequence()`, ensure `audio_engine: state.pool.audioEngine` is included in the payload sent to `/ops/join`.
+- **Persistence (`persistence.js`)**:
+  - In `buildPoolStatePayload()`, add `audio_engine: state.pool.audioEngine || 'rubberband',` to the returned payload object.
+  - In `applyPoolData()`, add `state.pool.audioEngine = data.audio_engine || 'rubberband';` to load it.
 
 ## Verification (Mandatory)
 Before you claim this task is DONE, you must verify the following via Playwright UI testing:
