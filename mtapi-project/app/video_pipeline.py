@@ -767,7 +767,7 @@ def _join_vf_fragment(mode: str, i: int, W: int, H: int, factor: float) -> str:
     raise ValueError(f"unknown join reconcile mode: {mode!r}")
 
 
-def _join_audio_fragment(i: int, has_audio: bool, factor: float, dur: float) -> str:
+def _join_audio_fragment(i: int, has_audio: bool, factor: float, dur: float, *, audio_engine: str = "rubberband") -> str:
     """Per-clip audio fragment: real audio (with rubberband tempo on stretch) or
     generated silence matching the source clip duration, normalized to stereo."""
     base: str
@@ -779,7 +779,15 @@ def _join_audio_fragment(i: int, has_audio: bool, factor: float, dur: float) -> 
     if factor in (0, 1):
         return f"{base}[a{i}]"
     aspeed = 1.0 / factor
-    return f"{base},rubberband=tempo={aspeed:.10f}[a{i}]"
+    if audio_engine == "rubberband":
+        return f"{base},rubberband=tempo={aspeed:.10f}[a{i}]"
+    if audio_engine == "atempo":
+        raise NotImplementedError("atempo audio engine is not yet wired for sequence join")
+    if audio_engine == "pitch":
+        raise NotImplementedError("pitch-shift audio engine is not yet wired for sequence join")
+    if audio_engine == "mute":
+        raise NotImplementedError("mute audio engine is not yet wired for sequence join")
+    raise ValueError(f"unknown audio_engine: {audio_engine!r}")
 
 
 async def concat_clips(
@@ -790,6 +798,7 @@ async def concat_clips(
     mode: str = "pad",
     aspect: str = "auto",
     durations: list[float | None] | None = None,
+    audio_engine: str = "rubberband",
 ) -> dict[str, Any]:
     """Stitch clips end-to-end with pad/crop/stretch reconcile (mirrors
     `transmute -j MODE -A ASPECT`), producing one stitched intermediate.
@@ -832,7 +841,9 @@ async def concat_clips(
     if has_audio:
         for i, info in enumerate(infos):
             parts.append(_join_audio_fragment(
-                i, bool(info["has_audio"]), factors[i], float(info["duration"])))
+                i, bool(info["has_audio"]), factors[i], float(info["duration"]),
+                audio_engine=audio_engine,
+            ))
         labels = "".join(f"[v{i}][a{i}]" for i in range(len(srcs)))
         parts.append(f"{labels}concat=n={len(srcs)}:v=1:a=1[v][a]")
     else:

@@ -141,6 +141,7 @@ let state = {
     useRife: false,           // RIFE interpolate before stitch
     targetFps: null,          // exact output fps when useRife is true
     instantRife: false,       // auto densify NEED clips via Instant queue
+    audioEngine: 'rubberband', // audio time-stretch engine for sequence join
     selectedVariantPaths: {}, // original path -> chosen variant path (rifed/export/...)
     // Sequence preview playback
     playback: {

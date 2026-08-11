@@ -382,8 +382,11 @@ function _bindSequencePanel() {
     const v = parseFloat(e.target.value);
     state.pool.targetFps = (v > 0) ? v : null;
     scheduleSavePoolState();
-    // refresh badges live; Instant scan on change/blur only (avoid spam mid-type)
     renderSequenceBox();
+  });
+  document.getElementById('poolAudioEngine')?.addEventListener('change', (e) => {
+    state.pool.audioEngine = e.target.value || 'rubberband';
+    scheduleSavePoolState();
   });
 
   document.getElementById('matchDistance')?.addEventListener('input', (e) => {
@@ -526,9 +529,11 @@ function _bindSequencePanel() {
   const useRifeEl = document.getElementById('poolUseRife');
   const instantRifeEl = document.getElementById('poolInstantRife');
   const targetFpsEl = document.getElementById('poolTargetFps');
+  const audioEngineEl = document.getElementById('poolAudioEngine');
   if (useRifeEl) useRifeEl.checked = !!state.pool.useRife;
   if (instantRifeEl) instantRifeEl.checked = !!state.pool.instantRife;
   if (targetFpsEl) targetFpsEl.value = state.pool.targetFps || '';
+  if (audioEngineEl) audioEngineEl.value = state.pool.audioEngine || 'rubberband';
   fillJoinTargetOptions();
 }
 
@@ -627,6 +632,14 @@ function _composeHtml() {
               </label>
               <label class="pool-opt-label" title="Sequence content fps target. Empty = max native fps in sequence. Slowed clips need denser frames to stay smooth at this rate.">RIFE fps
                 <input type="number" id="poolTargetFps" min="1" step="1" placeholder="auto = max native" class="seq-clip-dur-input">
+              </label>
+              <label class="pool-opt-label" title="Audio time-stretching engine for sequence join">Audio
+                <select id="poolAudioEngine" class="pool-engine-select">
+                  <option value="rubberband" ${(state.pool.audioEngine || 'rubberband') === 'rubberband' ? 'selected' : ''}>Rubberband (Pitch-Preserved)</option>
+                  <option value="atempo" disabled>Standard (atempo) [Coming Soon]</option>
+                  <option value="pitch" disabled>Pitch-Shift (Vinyl) [Coming Soon]</option>
+                  <option value="mute" disabled>Mute [Coming Soon]</option>
+                </select>
               </label>
               <div class="input-row pool-out-row">
                 <input type="text" id="poolOutput" placeholder="Output path (blank = auto .mp4)" value="${escapeHtml(outVal)}">

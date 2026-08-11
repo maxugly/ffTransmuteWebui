@@ -74,6 +74,7 @@ function buildPoolStatePayload() {
     use_rife: !!state.pool.useRife,
     target_fps: state.pool.targetFps || null,
     instant_rife: !!state.pool.instantRife,
+    audio_engine: state.pool.audioEngine || 'rubberband',
     selected_variant_paths: state.pool.selectedVariantPaths || {},
     tile_zoom: state.pool.tileZoom || POOL_ZOOM.reset,
     tile_info: ensureTileInfo(),
@@ -161,6 +162,7 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
   state.pool.useRife = !!data.use_rife;
   state.pool.targetFps = data.target_fps || null;
   state.pool.instantRife = !!data.instant_rife;
+  state.pool.audioEngine = data.audio_engine || 'rubberband';
   state.pool.selectedVariantPaths = data.selected_variant_paths || {};
 
   // Image Pool (v2; missing images → [])
@@ -615,6 +617,7 @@ async function stitchPoolSequence() {
     target: state.pool.target || null,
     use_rife: !!state.pool.useRife,
     target_fps: state.pool.targetFps || null,
+    audio_engine: state.pool.audioEngine || 'rubberband',
     output_path,
     dry_run: false,
   };

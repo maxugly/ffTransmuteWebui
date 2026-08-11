@@ -266,6 +266,10 @@ class JoinParams(BaseModel):
         ),
     )
     output_path: str | None = Field(None, description="Output path; auto-named (join-<mode>_<W>x<H>.mp4) if omitted")
+    audio_engine: Literal["rubberband", "atempo", "pitch", "mute"] = Field(
+        "rubberband",
+        description="Audio time-stretching engine. Currently only 'rubberband' is fully wired.",
+    )
     dry_run: bool = False
 
 
@@ -465,6 +469,7 @@ async def _join_with_preset(
         stitched = await concat_clips(
             ws, inputs, intermediate,
             mode=p.mode, aspect=p.aspect, durations=p.durations,
+            audio_engine=p.audio_engine,
         )
         result_path = await transcode_with_preset(
             intermediate, out, ep, copy_audio=True,
