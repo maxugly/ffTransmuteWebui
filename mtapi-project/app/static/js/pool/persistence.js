@@ -34,6 +34,13 @@ function scheduleSavePoolState() {
 }
 
 function buildPoolStatePayload() {
+  const multipliers = {};
+  for (const entry of state.pool.sequence) {
+    if (entry.path && entry._rifeMultiplier) {
+      multipliers[entry.path] = entry._rifeMultiplier;
+    }
+  }
+
   return {
     version: 2,
     items: state.pool.items.map(i => ({
@@ -282,6 +289,7 @@ async function projectNew() {
   state.pool.targetFps = null;
   state.pool.instantRife = false;
   state.pool.selectedVariantPaths = {};
+  state.pool.audioEngine = 'rubberband';
   if (state.imagePool) {
     state.imagePool.items = [];
     state.imagePool.selectedPath = null;
