@@ -465,7 +465,7 @@
         "file": "qr-illusion-art-spec.md",
         "path": "docs/qr-illusion-art-spec.md",
         "category": "Operation",
-        "status": "Implemented 000.000.5.04",
-        "summary": "QR Art Generator: scannable QR code + ControlNet QR Monster (OpenVINO img2img) + optional IP-Adapter (PyTorch ControlNet+IP-Adapter dual conditioning). Text-only path uses OVStableDiffusionImg2ImgPipeline for iGPU speed; IP-Adapter path enforces 512x512 to keep RAM under 12GB. Scannability validated via pyzbar with green/red badge in UI."
+        "status": "Implemented 000.000.5.05",
+        "summary": "QR & Illusion Art Generator: scannable QR code OR custom pattern image + ControlNet QR Monster (OpenVINO img2img) + optional IP-Adapter (PyTorch ControlNet+IP-Adapter dual conditioning). Text-only path uses OVStableDiffusionImg2ImgPipeline for iGPU speed; IP-Adapter path enforces 512x512 to keep RAM under 12GB. Scannability validated via pyzbar with green/red badge in UI for QR mode."
     }
 ]

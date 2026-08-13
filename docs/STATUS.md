@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-13  \
-> **VERSION:** `000.000.5.04`  \
+> **VERSION:** `000.000.5.05`  \
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -50,7 +50,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Upscale (NCNN)** | Real-ESRGAN / SRMD + tab + bins | `upscale_ops.py`, `filters/upscale.py` · `4.64` |
 | **Cut encode** | Global range dump→encode | `cut_ops.py`, Cut tab · `4.64` |
 | **Job queue (v1)** | FIFO in-memory + Jobs tab + Add to Queue | `job_queue.py`, `op_runner.py` · `4.64` |
-| **QR Art** | QR + ControlNet + IP-Adapter + scannability badge | `qr_ops.py`, `qr_art_ov_worker.py`, `js/tabs/qr.js` · `5.04` |
+| **QR & Illusion Art** | QR/Pattern + ControlNet + IP-Adapter | `qr_illusion_ops.py`, `qr_illusion_worker.py`, `js/tabs/qr_illusion.js` · `5.05` |
 | **Prompt Library** | Save/load ± pairs; img2img / txt2img / recohere | `prompt-library-spec.md` · `js/ui/prompt-library.js` · `4.61` |
 | Job progress core | phase rate/ETA, cancel | `job_control.py` |
 | RIFE dir watch | `frames_out` while binary runs | `filters/rife.py` |
@@ -99,7 +99,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Instant re-render storm fix** | Queue no-op no longer re-renders; variants cache; failed no tight-retry; dual RIFE killed | `sequence.js`, `grid.js` · `4.92` |
 | **Settings tab (blank)** | Workspace · bare chrome (no global/preview/Run); scaffold for perf prefs | `js/tabs/settings.js`, `css/settings.css` · `4.91` |
 
-**Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale, **qr_art** *(in tree — see §4)*. Root `AGENTS.md`.
+**Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale, **qr_illusion** *(in tree — see §4)*. Root `AGENTS.md`.
 
 ---
 
@@ -213,7 +213,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.5.04` (QR Art Generator: scannable QR + ControlNet QR Monster via OpenVINO img2img, optional IP-Adapter with dual conditioning (ControlNet structure + IP-Adapter appearance) via PyTorch pipeline with GPU→CPU fallback. Scannability badge via pyzbar. Text-only path uses OVStableDiffusionImg2ImgPipeline for iGPU speed; IP-Adapter path enforces 512×512 to keep RAM <12GB on 1335U.)。
+- **Current:** `000.000.5.05` (QR & Illusion Art Generator: dual-mode QR generation from text or custom pattern image + ControlNet QR Monster via OpenVINO img2img, optional IP-Adapter with dual conditioning via PyTorch pipeline with GPU→CPU fallback. Scannability badge via pyzbar for QR mode. IP-Adapter path enforces 512×512 to keep RAM <12GB on 1335U.)
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  
