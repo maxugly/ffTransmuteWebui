@@ -792,7 +792,8 @@ function resolveActiveOpAndBody() {
 
 async function runActiveOperation() {
   if (isMainJobBusy()) {
-    alert('A job is already running (or Instant RIFE queue). Hit Stop first, or wait.');
+    logConsole('[JOB]: blocked — already running (or Instant RIFE queue). Hit Stop first, or wait.', 'error');
+    if (elements.statusText) elements.statusText.textContent = 'Busy — stop current job first';
     return;
   }
 
@@ -916,7 +917,6 @@ function displayOpResult(res) {
     elements.statusDot.className = 'status-dot error';
     elements.statusText.textContent = 'Failed';
     logConsole(`[ERROR]: ${res.error || 'Operation failed'}`, 'error');
-    alert(`Operation failed: ${res.error || 'Check console details'}`);
     return;
   }
 

@@ -631,7 +631,8 @@ async function stitchPoolSequence() {
   };
 
   if (isMainJobBusy()) {
-    alert('A job is already running — use Stop first, or wait.');
+    logConsole('[STITCH]: blocked — a job is already running. Use Stop first, or wait.', 'error');
+    if (elements.statusText) elements.statusText.textContent = 'Busy — stop current job first';
     return;
   }
 

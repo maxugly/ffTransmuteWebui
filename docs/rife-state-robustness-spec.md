@@ -1,5 +1,7 @@
 # RIFE State Robustness Spec
 
+> **Status:** Implemented (hydration gate + busy-block alert removal) · `5.02`
+
 ## 1. The Problem
 Currently, the UI frequently "forgets" that clips have been RIFEd and attempts to re-interpolate them on page load. This occurs because of two critical architectural flaws:
 1. **Missing State:** The project save file (`pool_state.json`) saves the *path* to the RIFEd variant, but fails to save the *multiplier* (e.g., `4x`). 
@@ -38,3 +40,9 @@ Never queue a RIFE job if the metadata is still pending.
 2. Ensure the network tab shows `/api/variants` resolving.
 3. Verify that `_maybeAutoRifeAll` does not queue any clips that already meet the target FPS.
 4. Throttle the network in DevTools to "Slow 3G" and refresh the page. The sequence must **not** drop the RIFE badges or queue re-renders while waiting for the slow network requests.
+
+## 4. Implementation notes (5.02)
+- Added `_hydrationComplete` flag in `sequence.js`; `ensureSequenceMetaAndInstantScan` sets it `false` during variant hydration and `true` on exit.
+- `renderSequenceBox` now checks `_hydrationComplete` before auto-kicking Instant RIFE, preventing the race where `loadPoolItemMeta` -> `renderSequenceBox` fires before hydration finishes.
+- Removed busy-block `alert()` popups in `job-control.js` and `pool/persistence.js`; replaced with `logConsole` + status text updates to stop modal spam.
+- `applyPoolData` already persisted `rife_multiplier` (v2 payload). No backend changes required.

@@ -147,6 +147,7 @@ const _instantRifeQueue = []; // { entryId, path, name, multiplier, effFps, targ
 let _instantRifeDraining = false;
 let _instantRifeStop = false;
 let _instantRifeStopHookBound = false;
+let _hydrationComplete = true;
 /** Currently encoding entry id (for status strip). */
 let _instantRifeRunningId = null;
 /**
@@ -455,14 +456,12 @@ async function _hydrateEntryFromVariants(entry) {
       const m = Number(match.detail && match.detail.multiplier);
       entry._rifeMultiplier = Number.isFinite(m) && m >= 2 ? m : Math.max(_bestHaveM(entry), 2);
     } else if (!_bestHaveM(entry)) {
-      // Path remembered in project but not in registry detail — keep file, assume ×2
       entry._rifeMultiplier = 2;
     }
   }
 
   if (best) {
     const have = _bestHaveM(entry);
-    // Adopt densest registry file if we have nothing, or registry is denser
     if (!entry.variantPath || entry.variantPath === entry.path || best.multiplier >= have) {
       entry.variantPath = best.path;
       entry._rifeMultiplier = best.multiplier;
@@ -470,7 +469,6 @@ async function _hydrateEntryFromVariants(entry) {
   }
 
   if (entry.variantPath && entry.variantPath !== entry.path && _bestHaveM(entry) > 0) {
-    // Only mark done if density need is covered (or no stretch need yet)
     const dens = _densityInfoForEntry(entry);
     const needM = dens.needed ? (dens.multiplier || 2) : 0;
     if (!dens.needed || _bestHaveM(entry) >= needM) {
@@ -878,6 +876,7 @@ function _maybeAutoRifeEntry(entry, { quiet = false } = {}) {
  */
 async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
   if (!state.pool.instantRife) return { queued: 0, reason: 'instant off' };
+  _hydrationComplete = false;
   // Instant always implies join densify path
   state.pool.useRife = true;
   const ur = document.getElementById('poolUseRife');
@@ -887,6 +886,7 @@ async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
   if (!seq.length) {
     logConsole('[SEQ RIFE]: Instant on but sequence is empty — add clips first');
     _updateInstantRifeStrip();
+    _hydrationComplete = true;
     return { queued: 0, reason: 'empty sequence' };
   }
 
@@ -898,7 +898,6 @@ async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
     for (const entry of seq) {
       let item = findPoolItem(entry.path);
       if (!item) {
-        // Sequence path not in pool (edge case) — still probe
         item = { path: entry.path, name: entry.name || basename(entry.path), meta: null };
         state.pool.items.push(item);
       }
@@ -912,17 +911,15 @@ async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
       }
     }
 
-    // If RIFE fps empty, keep auto = max native (now that meta exists)
     const target = _resolvedTargetFps();
     if (!target) {
       logConsole('[SEQ RIFE]: still no fps after probe — cannot densify');
       clearClientBusy();
       _updateInstantRifeStrip();
+      _hydrationComplete = true;
       return { queued: 0, reason: 'no fps' };
     }
 
-    // CRITICAL: pull existing densify from media registry BEFORE queueing.
-    // Without this every Instant ON re-encodes clips that already have *_rife.mp4.
     setClientBusy('Instant RIFE: checking existing densify…');
     for (const entry of seq) {
       try {
@@ -957,11 +954,9 @@ async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
     if (queued > 0) {
       _drainInstantRifeQueue();
     } else {
-      // No densify work — release the "probing" busy hold
       clearClientBusy();
       _updateInstantRifeStrip();
       if (need === 0 && seq.length) {
-        // Make the strip explicit so "turn on Instant" is never silent
         const strip = document.getElementById('seqInstantRifeStrip');
         if (strip) {
           strip.className = 'seq-instant-strip is-idle';
@@ -976,10 +971,12 @@ async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
         }
       }
     }
+    _hydrationComplete = true;
     return { queued, need, target };
   } catch (e) {
     logConsole(`[SEQ RIFE]: scan error — ${e.message}`, 'error');
     clearClientBusy();
+    _hydrationComplete = true;
     throw e;
   }
 }
@@ -1474,11 +1471,7 @@ function renderSequenceBox(opts) {
 
   _updateInstantRifeStrip();
   updateSeqTransportUI();
-  // Do NOT auto-kick Instant on every paint — that re-entered forever when
-  // anything was already queued (queue returned true → render → kick → …).
-  // Kick only on real events: Instant ON, Time change, meta load, add clip.
-  if (!opts.skipInstantKick && state.pool.instantRife && state.pool.useRife) {
-    // Soft: only if there are NEED clips that are not pending/running/failed
+  if (!opts.skipInstantKick && _hydrationComplete && state.pool.instantRife && state.pool.useRife) {
     const hasIdleNeed = (state.pool.sequence || []).some((e) => {
       if (e._rifeStatus === 'pending' || e._rifeStatus === 'running'
           || e._rifeStatus === 'failed' || _findQueuedRife(e.id)) {

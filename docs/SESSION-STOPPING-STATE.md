@@ -1,7 +1,7 @@
 # Session stopping state — handoff
 
-> **Date:** 2026-08-11  
-> **VERSION:** `000.000.5.01`  
+> **Date:** 2026-08-13  
+> **VERSION:** `000.000.5.02`  
 > **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
@@ -32,6 +32,7 @@
 | **Live mid-ascent preview** | `/tmp/mtapi_live/{token}.png` + `latest_frame` | **`4.70`–`4.71`** |
 | **UI Polish** | Nav collapse, Image Compare A/B, Input previews | **`4.65`–`4.69`** |
 | Upscale / Cut / Job queue | Earlier `4.64` | ops + Jobs tab |
+| **State tracking / popup spam** | Replaced `alert()` with `logConsole` + status text for busy-blocked Run/Stitch; added debug logging for RIFE hydration/queue scan | `job-control.js`, `pool/persistence.js`, `pool/sequence.js` · **`5.02` in progress** |
 
 Earlier stable: filter platform, dual pools, Convert, neural ops, Prompt Library, Recohere, Agent, OpenVINO stills.
 
@@ -76,7 +77,37 @@ Next strip→video ops: inherit params, import JS helper, call `build_evolve_vid
 
 ---
 
-## 4. Doc map
+## 4. Active investigation — state tracking / Instant RIFE (5.02)
+
+**Problem reported:** On project load, the sequence auto-queues RIFE for clips that already have a rifed variant. Not all clips — only a suffix of the sequence. CPU pegged; multiple encodes running in parallel; popup spam ("Operation failed: A job is already running") blocks UI.
+
+**Root causes identified so far:**
+
+| Symptom | Root cause | Status |
+|---------|-----------|--------|
+| Popup hell | `alert()` in `runActiveOperation()` and `stitchPoolSequence()` blocks UI thread; while user dismisses one, in-flight RIFE POST completes, next op starts, server rejects with "already running", next alert queues | **Fixed in branch** |
+| Already-rifed clips re-encode | `_maybeAutoRifeAll` scans sequence and queues any entry where `_rifeStatus !== 'done'`; `_hydrateEntryFromVariants` is async but `ensureSequenceMetaAndInstantScan` does not await it before scan, so status can be stale `null` when scan runs | **Fix in progress** |
+| CPU pegged / parallel encodes | `_drainInstantRifeQueue` holds `clientBusyLabel` but `runOpWithCancel` with `allowDuringClientBusy: true` still allows the POST through; if one encode hangs or server-side single-flight is loose, multiple can overlap | Needs backend audit |
+
+**Files touched / to touch:**
+
+| File | What |
+|------|------|
+| `mtapi-project/app/static/js/job-control.js` | Replace busy-block `alert()` with `logConsole` + status text |
+| `mtapi-project/app/static/js/pool/persistence.js` | Same for Stitch busy-block |
+| `mtapi-project/app/static/js/pool/sequence.js` | Ensure hydration completes before scan; hard-stop queue if entry already has adequate variant; remove debug `console.log` after verified |
+| `mtapi-project/app/operations/rife_ops.py` | Review single-flight / job token enforcement |
+| `mtapi-project/app/job_queue.py` | Verify FIFO + reject duplicates |
+
+**Next agent should:**
+1. Complete the RIFE re-encode fix in `sequence.js` — make `_maybeAutoRifeAll` and `_drainInstantRifeQueue` respect existing `variantPath` + `_rifeMultiplier` even when `_rifeStatus` is stale.
+2. Verify backend single-flight in `job_queue.py` / `run_staged_job` so only one RIFE runs at a time.
+3. Run Playwright smoke: load project, verify no auto-RIFE on reload unless user changes Time/FPS, verify Stop cancels batch, verify only clips that truly need densify get `Q#` badges.
+4. Bump VERSION to `5.02` once fixed, update STATUS.md, push.
+
+---
+
+## 5. Doc map
 
 | Doc | Role |
 |------|------|

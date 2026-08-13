@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
-> **Updated:** 2026-08-11  \
-> **VERSION:** `000.000.5.01`  \
+> **Updated:** 2026-08-13  \
+> **VERSION:** `000.000.5.02`  \
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -90,6 +90,8 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Sequence token size + layout** | Two-row chips; W/H ± size; min-width stops badge spill | `sequence.js`, `pool.css` · `4.97` |
 | **Match click selects pool card** | Clear filter, uncollapse pool, re-render + scroll on match row/Select | `grid.js` · `4.96` |
 | **Select RIFED sets multiplier** | Variant menu writes `_rifeMultiplier`; badge uses haveM so NEED does not stick after pick | `sequence.js` · `4.95` |
+| **State tracking / popup spam** | Hydration-complete gate prevents Instant RIFE re-queue on project load; busy-block alerts replaced with logConsole | `sequence.js`, `job-control.js`, `pool/persistence.js` · **`5.02`** |
+| **Sequence Audio Engines** | Rubberband DAW flags + 48kHz sample-rate fix + 10ms micro-fade; engine dropdown UI | `sequence-audio-engines-spec.md`, `video_pipeline.py`, `grid.js`, `persistence.js` · **`5.01`** |
 | **Instant reuses existing densify** | Hydrate from /api/variants + persist rife_multiplier; NEED only if M insufficient | `sequence.js`, `persistence.js`, `cache.get_variants` · `4.94` |
 | **Single-flight restore** | Soft-cancel must not abort fetch (orphaned server job); server rejects concurrent /ops/* | `job-control.js`, `job_queue.py`, `main.py` · `4.93` |
 | **Instant re-render storm fix** | Queue no-op no longer re-renders; variants cache; failed no tight-retry; dual RIFE killed | `sequence.js`, `grid.js` · `4.92` |
@@ -209,7 +211,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.5.01` (Sequence Audio Engines: rubberband DAW flags + 48kHz sample-rate fix + 10ms micro-fade; engine dropdown UI). Instant reuses registered densify; no re-RIFE if M covers need.
+- **Current:** `000.000.5.02` (State tracking fix: hydration-complete gate prevents Instant RIFE re-queue on project load; busy-block alerts replaced with logConsole to stop popup spam).
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  
