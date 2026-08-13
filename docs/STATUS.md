@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
-> **Updated:** 2026-08-09  \
-> **VERSION:** `000.000.5.00`  \
+> **Updated:** 2026-08-11  \
+> **VERSION:** `000.000.5.01`  \
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -209,7 +209,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.5.00` (Instant reuses registered densify; no re-RIFE if M covers need).
+- **Current:** `000.000.5.01` (Sequence Audio Engines: rubberband DAW flags + 48kHz sample-rate fix + 10ms micro-fade; engine dropdown UI). Instant reuses registered densify; no re-RIFE if M covers need.
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  

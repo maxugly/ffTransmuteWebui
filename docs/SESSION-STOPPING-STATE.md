@@ -1,17 +1,18 @@
 # Session stopping state — handoff
 
-> **Date:** 2026-08-10  
-> **VERSION:** `000.000.5.00`  
+> **Date:** 2026-08-11  
+> **VERSION:** `000.000.5.01`  
 > **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 5.00)
+## 1. Shipped this stretch (through 5.01)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
+| **Sequence Audio Engines** | Rubberband DAW flags + 48kHz sample-rate fix + 10ms micro-fade on every clip; engine dropdown UI (rubberband live; atempo/pitch/mute placeholders) | `sequence-audio-engines-spec.md`, `video_pipeline.py:770`, `grid.js`, `persistence.js` · **`5.01`** |
 | **Join preset = transcode** | No dump→PNG for DNxHR/ProRes stitch; normal ffmpeg re-encode | `transcode_with_preset`, `_join_with_preset` · **`5.00`** |
 | **Job workspace on disk** | Default `~/.cache/mtapi/jobs` | `job_workspace.py` · **`4.99`** |
 | **Jobs tab live desk** | Read-only live server ops + FIFO + Instant queue + done | `jobs.js` · **`4.98`** |

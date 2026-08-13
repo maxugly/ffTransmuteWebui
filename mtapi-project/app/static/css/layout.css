@@ -343,21 +343,21 @@ body.sidebar-collapsed .status-indicator span {
   display: none;
 }
 body.sidebar-collapsed .brand {
-  padding: 16px 10px;
+  padding: 8px 6px;
   justify-content: center;
 }
 body.sidebar-collapsed .nav-item {
-  padding: 10px;
+  padding: 6px;
   justify-content: center;
   gap: 0;
   font-size: 0;
 }
 body.sidebar-collapsed .nav-menu {
-  padding: 12px 6px;
-  gap: 4px;
+  padding: 6px 4px;
+  gap: 2px;
 }
 body.sidebar-collapsed .status-indicator {
-  padding: 12px 8px;
+  padding: 6px 4px;
   justify-content: center;
 }
 
@@ -447,57 +447,57 @@ aside {
 }
 
 .brand {
-  padding: 24px;
+  padding: 10px;
   border-bottom: 1px solid var(--panel-border);
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .brand svg {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   color: var(--primary);
   filter: drop-shadow(0 0 8px var(--primary-glow));
 }
 
 .brand h1 {
-  font-size: 1.15rem;
-  font-weight: 700;
-  letter-spacing: 0.5px;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
   background: linear-gradient(135deg, #fff 0%, var(--text-muted) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 
 .nav-menu {
-  padding: 16px 12px;
+  padding: 6px 4px;
   flex: 1;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
 }
 
 .nav-header {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   text-transform: uppercase;
   color: var(--text-muted);
-  letter-spacing: 1.5px;
-  padding: 8px 12px;
-  margin-top: 12px;
+  letter-spacing: 0.5px;
+  padding: 4px 6px;
+  margin-top: 4px;
   cursor: pointer;
   user-select: none;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 .nav-header:hover {
   color: var(--text-main);
 }
 .nav-chevron {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   flex-shrink: 0;
   pointer-events: none;
   transition: transform 0.15s ease;
@@ -515,19 +515,19 @@ aside {
 .nav-section-items {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
+  gap: 8px;
+  padding: 4px 8px;
   border-radius: var(--radius-md);
   color: var(--text-muted);
   text-decoration: none;
-  font-size: 0.9rem;
-  font-weight: 500;
+  font-size: 0.8rem;
+  font-weight: 400;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   border: 1px solid transparent;
@@ -546,8 +546,8 @@ aside {
 }
 
 .nav-item svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   transition: transform 0.2s ease;
 }
 
@@ -561,12 +561,12 @@ aside {
 }
 
 .status-indicator {
-  padding: 16px;
+  padding: 8px;
   border-top: 1px solid var(--panel-border);
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
 }
 
 .status-dot {
@@ -607,37 +607,71 @@ main {
 
 /* Header */
 header {
-  padding: 16px 28px;
+  padding: 12px 20px;
   border-bottom: 1px solid var(--panel-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
   background: rgba(10, 15, 26, 0.2);
   position: relative;
+  gap: 16px;
+}
+
+header h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  flex-shrink: 0;
 }
 
 .global-probe-overlay {
   position: absolute;
-  left: 28px;
+  left: 20px;
   background: var(--bg-panel);
   padding: 6px 12px;
   border-radius: 6px;
   font-family: var(--font-mono);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: var(--text-normal);
   border: 1px solid var(--accent);
   box-shadow: 0 4px 12px rgba(0,0,0,0.5);
   z-index: 10;
 }
 
-header h2 {
-  font-size: 1.25rem;
-  font-weight: 600;
+.global-quick-btns {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+}
+
+.btn-quick {
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--panel-border);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.btn-quick:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.btn-quick.active {
+  background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(59, 130, 246, 0.3);
+  color: var(--primary);
 }
 
 .header-actions {
   display: flex;
-  gap: 12px;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 /* ── Global shared path input bar ───────────────────────────────────────── */
@@ -645,6 +679,10 @@ header h2 {
 .global-inputs-panel {
   border-bottom: 1px solid var(--panel-border);
   background: rgba(10, 15, 26, 0.35);
+}
+
+.global-inputs-panel:not(.populated) {
+  display: none;
 }
 
 .global-toggle {

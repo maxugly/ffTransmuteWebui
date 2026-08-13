@@ -413,6 +413,13 @@
         "summary": "Long tool docs at bottom of panel (.tool-docs). Image Sort pilot done."
     },
     {
+        "file": "sequence-audio-engines-spec.md",
+        "path": "docs/sequence-audio-engines-spec.md",
+        "category": "Operation",
+        "status": "Implemented 000.000.5.01",
+        "summary": "Audio engine dropdown in Sequence tab. Rubberband default with DAW quality flags (transients/formants/pitchq), 48kHz sample-rate normalization (aresample=48000) to prevent chipmunking, and 10ms micro-fade on every clip fragment. atempo/pitch/mute are placeholder stubs raising NotImplementedError."
+    },
+    {
         "file": "video-image-pools-spec.md",
         "path": "docs/video-image-pools-spec.md",
         "category": "Core Architecture / WebUI",

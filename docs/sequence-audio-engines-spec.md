@@ -34,8 +34,15 @@ The Sequence UI will feature a new dropdown (e.g. `id="poolAudioEngine"`) in the
 ### B. Backend (`mtapi-project/app/video_pipeline.py`)
 - Update `concat_clips` signature to accept `audio_engine: str = "rubberband"`.
 - Pass `audio_engine` down to `_join_audio_fragment(..., audio_engine)`.
-- Inside `_join_audio_fragment`, add an `if/elif` block:
-  - `if audio_engine == "rubberband": return f"{base},rubberband=tempo={aspeed:.10f}[a{i}]"`
+- Inside `_join_audio_fragment`, fix the baseline audio format to explicitly include sample rate to prevent "random speed" chipmunking in `concat`:
+  - Change `aformat=...` to `aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo`
+  - Update `anullsrc` to explicitly match: `anullsrc=r=48000:cl=stereo`
+- **Fix Zero-Crossing Pops:** Add a 10ms micro-fade to every clip's audio fragment to prevent clicking/popping at the hard cut boundaries.
+  - Calculate `new_dur = dur * factor`
+  - Append `,afade=t=in:st=0:d=0.01,afade=t=out:st={new_dur - 0.01}:d=0.01` to the fragment string.
+- Inside `_join_audio_fragment`, add an `if/elif` block for the engine:
+  - `if audio_engine == "rubberband":`
+    - Use high-quality DAW-like flags: `return f"{base},rubberband=tempo={aspeed:.10f}:transients=crisp:formants=preserve:pitchq=quality[a{i}]"`
   - *For the placeholders, raise a `NotImplementedError` so backend calls explicitly fail if a placeholder engine is requested.*
 
 ### C. Frontend UI (`mtapi-project/app/static/js/`)
@@ -52,8 +59,9 @@ The Sequence UI will feature a new dropdown (e.g. `id="poolAudioEngine"`) in the
   - Add `state.pool.audioEngine = data.audio_engine || 'rubberband';` to `applyPoolData()`.
 
 ## 🚨 4. System Invariants & Pitfalls
-- **Default Integrity:** The default behavior MUST remain exactly as it is today (which uses rubberband under the hood).
+- **Default Integrity:** The default behavior MUST remain exactly as it is today (which uses rubberband under the hood), but with the new high-quality flags and anti-pop fades.
 - **Backend Error Handling:** The backend must throw a `NotImplementedError` if a placeholder engine is submitted, rather than silently falling back. This prevents obscuring unimplemented features if triggered outside the UI.
+- **Sample Rate Mismatches:** The `concat` filter is brutally unforgiving and expects decoded PCM audio with identical properties. Since the input bitrate or format (mp3 vs wav) doesn't matter (ffmpeg decodes it all to PCM `fltp`), what *does* matter is the sample rate. If one clip is 44.1kHz and another is 48kHz, `concat` plays the 44.1kHz clip at 48kHz (chipmunk speed). The `aresample=48000` node is strictly required before `concat`.
 
 ## 🧪 5. Verification (For the Builder)
 1. **UI Load:** Open the UI, check the Sequence tab, and verify the dropdown is present, showing Rubberband as default and the others as disabled placeholders.

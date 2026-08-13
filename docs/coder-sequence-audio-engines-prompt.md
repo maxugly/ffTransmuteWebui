@@ -24,7 +24,14 @@ File: `mtapi-project/app/operations/transmute_ops.py`
 File: `mtapi-project/app/video_pipeline.py`
 - Update the `concat_clips` signature to accept `audio_engine: str = "rubberband"`.
 - Pass this argument into `_join_audio_fragment(...)`.
-- Inside `_join_audio_fragment`, add a branch to handle `audio_engine == "rubberband"`. The existing logic already returns the correct `rubberband=tempo={aspeed}` string. For the placeholders, raise a `NotImplementedError` so that backend users explicitly know it's not implemented yet.
+- Inside `_join_audio_fragment`:
+  1. **Sample Rate Fix:** Change `aformat=sample_fmts=fltp...` to explicitly inject `aresample=48000` right before it, e.g. `aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo`. Update the `anullsrc` fallback to generate 48k as well (`r=48000`).
+  2. **Engine Branching:** Add an `if/elif` block to handle `audio_engine == "rubberband"`. For the placeholders, raise a `NotImplementedError` so that backend users explicitly know it's not implemented yet.
+  3. **DAW-like Quality & Anti-Pop Fades:** For the rubberband branch, use high-quality flags and append a 10ms crossfade to prevent zero-crossing pops at stitch boundaries:
+     ```python
+     new_dur = dur * factor
+     return f"{base},rubberband=tempo={aspeed:.10f}:transients=crisp:formants=preserve:pitchq=quality,afade=t=in:st=0:d=0.01,afade=t=out:st={new_dur - 0.01}:d=0.01[a{i}]"
+     ```
 
 ### 3. Update Frontend UI & State
 Files: `mtapi-project/app/static/js/app.js`, `mtapi-project/app/static/js/pool/grid.js`, `mtapi-project/app/static/js/pool/persistence.js`

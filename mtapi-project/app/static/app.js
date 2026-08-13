@@ -366,6 +366,22 @@ function updateGlobalInputs() {
   if (pathInRow) pathInRow.style.display = (hasVideo || hasImage) ? 'none' : '';
 
   try { refreshInputPreview(); } catch (_) { /* ignore */ }
+  syncGlobalPanelVisibility();
+}
+
+function syncGlobalPanelVisibility() {
+  var panel = document.getElementById('globalInputsPanel');
+  if (!panel) return;
+  var hasAny = !!(window.globalInputs.video.trim() || window.globalInputs.image.trim() ||
+                   window.globalInputs.pathIn.trim() || window.globalInputs.pathOut.trim());
+  panel.classList.toggle('populated', hasAny);
+  // Update quick button active states
+  var map = { btnQuickVIn: 'video', btnQuickVOut: 'pathOut', btnQuickIIn: 'image', btnQuickIOut: 'pathIn' };
+  Object.keys(map).forEach(function(id) {
+    var btn = document.getElementById(id);
+    var key = map[id];
+    if (btn) btn.classList.toggle('active', !!window.globalInputs[key].trim());
+  });
 }
 
 function _syncTabInputFromGlobal() {
@@ -507,6 +523,7 @@ async function init() {
   await checkHealth();
   await fetchOperations();
   await restorePoolState();
+  syncGlobalPanelVisibility();
   switchTab('mosh');
   // Fit empty viewer once layout settles
   requestAnimationFrame(() => fitPreviewViewer());
@@ -588,6 +605,31 @@ function setupEventListeners() {
   if (btnGiPathOutBrowse) {
     btnGiPathOutBrowse.addEventListener('click', function() {
       window.openFileBrowser('giPathOut', true, 'dir', 'all');
+    });
+  }
+  // Quick header buttons
+  var btnQuickVIn = document.getElementById('btnQuickVIn');
+  if (btnQuickVIn) {
+    btnQuickVIn.addEventListener('click', function() {
+      window.openFileBrowser('giVideo', false, 'files', 'video');
+    });
+  }
+  var btnQuickVOut = document.getElementById('btnQuickVOut');
+  if (btnQuickVOut) {
+    btnQuickVOut.addEventListener('click', function() {
+      window.openFileBrowser('giPathOut', true, 'dir', 'all');
+    });
+  }
+  var btnQuickIIn = document.getElementById('btnQuickIIn');
+  if (btnQuickIIn) {
+    btnQuickIIn.addEventListener('click', function() {
+      window.openFileBrowser('giImage', false, 'files', 'image');
+    });
+  }
+  var btnQuickIOut = document.getElementById('btnQuickIOut');
+  if (btnQuickIOut) {
+    btnQuickIOut.addEventListener('click', function() {
+      window.openFileBrowser('giPathIn', true, 'dir', 'all');
     });
   }
   // Chevron toggle

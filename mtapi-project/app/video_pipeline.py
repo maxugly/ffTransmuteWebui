@@ -769,18 +769,24 @@ def _join_vf_fragment(mode: str, i: int, W: int, H: int, factor: float) -> str:
 
 def _join_audio_fragment(i: int, has_audio: bool, factor: float, dur: float, *, audio_engine: str = "rubberband") -> str:
     """Per-clip audio fragment: real audio (with rubberband tempo on stretch) or
-    generated silence matching the source clip duration, normalized to stereo."""
+    generated silence matching the source clip duration, normalized to 48 kHz
+    fltp stereo. A 10 ms micro-fade is applied to every fragment to prevent
+    zero-crossing pops at stitch boundaries."""
     base: str
     if has_audio:
-        base = f"[{i}:a]aformat=sample_fmts=fltp:channel_layouts=stereo"
+        base = f"[{i}:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo"
     else:
-        base = (f"anullsrc=r=44100:cl=stereo,atrim=duration={dur:.6f},"
-                f"aformat=sample_fmts=fltp:channel_layouts=stereo")
+        base = (f"anullsrc=r=48000:cl=stereo,atrim=duration={dur:.6f},"
+                f"aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo")
+    # 10 ms micro-fade on every clip to kill zero-crossing pops at boundaries.
+    new_dur = dur * factor
+    fade_out_st = max(0.0, new_dur - 0.01)
+    afade = f"afade=t=in:st=0:d=0.01,afade=t=out:st={fade_out_st:.6f}:d=0.01"
     if factor in (0, 1):
-        return f"{base}[a{i}]"
+        return f"{base},{afade}[a{i}]"
     aspeed = 1.0 / factor
     if audio_engine == "rubberband":
-        return f"{base},rubberband=tempo={aspeed:.10f}[a{i}]"
+        return f"{base},rubberband=tempo={aspeed:.10f}:transients=crisp:formant=preserved:pitchq=quality,{afade}[a{i}]"
     if audio_engine == "atempo":
         raise NotImplementedError("atempo audio engine is not yet wired for sequence join")
     if audio_engine == "pitch":
