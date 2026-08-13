@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-13  \
-> **VERSION:** `000.000.5.02`  \
+> **VERSION:** `000.000.5.03`  \
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -211,7 +211,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.5.02` (State tracking fix: hydration-complete gate prevents Instant RIFE re-queue on project load; busy-block alerts replaced with logConsole to stop popup spam).
+- **Current:** `000.000.5.03` (Removed post-load auto-RIFE scan; project load no longer triggers Instant densify. Backend now restores saved variant_path + rife_multiplier. Already-rifed clips are never re-encoded automatically. Popup spam replaced with logConsole + status text).
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  

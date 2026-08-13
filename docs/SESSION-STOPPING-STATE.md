@@ -1,7 +1,7 @@
 # Session stopping state — handoff
 
 > **Date:** 2026-08-13  
-> **VERSION:** `000.000.5.02`  
+> **VERSION:** `000.000.5.03`  
 > **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
@@ -32,7 +32,7 @@
 | **Live mid-ascent preview** | `/tmp/mtapi_live/{token}.png` + `latest_frame` | **`4.70`–`4.71`** |
 | **UI Polish** | Nav collapse, Image Compare A/B, Input previews | **`4.65`–`4.69`** |
 | Upscale / Cut / Job queue | Earlier `4.64` | ops + Jobs tab |
-| **State tracking / popup spam** | Replaced `alert()` with `logConsole` + status text for busy-blocked Run/Stitch; added debug logging for RIFE hydration/queue scan | `job-control.js`, `pool/persistence.js`, `pool/sequence.js` · **`5.02` in progress** |
+| **State tracking / popup spam** | Removed post-load auto-RIFE scan; project load no longer triggers Instant densify; backend restores variant_path + rife_multiplier; already-rifed clips never re-encoded; alert() replaced with logConsole | `pool.py`, `persistence.js`, `items.js`, `sequence.js`, `job-control.js` · **`5.03`** |
 
 Earlier stable: filter platform, dual pools, Convert, neural ops, Prompt Library, Recohere, Agent, OpenVINO stills.
 
