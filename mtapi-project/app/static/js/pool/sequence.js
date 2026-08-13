@@ -120,16 +120,12 @@ function _rifeInfoForEntry(entry) {
   const dens = _densityInfoForEntry(entry);
   if (!dens.needed) return dens;
   const haveM = _bestHaveM(entry);
-  const needM = dens.multiplier || 2;
-  // Known densify strength covers need (registry hydrate, menu pick, or prior encode)
-  if (haveM >= needM) {
-    const where = (entry.variantPath && entry.variantPath !== entry.path)
-      ? basename(entry.variantPath)
-      : 'on disk / registry';
+  if (haveM > 0 && entry.variantPath && entry.variantPath !== entry.path) {
+    const where = basename(entry.variantPath);
     return {
       ...dens,
       needed: false,
-      reason: `already densified ×${haveM} (≥ need ×${needM}): ${where}`,
+      reason: `already densified ×${haveM} — not re-encoding automatically`,
       haveM,
     };
   }
@@ -468,6 +464,7 @@ async function _hydrateEntryFromVariants(entry) {
     }
   }
 
+  // If we have a densified variant that covers the current need, mark done immediately
   if (entry.variantPath && entry.variantPath !== entry.path && _bestHaveM(entry) > 0) {
     const dens = _densityInfoForEntry(entry);
     const needM = dens.needed ? (dens.multiplier || 2) : 0;
@@ -853,11 +850,15 @@ function _maybeAutoRifeEntry(entry, { quiet = false } = {}) {
   if (!state.pool.instantRife) return;
   if (!state.pool.useRife) return;
 
+  // If we already have a densified variant on record, never clear its status
+  if (entry.variantPath && entry.variantPath !== entry.path && _bestHaveM(entry) > 0) {
+    entry._rifeStatus = 'done';
+    return;
+  }
+
   const info = _rifeInfoForEntry(entry);
   if (!info?.needed) {
-    if (entry._rifeStatus === 'done' && entry.variantPath) {
-      // keep
-    } else if (entry._rifeStatus !== 'running' && entry._rifeStatus !== 'pending'
+    if (entry._rifeStatus !== 'running' && entry._rifeStatus !== 'pending'
         && entry._rifeStatus !== 'failed') {
       entry._rifeStatus = null;
     }
@@ -1475,6 +1476,9 @@ function renderSequenceBox(opts) {
     const hasIdleNeed = (state.pool.sequence || []).some((e) => {
       if (e._rifeStatus === 'pending' || e._rifeStatus === 'running'
           || e._rifeStatus === 'failed' || _findQueuedRife(e.id)) {
+        return false;
+      }
+      if (e._rifeStatus === 'done' && e.variantPath && e.variantPath !== e.path && _bestHaveM(e) > 0) {
         return false;
       }
       const d = _densityInfoForEntry(e);

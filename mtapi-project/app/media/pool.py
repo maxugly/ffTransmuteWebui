@@ -114,13 +114,23 @@ def load_pool_state() -> dict[str, Any]:
             "path": str(path.resolve()),
             "name": name or path.name,
         }
-        if isinstance(it, dict) and it.get("target_duration") is not None:
-            try:
-                td = float(it["target_duration"])
-                if td > 0:
-                    entry["target_duration"] = td
-            except (TypeError, ValueError):
-                pass
+        if isinstance(it, dict):
+            if it.get("target_duration") is not None:
+                try:
+                    td = float(it["target_duration"])
+                    if td > 0:
+                        entry["target_duration"] = td
+                except (TypeError, ValueError):
+                    pass
+            if it.get("variant_path"):
+                entry["variant_path"] = it["variant_path"]
+            if it.get("rife_multiplier"):
+                try:
+                    m = int(it["rife_multiplier"])
+                    if m >= 2:
+                        entry["rife_multiplier"] = m
+                except (TypeError, ValueError):
+                    pass
         sequence_out.append(entry)
 
     selected = raw.get("selected_path")

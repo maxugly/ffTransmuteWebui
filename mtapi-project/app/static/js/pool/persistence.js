@@ -238,16 +238,9 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
   state.pool.items.forEach((item, idx) => {
     loadPoolItemMeta(item, idx);
   });
-  // Re-scan after probes settle (meta is async)
-  setTimeout(() => {
-    try {
-      if (state.pool.instantRife && state.pool.useRife) {
-        _maybeAutoRifeAll({ quiet: true });
-      }
-    } catch (e) {
-      console.error('[SEQ RIFE] post-load scan failed', e);
-    }
-  }, 1500);
+  // NOTE: removed post-load auto-RIFE scan. Instant densify now only runs on
+  // explicit user action: changing Time, target FPS, or toggling Instant ON.
+  // This prevents project-load from re-encoding already-rifed clips.
   // Image thumbs/meta (lazy; image-pool module loads deeper meta when tab opens)
   state.imagePool.items.forEach((item) => {
     if (!item.hash) {
@@ -582,7 +575,8 @@ function ensureVideoOutputPath(path) {
 async function stitchPoolSequence() {
   const paths = state.pool.sequence.map(s => s.path);
   if (paths.length < 2) {
-    alert('Need at least 2 clips in the sequence to stitch.');
+    logConsole('[STITCH]: Need at least 2 clips in the sequence to stitch.', 'error');
+    if (elements.statusText) elements.statusText.textContent = 'Need ≥2 clips';
     return;
   }
 
@@ -591,7 +585,8 @@ async function stitchPoolSequence() {
   if (aspect === 'custom') {
     aspect = (document.getElementById('poolAspectCustom')?.value || state.pool.aspectCustom || '').trim();
     if (!aspect || !/^(\d+:\d+|\d+x\d+)$/i.test(aspect)) {
-      alert('Custom AR needs W:H (e.g. 5:4) or WxH (e.g. 1080x1920).');
+      logConsole('[STITCH]: Custom AR needs W:H (e.g. 5:4) or WxH (e.g. 1080x1920).', 'error');
+      if (elements.statusText) elements.statusText.textContent = 'Bad custom AR';
       return;
     }
   }
@@ -666,7 +661,6 @@ async function stitchPoolSequence() {
     elements.statusDot.className = 'status-dot error';
     elements.statusText.textContent = 'Stitch failed';
     logConsole(`[STITCH FAILED]: ${err.message}`, 'error');
-    alert(`Stitch failed: ${err.message}`);
   } finally {
     if (btn) {
       btn.disabled = state.pool.sequence.length < 2;
