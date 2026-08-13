@@ -140,12 +140,12 @@ def morph_image_list(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     frames_per_segment = max(2, int(float(duration) * int(fps)))
+    import tempfile as _tf
     own_frame_dir = False
     if frames_out is not None:
         frame_dir = frames_out
         frame_dir.mkdir(parents=True, exist_ok=True)
     else:
-        import tempfile as _tf
         frame_dir = Path(_tf.mkdtemp(prefix="mtapi_facemorph_"))
         own_frame_dir = True
     pairs_total = len(image_files) - 1
