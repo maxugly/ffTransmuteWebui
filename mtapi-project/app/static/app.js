@@ -30,6 +30,7 @@ import { renderStyleTransferForm, collectStyleTransferBody } from '/js/tabs/styl
 import { renderRifeForm, collectRifeBody } from '/js/tabs/rife.js';
 import { renderImg2ImgForm, collectImg2ImgBody } from '/js/tabs/img2img.js';
 import { renderTxt2ImgForm, collectTxt2ImgBody } from '/js/tabs/txt2img.js';
+import { renderQrArtForm, collectQrBody, showQrScannability } from '/js/tabs/qr.js';
 import { renderAgentForm, applyPendingToImg2Img, applyPendingToTxt2Img } from '/js/tabs/agent.js';
 import { renderUpscaleForm, collectUpscaleBody } from '/js/tabs/upscale.js';
 import { renderRifeRecohereForm, collectRifeRecohereBody } from '/js/tabs/riferecohere.js';
@@ -294,6 +295,7 @@ const TAB_ACCEPTS = {
   rife:        'video',
   img2img:     'any',
   txt2img:     'none',
+  qr_art:      'none',
   agent:       'none',
   upscale:     'any',
   riferecohere:'image',
@@ -716,6 +718,7 @@ function switchTab(tab) {
   if (tab === 'rife') title = 'RIFE · AI Frame Interpolation';
   if (tab === 'img2img') title = 'Img2Img · OpenVINO GPU';
   if (tab === 'txt2img') title = 'Txt2Img · OpenVINO GPU';
+  if (tab === 'qr_art') title = 'QR Art · Img2Img';
   if (tab === 'agent') title = 'Agent · Vision chat';
   if (tab === 'upscale') title = 'Upscale · NCNN Vulkan';
   if (tab === 'riferecohere') title = 'RIFE Recoherence';
@@ -813,6 +816,8 @@ function renderTabForm(tab) {
   } else if (tab === 'txt2img') {
     renderTxt2ImgForm();
     try { applyPendingToTxt2Img(); } catch (_) { /* ignore */ }
+  } else if (tab === 'qr_art') {
+    renderQrArtForm();
   } else if (tab === 'agent') {
     renderAgentForm();
   } else if (tab === 'upscale') {
@@ -1078,6 +1083,7 @@ export {
   collectWithoutBgBody, collectStyleTransferBody,   collectRifeBody,
   collectImg2ImgBody,
   collectTxt2ImgBody,
+  collectQrBody,
   collectRifeRecohereBody,
   collectSpeedChangeBody,
   collectUpscaleBody,
@@ -1085,6 +1091,7 @@ export {
   renderWithoutBgForm, renderStyleTransferForm, renderRifeForm,
   renderImg2ImgForm,
   renderTxt2ImgForm,
+  renderQrArtForm,
   renderRifeRecohereForm,
   renderSpeedChangeForm,
   renderUpscaleForm,
@@ -1095,4 +1102,5 @@ export {
   sendPoolPathTo, applyPoolAsInput, formatBytes,
   ensureTileInfo, defaultTileInfo,
   setPoolZoom, applyPoolZoom, setupTileInfoMenu, showPoolContextMenu,
+  showQrScannability,
 };

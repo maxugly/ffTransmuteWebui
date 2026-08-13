@@ -100,6 +100,7 @@ Stage kinds:
 | upscale (NCNN) | `upscale_ops.py` + `filters/upscale.py` | directory | ✅ Real-ESRGAN / SRMD + re-grain; WebUI tab (`4.64`) |
 | cut (trim) | `cut_ops.py` | bookends dump→encode | ✅ global frame range → .mp4 (`4.64`) |
 | job queue | `job_queue.py` + `op_runner.py` | — | ✅ FIFO serial; Jobs tab; Add to Queue (`4.64`) |
+| QR Art | `qr_ops.py` + `qr_art_ov_worker.py` | — (worker) | ✅ QR + ControlNet + IP-Adapter + scannability badge (`5.04`) |
 
 **RIFE density:** multiplier **2–128** on Image Sort / RIFE / Speed / ramp (API + knobs). Image **list length is uncapped** (min 2). High M on large K is intentional power-user territory (2-still long morphs).
 

@@ -1629,3 +1629,38 @@ input.daw-knob-value-input:focus {
   font-weight: 500;
 }
 .jobs-fail-note { color: #fca5a5; margin: 0.25rem 0; }
+
+.qr-scannability {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--panel-border);
+}
+.qr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.qr-badge.scannable {
+  background: rgba(74, 222, 128, 0.15);
+  color: #4ade80;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+}
+.qr-badge.fail {
+  background: rgba(248, 113, 113, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.3);
+}
+.qr-decoded {
+  font-size: 0.7rem;
+  color: var(--text-muted, #94a3b8);
+  word-break: break-all;
+}

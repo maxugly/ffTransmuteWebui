@@ -1,14 +1,14 @@
 # Session stopping state — handoff
 
 > **Date:** 2026-08-13  
-> **VERSION:** `000.000.5.03`  
+> **VERSION:** `000.000.5.04`  
 > **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 5.01)
+## 1. Shipped this stretch (through 5.04)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
@@ -32,6 +32,7 @@
 | **Live mid-ascent preview** | `/tmp/mtapi_live/{token}.png` + `latest_frame` | **`4.70`–`4.71`** |
 | **UI Polish** | Nav collapse, Image Compare A/B, Input previews | **`4.65`–`4.69`** |
 | Upscale / Cut / Job queue | Earlier `4.64` | ops + Jobs tab |
+| **QR Art Generator** | Scannable QR + ControlNet QR Monster (OpenVINO img2img) + optional IP-Adapter (PyTorch pipeline with GPU→CPU fallback). Scannability badge via pyzbar. | `qr_ops.py`, `qr_art_ov_worker.py`, `js/tabs/qr.js` · **`5.04`** |
 | **State tracking / popup spam** | Removed post-load auto-RIFE scan; project load no longer triggers Instant densify; backend restores variant_path + rife_multiplier; already-rifed clips never re-encoded; alert() replaced with logConsole | `pool.py`, `persistence.js`, `items.js`, `sequence.js`, `job-control.js` · **`5.03`** |
 
 Earlier stable: filter platform, dual pools, Convert, neural ops, Prompt Library, Recohere, Agent, OpenVINO stills.

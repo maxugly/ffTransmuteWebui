@@ -454,11 +454,18 @@
         "status": "Implemented",
         "summary": "FastSAM OpenVINO asset extraction filter. Polygon-contour mask extraction with target/everything modes and no-mask fallback."
     },
-    {
+     {
         "file": "zoompan-spec.md",
         "path": "docs/zoompan-spec.md",
         "category": "Operation",
         "status": "Proposed",
         "summary": "Create a video from a single fixed image by panning and zooming between two defined viewports (Start Frame and Last Frame)."
+    },
+    {
+        "file": "qr-illusion-art-spec.md",
+        "path": "docs/qr-illusion-art-spec.md",
+        "category": "Operation",
+        "status": "Implemented 000.000.5.04",
+        "summary": "QR Art Generator: scannable QR code + ControlNet QR Monster (OpenVINO img2img) + optional IP-Adapter (PyTorch ControlNet+IP-Adapter dual conditioning). Text-only path uses OVStableDiffusionImg2ImgPipeline for iGPU speed; IP-Adapter path enforces 512x512 to keep RAM under 12GB. Scannability validated via pyzbar with green/red badge in UI."
     }
 ]

@@ -4,6 +4,7 @@ import {
   renderTabForm, bestInput, allInputPaths, bestOutput,
   probeGlobalVideo, updateGlobalInputs, updateStatusIndicators,
   showPreview,
+  showQrScannability,
 } from '/app.js';
 import { basename, escapeHtml } from '/js/utils.js';
 import { setPreviewAspect } from '/js/preview.js';
@@ -24,6 +25,7 @@ import { collectFastSAMBody } from '/js/tabs/fastsam.js';
 import { collectImageEditBody } from '/js/tabs/imageedit.js';
 import { activeTransmuteOp, transmuteOpsDetails, activeMultiMode } from '/js/tabs/transmute.js';
 import { collectDeepDreamBody } from '/js/tabs/deepdream.js';
+import { collectQrBody } from '/js/tabs/qr.js';
 // ── Job run / cooperative stop ────────────────────────────────────────────
 // Stop is cooperative: we abort the fetch + POST /api/cancel so DeepDream
 // loops exit soon. ffmpeg/transmute mid-process may still finish the current
@@ -475,6 +477,9 @@ async function runOpWithCancel(opId, body, { label = 'Processing…', allowDurin
       return data;
     }
     displayOpResult(data);
+    if (typeof showQrScannability === 'function' && data.meta) {
+      showQrScannability(data.meta);
+    }
     return data;
   } catch (err) {
     if (err.name === 'AbortError' || activeJob.stopping) {
@@ -720,6 +725,11 @@ function resolveActiveOpAndBody() {
     if (!bb) { error = "Please provide valid input for Txt2Img."; return { opId: '', body: null, error }; }
     opId = 'txt2img';
     body = bb;
+  } else if (tab === 'qr_art') {
+    const bb = collectQrBody();
+    if (!bb) { error = "Please provide valid input for QR Art."; return { opId: '', body: null, error }; }
+    opId = 'qr_art';
+    body = bb;
   } else if (tab === 'agent') {
     error = 'Use the Send button on the Agent tab (not Run).';
     return { opId: '', body: null, error };
@@ -818,7 +828,7 @@ async function runActiveOperation() {
 
   const selfBatchTabs = new Set(['multi', 'facemorph', 'withoutbg', 'styletransfer',
     'pool', 'sequence', 'images', 'cut', 'zoompan', 'notes', 'quick', 'watcher',
-    'imagesort', 'txt2img', 'img2img', 'agent', 'jobs']);
+    'imagesort', 'txt2img', 'img2img', 'agent', 'jobs', 'qr_art']);
 
   let initialPaths = [];
   if (batchField && !selfBatchTabs.has(tab)) {

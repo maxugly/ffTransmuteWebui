@@ -29,4 +29,5 @@ from . import (  # noqa: F401
     cut_ops,
     fastsam_ops,
     imageedit_ops,
+    qr_ops,
 )

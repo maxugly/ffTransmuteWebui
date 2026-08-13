@@ -32,6 +32,7 @@ class OperationResult(BaseModel):
     error: str | None = Field(None, description="Set when ok is False — short, human-readable failure reason")
     ordered_paths: list[str] | None = Field(None, description="Re-ordered path list (imagesort_rank)")
     items: list[dict] | None = Field(None, description="Scored items with path/score/role (imagesort_rank)")
+    meta: dict | None = Field(None, description="Optional structured metadata (e.g. scannability, extras)")
 
 
 @dataclass

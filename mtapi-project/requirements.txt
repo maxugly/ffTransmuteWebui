@@ -18,3 +18,8 @@ withoutbg>=1.0.6
 tensorflow-hub>=0.16
 openvino
 ultralytics
+# QR Art Generator
+qrcode[pil]>=8.0
+pyzbar>=0.1.9
+optimum[openvino]>=1.20.0
+diffusers>=0.27.0
