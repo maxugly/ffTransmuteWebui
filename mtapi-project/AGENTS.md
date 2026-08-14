@@ -1,6 +1,6 @@
 # AGENTS.md — mtapi-project Backend & Web Server Agent Directives
 
-> **Scope**: Subdirectory `/home/m/snc/cod/ffTransmuteWebui/mtapi-project`  
+> **Scope**: Subdirectory `<workspace-root>/mtapi-project`  
 > **Audience**: Autonomous AI Agents working on the FastAPI app, dependencies, and execution entrypoints.  
 > **Where we are:** repo `docs/STATUS.md` (canonical) · `docs/SESSION-STOPPING-STATE.md` · `docs/README.md` · root `AGENTS.md`
 

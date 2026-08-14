@@ -1,6 +1,6 @@
 # AGENTS.md — Root Workspace Agent Directives
 
-> **Scope**: Root directory `/home/m/snc/cod/ffTransmuteWebui`  
+> **Scope**: Root directory `<workspace-root>`  
 > **Audience**: Autonomous AI Agents, Code Assistants, and Developer Tooling  
 > **Where we are:** read **`docs/STATUS.md` first** (shipped vs partial vs spec-only). Handoff narrative: `docs/SESSION-STOPPING-STATE.md`. Doc index: `docs/README.md`.
 
@@ -19,7 +19,7 @@ Agents operating at this level are responsible for top-level repository integrit
 ## 🏗️ 2. Architectural Map & Component Roles
 
 ```
-/home/m/snc/cod/ffTransmuteWebui/
+<workspace-root>/
 ├── transmute                    # Pure Bash CLI script (wraps ffmpeg for pixel-exact geometry ops)
 ├── datamosh.sh                  # Pure Bash CLI script (wraps ffgac/ffedit/ffmpeg for datamoshing)
 ├── melt.js / no_keyframe.js     # ffglitch ECMAScript modules for vector & frame destruction

@@ -127,7 +127,7 @@ Code: `mtapi-project/app/evolve_video.py` (shared).
 ## 5. Uncommitted risk
 
 ```bash
-cd /home/m/snc/cod/ffTransmuteWebui
+cd <workspace-root>
 git status
 git diff --stat
 cat VERSION   # expect 000.000.4.74

@@ -1,7 +1,7 @@
 # System Architecture
 
 > **Status:** Active Reference
-> **Scope:** `/home/m/snc/cod/ffTransmuteWebui/mtapi-project`
+> **Scope:** `<workspace-root>/mtapi-project`
 
 This document maps the entire codebase for onboarding agents. It explains what each module does, how they fit together, and their dependencies.
 

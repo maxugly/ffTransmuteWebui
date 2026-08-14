@@ -1,6 +1,6 @@
 # AGENTS.md — App Package Agent Directives
 
-> **Scope**: `/home/m/snc/cod/ffTransmuteWebui/mtapi-project/app`  
+> **Scope**: `<workspace-root>/mtapi-project/app`  
 > **Audience**: Agents modifying server logic, routing, media, contracts, pipeline, filters.
 
 ---
