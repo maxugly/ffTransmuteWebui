@@ -12,6 +12,7 @@ import {
   refreshPoolToolbarCounts, ensureVideoOutputPath,
   projectLabel,
   poolThumbUrl, shortHash, buildPoolMetaHtml,
+  captureCurrentFormState, applySavedFormState,
   _poolSeqId, _poolSaveTimer, _poolPersistReady,
 } from '/js/pool/persistence.js';
 import {
@@ -119,6 +120,8 @@ let state = {
     in_dir: '',
     out_dir: '',
     resize_mode: 'letterbox',
+    target_width: 1920,
+    target_height: 1080,
     status: null,
     pollTimer: null,
   },
@@ -218,7 +221,34 @@ let state = {
     outputFormat: 'png',
     stack: [], // operations stack
   },
+  zoompan: {
+    imagePath: null, refPath: null, imageW: 0, imageH: 0,
+    startBox: null, endBox: null, durationSec: 5, fps: 30,
+    aspect: 'auto', viewModeStart: 'full', viewModeEnd: 'full',
+    compareTarget: 'end_ref', mode: 'separate', overlayOpacity: 50, abPosition: 50,
+  },
+  // User preferences and inactive-tab form snapshots. Runtime-only fields
+  // (health, jobs, file-browser cursors, loading flags) stay outside these.
+  settings: {
+    thumbnailSize: 'H',
+    thumbnailsToRam: false,
+    phashToRam: false,
+    autosaveInterval: 30,
+    warmModels: { deepdream: false, styletransfer: false, fastsam: false },
+  },
+  formState: {},
 };
+
+try {
+  const savedSettings = JSON.parse(localStorage.getItem('mtapi.settings') || 'null');
+  if (savedSettings && typeof savedSettings === 'object') {
+    state.settings = {
+      ...state.settings,
+      ...savedSettings,
+      warmModels: { ...state.settings.warmModels, ...(savedSettings.warmModels || {}) },
+    };
+  }
+} catch (_) { /* use defaults */ }
 
 
 function defaultTileInfo() {
@@ -526,13 +556,21 @@ async function init() {
   await fetchOperations();
   await restorePoolState();
   syncGlobalPanelVisibility();
-  switchTab('mosh');
+  switchTab(state.activeTab || 'mosh');
   // Fit empty viewer once layout settles
   requestAnimationFrame(() => fitPreviewViewer());
 }
 
 // Event Listeners
 function setupEventListeners() {
+  // Capture DOM-backed form values as they change. This is delegated because
+  // operation tabs mount/unmount their controls during navigation.
+  elements.actionPanel?.addEventListener('input', () => {
+    try { captureCurrentFormState(); scheduleSavePoolState(); } catch (_) {}
+  });
+  elements.actionPanel?.addEventListener('change', () => {
+    try { captureCurrentFormState(); scheduleSavePoolState(); } catch (_) {}
+  });
   // Navigation Tabs
   document.querySelectorAll('.nav-item').forEach(item => {
     item.addEventListener('click', (e) => {
@@ -693,6 +731,9 @@ async function fetchOperations() {
 
 // Tab Switching
 function switchTab(tab) {
+  // DOM forms are destroyed on tab changes. Capture their controls before the
+  // next renderer replaces the panel so inactive tabs remain serializable.
+  try { captureCurrentFormState(); } catch (_) { /* best effort */ }
   state.activeTab = tab;
   
   // Update Active Link UI
@@ -864,6 +905,7 @@ function renderTabForm(tab) {
 
   // Bottom input preview (after form chrome; survives form-only re-renders)
   try { refreshInputPreview(); } catch (_) { /* ignore */ }
+  try { applySavedFormState(tab); } catch (_) { /* ignore */ }
 }
 import { probeGlobalVideo, setupGlobalTimeline, setupTimelineSlider } from '/js/timeline.js';
 import { setupFrameScrubber, resetFrameScrubber } from '/js/frame-scrubber.js';
@@ -1058,6 +1100,7 @@ function setupAllPanelResize() {
 window.addEventListener('beforeunload', () => {
   if (!_poolPersistReady) return;
   try {
+    captureCurrentFormState();
     const blob = new Blob([JSON.stringify(buildPoolStatePayload())], { type: 'application/json' });
     navigator.sendBeacon?.('/api/pool/state', blob);
   } catch (_) { /* ignore */ }

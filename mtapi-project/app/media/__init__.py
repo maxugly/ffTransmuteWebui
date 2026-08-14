@@ -27,6 +27,8 @@ from .config import (  # noqa: F401
     _record_path,
     _thumb_is_current,
     _thumb_path,
+    THUMBNAIL_SIZES,
+    normalize_thumb_size,
 )
 from .cache import (  # noqa: F401
     _empty_record,
@@ -81,4 +83,12 @@ from .projects import (  # noqa: F401
     get_last_project_path,
     load_project_file,
     save_project_file,
+)
+from .performance import (  # noqa: F401
+    DEFAULT_SETTINGS,
+    SETTINGS_PATH,
+    load_settings,
+    save_settings,
+    thumbnail_cache,
+    phash_cache,
 )

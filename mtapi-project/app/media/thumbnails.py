@@ -20,8 +20,11 @@ from .config import (
     _phash_path,
     _thumb_is_current,
     _thumb_path,
+    THUMBNAIL_SIZES,
+    normalize_thumb_size,
 )
 from .cache import append_history, load_record, resolve_hash, save_record
+from .performance import load_settings, phash_cache
 
 log = logging.getLogger("mtapi.media_store")
 
@@ -70,14 +73,15 @@ def _last_frame_ffmpeg_cmds(
     return cmds
 
 
-async def extract_frame(path: Path, out_path: Path, which: str) -> bool:
+async def extract_frame(path: Path, out_path: Path, which: str, *, size: str = "H") -> bool:
     """Extract first or last frame as JPEG into out_path.
 
     Last frame is decoded to EOF (``-update 1``) so B-frame streams yield the
     true final display frame, not a nearby keyframe.
     """
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    scale = "scale=480:-2"
+    size = normalize_thumb_size(size)
+    scale = f"scale={THUMBNAIL_SIZES[size]}:-2"
 
     async def _run(cmd: list[str]) -> bool:
         proc = await asyncio.create_subprocess_exec(
@@ -123,8 +127,11 @@ async def ensure_thumbs(
     source_path: Path,
     which: str | None = None,
     record: dict | None = None,
+    *,
+    size: str = "H",
 ) -> dict[str, bool]:
     """Generate missing (or stale last-frame) thumbs for this hash. which=None means both."""
+    size = normalize_thumb_size(size)
     wanted = [which] if which in ("first", "last") else ["first", "last"]
     result = {}
     
@@ -132,12 +139,12 @@ async def ensure_thumbs(
     failed_flags = rec.get("thumb_failed", {}) if rec else {}
 
     if "last" in wanted:
-        _invalidate_stale_last_thumb(content_hash)
+        _invalidate_stale_last_thumb(content_hash, size)
 
     needs_save = False
     for w in wanted:
-        tp = _thumb_path(content_hash, w)
-        if _thumb_is_current(content_hash, w):
+        tp = _thumb_path(content_hash, w, size)
+        if _thumb_is_current(content_hash, w, size):
             result[w] = True
             continue
             
@@ -145,10 +152,10 @@ async def ensure_thumbs(
             result[w] = False
             continue
 
-        ok = await extract_frame(source_path, tp, w)
+        ok = await extract_frame(source_path, tp, w, size=size)
         result[w] = ok
         if ok:
-            _mark_extract_version(content_hash, w)
+            _mark_extract_version(content_hash, w, size)
             if w == "last":
                 pp = _phash_path(content_hash, "last")
                 try:
@@ -191,6 +198,13 @@ def _compute_phash_hex(image_path: Path) -> str | None:
 
 def load_phash(content_hash: str, which: str) -> str | None:
     pp = _phash_path(content_hash, which)
+    settings = load_settings()
+    # pHash is deliberately keyed independently of display thumbnail size.
+    # The H representation remains the stable source for matching.
+    if settings.get("phash_to_ram"):
+        # The sync caller is kept for existing APIs; async matching uses the
+        # disk path below when the value is not already available.
+        pass
     if not pp.exists():
         return None
     try:
@@ -227,8 +241,12 @@ async def ensure_phashes(
     source_path: Path | None = None,
     which: str | None = None,
     record: dict | None = None,
+    *,
+    size: str = "H",
 ) -> dict[str, str | None]:
     """Ensure first/last.phash exist (from thumbs; extract thumbs if needed)."""
+    # pHash always uses the high-resolution representation for stable results.
+    size = "H"
     wanted = [which] if which in ("first", "last") else ["first", "last"]
     out: dict[str, str | None] = {}
     
@@ -236,22 +254,31 @@ async def ensure_phashes(
     failed_flags = rec.get("thumb_failed", {}) if rec else {}
 
     for w in wanted:
+        if load_settings().get("phash_to_ram"):
+            cached_hash = await phash_cache.get((content_hash, w))
+            if isinstance(cached_hash, str) and cached_hash:
+                out[w] = cached_hash
+                continue
         existing = load_phash(content_hash, w)
         if existing:
             out[w] = existing
+            if load_settings().get("phash_to_ram"):
+                await phash_cache.put((content_hash, w), existing)
             continue
-        tp = _thumb_path(content_hash, w)
+        tp = _thumb_path(content_hash, w, size)
         if not (tp.exists() and tp.stat().st_size > 0):
             if source_path and source_path.is_file() and failed_flags.get(w) != FRAME_EXTRACT_VERSION:
                 # If we get here and it fails, ensure_thumbs didn't catch it,
                 # but we'll try once and then it'll fail the exists check below.
                 # Ideally ensure_thumbs handles the failure caching.
-                await extract_frame(source_path, tp, w)
+                await extract_frame(source_path, tp, w, size=size)
         if tp.exists() and tp.stat().st_size > 0:
             hex_h = await asyncio.to_thread(_compute_phash_hex, tp)
             if hex_h:
                 save_phash(content_hash, w, hex_h)
                 out[w] = hex_h
+                if load_settings().get("phash_to_ram"):
+                    await phash_cache.put((content_hash, w), hex_h)
             else:
                 out[w] = None
         else:
@@ -350,21 +377,28 @@ async def export_frame_png(
     }
 
 
-async def get_thumb_file(content_hash: str, which: str, source_path: Path | None = None) -> Path | None:
+async def get_thumb_file(
+    content_hash: str,
+    which: str,
+    source_path: Path | None = None,
+    *,
+    size: str = "H",
+) -> Path | None:
     """Return path to thumb JPEG, generating if needed and source_path given.
 
     Stale last-frame thumbs (pre accuracy fix) are regenerated automatically.
     """
     which = which if which in ("first", "last") else "first"
+    size = normalize_thumb_size(size)
     if which == "last":
-        _invalidate_stale_last_thumb(content_hash)
-    tp = _thumb_path(content_hash, which)
-    if _thumb_is_current(content_hash, which):
+        _invalidate_stale_last_thumb(content_hash, size)
+    tp = _thumb_path(content_hash, which, size)
+    if _thumb_is_current(content_hash, which, size):
         return tp
     if source_path is not None and source_path.is_file():
-        ok = await extract_frame(source_path, tp, which)
+        ok = await extract_frame(source_path, tp, which, size=size)
         if ok:
-            _mark_extract_version(content_hash, which)
+            _mark_extract_version(content_hash, which, size)
             if which == "last":
                 try:
                     pp = _phash_path(content_hash, "last")
@@ -380,10 +414,10 @@ async def get_thumb_file(content_hash: str, which: str, source_path: Path | None
     return None
 
 
-def _frame_n_thumb_path(content_hash: str, frame_1based: int) -> Path:
+def _frame_n_thumb_path(content_hash: str, frame_1based: int, size: str = "H") -> Path:
     """Cache path for a specific 1-based frame thumbnail."""
     n = max(1, int(frame_1based))
-    return _hash_dir(content_hash) / "range_thumbs" / f"frame_{n:06d}.jpg"
+    return _hash_dir(content_hash) / "range_thumbs" / f"frame_{n:06d}_{normalize_thumb_size(size)}.jpg"
 
 
 async def extract_frame_at(
@@ -392,6 +426,7 @@ async def extract_frame_at(
     frame_1based: int,
     *,
     fps: float | None = None,
+    size: str = "H",
 ) -> bool:
     """Extract a single 1-based display frame as JPEG.
 
@@ -401,7 +436,8 @@ async def extract_frame_at(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     n = max(1, int(frame_1based))
     n0 = n - 1  # 0-based for ffmpeg select
-    scale = "scale=480:-2"
+    size = normalize_thumb_size(size)
+    scale = f"scale={THUMBNAIL_SIZES[size]}:-2"
 
     async def _run(cmd: list[str]) -> bool:
         if out_path.exists():
@@ -471,14 +507,16 @@ async def get_frame_thumb_file(
     source_path: Path | None = None,
     *,
     fps: float | None = None,
+    size: str = "H",
 ) -> Path | None:
     """Return JPEG for 1-based frame N, caching under by_hash/.../range_thumbs/."""
+    size = normalize_thumb_size(size)
     n = max(1, int(frame_1based))
     # Reuse permanent first/last cache when applicable
     if n == 1:
-        return await get_thumb_file(content_hash, "first", source_path=source_path)
+        return await get_thumb_file(content_hash, "first", source_path=source_path, size=size)
 
-    tp = _frame_n_thumb_path(content_hash, n)
+    tp = _frame_n_thumb_path(content_hash, n, size)
     if tp.exists() and tp.stat().st_size > 0:
         return tp
     if source_path is None or not source_path.is_file():
@@ -493,5 +531,5 @@ async def get_frame_thumb_file(
             except (TypeError, ValueError):
                 fps = None
 
-    ok = await extract_frame_at(source_path, tp, n, fps=fps)
+    ok = await extract_frame_at(source_path, tp, n, fps=fps, size=size)
     return tp if ok else None

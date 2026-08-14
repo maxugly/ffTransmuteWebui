@@ -6,6 +6,7 @@ from typing import Dict, Any
 from app.job_control import report_progress, check_cancelled
 
 _openvino_model_cache: dict[str, str] = {}
+_runtime_model_cache: dict[str, object] = {}
 
 def ensure_openvino_model(model_id: str = "FastSAM-s.pt", device: str = "GPU") -> str:
     from ultralytics import FastSAM
@@ -24,6 +25,16 @@ def ensure_openvino_model(model_id: str = "FastSAM-s.pt", device: str = "GPU") -
     result = f"{model_id.replace('.pt', '')}_openvino_model"
     _openvino_model_cache[cache_key] = result
     return result
+
+
+def get_runtime_model(model_path: str, *, keep_warm: bool = False):
+    from ultralytics import FastSAM
+    if keep_warm and model_path in _runtime_model_cache:
+        return _runtime_model_cache[model_path]
+    model = FastSAM(model_path)
+    if keep_warm:
+        _runtime_model_cache[model_path] = model
+    return model
 
 
 def get_target_mask(results_obj, img_shape, mode: str, target_x: float, target_y: float):
@@ -69,11 +80,11 @@ def get_target_mask(results_obj, img_shape, mode: str, target_x: float, target_y
     return mask
 
 
-async def make_fastsam_directory(conf: float = 0.4, iou: float = 0.9, device: str = "GPU", mode: str = "target", target_x: float = 0.5, target_y: float = 0.5, **kwargs):
+async def make_fastsam_directory(conf: float = 0.4, iou: float = 0.9, device: str = "GPU", mode: str = "target", target_x: float = 0.5, target_y: float = 0.5, keep_model_warm: bool = False, **kwargs):
     from ultralytics import FastSAM
     
     ov_model_path = ensure_openvino_model(device=device)
-    model = FastSAM(ov_model_path)
+    model = get_runtime_model(ov_model_path, keep_warm=keep_model_warm)
 
     async def fastsam_directory(src_dir: Path, dst_dir: Path) -> dict:
         frames = sorted(list(src_dir.glob("frame_*.png")))

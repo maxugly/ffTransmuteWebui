@@ -50,7 +50,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Upscale (NCNN)** | Real-ESRGAN / SRMD + tab + bins | `upscale_ops.py`, `filters/upscale.py` · `4.64` |
 | **Cut encode** | Global range dump→encode | `cut_ops.py`, Cut tab · `4.64` |
 | **Job queue (v1)** | FIFO in-memory + Jobs tab + Add to Queue | `job_queue.py`, `op_runner.py` · `4.64` |
-| **QR & Illusion Art** | QR/Pattern + ControlNet + IP-Adapter | `qr_illusion_ops.py`, `qr_illusion_worker.py`, `js/tabs/qr_illusion.js` · `5.05` |
+| **QR & Illusion Art** | QR/Pattern + ControlNet + IP-Adapter | `qr_ops.py`, `qr_art_ov_worker.py`, `js/tabs/qr.js` · `5.05` |
 | **Prompt Library** | Save/load ± pairs; img2img / txt2img / recohere | `prompt-library-spec.md` · `js/ui/prompt-library.js` · `4.61` |
 | Job progress core | phase rate/ETA, cancel | `job_control.py` |
 | RIFE dir watch | `frames_out` while binary runs | `filters/rife.py` |
@@ -99,7 +99,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Instant re-render storm fix** | Queue no-op no longer re-renders; variants cache; failed no tight-retry; dual RIFE killed | `sequence.js`, `grid.js` · `4.92` |
 | **Settings tab (blank)** | Workspace · bare chrome (no global/preview/Run); scaffold for perf prefs | `js/tabs/settings.js`, `css/settings.css` · `4.91` |
 
-**Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale, **qr_illusion** *(in tree — see §4)*. Root `AGENTS.md`.
+**Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale, **qr_art** *(in tree — see §4)*. Root `AGENTS.md`.
 
 ---
 
@@ -130,6 +130,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 | 4 | [tilagup-mtapi-mode-spec.md](tilagup-mtapi-mode-spec.md) | Multi-step agent tiled SD | Sibling `/home/m/snc/cod/tilagup` |
 | 5 | [image-quality-rating-spec.md](image-quality-rating-spec.md) | Pool tech/aesthetic scores | **Fix pool normalize first** |
 | 6 | [fastsam-sam-multimodel-spec.md](fastsam-sam-multimodel-spec.md) | **FastSAM + SAM multimodel selector** — stronger backends (FastSAM-x, SAM ViT-L/H) on OpenVINO/Intel, AUTO device fallback | **`4.82`+ proposed** |
+| 7 | [performance-settings-spec.md](performance-settings-spec.md) | Performance settings tab, thumbnail resolution, and RAM cache prefs | **Proposed** |
 
 ### 5.2 Recently shipped (orientation)
 

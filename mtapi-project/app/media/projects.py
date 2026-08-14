@@ -1,8 +1,8 @@
 """
 Named project files (.ffproject.json): save, load, last path.
 
-Explicit Save mirrors pool content into session autosave (desk recovery on F5).
-Session autosave alone must NEVER write named project files (see persistence.js).
+Explicit Save writes only the named project file. Session autosave is a separate
+pool-state writer; it must NEVER write named project files (see persistence.js).
 """
 from __future__ import annotations
 
@@ -13,12 +13,12 @@ from pathlib import Path
 from typing import Any
 
 from .config import MEDIA_ROOT
-from .pool import _normalize_media_entries, _normalize_pool_payload, save_pool_state
+from .pool import _normalize_media_entries, _normalize_pool_payload
 
 log = logging.getLogger("mtapi.media_store")
 
 PROJECT_KIND = "fftransmute-project"
-PROJECT_VERSION = 1
+PROJECT_VERSION = 2
 LAST_PROJECT_PATH = MEDIA_ROOT.parent / "last_project_path.txt"
 
 
@@ -49,6 +49,7 @@ async def save_project_file(
         "created_at": payload.get("created_at") or time.time(),
         "updated_at": time.time(),
         "pool": pool,
+        "desk": payload.get("desk") if isinstance(payload.get("desk"), dict) else None,
     }
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(doc, indent=2, sort_keys=True), encoding="utf-8")
@@ -58,14 +59,6 @@ async def save_project_file(
         LAST_PROJECT_PATH.write_text(str(path), encoding="utf-8")
     except Exception:
         pass
-    # Session mirror includes open-project pointer; dirty cleared after explicit Save.
-    session_payload = {
-        **pool,
-        "project_path": str(path),
-        "project_name": proj_name,
-        "project_dirty": False,
-    }
-    await save_pool_state(session_payload)
     return {
         "ok": True,
         "path": str(path),
@@ -109,10 +102,14 @@ def load_project_file(project_path: str | Path) -> dict[str, Any]:
             p = it
             name_e = Path(p).name
             td = None
+            vp = None
+            rm = None
         elif isinstance(it, dict):
             p = it.get("path")
             name_e = it.get("name") or (Path(p).name if p else None)
             td = it.get("target_duration")
+            vp = it.get("variant_path")
+            rm = it.get("rife_multiplier")
         else:
             continue
         if not p:
@@ -127,6 +124,25 @@ def load_project_file(project_path: str | Path) -> dict[str, Any]:
                 tdf = float(td)
                 if tdf > 0:
                     entry["target_duration"] = tdf
+            except (TypeError, ValueError):
+                pass
+        if isinstance(it, dict):
+            vp = it.get("variant_path")
+            if vp:
+                entry["variant_path"] = str(Path(vp).expanduser().resolve())
+            rm = it.get("rife_multiplier")
+            try:
+                if rm is not None and int(rm) >= 2:
+                    entry["rife_multiplier"] = int(rm)
+            except (TypeError, ValueError):
+                pass
+        if vp:
+            entry["variant_path"] = vp
+        if rm:
+            try:
+                m = int(rm)
+                if m >= 2:
+                    entry["rife_multiplier"] = m
             except (TypeError, ValueError):
                 pass
         sequence_out.append(entry)
@@ -168,6 +184,9 @@ def load_project_file(project_path: str | Path) -> dict[str, Any]:
         "tile_zoom": tile_zoom,
         "tile_info": pool_raw.get("tile_info") if isinstance(pool_raw.get("tile_info"), dict) else None,
         "layout": pool_raw.get("layout") if isinstance(pool_raw.get("layout"), dict) else None,
+        "desk": raw.get("desk") if isinstance(raw.get("desk"), dict) else (
+            pool_raw.get("desk") if isinstance(pool_raw.get("desk"), dict) else None
+        ),
         "missing": missing,
         "item_count": len(items_out),
         "image_count": len(images_out),

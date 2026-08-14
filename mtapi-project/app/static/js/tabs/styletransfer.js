@@ -44,6 +44,10 @@ function renderStyleTransferForm() {
         ${hasVideo ? ' <strong>Video mode:</strong> one clip (not mixed with stills).' : ''}
       </p>
     </div>
+    <div class="knob-row settings-inline-warm">
+      <div class="knob-bank">${knobUnitHtml({ id: 'stWarm', label: 'Keep warm', value: state.settings?.warmModels?.styletransfer ? '1' : '0', binary: true, leftCap: 'Off', rightCap: 'On' })}</div>
+      <p class="knob-row-legend">Keep the style-transfer model resident between runs (uses RAM/VRAM).</p>
+    </div>
 
     <div class="form-group" style="margin-bottom:6px">
       <div class="form-row" style="margin-bottom:3px">
@@ -130,6 +134,14 @@ function renderStyleTransferForm() {
     knobId: 'stMaxSideKnob', indicatorId: 'stMaxSideKnobInd', valueId: 'stMaxSideVal', hiddenId: 'stMaxSide',
     min: 0, max: 2048, step: 64, decimals: 0,
     format: (v) => (v <= 0 ? 'full' : String(Math.round(v))),
+  });
+  setupBinaryKnob({
+    knobId: 'stWarmKnob', indicatorId: 'stWarmKnobInd', hiddenId: 'stWarm',
+    leftValue: '0', rightValue: '1', initial: state.settings?.warmModels?.styletransfer ? '1' : '0',
+  });
+  document.getElementById('stWarm')?.addEventListener('change', (e) => {
+    state.settings.warmModels.styletransfer = e.target.value === '1';
+    try { localStorage.setItem('mtapi.settings', JSON.stringify(state.settings)); } catch (_) {}
   });
   setupBinaryKnob({
     knobId: 'stDryRunKnob', indicatorId: 'stDryRunKnobInd', hiddenId: 'stDryRun',
@@ -363,6 +375,7 @@ function collectStyleTransferBody() {
     style_size: 256,
     suffix: '_styled',
     dry_run: document.getElementById('stDryRun')?.value === '1',
+    keep_model_warm: document.getElementById('stWarm')?.value === '1',
     evolve_enabled: evolveOn,
     evolve_frames: parseInt(document.getElementById('stEvolveFrames')?.value || '16', 10),
     evolve_strength_start: parseFloat(document.getElementById('stEvolveStr0')?.value || '0'),

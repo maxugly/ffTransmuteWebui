@@ -1,44 +1,136 @@
-/**
- * Settings tab — bare workspace (sidebar nav only; no global inputs / preview / Run).
- * Blank scaffold for performance prefs and other app settings.
- */
-import { elements } from '/app.js';
+/** Settings: local preferences with a small server mirror for media routes. */
+import { state, elements } from '/app.js';
+import { setupContinuousKnob } from '/js/ui/knobs.js';
+
+const SIZE_LABELS = ['L', 'M', 'H'];
+
+function settingsSnapshot() {
+  return {
+    ...state.settings,
+    thumbnailSize: SIZE_LABELS[Math.max(0, Math.min(2, Number(state.settings.thumbnailSizeIndex ?? 2)))],
+    thumbnailsToRam: !!state.settings.thumbnailsToRam,
+    phashToRam: !!state.settings.phashToRam,
+    warmModels: { ...(state.settings.warmModels || {}) },
+  };
+}
+
+async function saveSettings(patch = {}) {
+  state.settings = {
+    ...state.settings,
+    ...patch,
+    warmModels: { ...(state.settings.warmModels || {}), ...(patch.warmModels || {}) },
+  };
+  const payload = settingsSnapshot();
+  try { localStorage.setItem('mtapi.settings', JSON.stringify(state.settings)); } catch (_) {}
+  try {
+    await fetch('/api/settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        thumbnail_size: payload.thumbnailSize,
+        thumbnails_to_ram: payload.thumbnailsToRam,
+        phash_to_ram: payload.phashToRam,
+        autosave_interval: payload.autosaveInterval,
+        warm_models: payload.warmModels,
+      }),
+    });
+  } catch (_) { /* localStorage remains authoritative for the browser */ }
+}
+
+function switchHtml(id, label, checked) {
+  return `<label class="settings-switch-row" for="${id}">
+    <span><strong>${label}</strong></span>
+    <input type="checkbox" id="${id}" role="switch" ${checked ? 'checked' : ''}>
+    <span class="settings-switch" aria-hidden="true"></span>
+  </label>`;
+}
 
 export function renderSettingsForm() {
+  const sizeIndex = state.settings.thumbnailSizeIndex ??
+    ({ L: 0, M: 1, H: 2 }[state.settings.thumbnailSize] ?? 2);
+  state.settings.thumbnailSizeIndex = sizeIndex;
+  const warm = state.settings.warmModels || {};
   elements.actionPanel.innerHTML = `
     <div class="settings-workspace" id="settingsWorkspace">
       <div class="settings-hero">
-        <div class="settings-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
-               stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
-            <circle cx="12" cy="12" r="3"/>
-          </svg>
-        </div>
+        <div class="settings-icon" aria-hidden="true">⚙</div>
         <h3 class="settings-title">Settings</h3>
-        <p class="settings-lede">
-          App preferences will live here — pool performance, Instant RIFE defaults,
-          preview behavior, and more. Nothing wired yet; this tab is a blank home.
-        </p>
+        <p class="settings-lede">Performance controls are stored locally and mirrored to the media server. Drag knobs vertically or use the mouse wheel.</p>
       </div>
-      <div class="settings-grid" aria-hidden="true">
-        <div class="settings-card settings-card-placeholder">
-          <div class="settings-card-kicker">Coming soon</div>
-          <div class="settings-card-name">Performance</div>
-          <p class="settings-card-desc">Pool thumbs, probe concurrency, virtualization.</p>
+      <section class="settings-card settings-performance" aria-labelledby="settingsPerformanceTitle">
+        <div class="settings-card-kicker">Performance</div>
+        <h4 class="settings-card-name" id="settingsPerformanceTitle">Pool &amp; cache</h4>
+        <div class="settings-knob-row">
+          <div class="settings-discrete-knob">
+            <span class="knob-unit-label">Thumbnail size</span>
+            <div class="daw-knob" id="settingsThumbKnob" title="Drag up/down · scroll wheel">
+              <div class="daw-knob-dial"></div><div class="daw-knob-indicator" id="settingsThumbKnobInd"></div>
+            </div>
+            <input class="daw-knob-value-input" id="settingsThumbValue" value="${SIZE_LABELS[sizeIndex]}" readonly>
+            <div class="settings-scale"><span>L</span><span>M</span><span>H</span></div>
+            <input type="hidden" id="settingsThumbIndex" value="${sizeIndex}">
+          </div>
+          <div class="settings-autosave-knob">
+            <span class="knob-unit-label">Autosave</span>
+            <div class="daw-knob" id="settingsAutosaveKnob" title="Drag up/down · scroll wheel">
+              <div class="daw-knob-dial"></div><div class="daw-knob-indicator" id="settingsAutosaveKnobInd"></div>
+            </div>
+            <input class="daw-knob-value-input" id="settingsAutosaveValue" value="30s" readonly>
+            <input type="hidden" id="settingsAutosaveIndex" value="${[5,30,60].indexOf(Number(state.settings.autosaveInterval)) >= 0 ? [5,30,60].indexOf(Number(state.settings.autosaveInterval)) : 1}">
+          </div>
+          <div class="settings-switches">
+            ${switchHtml('settingsThumbRam', 'Keep thumbnails in RAM', state.settings.thumbnailsToRam)}
+            ${switchHtml('settingsPhashRam', 'Keep hashes in RAM', state.settings.phashToRam)}
+          </div>
         </div>
-        <div class="settings-card settings-card-placeholder">
-          <div class="settings-card-kicker">Coming soon</div>
-          <div class="settings-card-name">Sequence</div>
-          <p class="settings-card-desc">Instant RIFE defaults and densify limits.</p>
+        <p class="settings-card-desc">L = 120px, M = 240px, H = 480px. RAM caches are byte-bounded and can be cleared by restarting the server.</p>
+      </section>
+      <section class="settings-card" aria-labelledby="settingsWarmTitle">
+        <div class="settings-card-kicker">Neural FX</div>
+        <h4 class="settings-card-name" id="settingsWarmTitle">Keep models warm</h4>
+        <p class="settings-card-desc">Keeps the selected worker/model warm when supported. Default is off to avoid VRAM pressure.</p>
+        <div class="settings-warm-grid">
+          ${switchHtml('settingsWarmDeepdream', 'DeepDream', warm.deepdream)}
+          ${switchHtml('settingsWarmStyle', 'Style Transfer', warm.styletransfer)}
+          ${switchHtml('settingsWarmFastsam', 'FastSAM', warm.fastsam)}
         </div>
-        <div class="settings-card settings-card-placeholder">
-          <div class="settings-card-kicker">Coming soon</div>
-          <div class="settings-card-name">Interface</div>
-          <p class="settings-card-desc">Chrome density, auto-save, console noise.</p>
-        </div>
-      </div>
-    </div>
-  `;
-  (elements.actionPanelRoot || elements.actionPanel).classList.add('settings-active');
+      </section>
+    </div>`;
+
+  setupContinuousKnob({
+    knobId: 'settingsThumbKnob', indicatorId: 'settingsThumbKnobInd',
+    valueId: 'settingsThumbValue', hiddenId: 'settingsThumbIndex',
+    min: 0, max: 2, step: 1, decimals: 0, format: v => SIZE_LABELS[Math.round(v)],
+    onChange: (v) => {
+      state.settings.thumbnailSizeIndex = Math.round(v);
+      state.settings.thumbnailSize = SIZE_LABELS[state.settings.thumbnailSizeIndex] || 'H';
+      if (elements.actionPanel?.dataset.settingsReady === '1') saveSettings({ thumbnailSize: state.settings.thumbnailSize, thumbnailSizeIndex: state.settings.thumbnailSizeIndex });
+    },
+  });
+  setupContinuousKnob({
+    knobId: 'settingsAutosaveKnob', indicatorId: 'settingsAutosaveKnobInd',
+    valueId: 'settingsAutosaveValue', hiddenId: 'settingsAutosaveIndex',
+    min: 0, max: 2, step: 1, decimals: 0,
+    format: v => `${[5, 30, 60][Math.round(v)]}s`,
+    onChange: (v) => {
+      if (elements.actionPanel?.dataset.settingsReady === '1') saveSettings({ autosaveInterval: [5, 30, 60][Math.round(v)] || 30 });
+    },
+  });
+  elements.actionPanel.dataset.settingsReady = '1';
+
+  document.getElementById('settingsThumbIndex')?.addEventListener('change', (e) => {
+    state.settings.thumbnailSizeIndex = Number(e.target.value);
+    state.settings.thumbnailSize = SIZE_LABELS[state.settings.thumbnailSizeIndex] || 'H';
+    saveSettings({ thumbnailSize: state.settings.thumbnailSize, thumbnailSizeIndex: state.settings.thumbnailSizeIndex });
+  });
+  document.getElementById('settingsAutosaveIndex')?.addEventListener('change', (e) => {
+    saveSettings({ autosaveInterval: [5, 30, 60][Number(e.target.value)] || 30 });
+  });
+  const bindSwitch = (id, patch) => document.getElementById(id)?.addEventListener('change', (e) => saveSettings({ [patch]: e.target.checked }));
+  bindSwitch('settingsThumbRam', 'thumbnailsToRam');
+  bindSwitch('settingsPhashRam', 'phashToRam');
+  document.getElementById('settingsWarmDeepdream')?.addEventListener('change', e => saveSettings({ warmModels: { deepdream: e.target.checked } }));
+  document.getElementById('settingsWarmStyle')?.addEventListener('change', e => saveSettings({ warmModels: { styletransfer: e.target.checked } }));
+  document.getElementById('settingsWarmFastsam')?.addEventListener('change', e => saveSettings({ warmModels: { fastsam: e.target.checked } }));
 }
+
+export { saveSettings };

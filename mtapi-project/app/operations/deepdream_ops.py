@@ -36,6 +36,7 @@ class DeepDreamParams(EvolveRifeParams):
         "auto",
         description="auto detects from extension; force image or video processing path",
     )
+    keep_model_warm: bool = Field(False, description="Keep the neural model resident between runs")
 
     # Real network architecture (not just layer labels)
     model_name: DreamModel = Field(

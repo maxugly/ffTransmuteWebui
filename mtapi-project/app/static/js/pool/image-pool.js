@@ -116,6 +116,25 @@ async function loadImageItemMeta(item) {
   }
 }
 
+const _imageMetaQueue = [];
+const _imageMetaQueued = new Set();
+let _imageMetaActive = 0;
+function queueImageItemMeta(item) {
+  if (item && !item.meta && !item.metaError && !_imageMetaQueued.has(item.path)) {
+    _imageMetaQueued.add(item.path);
+    _imageMetaQueue.push(item);
+  }
+  while (_imageMetaActive < 4 && _imageMetaQueue.length) {
+    const next = _imageMetaQueue.shift();
+    _imageMetaQueued.delete(next.path);
+    _imageMetaActive += 1;
+    loadImageItemMeta(next).finally(() => {
+      _imageMetaActive -= 1;
+      queueImageItemMeta(null);
+    });
+  }
+}
+
 function buildImageMetaHtml(item) {
   const m = item.meta || {};
   const name = item.name || basename(item.path);
@@ -689,7 +708,7 @@ function renderImagePoolGrid() {
     });
 
     grid.appendChild(card);
-    if (!item.meta && !item.metaError) loadImageItemMeta(item);
+    if (!item.meta && !item.metaError) queueImageItemMeta(item);
   });
 
   _updateImageFilterCount();

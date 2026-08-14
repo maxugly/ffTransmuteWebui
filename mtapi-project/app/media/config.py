@@ -28,7 +28,8 @@ HASH_ALGO = "blake2b"
 HASH_DIGEST_SIZE = 16
 HASH_CHUNK = 1024 * 1024
 
-FRAME_EXTRACT_VERSION = 2
+FRAME_EXTRACT_VERSION = 3
+THUMBNAIL_SIZES = {"H": 480, "M": 240, "L": 120}
 
 # ── locks (single source — no duplication) ─────────────────────────────────
 
@@ -51,8 +52,13 @@ def _record_path(content_hash: str) -> Path:
     return _hash_dir(content_hash) / "record.json"
 
 
-def _thumb_path(content_hash: str, which: str) -> Path:
-    return _hash_dir(content_hash) / f"{which}.jpg"
+def normalize_thumb_size(size: str | None) -> str:
+    value = str(size or "H").upper()
+    return value if value in THUMBNAIL_SIZES else "H"
+
+
+def _thumb_path(content_hash: str, which: str, size: str = "H") -> Path:
+    return _hash_dir(content_hash) / f"{which}_{normalize_thumb_size(size)}.jpg"
 
 
 def _phash_path(content_hash: str, which: str) -> Path:
@@ -64,47 +70,50 @@ def _frames_dir(content_hash: str) -> Path:
     return _hash_dir(content_hash) / "frames"
 
 
-def _extract_ver_path(content_hash: str, which: str) -> Path:
-    return _hash_dir(content_hash) / f"{which}.extract_v"
+def _extract_ver_path(content_hash: str, which: str, size: str = "H") -> Path:
+    return _hash_dir(content_hash) / f"{which}_{normalize_thumb_size(size)}.extract_v"
 
 
-def _thumb_is_current(content_hash: str, which: str) -> bool:
-    tp = _thumb_path(content_hash, which)
+def _thumb_is_current(content_hash: str, which: str, size: str = "H") -> bool:
+    size = normalize_thumb_size(size)
+    tp = _thumb_path(content_hash, which, size)
     if not tp.exists() or tp.stat().st_size <= 0:
         return False
     if which != "last":
         return True
-    vp = _extract_ver_path(content_hash, which)
+    vp = _extract_ver_path(content_hash, which, size)
     try:
         return vp.read_text(encoding="utf-8").strip() == str(FRAME_EXTRACT_VERSION)
     except Exception:
         return False
 
 
-def _mark_extract_version(content_hash: str, which: str) -> None:
+def _mark_extract_version(content_hash: str, which: str, size: str = "H") -> None:
     d = _hash_dir(content_hash)
     d.mkdir(parents=True, exist_ok=True)
     try:
-        _extract_ver_path(content_hash, which).write_text(
+        _extract_ver_path(content_hash, which, size).write_text(
             f"{FRAME_EXTRACT_VERSION}\n", encoding="utf-8"
         )
     except Exception:
         pass
 
 
-def _invalidate_stale_last_thumb(content_hash: str) -> None:
-    if _thumb_is_current(content_hash, "last"):
-        return
-    for p in (
-        _thumb_path(content_hash, "last"),
-        _phash_path(content_hash, "last"),
-        _extract_ver_path(content_hash, "last"),
-    ):
-        try:
-            if p.exists():
-                p.unlink()
-        except OSError:
-            pass
+def _invalidate_stale_last_thumb(content_hash: str, size: str | None = None) -> None:
+    sizes = [normalize_thumb_size(size)] if size else list(THUMBNAIL_SIZES)
+    for thumb_size in sizes:
+        if _thumb_is_current(content_hash, "last", thumb_size):
+            continue
+        for p in (
+            _thumb_path(content_hash, "last", thumb_size),
+            _phash_path(content_hash, "last"),
+            _extract_ver_path(content_hash, "last", thumb_size),
+        ):
+            try:
+                if p.exists():
+                    p.unlink()
+            except OSError:
+                pass
 
 
 def _path_key(path: Path) -> str:

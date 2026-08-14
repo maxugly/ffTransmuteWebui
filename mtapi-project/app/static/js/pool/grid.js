@@ -1039,9 +1039,9 @@ function renderPoolGrid() {
 
     grid.appendChild(card);
 
-    if (!meta && !item.metaError) {
-      loadPoolItemMeta(item, idx);
-    }
+    // Metadata is requested only when a card approaches the viewport. The
+    // old restore path started one request per item, which froze large pools.
+    if (!meta && !item.metaError) card.dataset.metaPending = '1';
 
     const variantContainer = card.querySelector(`#poolVariants-${idx}`);
     if (variantContainer) {
@@ -1061,7 +1061,59 @@ function renderPoolGrid() {
       });
     }
   });
+  _observeVisiblePoolMeta(grid);
   _updatePoolFilterCount();
+}
+
+let _poolMetaObserver = null;
+let _poolMetaActive = 0;
+const _poolMetaQueue = [];
+const _poolMetaQueued = new Set();
+const POOL_META_CONCURRENCY = 4;
+
+function _drainPoolMetaQueue() {
+  while (_poolMetaActive < POOL_META_CONCURRENCY && _poolMetaQueue.length) {
+    const job = _poolMetaQueue.shift();
+    _poolMetaQueued.delete(job.item.path);
+    if (job.item.meta || job.item.metaError) continue;
+    _poolMetaActive += 1;
+    Promise.resolve(loadPoolItemMeta(job.item, job.idx))
+      .finally(() => {
+        _poolMetaActive -= 1;
+        _drainPoolMetaQueue();
+      });
+  }
+}
+
+function _queueVisiblePoolMeta(item, idx) {
+  if (!item || item.meta || item.metaError || _poolMetaQueued.has(item.path)) return;
+  _poolMetaQueued.add(item.path);
+  _poolMetaQueue.push({ item, idx });
+  _drainPoolMetaQueue();
+}
+
+function _observeVisiblePoolMeta(grid) {
+  if (_poolMetaObserver) _poolMetaObserver.disconnect();
+  const cards = [...grid.querySelectorAll('.pool-card[data-meta-pending="1"]')];
+  if (!cards.length) return;
+  if (typeof IntersectionObserver === 'undefined') {
+    cards.slice(0, POOL_META_CONCURRENCY * 2).forEach(card => {
+      const idx = Number(card.dataset.idx);
+      const item = state.pool.items[idx];
+      _queueVisiblePoolMeta(item, idx);
+    });
+    return;
+  }
+  _poolMetaObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const card = entry.target;
+      const idx = Number(card.dataset.idx);
+      _queueVisiblePoolMeta(state.pool.items[idx], idx);
+      _poolMetaObserver.unobserve(card);
+    });
+  }, { root: grid, rootMargin: '500px 0px' });
+  cards.forEach(card => _poolMetaObserver.observe(card));
 }
 
 // ── Frame match (pHash next-clip finder) ──────────────────────────────────

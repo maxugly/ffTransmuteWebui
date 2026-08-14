@@ -43,6 +43,7 @@ function setupContinuousKnob(opts) {
     // store raw number (preserve decimals for backend)
     if (decimals <= 0) hiddenInput.value = String(Math.round(val));
     else hiddenInput.value = String(Number(val.toFixed(Math.max(decimals, 4))));
+    if (typeof opts.onChange === 'function') opts.onChange(currentVal);
   }
 
   function onMouseDown(e) {

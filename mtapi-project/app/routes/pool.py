@@ -28,6 +28,20 @@ def register(app: FastAPI, is_video_fn, is_image_fn=None) -> None:
     async def put_pool_state(body: dict):
         return await media.save_pool_state(body or {})
 
+    @app.get("/api/settings", tags=["meta"])
+    async def get_settings():
+        return {"ok": True, **media.load_settings()}
+
+    @app.post("/api/settings", tags=["meta"])
+    async def put_settings(body: dict):
+        return await media.save_settings(body or {})
+
+    @app.post("/api/settings/clear-cache", tags=["meta"])
+    async def clear_performance_cache():
+        await media.thumbnail_cache.clear()
+        await media.phash_cache.clear()
+        return {"ok": True}
+
     @app.post("/api/project/save", tags=["meta"])
     async def project_save(body: dict):
         path = (body or {}).get("path")

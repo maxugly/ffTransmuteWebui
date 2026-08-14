@@ -39,6 +39,7 @@ def _default_pool_state() -> dict[str, Any]:
         "tile_zoom": 200,
         "tile_info": None,
         "layout": None,
+        "desk": None,
         # Open named project pointer (session only — file written only on explicit Save)
         "project_path": None,
         "project_name": None,
@@ -168,6 +169,7 @@ def load_pool_state() -> dict[str, Any]:
         "tile_zoom": tile_zoom,
         "tile_info": raw.get("tile_info") if isinstance(raw.get("tile_info"), dict) else None,
         "layout": raw.get("layout") if isinstance(raw.get("layout"), dict) else None,
+        "desk": raw.get("desk") if isinstance(raw.get("desk"), dict) else None,
         "project_path": raw.get("project_path") or None,
         "project_name": raw.get("project_name") or None,
         "project_dirty": bool(raw.get("project_dirty")),
@@ -209,6 +211,7 @@ def _normalize_pool_payload(payload: dict[str, Any]) -> dict[str, Any]:
         "tile_zoom": tile_zoom,
         "tile_info": tile_info,
         "layout": layout,
+        "desk": payload.get("desk") if isinstance(payload.get("desk"), dict) else None,
         "project_path": payload.get("project_path") or None,
         "project_name": payload.get("project_name") or None,
         "project_dirty": bool(payload.get("project_dirty")),

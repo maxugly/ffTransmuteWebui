@@ -3,7 +3,7 @@ import asyncio
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from .. import media
 from .. import job_control
@@ -56,6 +56,7 @@ def register(app: FastAPI, probe_fn) -> None:
         hash: str | None = None,
         which: str = "first",
         frame: int | None = None,
+        s: str = "H",
     ):
         """Serve a thumbnail JPEG.
 
@@ -63,6 +64,7 @@ def register(app: FastAPI, probe_fn) -> None:
         * ``frame=N`` — **1-based** frame index (Cut / range previews). Takes
           precedence over ``which`` when provided.
         """
+        size = media.normalize_thumb_size(s)
         content_hash = hash
         source: Path | None = None
         if path:
@@ -97,22 +99,41 @@ def register(app: FastAPI, probe_fn) -> None:
                 except (TypeError, ValueError):
                     fps = None
             thumb = await media.get_frame_thumb_file(
-                content_hash, frame_n, source_path=source, fps=fps,
+                content_hash, frame_n, source_path=source, fps=fps, size=size,
             )
             if not thumb:
                 raise HTTPException(
                     status_code=500,
                     detail=f"Failed to extract frame {frame_n}",
                 )
-            return FileResponse(str(thumb), media_type="image/jpeg")
+            return await _serve_thumbnail(thumb, content_hash, f"frame:{frame_n}", size)
 
         which = (which or "first").lower()
         if which not in ("first", "last"):
             raise HTTPException(status_code=400, detail="which must be 'first' or 'last'")
-        thumb = await media.get_thumb_file(content_hash, which, source_path=source)
+        thumb = await media.get_thumb_file(content_hash, which, source_path=source, size=size)
         if not thumb:
             raise HTTPException(status_code=500, detail=f"Failed to extract {which} frame")
-        return FileResponse(str(thumb), media_type="image/jpeg")
+        return await _serve_thumbnail(thumb, content_hash, which, size)
+
+    async def _serve_thumbnail(path: Path, content_hash: str, which: str, size: str):
+        settings = media.load_settings()
+        cache_key = (content_hash, which, size)
+        if settings.get("thumbnails_to_ram"):
+            cached = await media.thumbnail_cache.get(cache_key)
+            if cached is None:
+                cached = await asyncio.to_thread(path.read_bytes)
+                await media.thumbnail_cache.put(cache_key, cached)
+            return Response(
+                content=cached,
+                media_type="image/jpeg",
+                headers={"Cache-Control": "public, max-age=31536000, immutable"},
+            )
+        return FileResponse(
+            str(path),
+            media_type="image/jpeg",
+            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        )
 
     @app.get("/api/media/{content_hash}", tags=["meta"])
     async def get_media_by_hash(content_hash: str):

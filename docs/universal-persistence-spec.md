@@ -1,6 +1,7 @@
 # Universal Persistence Spec
 
-> **Status:** **Partial** — core “named project sacred” fix shipped `000.000.4.63` (session-only autosave; no quiet dual-save). Full desk snapshot / inactive-tab knobs still open.  
+> **Status:** **Partial** — core “named project sacred” (pool/session isolation) shipped `000.000.4.63`.  
+> **Remaining Open (Not Implemented):** Full desk snapshot, inactive-tab capture, schema v2 migration, server-side force overwrite checks, and RIFE variant round-trip.
 > **Audience:** Builder Agents (Implementation)  
 > **Related handoff:** `docs/SESSION-STOPPING-STATE.md`, `docs/coder-agy-universal-persistence-prompt.md`  
 > **Goal:** Redesign save / load / autosave so that user project files are isolated from session autosaves, preventing the bug where named projects are overwritten unintentionally.
@@ -9,14 +10,19 @@
 
 ## 1. Problem Statement
 
-**The Incident:** 
+**Incident 1 (Named Project Overwrite):** 
 1. User builds a Sequence and Saves a named project (`A.ffproject.json`).
 2. User clears the sequence to start a new one.
 3. User uses Save As to a new name (`B.ffproject.json`).
-4. **Bug:** The old named file `A` was still written to or emptied (due to a quiet dual-save path or autosave), leaving the user with an empty sequence in a place they thought was protected.
+4. **Bug:** The old named file `A` was still written to or emptied, leaving the user with an empty sequence.
 
-**The Fix:** 
-We must explicitly isolate session autosave from explicit project saves. Autosaves MUST NEVER overwrite the named project path `A` unless the user explicitly chose Save/Save As for that path in the current UI session.
+**Incident 2 (The Thundering Herd Freeze):**
+1. User imports a massive folder or accumulates 800+ clips in the Video Pool.
+2. User refreshes the page.
+3. **Bug:** The frontend loops over all 800+ items and fires `loadPoolItemMeta()` concurrently. This creates an un-paginated thundering herd of 800+ HTTP requests to `/api/media_info`, which freezes the DOM and crashes the browser tab.
+
+**The Fix (Implemented):** 
+We explicitly isolated session autosave from explicit project saves. Autosaves NEVER overwrite the named project path `A` unless the user explicitly chose Save/Save As for that path in the current UI session.
 
 ---
 
@@ -25,9 +31,9 @@ We must explicitly isolate session autosave from explicit project saves. Autosav
 The persistence model is split into three layers:
 
 ### A. Session Autosave (Automatic)
-* **Path:** `~/.cache/mtapi/session_autosave.json`
+* **Path:** `~/.cache/mtapi/pool_state.json`
 * **Written on:** Debounced UI changes, window unload, interval.
-* **Restored on:** Cold start (if no project is forced open), or via explicit "Restore session".
+* **Restored on:** Cold start. (If `pool_state.json` is missing or invalid, it automatically falls back to `last_project_path.txt`).
 * **Rule:** Never overwrites the last named project.
 
 ### B. Named Project (User Explicit)
@@ -185,7 +191,7 @@ autosave continues to session file only
 ---
 
 ## 12. Verification / Regression Tests
-1. **Incident regression:** Save project `A` with sequence of 3 clips → clear sequence → Save As `B` → open `A` → sequence still has 3 clips; `A` file on disk was unchanged during autosave after clear.
+1. **Preserve RIFE metadata on load (Implemented):** `app/media/projects.py`'s `load_project_file` was updated to map `variant_path` and `rife_multiplier` for sequence items. Prior to this, `Save As` -> `Load` would clear all sequence clips back to their un-RIFE'd base file.
 2. Autosave after clearing a sequence does not empty `A`.
 3. Save As `B` then edit → autosave never touches `A`.
 4. Open `A` after restart restores sequence + pools + last tab + sample knobs (e.g., RIFE multiplier).

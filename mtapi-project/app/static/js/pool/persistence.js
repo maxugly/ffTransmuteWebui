@@ -4,7 +4,6 @@ import {
   renderPoolForm, renderPoolGrid, defaultTileInfo,
   checkHealth, switchTab, formatBytes, addPathsToPool,
 } from '/app.js';
-import { loadPoolItemMeta } from '/js/pool/items.js';
 import { seqStop, _maybeAutoRifeAll } from '/js/pool/sequence.js';
 import { ensurePoolLayout } from '/js/pool/layout.js';
 import { ensureTileInfo } from '/app.js';
@@ -21,6 +20,101 @@ function nextSeqId() {
 let _poolSaveTimer = null;
 let _poolPersistReady = false; // don't save until restore finishes
 
+const FORM_STATE_SKIP = new Set(['btnRun', 'btnStop', 'btnQueue', 'btnClearConsole']);
+
+/** Capture the currently mounted tab controls before its DOM is destroyed. */
+function captureCurrentFormState() {
+  const tab = state.activeTab;
+  if (!tab || !elements.actionPanel) return;
+  const controls = {};
+  elements.actionPanel.querySelectorAll('input[id], select[id], textarea[id]').forEach((el) => {
+    if (FORM_STATE_SKIP.has(el.id) || el.type === 'button' || el.type === 'submit') return;
+    controls[el.id] = {
+      value: el.value,
+      checked: el.type === 'checkbox' || el.type === 'radio' ? !!el.checked : undefined,
+    };
+  });
+  state.formState[tab] = controls;
+}
+
+/** Restore controls after a tab renderer mounts them. */
+function applySavedFormState(tab) {
+  const controls = state.formState?.[tab];
+  if (!controls || !elements.actionPanel) return;
+  Object.entries(controls).forEach(([id, saved]) => {
+    const el = document.getElementById(id);
+    if (!el || !saved) return;
+    if (el.type === 'checkbox' || el.type === 'radio') el.checked = !!saved.checked;
+    else if (saved.value != null) el.value = saved.value;
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+}
+
+function buildDeskSnapshot() {
+  return {
+    schema_version: 2,
+    global_inputs: {
+      video: window.globalInputs?.video || '',
+      image: window.globalInputs?.image || '',
+      path_in: window.globalInputs?.pathIn || '',
+      path_out: window.globalInputs?.pathOut || '',
+      frame_start: Number(window.globalInputs?.frameStart || 1),
+      frame_end: Number(window.globalInputs?.frameEnd || 100),
+    },
+    active_tab: state.activeTab,
+    form_state: state.formState || {},
+    state: {
+      project: { ...state.project },
+      faceMorph: state.faceMorph,
+      withoutbg: state.withoutbg,
+      styleTransfer: state.styleTransfer,
+      quick: state.quick,
+      watcher: {
+        enabled: !!state.watcher?.enabled,
+        in_dir: state.watcher?.in_dir || '',
+        out_dir: state.watcher?.out_dir || '',
+        resize_mode: state.watcher?.resize_mode || 'letterbox',
+        target_width: Number(state.watcher?.target_width || 1920),
+        target_height: Number(state.watcher?.target_height || 1080),
+      },
+      imageSort: state.imageSort,
+      cut: state.cut,
+      zoompan: state.zoompan || {},
+      imgCompare: state.imgCompare || {},
+      imageEdit: state.imageEdit || {},
+      settings: state.settings,
+    },
+  };
+}
+
+function applyDeskSnapshot(desk) {
+  if (!desk || typeof desk !== 'object') return;
+  const gi = desk.global_inputs || {};
+  window.globalInputs.video = gi.video || '';
+  window.globalInputs.image = gi.image || '';
+  window.globalInputs.pathIn = gi.path_in || '';
+  window.globalInputs.pathOut = gi.path_out || '';
+  window.globalInputs.frameStart = Number(gi.frame_start || 1);
+  window.globalInputs.frameEnd = Number(gi.frame_end || 100);
+  if (desk.active_tab) state.activeTab = desk.active_tab;
+  if (desk.form_state && typeof desk.form_state === 'object') state.formState = desk.form_state;
+  const s = desk.state || {};
+  if (s.project && typeof s.project === 'object') {
+    state.project = { ...state.project, ...s.project, dirty: !!s.project.dirty };
+  }
+  for (const key of ['faceMorph', 'withoutbg', 'styleTransfer', 'quick', 'imageSort', 'cut', 'zoompan', 'imgCompare', 'imageEdit']) {
+    if (s[key] && typeof s[key] === 'object') state[key] = { ...(state[key] || {}), ...s[key] };
+  }
+  if (s.watcher && typeof s.watcher === 'object') state.watcher = { ...state.watcher, ...s.watcher };
+  if (s.settings && typeof s.settings === 'object') {
+    state.settings = {
+      ...state.settings, ...s.settings,
+      warmModels: { ...state.settings.warmModels, ...(s.settings.warmModels || {}) },
+    };
+    try { localStorage.setItem('mtapi.settings', JSON.stringify(state.settings)); } catch (_) {}
+  }
+}
+
 // ── Pool persistence ──────────────────────────────────────────────────────
 
 function scheduleSavePoolState() {
@@ -30,7 +124,7 @@ function scheduleSavePoolState() {
   _poolSaveTimer = setTimeout(() => {
     _poolSaveTimer = null;
     savePoolStateNow();
-  }, 400);
+  }, Math.max(400, Number(state.settings?.autosaveInterval || 30) * 1000));
 }
 
 function buildPoolStatePayload() {
@@ -92,6 +186,7 @@ function buildPoolStatePayload() {
     project_path: state.project.path || null,
     // Session-only: whether named project file may lag the desk (never auto-written).
     project_dirty: !!(state.project.path && state.project.dirty),
+    desk: buildDeskSnapshot(),
   };
 }
 
@@ -122,6 +217,7 @@ function updateProjectNameUI() {
 
 /** Apply loaded project/session JSON into live pool state and re-render. */
 function applyPoolData(data, { asProject = false, projectPath = null, projectName = null } = {}) {
+  applyDeskSnapshot(data.desk);
   const items = data.items || [];
   const sequence = data.sequence || [];
   const images = data.images || [];
@@ -234,31 +330,11 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
     logConsole(`[PROJECT]: ${missing.length} missing path(s) skipped:\n${missing.slice(0, 8).join('\n')}`);
   }
 
-  // Warm meta (loadPoolItemMeta kicks Instant RIFE when sequence uses that path)
-  state.pool.items.forEach((item, idx) => {
-    loadPoolItemMeta(item, idx);
-  });
+  // Metadata is now viewport-driven by pool/grid.js. Never probe every restored
+  // item here: an 800-clip folder used to create an immediate request herd.
   // NOTE: removed post-load auto-RIFE scan. Instant densify now only runs on
   // explicit user action: changing Time, target FPS, or toggling Instant ON.
   // This prevents project-load from re-encoding already-rifed clips.
-  // Image thumbs/meta (lazy; image-pool module loads deeper meta when tab opens)
-  state.imagePool.items.forEach((item) => {
-    if (!item.hash) {
-      // soft probe for hash so thumbs can use permanent cache key
-      fetch(`/api/media_info?path=${encodeURIComponent(item.path)}&ensure_thumbs=true`)
-        .then(r => r.json())
-        .then(data => {
-          if (data && data.ok) {
-            item.meta = data;
-            item.hash = data.hash || item.hash;
-            if (data.size != null) item.size = data.size;
-            if (data.name) item.name = data.name;
-            scheduleSavePoolState();
-          }
-        })
-        .catch(() => {});
-    }
-  });
 }
 
 async function projectNew() {
@@ -376,6 +452,7 @@ async function confirmEmptySequenceOverwrite(path) {
 }
 
 async function projectSave(saveAs = false) {
+  captureCurrentFormState();
   let path = state.project.path;
   if (saveAs || !path) {
     const suggested = path
@@ -432,8 +509,6 @@ async function projectSave(saveAs = false) {
     state.project.name = data.name || name;
     state.project.dirty = false;
     updateProjectNameUI();
-    // Backend project save also mirrors session; keep client session payload in sync.
-    await savePoolStateNow();
     logConsole(`[PROJECT]: Saved ${state.project.name} → ${data.path}`);
     elements.statusDot.className = 'status-dot';
     elements.statusText.textContent = 'Project saved';
@@ -455,6 +530,7 @@ async function projectSave(saveAs = false) {
 async function savePoolStateNow() {
   if (!_poolPersistReady) return;
   try {
+    captureCurrentFormState();
     const payload = buildPoolStatePayload();
     const res = await fetch('/api/pool/state', {
       method: 'PUT',
@@ -671,11 +747,13 @@ async function stitchPoolSequence() {
 }
 
 function poolThumbUrl(item, which) {
+  const size = String(state.settings?.thumbnailSize || 'H').toUpperCase();
+  const version = 3;
   // Prefer content-hash once known — permanent cache key independent of path
   if (item.hash) {
-    return `/api/thumbnail?hash=${encodeURIComponent(item.hash)}&which=${which}`;
+    return `/api/thumbnail?hash=${encodeURIComponent(item.hash)}&which=${which}&s=${encodeURIComponent(size)}&v=${version}`;
   }
-  return `/api/thumbnail?path=${encodeURIComponent(item.path)}&which=${which}`;
+  return `/api/thumbnail?path=${encodeURIComponent(item.path)}&which=${which}&s=${encodeURIComponent(size)}&v=${version}`;
 }
 
 function shortHash(h) {
@@ -739,6 +817,7 @@ function buildPoolMetaHtml(item) {
 export {
   _poolSeqId, _poolSaveTimer, _poolPersistReady,
   nextSeqId,
+  captureCurrentFormState, applySavedFormState, buildDeskSnapshot, applyDeskSnapshot,
   scheduleSavePoolState, buildPoolStatePayload,
   projectLabel, markProjectDirty, updateProjectNameUI,
   applyPoolData, projectNew, projectOpen, projectSave,

@@ -28,6 +28,7 @@ class FastSAMParams(BaseModel):
     start_frame: int = start_frame_field()
     end_frame: int = end_frame_field()
     dry_run: bool = False
+    keep_model_warm: bool = Field(False, description="Keep the FastSAM model resident between runs")
 
 
 async def fastsam_op(p: FastSAMParams) -> OperationResult:
@@ -80,11 +81,11 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
     # ── Image path: direct inference ─────────────────────────────────────
     if is_image:
         import cv2
-        from app.filters.fastsam import ensure_openvino_model, get_target_mask
+        from app.filters.fastsam import ensure_openvino_model, get_runtime_model, get_target_mask
         from ultralytics import FastSAM
 
         ov_model_path = ensure_openvino_model(device=p.device)
-        model = FastSAM(ov_model_path)
+        model = get_runtime_model(ov_model_path, keep_warm=p.keep_model_warm)
 
         ov_device = p.device
         if ov_device and not ov_device.lower().startswith("intel:") and ov_device.upper() != "CPU":
@@ -155,6 +156,7 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
     stage_fn = await make_fastsam_directory(
         conf=p.conf, iou=p.iou, device=p.device,
         mode=p.mode, target_x=p.target_x, target_y=p.target_y
+        , keep_model_warm=p.keep_model_warm
     )
 
     return await run_staged_job(

@@ -30,6 +30,7 @@ VIDEO_EXTS = {".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi"}
 
 
 class StyleTransferParams(EvolveRifeParams):
+    keep_model_warm: bool = Field(False, description="Keep the style model resident between runs")
     content_path: str | None = Field(
         None,
         description="Single content image path, or a directory of images",

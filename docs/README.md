@@ -37,7 +37,7 @@
 
 ---
 
-## At a glance — `000.000.5.00` (2026-08-10)
+## At a glance — `000.000.5.05` (2026-08-13)
 
 ### Shipped recently
 | Doc / feature | Ver |
@@ -65,6 +65,7 @@
 | [tilagup-mtapi-mode-spec.md](tilagup-mtapi-mode-spec.md) | Agent tiled SD |
 | [image-quality-rating-spec.md](image-quality-rating-spec.md) | Pool quality scores |
 | [fastsam-sam-multimodel-spec.md](fastsam-sam-multimodel-spec.md) | **FastSAM + SAM multimodel selector** — stronger backends on Intel OpenVINO |
+| [performance-settings-spec.md](performance-settings-spec.md) | Pool performance, thumbnail resolution, and RAM cache prefs |
 
 Full backlog: **[STATUS.md §5](STATUS.md)**. Build order: **[STATUS.md §8](STATUS.md)**.
 
@@ -100,7 +101,7 @@ Full backlog: **[STATUS.md §5](STATUS.md)**. Build order: **[STATUS.md §8](STA
 
 ## Implemented ops (check STATUS)
 
-transmute, convert, pipeline, datamosh, deepdream (+ **evolve**), facemorph, withoutbg, style (+ **evolve**), rife, **rife_recohere**, speed, ramp, zoompan, image sort, img2img, txt2img, agent, **prompt library (UI)**, upscale, cut, job queue.
+transmute, convert, pipeline, datamosh, deepdream (+ **evolve**), facemorph, withoutbg, style (+ **evolve**), rife, **rife_recohere**, speed, ramp, zoompan, image sort, img2img, txt2img, agent, **prompt library (UI)**, upscale, cut, job queue, **qr_art**.
 
 ---
 
