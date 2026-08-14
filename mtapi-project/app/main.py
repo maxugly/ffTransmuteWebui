@@ -73,7 +73,7 @@ app.add_middleware(
 )
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
-WORKSPACE_PATH = "/home/m/snc/cod/ffTransmuteWebui"
+WORKSPACE_PATH = str(Path(__file__).resolve().parent.parent.parent)
 VIDEO_EXTENSIONS = {
     ".mp4", ".m4v", ".mov", ".avi", ".mkv", ".webm",
     ".mpeg", ".mpg", ".wmv", ".flv", ".ts", ".mts", ".m2ts",

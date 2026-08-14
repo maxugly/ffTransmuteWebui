@@ -3,7 +3,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 
-WORKSPACE_PATH = "/home/m/snc/cod/ffTransmuteWebui"
+WORKSPACE_PATH = str(Path(__file__).resolve().parent.parent.parent.parent)
 
 
 def register(app: FastAPI) -> None:
