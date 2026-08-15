@@ -466,7 +466,21 @@ function resetForTests() {
   state.hydrated = false;
   state.firstWindowReady = false;
   state.pendingRenders = 0;
-  setEnabled(state.enabled);
+  state.hashQueue.length = 0;
+  state.hashSet.clear();
+  state.hashActive = 0;
+  state.probeQueue.length = 0;
+  state.probeSet.clear();
+  state.probeActive = 0;
+  state.thumbQueue.length = 0;
+  state.thumbSet.clear();
+  state.thumbActive = 0;
+  state.variantActive = 0;
+  state.variantWait.length = 0;
+  if (state.idleTimer != null) {
+    clearTimeout(state.idleTimer);
+    state.idleTimer = null;
+  }
 }
 
 if (typeof window !== 'undefined') {

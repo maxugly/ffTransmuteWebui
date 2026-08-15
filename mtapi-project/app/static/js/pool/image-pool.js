@@ -10,17 +10,14 @@ import {
   scheduleSavePoolState, poolThumbUrl, itemShowsThumb, shortHash, projectLabel,
   projectNew, projectOpen, projectSave,
 } from '/js/pool/persistence.js';
-import { observe as lazyObserve, unobserve as lazyUnobserve, clearPending as lazyClearPending, assignThumbSrc } from '/js/lazy-loader.js';
+import { clearPending as lazyClearPending, assignThumbSrc } from '/js/lazy-loader.js';
 import { validateItemSignature, assignCardThumbs, metaRetryHtml, hasRestoredIdentity } from '/js/pool/freshness.js';
 import { globalMediaIndex } from '/js/media-index.js';
 import { installPoolScrollPaint } from '/js/pool/layout.js';
+import { createVirtualGrid } from '/js/pool/virtual-grid.js';
+import { repairItem } from '/js/repair-queue.js';
 
-const _observedImageCards = new Set();
-
-function releaseObservedImageCards() {
-  for (const el of _observedImageCards) lazyUnobserve(el);
-  _observedImageCards.clear();
-}
+let _imageVirt = null;
 
 // ── helpers ──────────────────────────────────────────────────────────────
 
@@ -587,6 +584,11 @@ function sendImagePathTo(path, target) {
 // ── UI ───────────────────────────────────────────────────────────────────
 
 function renderImagePoolForm() {
+  const existing = document.getElementById('imgPoolGrid');
+  if (existing && elements.actionPanel.contains(existing)) {
+    renderImagePoolGrid();
+    return;
+  }
   const ip = ensureImagePool();
   const count = ip.items.length;
   const selected = ip.selectedPath;
@@ -640,8 +642,8 @@ function renderImagePoolForm() {
             ` : ''}
           </div>
         </div>
-        <div class="pool-grid-wrap">
-          <div class="pool-grid img-pool-grid" id="imgPoolGrid"></div>
+        <div class="pool-grid-wrap" id="imgPoolGridWrap">
+          <div class="pool-scroll-canvas img-pool-grid" id="imgPoolGrid" tabindex="0"></div>
         </div>
       </div>
     </div>
@@ -699,15 +701,100 @@ function _updateImageFilterCount() {
     : `${total} in image pool`;
 }
 
-function renderImagePoolGrid() {
-  const grid = document.getElementById('imgPoolGrid');
-  if (!grid) return;
+function ensureImageCardSkeleton(card) {
+  if (card.dataset.skel === '1') return;
+  card.classList.add('img-pool-card');
+  card.innerHTML = `
+      <div class="pool-card-actions">
+        <div class="pool-send-wrap">
+          <button type="button" class="btn pool-send-btn" title="Send this image">Send to ▾</button>
+        </div>
+        <button class="pool-card-remove" type="button" title="Remove from image pool">✕</button>
+      </div>
+      <div class="pool-frames img-pool-single">
+        <div class="pool-frame">
+          <img class="pool-thumb" alt="" decoding="async" data-which="first" draggable="false">
+        </div>
+      </div>
+      <div class="pool-overlay">
+        <div class="pool-overlay-text img-pool-meta"></div>
+      </div>
+    `;
+  card.dataset.skel = '1';
+}
+
+function fillImageCardLite(card, item, index) {
+  ensureImageCardSkeleton(card);
   const ip = ensureImagePool();
-  releaseObservedImageCards();
+  card.classList.toggle('selected', ip.selectedPath === item.path);
+  card.dataset.path = item.path;
+  if (item.hash) card.dataset.hash = item.hash;
+  else delete card.dataset.hash;
+  card.dataset.idx = String(index);
+  const img = card.querySelector('img.pool-thumb');
+  if (img) {
+    if (itemShowsThumb(item, 'first')) {
+      const url = imageThumbUrl(item);
+      if (img.getAttribute('src') !== url) img.setAttribute('src', url);
+    } else if (img.hasAttribute('src')) img.removeAttribute('src');
+  }
+}
+
+function fillImageCard(card, item, index) {
+  fillImageCardLite(card, item, index);
+  const metaEl = card.querySelector('.img-pool-meta');
+  if (metaEl) {
+    if (item.metaError && !item.meta) metaEl.innerHTML = metaRetryHtml(item.metaError);
+    else if (item.meta) metaEl.innerHTML = buildImageMetaHtml(item);
+    else metaEl.innerHTML = '<span class="pool-meta-unavailable">metadata unavailable</span>';
+  }
+  try { globalMediaIndex.put(item); } catch (_) { /* ignore */ }
+  assignCardThumbs(card, item, { bust: false });
+}
+
+function bindImageCard(card) {
+  card.addEventListener('click', (e) => {
+    if (e.target.closest('.pool-retry-meta')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const ip = ensureImagePool();
+      const item = ip.items.find((it) => it.path === card.dataset.path);
+      if (item) repairItem(item, { force: true });
+      return;
+    }
+    if (e.target.closest('.pool-card-remove, .pool-send-wrap')) return;
+    if (card.dataset.path) selectImageItem(card.dataset.path);
+  });
+  card.addEventListener('click', (e) => {
+    const rm = e.target.closest('.pool-card-remove');
+    if (!rm) return;
+    e.stopPropagation();
+    const ip = ensureImagePool();
+    const idx = ip.items.findIndex((it) => it.path === card.dataset.path);
+    if (idx >= 0) removeImageItem(idx);
+  });
+  card.addEventListener('click', (e) => {
+    const sendBtn = e.target.closest('.pool-send-btn');
+    if (!sendBtn) return;
+    e.stopPropagation();
+    if (card.dataset.path) _showImageSendMenu(sendBtn, card.dataset.path);
+  });
+}
+
+function renderImagePoolGrid() {
+  const canvas = document.getElementById('imgPoolGrid');
+  const wrap = canvas?.closest('.pool-grid-wrap') || document.getElementById('imgPoolGridWrap');
+  if (!canvas || !wrap) return;
+  const ip = ensureImagePool();
 
   if (ip.items.length === 0) {
     lazyClearPending();
-    grid.innerHTML = `
+    if (_imageVirt) {
+      try { _imageVirt.destroy(); } catch (_) { /* ignore */ }
+      _imageVirt = null;
+    }
+    canvas.style.height = '';
+    canvas.innerHTML = `
       <div class="pool-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -724,8 +811,13 @@ function renderImagePoolGrid() {
 
   const items = filteredImageItems();
   if (items.length === 0) {
+    if (_imageVirt) {
+      try { _imageVirt.destroy(); } catch (_) { /* ignore */ }
+      _imageVirt = null;
+    }
     const q = escapeHtml(ip.filterQuery || '');
-    grid.innerHTML = `
+    canvas.style.height = '';
+    canvas.innerHTML = `
       <div class="pool-empty">
         <p>No images match <strong>${q}</strong>.</p>
         <p class="pool-empty-hint">Clear the filter (Esc) or try a shorter query.</p>
@@ -735,66 +827,31 @@ function renderImagePoolGrid() {
     return;
   }
 
-  grid.innerHTML = '';
-  items.forEach((item) => {
-    const idx = ip.items.indexOf(item);
-    const card = document.createElement('article');
-    const isSelected = ip.selectedPath === item.path;
-    card.className = `pool-card img-pool-card${isSelected ? ' selected' : ''}`;
-    card.dataset.path = item.path;
-    if (item.hash) card.dataset.hash = item.hash;
-    card.dataset.idx = String(idx >= 0 ? idx : 0);
+  const empty = canvas.querySelector('.pool-empty');
+  if (empty) empty.remove();
 
-    const metaHtml = item.metaError && !item.meta
-      ? metaRetryHtml(item.metaError)
-      : (item.meta
-        ? buildImageMetaHtml(item)
-        : '<span class="pool-meta-unavailable">metadata unavailable</span>');
-
-    card.innerHTML = `
-      <div class="pool-card-actions">
-        <div class="pool-send-wrap">
-          <button type="button" class="btn pool-send-btn" title="Send this image">Send to ▾</button>
-        </div>
-        <button class="pool-card-remove" type="button" title="Remove from image pool" data-remove="${idx}">✕</button>
-      </div>
-      <div class="pool-frames img-pool-single">
-        <div class="pool-frame">
-          <img class="pool-thumb" alt="${escapeHtml(item.name || '')}" loading="eager" decoding="async" data-which="first" draggable="false"${itemShowsThumb(item, 'first') ? ` src="${imageThumbUrl(item)}"` : ''}>
-        </div>
-      </div>
-      <div class="pool-overlay">
-        <div class="pool-overlay-text img-pool-meta">
-          ${metaHtml}
-        </div>
-      </div>
-    `;
-
-    card.addEventListener('click', (e) => {
-      if (e.target.closest('.pool-card-remove, .pool-send-wrap')) return;
-      selectImageItem(item.path);
+  if (_imageVirt && _imageVirt._canvas !== canvas) {
+    try { _imageVirt.destroy(); } catch (_) { /* ignore */ }
+    _imageVirt = null;
+  }
+  if (!_imageVirt) {
+    canvas.innerHTML = '';
+    canvas.style.height = '';
+    _imageVirt = createVirtualGrid({
+      wrap,
+      canvas,
+      getItems: () => filteredImageItems(),
+      renderCard: fillImageCard,
+      recycleCard: fillImageCardLite,
+      bindCard: bindImageCard,
+      minColWidth: 160,
     });
-
-    card.querySelector('.pool-card-remove')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      removeImageItem(idx);
-    });
-
-    // lightweight send menu
-    card.querySelector('.pool-send-btn')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      _showImageSendMenu(e.currentTarget, item.path);
-    });
-
-    grid.appendChild(card);
-    if (item.metaError && !item.meta) bindImageRetry(card, item);
-    if (item.meta || item.hash) {
-      try { globalMediaIndex.put(item); } catch (_) { /* ignore */ }
-      assignCardThumbs(card, item, { bust: false });
-    }
-    _observedImageCards.add(card);
-  });
-
+    _imageVirt._canvas = canvas;
+    window.__mtapiImageVirtualGrid = _imageVirt;
+  } else {
+    _imageVirt.invalidate();
+  }
+  _imageVirt.sync({ force: true });
   _updateImageFilterCount();
 }
 

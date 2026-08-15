@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-15  \
-> **VERSION:** `000.000.5.36`  \
+> **VERSION:** `000.000.5.37`  \
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -121,7 +121,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Sidebar collapse is icon-wide** | Collapsed aside is 44px (icons only). Title + logo hide. Saved drag-width no longer keeps it fat | `layout.css`, `app.js` · **`5.33`** |
 | **Header title gone** | No redundant tab title in the top bar. V-in/out buttons hug the left | `index.html`, `layout.css` · **`5.34`** |
 | **Input preview not sidebar** | Nav `aside` is `.app-sidebar`; input preview is a `div` so collapse/resize no longer shrink it | `index.html`, `layout.css` · **`5.35`** |
-| **Catalog virtualization** | Hover/scroll/select never call `/api/media_info`. Path-keyed `globalMediaIndex` + `hashToPaths`. Bounded repair (ensure 8 / probe 4 / hash 2 / variant batch 2×100). Vanilla `.pool-scroll-canvas` virtualizer + Strict/Fuzzy search + status counters. `viewportLazyThumbnails=true` default | `catalog-interaction-virtualization-spec.md` · **`5.36`** |
+| **Catalog virtualization** | Hover/scroll/select never `/api/media_info`. Path-keyed index + bounded queues. Video **and** Image Pool use `.pool-scroll-canvas`. JS scroll work p95 ~1ms. **Partial:** headless rAF p95 is not the spec’s vsync 16.6ms compositor target | `catalog-interaction-virtualization-spec.md` · **`5.37` Partial** |
 
 **Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale, **qr_art** *(in tree — see §4)*. Root `AGENTS.md`.
 
@@ -131,6 +131,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 
 | Area | Status | Next |
 |------|--------|------|
+| **Catalog virtualization** | Hover/queues/Image+Video virt in `5.37` | Headed vsync 16.6ms compositor p95 — `catalog-interaction-virtualization-spec.md` |
 | **Workspace progress** | RIFE + **dump dir watch** in tree | multi-phase remaining ETA polish — `workspace-progress-spec.md` |
 | **Tool bottom docs** | Several tabs have blocks; not universal | Finish roll-out — `tool-bottom-docs-spec.md` |
 | **UI list / sequence keys** | Sequence L/R + scroll-into-view **shipped `4.64`**; some pool edge cases may remain | `ui-list-nav-timer-spec.md` |
@@ -237,7 +238,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.5.36` (Catalog virtualization: no hover-probe, bounded repair, vanilla virtualizer.)
+- **Current:** `000.000.5.37` (Catalog virtualization **Partial** — queues/hover/JS work measured; 16.6ms compositor frame not claimed from headless rAF.)
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  

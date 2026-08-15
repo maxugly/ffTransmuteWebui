@@ -140,36 +140,18 @@ function selectPoolItem(path, ev = null) {
   const findBtn = document.getElementById('btnFindNext');
   if (findBtn && !state.pool.matchLoading) findBtn.disabled = false;
 
-  const toolbarMeta = document.querySelector('.pool-toolbar-meta');
-  if (toolbarMeta) {
-    toolbarMeta.innerHTML = `
-      <span class="pool-count">${state.pool.items.length} in video pool · ${state.pool.sequence.length} in sequence</span>
-      <div class="catalog-status" id="catalogStatus" aria-live="polite"></div>
-      <button type="button" class="btn pool-info-mini" id="btnRepairMetadata" title="Queue missing hash, metadata, and thumbnails">Repair Metadata</button>
-      <div class="pool-use-wrap">
-        <label for="poolUseTarget" class="pool-use-label">Use as input</label>
-        <select id="poolUseTarget" class="pool-use-select">
-          <option value="">— target —</option>
-          <option value="sequence">Add to sequence</option>
-          <option value="cut">Cut (global video + range)</option>
-          <option value="mosh">Datamosh input</option>
-          <option value="transmute">Transmute input</option>
-          <option value="multi">Add to Multi clips</option>
-          <option value="advanced">Advanced input</option>
-        </select>
-        <button class="btn btn-primary" id="btnPoolUse" type="button">Apply</button>
-      </div>
-      <button class="btn pool-jump-btn" id="btnJumpSelected" type="button" title="Jump to selected clip in grid">!</button>
-    `;
-    document.getElementById('btnRepairMetadata')?.addEventListener('click', () => {
-      import('/js/repair-queue.js').then((m) => {
-        for (const it of state.pool.items || []) m.repairItem(it, { force: false });
-      }).catch(() => {});
-    });
-    import('/js/pool/grid.js').then((m) => { try { m.updateCatalogStatus(); } catch (_) { /* ignore */ } }).catch(() => {});
-    document.getElementById('btnPoolUse')?.addEventListener('click', applyPoolAsInput);
-    document.getElementById('btnJumpSelected')?.addEventListener('click', scrollToSelected);
+  const countEl = document.querySelector('.pool-count');
+  if (countEl) {
+    const q = (state.pool.filterQuery || '').trim();
+    const shown = q ? (window.__mtapiVirtualGrid?.items?.length ?? state.pool.items.length) : state.pool.items.length;
+    countEl.textContent = q
+      ? `${shown} shown · ${state.pool.items.length} in video pool · ${state.pool.sequence.length} in sequence`
+      : `${state.pool.items.length} in video pool · ${state.pool.sequence.length} in sequence`;
   }
+  const useWrap = document.querySelector('.pool-use-wrap');
+  if (useWrap) useWrap.hidden = !state.pool.selectedPath;
+  const jump = document.getElementById('btnJumpSelected');
+  if (jump) jump.hidden = !state.pool.selectedPath;
 }
 
 function removePoolItem(idx) {

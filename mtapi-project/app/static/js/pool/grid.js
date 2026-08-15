@@ -136,6 +136,15 @@ async function _variantNodeHtml(path) {
 // ─── Video Pool ───────────────────────────────────────────────────────────
 
 function renderPoolForm() {
+  const existing = document.getElementById('poolGrid');
+  if (existing && elements.actionPanel.contains(existing) && !document.getElementById('poolCompose')) {
+    applyPoolZoom();
+    renderPoolGrid();
+    updateSelectionHighlights();
+    updateCatalogStatus();
+    return;
+  }
+
   const count = state.pool.items.length;
   const selected = state.pool.selectedPath;
   const seqCount = state.pool.sequence?.length || 0;
@@ -234,22 +243,20 @@ function _poolToolbarHtml(count, selected, seqCount, opts) {
         <span class="pool-count">${count} in video pool${showSeqTools ? ' · ' + seqCount + ' in sequence' : ''}</span>
         <div class="catalog-status" id="catalogStatus" aria-live="polite"></div>
         <button type="button" class="btn pool-info-mini" id="btnRepairMetadata" title="Queue missing hash, metadata, and thumbnails">Repair Metadata</button>
-        ${selected ? `
-          <div class="pool-use-wrap">
-            <label for="poolUseTarget" class="pool-use-label">Use as input</label>
-            <select id="poolUseTarget" class="pool-use-select">
-              <option value="">— target —</option>
-              <option value="sequence">Add to sequence</option>
-              <option value="cut">Cut (global video + range)</option>
-              <option value="mosh">Datamosh input</option>
-              <option value="transmute">Transmute input</option>
-              <option value="multi">Add to Multi clips</option>
-              <option value="advanced">Advanced input</option>
-            </select>
-            <button class="btn btn-primary" id="btnPoolUse" type="button">Apply</button>
-          </div>
-          <button class="btn pool-jump-btn" id="btnJumpSelected" type="button" title="Jump to selected clip in grid">!</button>
-        ` : ''}
+        <div class="pool-use-wrap" ${selected ? '' : 'hidden'}>
+          <label for="poolUseTarget" class="pool-use-label">Use as input</label>
+          <select id="poolUseTarget" class="pool-use-select">
+            <option value="">— target —</option>
+            <option value="sequence">Add to sequence</option>
+            <option value="cut">Cut (global video + range)</option>
+            <option value="mosh">Datamosh input</option>
+            <option value="transmute">Transmute input</option>
+            <option value="multi">Add to Multi clips</option>
+            <option value="advanced">Advanced input</option>
+          </select>
+          <button class="btn btn-primary" id="btnPoolUse" type="button">Apply</button>
+        </div>
+        <button class="btn pool-jump-btn" id="btnJumpSelected" type="button" title="Jump to selected clip in grid" ${selected ? '' : 'hidden'}>!</button>
       </div>
     </div>`;
 }
@@ -798,6 +805,16 @@ function _composeHtml() {
 }
 
 function renderSequenceForm() {
+  const existing = document.getElementById('poolGrid');
+  const compose = document.getElementById('poolCompose');
+  if (existing && compose && elements.actionPanel.contains(existing)) {
+    applyPoolZoom();
+    renderPoolGrid();
+    updateSelectionHighlights();
+    updateCatalogStatus();
+    return;
+  }
+
   const count = state.pool.items.length;
   const seqCount = state.pool.sequence.length;
   const selected = state.pool.selectedPath;
@@ -940,6 +957,31 @@ function ensurePoolCardSkeleton(card) {
       <div class="pool-variants"></div>
     `;
   card.dataset.skel = '1';
+}
+
+function fillPoolCardLite(card, item, index) {
+  ensurePoolCardSkeleton(card);
+  const path = item.path;
+  const selected = ensureSelectedPaths();
+  card.classList.toggle('selected', selected.has(path) || state.pool.selectedPath === path);
+  card.dataset.path = path;
+  if (item.hash) card.dataset.hash = item.hash;
+  else delete card.dataset.hash;
+  card.dataset.idx = String(index);
+  const first = card.querySelector('img.pool-thumb[data-which="first"]');
+  const last = card.querySelector('img.pool-thumb[data-which="last"]');
+  if (first) {
+    if (itemShowsThumb(item, 'first')) {
+      const url = poolThumbUrl(item, 'first');
+      if (first.getAttribute('src') !== url) first.setAttribute('src', url);
+    } else if (first.hasAttribute('src')) first.removeAttribute('src');
+  }
+  if (last) {
+    if (itemShowsThumb(item, 'last')) {
+      const url = poolThumbUrl(item, 'last');
+      if (last.getAttribute('src') !== url) last.setAttribute('src', url);
+    } else if (last.hasAttribute('src')) last.removeAttribute('src');
+  }
 }
 
 function fillPoolCard(card, item, index) {
@@ -1180,7 +1222,7 @@ function updateCatalogStatus() {
   const el = document.getElementById('catalogStatus');
   if (!el) return;
   const counts = globalMediaIndex.catalogCounts(state.pool.items || []);
-  el.innerHTML = [
+  const html = [
     `<span>Restored ${counts.restored}</span>`,
     `<span>Known metadata ${counts.knownMetadata}</span>`,
     `<span>Known thumbnails ${counts.knownThumbnails}</span>`,
@@ -1189,6 +1231,9 @@ function updateCatalogStatus() {
     `<span>Repairing ${counts.repairing}</span>`,
     `<span>Failed ${counts.failed}</span>`,
   ].join(' · ');
+  if (el.dataset.sig === html) return;
+  el.dataset.sig = html;
+  el.innerHTML = html;
 }
 
 function renderPoolGrid() {
@@ -1243,14 +1288,11 @@ function renderPoolGrid() {
     if (empty) empty.remove();
 
     const minCol = state.pool.tileZoom || 200;
-    if (_videoVirt) {
+    if (_videoVirt && _videoVirt._canvas !== canvas) {
       try { _videoVirt.destroy(); } catch (_) { /* ignore */ }
       _videoVirt = null;
     }
-    if (!_videoVirt || _videoVirt._canvas !== canvas) {
-      if (_videoVirt) {
-        try { _videoVirt.destroy(); } catch (_) { /* ignore */ }
-      }
+    if (!_videoVirt) {
       canvas.innerHTML = '';
       canvas.style.height = '';
       _videoVirt = createVirtualGrid({
@@ -1258,12 +1300,18 @@ function renderPoolGrid() {
         canvas,
         getItems: () => filteredPoolItems(),
         renderCard: fillPoolCard,
+        recycleCard: fillPoolCardLite,
         bindCard: bindVirtualCard,
         minColWidth: minCol,
       });
       _videoVirt._canvas = canvas;
       window.__mtapiVirtualGrid = _videoVirt;
       _bindGridKeyboard(wrap);
+    }
+    const sig = `${state.pool.filterQuery || ''}|${state.pool.searchMode || 'fuzzy'}|${state.pool.items.length}|${state.pool.tileZoom}`;
+    if (_videoVirt._sig !== sig) {
+      _videoVirt.invalidate();
+      _videoVirt._sig = sig;
     }
 
     const savedTop = state.pool.gridScrollTop;
@@ -1295,6 +1343,8 @@ if (typeof window !== 'undefined') {
         updateCatalogStatus();
         _videoVirt?.refreshAllVisible?.();
         const path = displayFocusPath();
+        const frame = document.getElementById('poolFocusFrame');
+        if (frame) frame.dataset.focusPath = '';
         if (path) updatePoolFocusFrame(path);
       } catch (_) { /* ignore */ }
     }, 50);

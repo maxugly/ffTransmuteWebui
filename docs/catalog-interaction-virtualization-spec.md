@@ -1,6 +1,6 @@
 # Catalog Interaction & Virtualization Redesign
 
-> **Status:** **Implemented** `000.000.5.36`
+> **Status:** **Partial** `000.000.5.37` — hover invariant, queues, Video+Image virtualization, and JS scroll work are in tree. Headless rAF interval is not a vsync-locked DevTools 16.6ms compositor timeline; do not mark Implemented until that frame target is measured on a vsync display (or the spec is amended).
 > **Audience:** Builder Agents (Implementation & Architecture)
 > **Goal:** Re-architect catalog rendering and interaction to flawlessly support massive datasets (1,000+ items). Eliminate all synchronous and hover-driven network requests, introduce robust custom vanilla DOM virtualization, and decouple display logic from metadata repair.
 > **Authority:** This document explicitly supersedes the `performance-catalog-ux-spec.md` rules regarding: thumbnail defaults, startup thumbnail behavior, Phase 2 background validation, Phase 3 virtualization, and search behavior. `viewportLazyThumbnails=true` is the authoritative default.

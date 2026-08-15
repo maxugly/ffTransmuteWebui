@@ -23,7 +23,12 @@ function applyPoolZoom() {
   const z = state.pool.tileZoom || POOL_ZOOM.reset;
   grid.style.setProperty('--pool-tile-min', `${z}px`);
   grid.dataset.zoom = String(z);
-  try { window.__mtapiVirtualGrid?.sync?.(); } catch (_) { /* ignore */ }
+  try {
+    window.__mtapiVirtualGrid?.invalidate?.();
+    window.__mtapiVirtualGrid?.sync?.({ force: true });
+    window.__mtapiImageVirtualGrid?.invalidate?.();
+    window.__mtapiImageVirtualGrid?.sync?.({ force: true });
+  } catch (_) { /* ignore */ }
   // Mark reset button
   document.querySelectorAll('.pool-zoom-btn').forEach(btn => btn.classList.remove('active'));
   if (z === POOL_ZOOM.reset) {

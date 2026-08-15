@@ -96,9 +96,10 @@ function _thumbFromItem(item, which) {
   const w = which || 'first';
   const failed = item?.thumbsFailed || item?.thumbs_failed || {};
   if (failed[w]) return 'failed';
-  if (item?.thumbs && item.thumbs[w] === false) return 'failed';
+  if (item?.thumbs && item.thumbs[w] === false) return 'missing';
   if (item?.thumbs && item.thumbs[w] === true) return 'available';
-  // Hash-known thumbs are displayable at any size (L/M may serve H).
+  // Hash-known thumbs are displayable at any size (L/M may serve H)
+  // unless the record explicitly says they are absent.
   if (item?.hash && failed[w] !== true && item?.thumbs?.[w] !== false) return 'available';
   return 'missing';
 }

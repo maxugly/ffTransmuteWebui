@@ -1274,6 +1274,8 @@ function updateSelectionHighlights() {
 function updatePoolFocusFrame(path) {
   const frame = document.getElementById('poolFocusFrame');
   if (!frame) return;
+  if (frame.dataset.focusPath === String(path || '') && frame.childElementCount) return;
+  frame.dataset.focusPath = String(path || '');
 
   if (!path) {
     frame.innerHTML = `<div class="pool-focus-empty">Hover or click a clip</div>`;

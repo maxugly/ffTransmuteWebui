@@ -1,14 +1,14 @@
 # Session stopping state — handoff
 
 > **Date:** 2026-08-15  
-> **VERSION:** `000.000.5.36`  
+> **VERSION:** `000.000.5.37`  
 > **Branch:** `wip`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 5.36)
+## 1. Shipped this stretch (through 5.37)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
@@ -54,7 +54,7 @@
 | **Sidebar collapse is icon-wide** | 44px icon rail; title gone; inline resize width cleared | `layout.css`, `app.js` · **`5.33`** |
 | **Header title gone** | Tab title removed; V-in/out flush left | `index.html`, `layout.css` · **`5.34`** |
 | **Input preview not sidebar** | Nav scoped to `.app-sidebar`; preview is a div | `index.html`, `layout.css` · **`5.35`** |
-| **Catalog virtualization** | Hover/scroll/select never `/api/media_info`. Path-keyed index + `hashToPaths`. Repair caps 8/4/2 + variant 2×100. Vanilla virtualizer, Strict/Fuzzy search, status counters. Viewport-lazy default | `catalog-interaction-virtualization-spec.md` · **`5.36`** |
+| **Catalog virtualization** | Hover invariant, queue caps proven (8/4/2/2), Video+Image `.pool-scroll-canvas`, JS scroll work p95 ~1ms. **Partial** — do not claim 16.6ms compositor p95 from headless rAF | `catalog-interaction-virtualization-spec.md` · **`5.37` Partial** |
 
 Earlier stable: filter platform, dual pools, Convert, neural ops, Prompt Library, Recohere, Agent, OpenVINO stills.
 
@@ -74,6 +74,7 @@ Next strip→video ops: inherit params, import JS helper, call `build_evolve_vid
 
 | Area | Next |
 |------|------|
+| Catalog virtualization | Headed vsync 16.6ms compositor p95 — `catalog-interaction-virtualization-spec.md` |
 | Workspace progress | Multi-phase ETA polish — `workspace-progress-spec.md` |
 | Tool bottom docs | Roll out remaining tabs |
 | UI list keys | Edge cases — `ui-list-nav-timer-spec.md` |
