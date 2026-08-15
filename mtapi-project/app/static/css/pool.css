@@ -363,6 +363,37 @@
   object-fit: none;
 }
 
+.pool-frame.is-pending .pool-thumb {
+  opacity: 0;
+}
+
+.pool-frame.is-pending::before,
+.pool-frame.is-missing::before {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  text-align: center;
+  font-size: 0.68rem;
+  line-height: 1.25;
+  pointer-events: none;
+}
+
+.pool-frame.is-pending::before {
+  content: attr(data-pending-label);
+  color: #e2e8f0;
+  background: #1e293b;
+}
+
+.pool-frame.is-missing::before {
+  content: 'No thumbnail';
+  color: #64748b;
+  background: #111827;
+}
+
 .pool-frame-label {
   position: absolute;
   top: 4px;

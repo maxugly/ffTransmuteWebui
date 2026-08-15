@@ -8,7 +8,7 @@ import {
 import {
   projectNew, projectOpen, projectSave, savePoolStateNow,
   scheduleSavePoolState, stitchPoolSequence, refreshPoolToolbarCounts,
-  projectLabel, poolThumbUrl, itemShowsThumb, shortHash, buildPoolMetaHtml,
+  projectLabel, shortHash, buildPoolMetaHtml,
 } from '/js/pool/persistence.js';
 import {
   findPoolItem, displayFocusPath, setPoolHover, clearPoolHover,
@@ -35,6 +35,7 @@ import {
 } from '/app.js';
 import { clearPending as lazyClearPending } from '/js/lazy-loader.js';
 import { assignCardThumbs, metaRetryHtml } from '/js/pool/freshness.js';
+import { commitItemThumbs, preloadItems, noteVisibleHoles } from '/js/thumb-decode-cache.js';
 import { globalMediaIndex, normalizeAbsPath } from '/js/media-index.js';
 import { createVirtualGrid } from '/js/pool/virtual-grid.js';
 import {
@@ -968,20 +969,7 @@ function fillPoolCardLite(card, item, index) {
   if (item.hash) card.dataset.hash = item.hash;
   else delete card.dataset.hash;
   card.dataset.idx = String(index);
-  const first = card.querySelector('img.pool-thumb[data-which="first"]');
-  const last = card.querySelector('img.pool-thumb[data-which="last"]');
-  if (first) {
-    if (itemShowsThumb(item, 'first')) {
-      const url = poolThumbUrl(item, 'first');
-      if (first.getAttribute('src') !== url) first.setAttribute('src', url);
-    } else if (first.hasAttribute('src')) first.removeAttribute('src');
-  }
-  if (last) {
-    if (itemShowsThumb(item, 'last')) {
-      const url = poolThumbUrl(item, 'last');
-      if (last.getAttribute('src') !== url) last.setAttribute('src', url);
-    } else if (last.hasAttribute('src')) last.removeAttribute('src');
-  }
+  commitItemThumbs(card, item);
 }
 
 function fillPoolCard(card, item, index) {
@@ -1303,6 +1291,10 @@ function renderPoolGrid() {
         recycleCard: fillPoolCardLite,
         bindCard: bindVirtualCard,
         minColWidth: minCol,
+        onWindow: (items, info) => {
+          noteVisibleHoles(info?.holes || 0);
+          preloadItems(items);
+        },
       });
       _videoVirt._canvas = canvas;
       window.__mtapiVirtualGrid = _videoVirt;

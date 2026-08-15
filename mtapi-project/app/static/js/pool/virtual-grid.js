@@ -26,6 +26,7 @@ function createVirtualGrid({
   renderCard,
   recycleCard,
   bindCard,
+  onWindow,
   minColWidth = 200,
   overscanScreens = OVERSCAN_SCREENS,
 } = {}) {
@@ -186,6 +187,9 @@ function createVirtualGrid({
     }
 
     const paint = (lite && typeof recycleCard === 'function') ? recycleCard : renderCard;
+    // Lite recycle is cheap (placeholder / cached decode). Do not leave
+    // visible-window holes during fast scroll or scrollbar jumps.
+    const createCap = lite ? Number.POSITIVE_INFINITY : CREATE_BUDGET;
 
     for (const i of order) {
       const item = items[i];
@@ -193,7 +197,7 @@ function createVirtualGrid({
       keep.add(item.path);
       let el = cards.get(item.path);
       if (!el) {
-        if (created >= CREATE_BUDGET && !force) {
+        if (created >= createCap && !force) {
           deferred = true;
           keep.delete(item.path);
           continue;
@@ -206,6 +210,8 @@ function createVirtualGrid({
         created += 1;
       } else if (force && typeof renderCard === 'function') {
         renderCard(el, item, i);
+      } else if (lite && typeof recycleCard === 'function' && el.dataset.path !== item.path) {
+        recycleCard(el, item, i);
       }
       el.dataset.idx = String(i);
       positionCard(el, i);
@@ -216,6 +222,20 @@ function createVirtualGrid({
         parkCard(el);
         cards.delete(p);
       }
+    }
+
+    let holes = 0;
+    for (let i = win.visStart; i < win.visEnd; i++) {
+      const it = items[i];
+      if (it && it.path && !cards.has(it.path)) holes += 1;
+    }
+
+    if (typeof onWindow === 'function') {
+      const windowItems = [];
+      for (let i = win.start; i < win.end; i++) {
+        if (items[i]) windowItems.push(items[i]);
+      }
+      try { onWindow(windowItems, { holes }); } catch (_) { /* ignore */ }
     }
 
     if (!firstPaintMarked && cards.size > 0) {

@@ -6,8 +6,9 @@
  * identity, optional lazy mode) and goes through the batch queue.
  */
 import { state } from '/app.js';
-import { poolThumbUrl, itemShowsThumb } from '/js/pool/persistence.js';
-import { enqueueSignature, assignThumbSrc } from '/js/lazy-loader.js';
+import { poolThumbUrl } from '/js/pool/persistence.js';
+import { enqueueSignature } from '/js/lazy-loader.js';
+import { commitItemThumbs } from '/js/thumb-decode-cache.js';
 import { globalMediaIndex } from '/js/media-index.js';
 
 function signaturesEqual(a, b) {
@@ -96,42 +97,18 @@ function thumbUrlWithBust(item, which, mtimeNs) {
 
 function assignCardThumbs(card, item, { bust = false } = {}) {
   if (!card) return;
-  const m = bust ? item.meta_signature?.mtime_ns : null;
-  card.querySelectorAll('img.pool-thumb').forEach((img) => {
-    const which = img.dataset.which || 'first';
-    if (item.thumbsFailed && item.thumbsFailed[which]) {
-      img.removeAttribute('src');
-      return;
-    }
-    // Display is cache-only. Missing thumbs stay blank until the idle
-    // repair queue or an explicit Repair Metadata click.
-    if (!itemShowsThumb(item, which)) {
-      img.removeAttribute('src');
-      return;
-    }
-    const url = thumbUrlWithBust(item, which, m);
-    if (img.getAttribute('src') === url) return;
-    assignThumbSrc(img, url).then((ok) => {
-      if (ok) img.classList.remove('broken');
-      else img.removeAttribute('src');
-    });
-  });
+  if (bust && item) item._thumbBust = item.meta_signature?.mtime_ns;
+  commitItemThumbs(card, item);
 }
 
 function refreshAssignedPoolThumbs() {
-  document.querySelectorAll('img.pool-thumb[src]').forEach((img) => {
-    const card = img.closest('.pool-card, .img-pool-card');
-    if (!card) return;
+  document.querySelectorAll('.pool-card, .img-pool-card').forEach((card) => {
     const path = card.dataset.path;
+    if (!path) return;
     const item = (state.pool?.items || []).find((i) => i.path === path)
       || (state.imagePool?.items || []).find((i) => i.path === path);
     if (!item) return;
-    const which = img.dataset.which || 'first';
-    const m = item.meta_signature?.mtime_ns;
-    assignThumbSrc(img, thumbUrlWithBust(item, which, m)).then((ok) => {
-      if (!ok) img.classList.add('broken');
-      else img.classList.remove('broken');
-    });
+    commitItemThumbs(card, item);
   });
 }
 
