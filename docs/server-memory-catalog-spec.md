@@ -5,7 +5,7 @@
 > **Priority:** Shipped after `5.37` virtualization
 > **Review:** Architecture-review acceptance rules locked 2026-08-15.
 >   §11–12 I/O counters, restart, process lock, warmer, and browser checks
->   accepted on `wip` (not pushed). `ram_evicted` is monotonic for the
+>   accepted on `main`. `ram_evicted` is monotonic for the
 >   warmer epoch and can rise after later disk-fallback puts.
 >
 > **Locked decisions (do not reopen during implementation):**
