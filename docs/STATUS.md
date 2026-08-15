@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-15  \
-> **VERSION:** `000.000.5.35`  \
+> **VERSION:** `000.000.5.36`  \
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -121,6 +121,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Sidebar collapse is icon-wide** | Collapsed aside is 44px (icons only). Title + logo hide. Saved drag-width no longer keeps it fat | `layout.css`, `app.js` · **`5.33`** |
 | **Header title gone** | No redundant tab title in the top bar. V-in/out buttons hug the left | `index.html`, `layout.css` · **`5.34`** |
 | **Input preview not sidebar** | Nav `aside` is `.app-sidebar`; input preview is a `div` so collapse/resize no longer shrink it | `index.html`, `layout.css` · **`5.35`** |
+| **Catalog virtualization** | Hover/scroll/select never call `/api/media_info`. Path-keyed `globalMediaIndex` + `hashToPaths`. Bounded repair (ensure 8 / probe 4 / hash 2 / variant batch 2×100). Vanilla `.pool-scroll-canvas` virtualizer + Strict/Fuzzy search + status counters. `viewportLazyThumbnails=true` default | `catalog-interaction-virtualization-spec.md` · **`5.36`** |
 
 **Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale, **qr_art** *(in tree — see §4)*. Root `AGENTS.md`.
 
@@ -236,7 +237,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.5.35` (Image Edit input preview no longer follows sidebar width.)
+- **Current:** `000.000.5.36` (Catalog virtualization: no hover-probe, bounded repair, vanilla virtualizer.)
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  

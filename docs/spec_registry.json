@@ -423,8 +423,15 @@
         "file": "performance-catalog-ux-spec.md",
         "path": "docs/performance-catalog-ux-spec.md",
         "category": "Core Architecture / WebUI",
-        "status": "Implemented Phase 1 000.000.5.14 (scroll-paint 5.27, restore 5.28)",
-        "summary": "McMaster-Carr catalog UX Phase 1: cache-first eager restore, POST /api/media_signatures, POST /api/variants/batch, window.globalMediaIndex, persisted-variant fast path, Instant RIFE copy-on-write + hash recovery + unreferenced lower-density GC. 5.27: pool scroll ignores hover/transform. 5.28: restore copies record meta/thumb flags so open does not media_info/ensure already-scanned clips. Phase 2/3 virtualization not shipped."
+        "status": "Implemented Phase 1 000.000.5.14; virtualization superseded by catalog-interaction-virtualization-spec.md 5.36",
+        "summary": "McMaster-Carr catalog UX Phase 1: cache-first eager restore, POST /api/media_signatures, POST /api/variants/batch, window.globalMediaIndex, persisted-variant fast path, Instant RIFE copy-on-write + hash recovery + unreferenced lower-density GC. 5.27: pool scroll ignores hover/transform. 5.28: restore copies record meta/thumb flags so open does not media_info/ensure already-scanned clips. Phase 2/3 virtualization shipped in catalog-interaction-virtualization-spec.md 5.36."
+    },
+    {
+        "file": "catalog-interaction-virtualization-spec.md",
+        "path": "docs/catalog-interaction-virtualization-spec.md",
+        "category": "Core Architecture / WebUI",
+        "status": "Implemented 000.000.5.36",
+        "summary": "Authoritative catalog index (canonical path + hashToPaths), display/repair split (hover/scroll/select never media_info), bounded repair queues (ensure 8, probe 4, hash 2, variant batch 2×100), custom vanilla .pool-scroll-canvas virtualizer with 1.5-screen overscan, Strict vs Fuzzy search, persistent status counters, viewportLazyThumbnails=true default."
     },
     {
         "file": "settings-card-layout-spec.md",

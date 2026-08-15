@@ -64,6 +64,7 @@
 |-----|--------|
 | [universal-persistence-spec.md](universal-persistence-spec.md) | **Implemented `5.06`** — desk snapshot / metadata / lazy-load |
 | [performance-catalog-ux-spec.md](performance-catalog-ux-spec.md) | **Implemented Phase 1 `5.14`** — cache-first restore + batch APIs |
+| [catalog-interaction-virtualization-spec.md](catalog-interaction-virtualization-spec.md) | **Implemented `5.36`** — no hover-probe, virtualizer, bounded repair |
 | [tilagup-mtapi-mode-spec.md](tilagup-mtapi-mode-spec.md) | Agent tiled SD |
 | [image-quality-rating-spec.md](image-quality-rating-spec.md) | Pool quality scores |
 | [fastsam-sam-multimodel-spec.md](fastsam-sam-multimodel-spec.md) | **FastSAM + SAM multimodel selector** — stronger backends on Intel OpenVINO |

@@ -1,6 +1,6 @@
 # Catalog Interaction & Virtualization Redesign
 
-> **Status:** **Spec Only**
+> **Status:** **Implemented** `000.000.5.36`
 > **Audience:** Builder Agents (Implementation & Architecture)
 > **Goal:** Re-architect catalog rendering and interaction to flawlessly support massive datasets (1,000+ items). Eliminate all synchronous and hover-driven network requests, introduce robust custom vanilla DOM virtualization, and decouple display logic from metadata repair.
 > **Authority:** This document explicitly supersedes the `performance-catalog-ux-spec.md` rules regarding: thumbnail defaults, startup thumbnail behavior, Phase 2 background validation, Phase 3 virtualization, and search behavior. `viewportLazyThumbnails=true` is the authoritative default.

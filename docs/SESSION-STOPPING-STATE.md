@@ -1,14 +1,14 @@
 # Session stopping state — handoff
 
 > **Date:** 2026-08-15  
-> **VERSION:** `000.000.5.35`  
-> **Branch:** `main`  
+> **VERSION:** `000.000.5.36`  
+> **Branch:** `wip`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 5.35)
+## 1. Shipped this stretch (through 5.36)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
@@ -54,6 +54,7 @@
 | **Sidebar collapse is icon-wide** | 44px icon rail; title gone; inline resize width cleared | `layout.css`, `app.js` · **`5.33`** |
 | **Header title gone** | Tab title removed; V-in/out flush left | `index.html`, `layout.css` · **`5.34`** |
 | **Input preview not sidebar** | Nav scoped to `.app-sidebar`; preview is a div | `index.html`, `layout.css` · **`5.35`** |
+| **Catalog virtualization** | Hover/scroll/select never `/api/media_info`. Path-keyed index + `hashToPaths`. Repair caps 8/4/2 + variant 2×100. Vanilla virtualizer, Strict/Fuzzy search, status counters. Viewport-lazy default | `catalog-interaction-virtualization-spec.md` · **`5.36`** |
 
 Earlier stable: filter platform, dual pools, Convert, neural ops, Prompt Library, Recohere, Agent, OpenVINO stills.
 
