@@ -121,6 +121,24 @@ function _alreadyHasUsableRife(entry) {
   return !!(entry && entry.variantPath && entry.variantPath !== entry.path && _bestHaveM(entry) >= 2);
 }
 
+/** Canonical Instant decision: 'rifed' | 'needsRife' | 'noRifeNeeded'. */
+function refreshRifeNeed(entry) {
+  if (!entry) return 'noRifeNeeded';
+  const dens = _densityInfoForEntry(entry);
+  const haveM = _bestHaveM(entry);
+  const hasVar = _alreadyHasUsableRife(entry);
+  let need;
+  if (hasVar && (!dens.needed || haveM >= (dens.multiplier || 2))) {
+    need = 'rifed';
+  } else if (dens.needed && (!hasVar || haveM < (dens.multiplier || 2))) {
+    need = 'needsRife';
+  } else {
+    need = 'noRifeNeeded';
+  }
+  entry.rifeNeed = need;
+  return need;
+}
+
 function _rifeInfoForEntry(entry) {
   if (!state.pool.useRife) return { needed: false, reason: 'RIFE interpolate off' };
   const dens = _densityInfoForEntry(entry);
@@ -193,6 +211,7 @@ async function attachCachedRifeVariants() {
       if (best.hash) e._variantHash = best.hash;
       e._rifeStatus = 'done';
       e._rifeError = null;
+      refreshRifeNeed(e);
       attached += 1;
     }
   }
@@ -1073,8 +1092,9 @@ async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
 
     const candidates = [];
     for (const entry of seq) {
-      if (!force && _alreadyHasUsableRife(entry) && !_rifeInfoForEntry(entry)?.needed) {
-        entry._rifeStatus = 'done';
+      const need = refreshRifeNeed(entry);
+      if (!force && need !== 'needsRife') {
+        if (need === 'rifed') entry._rifeStatus = 'done';
         continue;
       }
       candidates.push(entry);
@@ -1102,16 +1122,17 @@ async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
     let queued = 0;
     let already = 0;
     for (const entry of seq) {
-      const info = _rifeInfoForEntry(entry);
-      if (!info?.needed) {
-        if (_alreadyHasUsableRife(entry)) {
+      const kind = refreshRifeNeed(entry);
+      if (kind !== 'needsRife') {
+        if (kind === 'rifed') {
           already += 1;
           entry._rifeStatus = 'done';
         }
         continue;
       }
+      const info = _rifeInfoForEntry(entry);
       need += 1;
-      if (_queueInstantRife(entry, info, { skipRender: true })) queued += 1;
+      if (info?.needed && _queueInstantRife(entry, info, { skipRender: true })) queued += 1;
     }
 
     logConsole(

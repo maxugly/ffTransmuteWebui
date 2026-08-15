@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-14  \
-> **VERSION:** `000.000.5.24`  \
+> **VERSION:** `000.000.5.25`  \
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -223,7 +223,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.5.23` (Project load attaches cached RIFE variants; does not Instant-scan or re-encode.)
+- **Current:** `000.000.5.24` (Instant ON encodes only clips that still need density; already-RIFED clips are left alone.)
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  

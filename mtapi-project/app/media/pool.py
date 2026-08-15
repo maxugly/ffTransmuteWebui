@@ -327,6 +327,11 @@ def _normalize_sequence_entries(
             entry["rife_multiplier"] = parsed_rm
         if isinstance(vh, str) and vh.strip():
             entry["variant_hash"] = vh.strip()
+        rn = None
+        if raw_dict:
+            rn = raw_dict.get("rife_need") or raw_dict.get("rifeNeed")
+        if rn in ("rifed", "needsRife", "noRifeNeeded"):
+            entry["rife_need"] = rn
         if raw_dict is None:
             out.append(entry)
             continue

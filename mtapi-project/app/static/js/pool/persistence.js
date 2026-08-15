@@ -293,6 +293,9 @@ function buildPoolStatePayload() {
           ? Number(s._rifeMultiplier)
           : null,
         variant_hash: s._variantHash || null,
+        rife_need: (s.rifeNeed === 'rifed' || s.rifeNeed === 'needsRife' || s.rifeNeed === 'noRifeNeeded')
+          ? s.rifeNeed
+          : null,
       };
     }),
     selected_path: state.pool.selectedPath,
@@ -380,6 +383,9 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
       variantPath: vp,
       _rifeMultiplier: rm,
       _variantHash: (typeof vh === 'string' && vh) ? vh : null,
+      rifeNeed: (s.rife_need === 'rifed' || s.rife_need === 'needsRife' || s.rife_need === 'noRifeNeeded')
+        ? s.rife_need
+        : ((vp && rm) ? 'rifed' : null),
       _rifeStatus: (vp && rm) ? 'done' : null,
     };
   });
