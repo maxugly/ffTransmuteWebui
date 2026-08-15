@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-14  \
-> **VERSION:** `000.000.5.19`  \
+> **VERSION:** `000.000.5.20`  \
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -107,6 +107,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Eager-thumb regression** | Default is viewport-lazy again. `preloadAllThumbnails` is opt-in. Restored meta still paints without re-probe. | `lazy-loader.js` · **`5.17`** |
 | **Thumb queue coverage** | Size/settings refresh and hash-upgrade src writes go through `assignThumbSrc` (max 8). | `freshness.js` · **`5.18`** |
 | **Pay-once thumbs** | `GET ?hash=` is cache-only (404, no ffmpeg). `POST /api/thumbnails/ensure` fills misses in the background. Default starts immediately, not on scroll. | `media.py`, `lazy-loader.js` · **`5.19`** |
+| **No redo** | Index lookup is path+size (not mtime). Cache-hit media open does not probe/extract/rewrite. Failed extracts stay failed until Retry. | `cache.py`, `open.py` · **`5.20`** |
 
 **Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale, **qr_art** *(in tree — see §4)*. Root `AGENTS.md`.
 
@@ -222,7 +223,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.5.19` (Pay once: hash-only thumbs never generate; missing thumbs ensure in background; work starts immediately.)
+- **Current:** `000.000.5.20` (Do not redo: size-only hash identity; cache-hit open_media does not rewrite; failed thumbs are not retried.)
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  

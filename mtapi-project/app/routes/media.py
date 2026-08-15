@@ -231,6 +231,14 @@ def register(app: FastAPI, probe_fn) -> None:
             if ready is not None:
                 out.append({"ok": True, "cached": True, "hash": content_hash, "which": which})
                 continue
+            rec = media.load_record(content_hash)
+            failed = (rec or {}).get("thumb_failed") or {}
+            if failed.get(which) == media.FRAME_EXTRACT_VERSION:
+                out.append({
+                    "ok": False, "cached": True, "hash": content_hash, "which": which,
+                    "error": "previous extract failed",
+                })
+                continue
             if source is None:
                 source = media.source_path_for_hash(content_hash)
             thumb = await media.get_thumb_file(

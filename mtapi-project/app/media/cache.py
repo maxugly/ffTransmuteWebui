@@ -87,7 +87,11 @@ async def _update_index_entry(path: Path, content_hash: str, size: int, mtime_ns
 
 
 def lookup_cached_hash(path: Path, index: dict[str, Any] | None = None) -> str | None:
-    """Return content hash if path is indexed and size+mtime still match."""
+    """Return content hash if this path is indexed at the same file size.
+
+    Cheap identity is path + filename + size. mtime must not force a re-hash
+    (copy, backup, and NAS tools change mtime without changing bytes).
+    """
     try:
         st = path.stat()
     except OSError:
@@ -97,10 +101,11 @@ def lookup_cached_hash(path: Path, index: dict[str, Any] | None = None) -> str |
     entry = index.get("paths", {}).get(_path_key(path))
     if not entry:
         return None
-    if entry.get("size") == st.st_size and entry.get("mtime_ns") == st.st_mtime_ns:
-        h = entry.get("hash")
-        if h and _record_path(h).exists():
-            return h
+    if entry.get("size") != st.st_size:
+        return None
+    h = entry.get("hash")
+    if h and _record_path(h).exists():
+        return h
     return None
 
 
@@ -119,7 +124,7 @@ def lookup_cached_hash_batch(paths: list[Path], index: dict[str, Any] | None = N
         if not entry:
             out[str(path.resolve())] = None
             continue
-        if entry.get("size") == st.st_size and entry.get("mtime_ns") == st.st_mtime_ns:
+        if entry.get("size") == st.st_size:
             h = entry.get("hash")
             if h and _record_path(h).exists():
                 out[str(path.resolve())] = h

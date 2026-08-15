@@ -189,7 +189,9 @@ function assignThumbSrc(img, url) {
 
 function enqueueEnsureThumb(item, which) {
   if (!item) return;
-  const key = `${item.hash || item.path || ''}:${which || 'first'}`;
+  const w = which || 'first';
+  if (item.thumbsFailed && item.thumbsFailed[w]) return;
+  const key = `${item.hash || item.path || ''}:${w}`;
   if (!key || pendingEnsureKeys.has(key)) return;
   pendingEnsureKeys.add(key);
   pendingEnsure.push({
@@ -219,6 +221,18 @@ async function drainEnsureQueue() {
     for (const job of batch) {
       pendingEnsureKeys.delete(job.key);
       const row = byKey.get(`${job.hash}:${job.which}`);
+      if (row && !row.ok) {
+        const items = [
+          ...(window.state?.pool?.items || []),
+          ...(window.state?.imagePool?.items || []),
+        ];
+        for (const it of items) {
+          if ((job.hash && it.hash === job.hash) || (job.path && it.path === job.path)) {
+            it.thumbsFailed = it.thumbsFailed || {};
+            it.thumbsFailed[job.which] = true;
+          }
+        }
+      }
       if (row && row.ok) {
         document.querySelectorAll(`img.pool-thumb[data-which="${job.which}"]`).forEach((img) => {
           const card = img.closest('.pool-card, .img-pool-card');

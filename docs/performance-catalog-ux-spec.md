@@ -48,6 +48,7 @@ We must decouple interaction from validation, batch network traffic, and virtual
 * Existing disk thumbnails must be assigned to the pool for display at startup. Thumbnail generation is only for records whose thumbnails are actually absent or invalid; it is never part of ordinary project switching.
 * The application MUST NOT turn every project switch into a whole-pool signature, hash, probe, or thumbnail-generation scan.
 * **Pay once, reuse always.** Hash, probe, pHash, thumbnail extract, and Instant RIFE run as soon as a file is first known (import or background ensure). Later opens, project switches, and scrolling must only read the cached result.
+* **Do not redo work without a reason.** Same path + same file size ⇒ same content hash (mtime changes do not re-hash). A cache-hit `open_media` must not probe, extract, or rewrite the record. A failed extract is not retried unless the user asks. A sufficient Instant RIFE variant is not re-encoded because a tab opened.
 * Display `GET /api/thumbnail?hash=` serves an existing JPEG or returns 404 immediately. It must not hash, probe, or run ffmpeg. Missing thumbs are filled by `POST /api/thumbnails/ensure` in the background.
 * Default is to start that display+ensure work immediately after restore. `settings.viewportLazyThumbnails` is an opt-out if the desk is overloaded. Scrolling must not be the first time a *known cached* thumbnail is requested.
 

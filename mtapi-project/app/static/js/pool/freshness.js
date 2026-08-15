@@ -22,9 +22,7 @@ function signaturesEqual(a, b) {
  */
 function hasRestoredIdentity(item) {
   if (!item || !item.path) return false;
-  const name = item.name || '';
-  const size = item.size ?? item.meta?.size;
-  if (!name || size == null) return false;
+  // Hash or persisted probe is enough. Do not re-stat/re-probe for display.
   return !!(item.hash || item.meta);
 }
 
