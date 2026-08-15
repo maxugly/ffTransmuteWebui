@@ -136,6 +136,8 @@ def register(app: FastAPI, probe_fn) -> None:
                 )
         elif not content_hash:
             raise HTTPException(status_code=400, detail="Provide path or hash")
+        elif source is None:
+            source = media.source_path_for_hash(content_hash)
 
         # Range / scrub frame (1-based inclusive)
         if frame is not None:
@@ -157,8 +159,8 @@ def register(app: FastAPI, probe_fn) -> None:
             )
             if not thumb:
                 raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to extract frame {frame_n}",
+                    status_code=404,
+                    detail=f"Thumbnail not available for frame {frame_n}",
                 )
             return await _serve_thumbnail(thumb, content_hash, f"frame:{frame_n}", size)
 
@@ -167,7 +169,7 @@ def register(app: FastAPI, probe_fn) -> None:
             raise HTTPException(status_code=400, detail="which must be 'first' or 'last'")
         thumb = await media.get_thumb_file(content_hash, which, source_path=source, size=size)
         if not thumb:
-            raise HTTPException(status_code=500, detail=f"Failed to extract {which} frame")
+            raise HTTPException(status_code=404, detail=f"Thumbnail not available ({which})")
         return await _serve_thumbnail(thumb, content_hash, which, size)
 
     async def _serve_thumbnail(path: Path, content_hash: str, which: str, size: str):

@@ -40,6 +40,7 @@ from .cache import (  # noqa: F401
     _update_index_entry,
     append_history,
     find_existing_paths_for_hash,
+    source_path_for_hash,
     gc_lower_density_rifed,
     get_variants,
     hash_file,

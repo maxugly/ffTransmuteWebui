@@ -1,14 +1,14 @@
 # Session stopping state — handoff
 
 > **Date:** 2026-08-14  
-> **VERSION:** `000.000.5.14`  
+> **VERSION:** `000.000.5.15`  
 > **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 5.14)
+## 1. Shipped this stretch (through 5.15)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
@@ -38,6 +38,7 @@
 | **Settings layout polish** | Tight one-page cards hug content; Neural FX blurb wraps after “Default is off” | `settings.js`, `settings.css` · **`5.12`** |
 | **Settings card layout spec** | House style for new Settings cards — one-line head, packed controls, max-content | `settings-card-layout-spec.md` · **`5.13`** |
 | **Catalog UX Phase 1** | Cache-first eager restore (no signature/hash/probe on existing records); batch `/api/media_signatures` + `/api/variants/batch`; `window.globalMediaIndex`; already-dense Instant RIFE is zero variant requests; moved RIFE recovered by hash; lower-density GC only after promote + unreferenced | `performance-catalog-ux-spec.md` · **`5.14`** |
+| **Hash-only thumb 500** | Hash-only `/api/thumbnail` uses recorded source / 404s; no recover-on-error loop | `thumbnails.py` · **`5.15`** |
 
 Earlier stable: filter platform, dual pools, Convert, neural ops, Prompt Library, Recohere, Agent, OpenVINO stills.
 

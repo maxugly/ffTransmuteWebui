@@ -99,18 +99,27 @@ function thumbUrlWithBust(item, which, mtimeNs) {
 function assignCardThumbs(card, item, { bust = false } = {}) {
   if (!card) return;
   const m = bust ? item.meta_signature?.mtime_ns : null;
+  const size = String(item && window.state?.settings?.thumbnailSize || 'H').toUpperCase();
   card.querySelectorAll('img.pool-thumb').forEach((img) => {
     const which = img.dataset.which || 'first';
     img.src = thumbUrlWithBust(item, which, m);
     img.addEventListener('error', function onThumbErr() {
-      img.removeEventListener('error', onThumbErr);
-      if (img.dataset.recovered) return;
-      img.dataset.recovered = '1';
-      recoverItemByHash(item).then((rec) => {
-        if (rec && rec.path) {
-          img.src = thumbUrlWithBust(item, which, item.meta_signature?.mtime_ns);
-        }
-      });
+      if (img.dataset.thumbRetry) {
+        img.classList.add('broken');
+        return;
+      }
+      img.dataset.thumbRetry = '1';
+      // One path fallback so a missing disk JPEG can be extracted.
+      // Do not call /api/media/recover here — a 404/500 thumb is not a moved file.
+      if (item.path) {
+        const q = new URLSearchParams({
+          path: item.path, which, s: size, v: '3',
+        });
+        if (m != null && Number.isFinite(Number(m))) q.set('m', String(m));
+        img.src = `/api/thumbnail?${q.toString()}`;
+        return;
+      }
+      img.classList.add('broken');
     }, { once: true });
   });
 }

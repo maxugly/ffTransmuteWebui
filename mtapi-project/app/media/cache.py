@@ -358,6 +358,20 @@ def stat_signature(path: str | Path) -> dict[str, int] | None:
     return {"size": int(st.st_size), "mtime_ns": int(st.st_mtime_ns)}
 
 
+def source_path_for_hash(content_hash: str) -> Path | None:
+    """First existing recorded file for this hash. Never hashes or probes."""
+    if not content_hash:
+        return None
+    for raw in find_existing_paths_for_hash(content_hash):
+        try:
+            p = Path(raw)
+            if p.is_file() and p.stat().st_size > 0:
+                return p
+        except OSError:
+            continue
+    return None
+
+
 def find_existing_paths_for_hash(content_hash: str) -> list[str]:
     """Known locations of a content-hash that still exist on disk.
 
