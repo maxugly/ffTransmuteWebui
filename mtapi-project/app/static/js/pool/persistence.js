@@ -4,7 +4,7 @@ import {
   renderPoolForm, renderPoolGrid, defaultTileInfo,
   checkHealth, switchTab, formatBytes, addPathsToPool,
 } from '/app.js';
-import { seqStop, _maybeAutoRifeAll, recoverSequenceVariants } from '/js/pool/sequence.js';
+import { seqStop, _maybeAutoRifeAll, recoverSequenceVariants, attachCachedRifeVariants, setInstantHydrationGate } from '/js/pool/sequence.js';
 import { ensurePoolLayout } from '/js/pool/layout.js';
 import { ensureTileInfo } from '/app.js';
 import { basename, escapeHtml, formatDurationExact } from '/js/utils.js';
@@ -347,6 +347,7 @@ function updateProjectNameUI() {
 
 /** Apply loaded project/session JSON into live pool state and re-render. */
 function applyPoolData(data, { asProject = false, projectPath = null, projectName = null } = {}) {
+  setInstantHydrationGate(false);
   data = migratePoolPayload(data);
   // Named projects must never overwrite global settings.
   applyDeskSnapshot(data.desk, { restoreSettings: !asProject });
@@ -547,6 +548,8 @@ async function projectOpen() {
       projectPath: data.path,
       projectName: data.name,
     });
+    await attachCachedRifeVariants();
+    setInstantHydrationGate(true);
     // Session mirrors the opened desk so F5 prefers session (not a stale dual-write).
     _poolPersistReady = true;
     await savePoolStateNow();
@@ -693,6 +696,8 @@ async function restorePoolState() {
       data = await res.json();
       if (data.ok) {
         applyPoolData(data, { asProject: false });
+        await attachCachedRifeVariants();
+        setInstantHydrationGate(true);
         if (data.project_path) {
           state.project.path = data.project_path;
           state.project.name = data.project_name
@@ -729,6 +734,8 @@ async function restorePoolState() {
                 projectPath: data.path,
                 projectName: data.name,
               });
+              await attachCachedRifeVariants();
+              setInstantHydrationGate(true);
               _poolPersistReady = true;
               await savePoolStateNow();
               const timed = state.pool.sequence.filter(s => s.targetDuration != null).length;
@@ -746,9 +753,11 @@ async function restorePoolState() {
 
     logConsole('[POOL]: No saved state (empty)');
     _poolPersistReady = true;
+    setInstantHydrationGate(true);
   } catch (err) {
     logConsole(`[POOL RESTORE]: ${err.message}`, 'error');
     _poolPersistReady = true;
+    setInstantHydrationGate(true);
   }
 }
 

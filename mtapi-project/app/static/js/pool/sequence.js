@@ -145,7 +145,57 @@ const _instantRifeQueue = []; // { entryId, path, name, multiplier, effFps, targ
 let _instantRifeDraining = false;
 let _instantRifeStop = false;
 let _instantRifeStopHookBound = false;
-let _hydrationComplete = true;
+let _hydrationComplete = false;
+
+function setInstantHydrationGate(complete) {
+  _hydrationComplete = !!complete;
+}
+
+/**
+ * Attach already-registered RIFE files from the media cache.
+ * No probe, no encode, no busy UI. Same video in another project reuses
+ * the global variant list.
+ */
+async function attachCachedRifeVariants() {
+  const seq = state.pool.sequence || [];
+  if (!seq.length) return { attached: 0 };
+  const need = [];
+  const seen = new Set();
+  let already = 0;
+  for (const e of seq) {
+    if (!e.path) continue;
+    if (e.variantPath && e.variantPath !== e.path && _bestHaveM(e) >= 2) {
+      e._rifeStatus = 'done';
+      already += 1;
+      continue;
+    }
+    const k = _normVariantKey(e.path);
+    if (!seen.has(k)) {
+      seen.add(k);
+      need.push(e.path);
+    }
+  }
+  let attached = already;
+  if (need.length) {
+    const map = await _fetchVariantsBatch(need);
+    for (const e of seq) {
+      if (e.variantPath && e.variantPath !== e.path && _bestHaveM(e) >= 2) continue;
+      const variants = map.get(_normVariantKey(e.path)) || peekVariants(e.path);
+      const best = _pickBestRifed(variants);
+      if (!best) continue;
+      e.variantPath = best.path;
+      e._rifeMultiplier = best.multiplier;
+      if (best.hash) e._variantHash = best.hash;
+      e._rifeStatus = 'done';
+      e._rifeError = null;
+      attached += 1;
+    }
+  }
+  if (attached > already) {
+    try { scheduleSavePoolState(); } catch (_) { /* ignore */ }
+  }
+  return { attached };
+}
 /** Currently encoding entry id (for status strip). */
 let _instantRifeRunningId = null;
 /**
@@ -511,7 +561,7 @@ function _pickBestRifed(variants) {
     const score = Number.isFinite(m) && m >= 2 ? m : 2;
     if (score > bestM) {
       bestM = score;
-      best = { path: v.path, multiplier: score };
+      best = { path: v.path, multiplier: score, hash: v.hash || null };
     }
   }
   return best;
@@ -1332,6 +1382,7 @@ function addPathToSequence(path, insertAt = null) {
     path,
     name,
     targetDuration: null, // seconds; null = native length
+    _hadTarget: false,
     variantPath: (state.pool.selectedVariantPaths || {})[path] || null,
     _rifeStatus: null, // null | 'pending' | 'running' | 'done' | 'skipped'
   };
@@ -1553,6 +1604,11 @@ function renderSequenceBox(opts) {
         tok.style.background = speedInfo.bgCss;
         tok.style.borderColor = speedInfo.borderCss;
       }
+    } else if (durEl && entry._hadTarget) {
+      durEl.style.color = 'rgba(251, 191, 36, 0.75)';
+      durEl.style.fontWeight = '600';
+      durEl.style.textShadow = 'none';
+      tok.classList.add('was-stretched');
     }
 
     tok.addEventListener('click', (e) => {
@@ -1838,6 +1894,7 @@ function onSeqClipDurationChange() {
       return;
     }
     state.pool.sequence[idx].targetDuration = v;
+    state.pool.sequence[idx]._hadTarget = true;
     state.pool.selectedSeqId = state.pool.sequence[idx].id;
     logConsole(`[SEQ]: ${state.pool.sequence[idx].name} target time = ${v}s`);
   }
@@ -1872,11 +1929,15 @@ function applySeqTokenTimeStyles() {
     const durEl = tok.querySelector('.seq-token-dur');
     if (durEl) {
       durEl.textContent = speedInfo.durLabel;
-      durEl.classList.toggle('timed', !!speedInfo.stretched);
+      durEl.classList.toggle('timed', !!speedInfo.stretched || !!speedInfo.hadTarget);
       if (speedInfo.stretched && speedInfo.textColor) {
         durEl.style.color = speedInfo.textColor;
         durEl.style.fontWeight = '700';
         durEl.style.textShadow = speedInfo.textShadow || 'none';
+      } else if (speedInfo.hadTarget) {
+        durEl.style.color = 'rgba(251, 191, 36, 0.75)';
+        durEl.style.fontWeight = '600';
+        durEl.style.textShadow = 'none';
       } else {
         durEl.style.color = '';
         durEl.style.fontWeight = '';
@@ -1885,10 +1946,17 @@ function applySeqTokenTimeStyles() {
     }
     if (speedInfo.stretched && speedInfo.bgCss) {
       tok.classList.add('time-stretched');
+      tok.classList.remove('was-stretched');
       tok.style.background = speedInfo.bgCss;
       tok.style.borderColor = speedInfo.borderCss;
+    } else if (speedInfo.hadTarget) {
+      tok.classList.remove('time-stretched');
+      tok.classList.add('was-stretched');
+      tok.style.background = '';
+      tok.style.borderColor = '';
     } else {
       tok.classList.remove('time-stretched');
+      tok.classList.remove('was-stretched');
       tok.style.background = '';
       tok.style.borderColor = '';
     }
@@ -1924,12 +1992,13 @@ function seqClipSpeedInfo(entry) {
   const hasTarget = target != null && Number.isFinite(target) && target > 0;
 
   // Always show target time when set (even before native meta loads)
+  const hadTarget = !!entry._hadTarget;
   if (hasTarget) {
     const durLabel = ` ${formatDurationExact(target)}`;
     if (!(native > 0) || Math.abs(target - native) <= 0.001) {
       // target set but equal to native, or native unknown \u2014 still show target
       if (native > 0 && Math.abs(target - native) <= 0.001) {
-        return { stretched: false, durLabel: ` ${formatDurationExact(native)}`, speed: 1, tint: 0 };
+        return { stretched: false, durLabel: ` ${formatDurationExact(native)}`, speed: 1, tint: 0, hadTarget };
       }
       // unknown native: show target, mild amber until we can score
       if (!(native > 0)) {
@@ -1938,6 +2007,7 @@ function seqClipSpeedInfo(entry) {
           durLabel,
           speed: 1,
           tint: 0,
+          hadTarget,
           textColor: '#fbbf24',
           textShadow: '0 0 6px rgba(251,191,36,0.45)',
           bgCss: 'rgba(251, 191, 36, 0.12)',
@@ -1982,6 +2052,7 @@ function seqClipSpeedInfo(entry) {
       durLabel,
       speed,
       tint: t,
+      hadTarget,
       textColor,
       textShadow,
       bgCss: `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`,
@@ -1990,7 +2061,7 @@ function seqClipSpeedInfo(entry) {
   }
 
   const durLabel = native != null && native > 0 ? ` ${formatDurationExact(native)}` : '';
-  return { stretched: false, durLabel, speed: 1, tint: 0 };
+  return { stretched: false, durLabel, speed: 1, tint: 0, hadTarget };
 }
 
 function seqClipTokenTitle(entry, speedInfo) {
@@ -1998,7 +2069,9 @@ function seqClipTokenTitle(entry, speedInfo) {
   let t = entry.path;
   if (speedInfo.stretched && native != null) {
     const pct = Math.round(speedInfo.speed * 100);
-    t += `\nnative ${formatDurationExact(native)} \u2192 ${formatDurationExact(entry.targetDuration)} (${pct}% speed)`;
+    t += `\nnative ${formatDurationExact(native)} → ${formatDurationExact(entry.targetDuration)} (${pct}% speed)`;
+  } else if (entry._hadTarget && native != null) {
+    t += `\nnative ${formatDurationExact(native)} (target was set)`;
   } else if (native != null) {
     t += `\nnative ${formatDurationExact(native)}`;
   }
@@ -2469,6 +2542,8 @@ export {
   _fetchVariantsBatch,
   peekVariants,
   recoverSequenceVariants,
+  attachCachedRifeVariants,
+  setInstantHydrationGate,
   _showSeqVariantMenu,
   _maybeAutoRifeAll,
   _maybeAutoRifeForPath,
