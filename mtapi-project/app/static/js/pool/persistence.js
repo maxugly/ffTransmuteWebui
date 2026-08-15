@@ -4,7 +4,7 @@ import {
   renderPoolForm, renderPoolGrid, defaultTileInfo,
   checkHealth, switchTab, formatBytes, addPathsToPool,
 } from '/app.js';
-import { seqStop, _maybeAutoRifeAll } from '/js/pool/sequence.js';
+import { seqStop, _maybeAutoRifeAll, recoverSequenceVariants } from '/js/pool/sequence.js';
 import { ensurePoolLayout } from '/js/pool/layout.js';
 import { ensureTileInfo } from '/app.js';
 import { basename, escapeHtml, formatDurationExact } from '/js/utils.js';
@@ -300,6 +300,7 @@ function buildPoolStatePayload() {
         rife_multiplier: (s._rifeMultiplier != null && s._rifeMultiplier > 0)
           ? Number(s._rifeMultiplier)
           : null,
+        variant_hash: s._variantHash || null,
       };
     }),
     selected_path: state.pool.selectedPath,
@@ -376,6 +377,7 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
     }
     // If we have a densify path but no M (legacy sessions), assume at least ×2
     if (vp && rm == null) rm = 2;
+    const vh = s.variant_hash ?? s._variantHash ?? null;
     return {
       id: nextSeqId(),
       path: s.path,
@@ -383,6 +385,7 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
       targetDuration: td,
       variantPath: vp,
       _rifeMultiplier: rm,
+      _variantHash: (typeof vh === 'string' && vh) ? vh : null,
       _rifeStatus: (vp && rm) ? 'done' : null,
     };
   });
@@ -457,8 +460,15 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
     logConsole(`[PROJECT]: ${missing.length} missing path(s) skipped:\n${missing.slice(0, 8).join('\n')}`);
   }
 
-  // Metadata is viewport-driven. Valid persisted meta skips /api/media_info.
-  // Re-probe global frame count so range sliders match the restored clip.
+  try {
+    import('/js/media-index.js').then((m) => {
+      m.globalMediaIndex.seed(state.pool.items);
+      m.globalMediaIndex.seed(state.imagePool?.items);
+    }).catch(() => {});
+  } catch (_) { /* ignore */ }
+
+  // Metadata is cache-first. Valid persisted records skip /api/media_info
+  // and /api/media_signature. Re-probe global frame count for sliders.
   const firstVideo = String(window.globalInputs?.video || '')
     .split('\n').map((l) => l.trim()).find(Boolean);
   if (firstVideo) {
@@ -815,6 +825,8 @@ async function stitchPoolSequence() {
     (s.targetDuration != null && s.targetDuration > 0) ? s.targetDuration : null
   );
   const anyTimed = durations.some(d => d != null);
+
+  try { await recoverSequenceVariants(); } catch (_) { /* targeted recover only */ }
 
   const body = {
     input_paths: paths.map((p, i) => {

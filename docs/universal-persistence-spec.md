@@ -1,6 +1,7 @@
 # Universal Persistence Spec
 
 > **Status:** **Implemented** `000.000.5.06` — metadata round-trip, `/api/media_signature`, shared lazy-loader, settings precedence, schema v2 migration, inactive-tab desk snapshot. Named-project isolation shipped earlier (`4.63`).
+> **Update `000.000.5.14`:** ordinary restore is cache-first and eager (see `performance-catalog-ux-spec.md` Phase 1). Existing records skip `/api/media_signature`. Viewport-lazy thumbnails are an optional Settings toggle, not the default.
 > **Audience:** Builder Agents (Implementation)  
 > **Goal:** Redesign save/load to strictly isolate named projects, perfectly round-trip metadata to prevent eager API hammering, and elegantly lazy-load visual assets via a shared viewport observer.
 

@@ -283,6 +283,7 @@ def _normalize_sequence_entries(
             td = None
             vp = None
             rm = None
+            vh = None
             raw_dict: dict[str, Any] | None = None
         elif isinstance(it, dict):
             p = it.get("path")
@@ -294,6 +295,7 @@ def _normalize_sequence_entries(
             rm = it.get("rife_multiplier")
             if rm is None:
                 rm = it.get("_rifeMultiplier")
+            vh = it.get("variant_hash") or it.get("_variantHash")
             raw_dict = it
         else:
             continue
@@ -323,6 +325,8 @@ def _normalize_sequence_entries(
         parsed_rm = _opt_int(rm)
         if parsed_rm is not None and parsed_rm >= 2:
             entry["rife_multiplier"] = parsed_rm
+        if isinstance(vh, str) and vh.strip():
+            entry["variant_hash"] = vh.strip()
         if raw_dict is None:
             out.append(entry)
             continue

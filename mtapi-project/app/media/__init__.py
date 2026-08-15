@@ -31,6 +31,7 @@ from .config import (  # noqa: F401
     normalize_thumb_size,
 )
 from .cache import (  # noqa: F401
+    BATCH_PATH_LIMIT,
     _empty_record,
     _load_index,
     _lock_for_hash,
@@ -38,15 +39,20 @@ from .cache import (  # noqa: F401
     _save_index,
     _update_index_entry,
     append_history,
+    find_existing_paths_for_hash,
+    gc_lower_density_rifed,
     get_variants,
     hash_file,
     load_record,
     lookup_cached_hash,
     media_cache_stats,
+    parse_batch_paths,
     record_operation,
+    recover_media_path,
     register_variant,
     resolve_hash,
     save_record,
+    stat_signature,
 )
 from .thumbnails import (  # noqa: F401
     _compute_phash_hex,

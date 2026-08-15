@@ -39,6 +39,7 @@ async function loadPoolItemMeta(item, idx) {
   }
   if (item.hash) {
     try { scheduleSavePoolState(); } catch (_) { /* ignore */ }
+    try { window.globalMediaIndex?.put(item); } catch (_) { /* ignore */ }
   }
 
   if (state.activeTab !== 'pool' && state.activeTab !== 'sequence') return;

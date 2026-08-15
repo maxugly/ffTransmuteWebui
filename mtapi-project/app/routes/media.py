@@ -64,6 +64,46 @@ def register(app: FastAPI, probe_fn) -> None:
             "mtime_ns": int(st.st_mtime_ns),
         }
 
+    @app.post("/api/media_signatures", tags=["meta"])
+    async def media_signatures_batch(body: dict):
+        """Batch size + mtime_ns via OS stat. Never invokes ffmpeg/ffprobe."""
+        paths, err = media.parse_batch_paths((body or {}).get("paths"))
+        if err:
+            raise HTTPException(status_code=400, detail=err)
+        out: dict[str, dict[str, int] | None] = {}
+        for p in paths:
+            out[p] = media.stat_signature(p)
+        return out
+
+    @app.post("/api/media/recover", tags=["meta"])
+    async def media_recover(body: dict):
+        """Targeted hash recovery for a moved/missing file. Never re-encodes."""
+        body = body or {}
+        hash_val = body.get("hash") or body.get("content_hash")
+        last_path = body.get("last_path") or body.get("path")
+        parent_path = body.get("parent_path")
+        multiplier = body.get("multiplier")
+        try:
+            mult = int(multiplier) if multiplier is not None else None
+        except (TypeError, ValueError):
+            mult = None
+        if not hash_val and not last_path and not parent_path:
+            raise HTTPException(status_code=400, detail="hash, last_path, or parent_path is required")
+        result = media.recover_media_path(
+            content_hash=str(hash_val) if hash_val else None,
+            last_path=last_path,
+            parent_path=parent_path,
+            multiplier=mult,
+        )
+        if result.get("found") and result.get("recovered") and result.get("path") and result.get("hash"):
+            try:
+                p = Path(result["path"])
+                st = p.stat()
+                await media._update_index_entry(p, str(result["hash"]), int(st.st_size), int(st.st_mtime_ns))
+            except OSError:
+                pass
+        return result
+
     @app.get("/api/thumbnail", tags=["meta"])
     async def get_thumbnail(
         path: str | None = None,

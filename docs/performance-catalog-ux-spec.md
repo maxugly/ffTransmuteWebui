@@ -1,8 +1,27 @@
 # Performance: Catalog UX & McMaster-Carr Scale
 
-> **Status:** **Spec Only**  
+> **Status:** **Implemented (Phase 1)** `000.000.5.14` — batch signatures, batch variants, global media index, persisted-variant fast path, eager cache-first restore, Instant RIFE COW/recovery/GC. Phase 2 (startup metrics / background validation scan) and Phase 3 (virtualization / search index) are **not** implemented.  
 > **Audience:** Builder Agents (Implementation)  
 > **Goal:** Evolve the pool persistence and rendering architecture to flawlessly handle massive datasets (1,000+ items). Inspired by industrial "McMaster-Carr" catalog UX: instant interaction, heavy indexing, batch API processing, and virtualized scrolling.
+
+## Core Performance Rule: Pay Once, Reuse Always
+
+* Every time-consuming operation is a cache-fill operation. Hashing, probing, pHash generation, thumbnail extraction, and Instant RIFE generation must happen once as early as practical, then be reused by every later pool render, project switch, and session.
+* No ordinary render, tab switch, project load, or startup restore may repeat completed work. It must load the persisted result by stable identity and move on.
+* Stable identity is the saved content hash when available, with path + filename + filesize as the cheap initial lookup. If that identity fails because a file is new, moved, changed, missing, or explicitly retried, perform only the minimum targeted repair and then persist the result.
+* Instant RIFE follows the same rule: a persisted variant and sufficient multiplier are final reusable output. Never re-encode or re-scan it merely because the project, tab, or browser was reopened.
+* Any exception to this rule must be an explicit repair, retry, cache-clear, changed-file response, or user-requested higher-quality/higher-density operation—not an implicit side effect of display.
+
+### Instant RIFE Variant Lifecycle & Recovery
+
+* The original source file is immutable and MUST never be deleted or replaced by RIFE processing.
+* RIFE writes each new output using copy-on-write semantics: encode to a new temporary/output path, verify successful completion, register the new variant and multiplier, persist the updated reference, and only then consider cleanup.
+* The highest successfully completed multiplier is the preferred reusable variant. Lower-density RIFE variants may be removed only after successful promotion and only when they are not referenced by another saved project/session; otherwise they remain available until safe garbage collection.
+* If a persisted RIFE path is missing, the system MUST attempt identity recovery before re-encoding:
+  1. look up the variant by its stored content hash in the global media/variant index;
+  2. if a matching moved file is found, update the stored path and reuse its metadata without re-encoding;
+  3. only if no matching file exists anywhere may the system regenerate that RIFE variant.
+* A missing path is not proof that the media is gone. Re-encoding is the final recovery step, never the first response to a stale path.
 
 ---
 
@@ -19,6 +38,16 @@ We must decouple interaction from validation, batch network traffic, and virtual
 ---
 
 ## 2. Phase 1: The Batching Fast-Paths (Priority)
+
+### Startup Restore Invariant — Load Existing Records, Do Not Re-Validate
+
+* On startup or project switch, the pool MUST load existing media records from the persistent media database/cache directly. This is a restore operation, not a validation pass.
+* For an existing record, use the persisted path, filename, file size, content hash, metadata, pHash, and thumbnail references as already-known state. Do NOT call `/api/media_signature`, hash the file, invoke ffmpeg/ffprobe, or regenerate thumbnails merely because the pool or project was opened.
+* The normal fast identity is the persisted path + filename + file size. If that identity no longer matches because a file moved or changed, only then may the system perform a targeted hash lookup/check to recover the existing content-hash record. A moved file that matches the known hash reuses its metadata and thumbnails without extraction or re-probing.
+* Missing cache records or genuinely new/changed files may be repaired in a separate, explicitly reported background queue. That repair path must never be confused with ordinary startup restore and must not delay pool display.
+* Existing disk thumbnails must be assigned to the pool for display at startup. Thumbnail generation is only for records whose thumbnails are actually absent or invalid; it is never part of ordinary project switching.
+* The application MUST NOT turn every project switch into a whole-pool signature, hash, probe, or thumbnail-generation scan.
+* The normal pool display mode is eager preload: once the pool is restored, all existing thumbnail URLs are queued for browser loading with a bounded concurrency limit. Scrolling must not be the event that first requests an already-cached thumbnail. Viewport-lazy loading may exist only as an explicit optional mode, not as an implicit default.
 
 ### A. Batch Signature Endpoint (`POST /api/media_signatures`)
 

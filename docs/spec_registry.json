@@ -420,6 +420,13 @@
         "summary": "Audio engine dropdown in Sequence tab. Rubberband default with DAW quality flags (transients/formants/pitchq), 48kHz sample-rate normalization (aresample=48000) to prevent chipmunking, and 10ms micro-fade on every clip fragment. atempo/pitch/mute are placeholder stubs raising NotImplementedError."
     },
     {
+        "file": "performance-catalog-ux-spec.md",
+        "path": "docs/performance-catalog-ux-spec.md",
+        "category": "Core Architecture / WebUI",
+        "status": "Implemented Phase 1 000.000.5.14",
+        "summary": "McMaster-Carr catalog UX Phase 1: cache-first eager restore, POST /api/media_signatures, POST /api/variants/batch, window.globalMediaIndex, persisted-variant fast path, Instant RIFE copy-on-write + hash recovery + unreferenced lower-density GC. Phase 2/3 not shipped."
+    },
+    {
         "file": "settings-card-layout-spec.md",
         "path": "docs/settings-card-layout-spec.md",
         "category": "UX",

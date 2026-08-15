@@ -11,7 +11,8 @@ import {
   projectNew, projectOpen, projectSave,
 } from '/js/pool/persistence.js';
 import { observe as lazyObserve, unobserve as lazyUnobserve, clearPending as lazyClearPending } from '/js/lazy-loader.js';
-import { validateItemSignature, assignCardThumbs, metaRetryHtml } from '/js/pool/freshness.js';
+import { validateItemSignature, assignCardThumbs, metaRetryHtml, hasRestoredIdentity } from '/js/pool/freshness.js';
+import { globalMediaIndex } from '/js/media-index.js';
 
 const _observedImageCards = new Set();
 
@@ -107,7 +108,10 @@ async function loadImageItemMeta(item) {
       item.metaError = null;
       if (data.size != null) item.size = data.size;
       if (data.name) item.name = data.name;
-      if (item.hash) scheduleSavePoolState();
+      if (item.hash) {
+        scheduleSavePoolState();
+        try { globalMediaIndex.put(item); } catch (_) { /* ignore */ }
+      }
     } else {
       item.metaError = data?.error || 'probe failed';
     }
@@ -132,6 +136,21 @@ async function activateImageCard(card, item, { force = false } = {}) {
   if (!card || !item) return;
   const ip = ensureImagePool();
   if (!(ip.items.includes(item) || ip.items.some((i) => i.path === item.path))) return;
+
+  if (!force && hasRestoredIdentity(item)) {
+    try { globalMediaIndex.put(item); } catch (_) { /* ignore */ }
+    if (item.meta) {
+      const el = card.querySelector('.img-pool-meta');
+      if (el) el.innerHTML = buildImageMetaHtml(item);
+    } else if (item.metaError) {
+      const el = card.querySelector('.img-pool-meta');
+      if (el) el.innerHTML = metaRetryHtml(item.metaError);
+      bindImageRetry(card, item);
+    }
+    assignCardThumbs(card, item, { bust: false });
+    return;
+  }
+
   let stale = force;
   try {
     const result = await validateItemSignature(item, { force });
@@ -153,6 +172,7 @@ async function activateImageCard(card, item, { force = false } = {}) {
   }
 
   if (item.meta && !stale) {
+    try { globalMediaIndex.put(item); } catch (_) { /* ignore */ }
     const el = card.querySelector('.img-pool-meta');
     if (el) el.innerHTML = buildImageMetaHtml(item);
     assignCardThumbs(card, item, { bust: false });

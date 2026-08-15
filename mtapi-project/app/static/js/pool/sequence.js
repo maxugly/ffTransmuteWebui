@@ -16,6 +16,8 @@ import {
   runOpWithCancel, onStopRequest, isMainJobBusy,
   setClientBusy, clearClientBusy, abortMainJob,
 } from '/js/job-control.js';
+import { normalizeAbsPath } from '/js/media-index.js';
+import { recordVariantBatch, enqueueSignature } from '/js/lazy-loader.js';
 
 // ── Sequence composer ─────────────────────────────────────────────────────
 
@@ -413,6 +415,87 @@ function _bestHaveM(entry) {
   return Math.max(0, Number(entry._rifeMultiplier) || 0);
 }
 
+function _entrySatisfiesNeed(entry) {
+  if (!entry || !entry.path) return false;
+  if (!entry.variantPath || entry.variantPath === entry.path) return false;
+  const have = _bestHaveM(entry);
+  if (have < 2) return false;
+  const dens = _densityInfoForEntry(entry);
+  const needM = dens?.needed ? (dens.multiplier || 2) : 0;
+  return !dens?.needed || have >= needM;
+}
+
+async function _pathExistsCheap(path) {
+  if (!path) return false;
+  try {
+    const sig = await enqueueSignature(path);
+    return !!(sig && sig.size != null);
+  } catch (_) {
+    return false;
+  }
+}
+
+async function _recoverMissingVariant(entry, needM) {
+  if (!entry) return false;
+  const persisted = entry.variantPath && entry.variantPath !== entry.path && _bestHaveM(entry) >= (needM || 2);
+  if (persisted) {
+    const exists = await _pathExistsCheap(entry.variantPath);
+    if (exists) return true;
+  } else if (!entry.variantPath || entry.variantPath === entry.path) {
+    return false;
+  } else {
+    const exists = await _pathExistsCheap(entry.variantPath);
+    if (exists && _bestHaveM(entry) >= (needM || 2)) return true;
+    if (exists) return false;
+  }
+  try {
+    const res = await fetch('/api/media/recover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        hash: entry._variantHash || null,
+        last_path: entry.variantPath || null,
+        parent_path: entry.path,
+        multiplier: entry._rifeMultiplier || needM || null,
+      }),
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (!data || !data.found || !data.path) return false;
+    entry.variantPath = data.path;
+    if (data.hash) entry._variantHash = data.hash;
+    if (_bestHaveM(entry) < 2) entry._rifeMultiplier = needM || 2;
+    return _bestHaveM(entry) >= (needM || 2);
+  } catch (_) {
+    return false;
+  }
+}
+
+async function recoverSequenceVariants() {
+  const seq = state.pool.sequence || [];
+  for (const entry of seq) {
+    if (!entry.variantPath || entry.variantPath === entry.path) continue;
+    await _recoverMissingVariant(entry, entry._rifeMultiplier || 2);
+  }
+}
+
+async function _gcLowerDensityAfterPromote(entry, _prevPath, _prevM, _prevHash) {
+  if (!entry?.path || !entry.variantPath) return;
+  const keepM = _bestHaveM(entry);
+  if (keepM < 2) return;
+  try {
+    await fetch('/api/variants/gc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        parent_path: entry.path,
+        keep_multiplier: keepM,
+        keep_paths: [entry.variantPath],
+      }),
+    });
+  } catch (_) { /* ignore */ }
+}
+
 /**
  * Pick densest existing rifed variant from /api/variants map.
  * @returns {{ path: string, multiplier: number } | null}
@@ -441,6 +524,13 @@ function _pickBestRifed(variants) {
  */
 async function _hydrateEntryFromVariants(entry) {
   if (!entry || !entry.path) return null;
+  if (_entrySatisfiesNeed(entry)) {
+    entry._rifeStatus = 'done';
+    entry._rifeError = null;
+    return entry.variantPath
+      ? { path: entry.variantPath, multiplier: _bestHaveM(entry) }
+      : null;
+  }
   const variants = await _fetchVariants(entry.path);
   const best = _pickBestRifed(variants);
 
@@ -680,7 +770,20 @@ async function _drainInstantRifeQueue() {
         : `Instant RIFE ×${info.multiplier} · ${entry.name}`;
       setClientBusy(label);
 
+      const recovered = await _recoverMissingVariant(entry, info.multiplier);
+      if (recovered) {
+        entry._rifeStatus = 'done';
+        entry._rifeError = null;
+        logConsole(`[SEQ RIFE]: recovered ${entry.name} → ${basename(entry.variantPath)} (×${entry._rifeMultiplier}) — not re-encoding`);
+        renderSequenceBox({ skipInstantKick: true });
+        scheduleSavePoolState();
+        continue;
+      }
+
       const runM = info.multiplier;
+      const previousVariant = entry.variantPath || null;
+      const previousM = entry._rifeMultiplier || 0;
+      const previousHash = entry._variantHash || null;
       entry._rifeStatus = 'running';
       entry._rifeError = null;
       entry._rifeRunningMultiplier = runM;
@@ -747,15 +850,21 @@ async function _drainInstantRifeQueue() {
         }
 
         if (data && data.ok) {
-          // Keep densest file only
+          // Promote only after success. Previous valid variant stays until then.
+          const prevPath = entry.variantPath;
           const prevM = entry._rifeMultiplier || 0;
+          const prevHash = entry._variantHash || null;
           if (!entry.variantPath || runM >= prevM) {
             entry.variantPath = data.output_path || entry.variantPath;
             entry._rifeMultiplier = runM;
+            const vh = data.meta?.variant_hash;
+            if (vh) entry._variantHash = vh;
           }
           entry._rifeError = null;
           entry._rifeRunningMultiplier = null;
           _invalidateVariantsCache(entry.path);
+          try { scheduleSavePoolState(); } catch (_) { /* ignore */ }
+          _gcLowerDensityAfterPromote(entry, prevPath, prevM, prevHash).catch(() => {});
 
           // If Time/target changed during the run and we need higher M, immediately re-queue
           const still = _rifeInfoForEntry(entry);
@@ -1405,7 +1514,7 @@ function renderSequenceBox(opts) {
       varBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const currentPath = entry.variantPath || entry.path;
-        const variants = await _fetchVariants(entry.path);
+        const variants = peekVariants(entry.path) || await _fetchVariants(entry.path);
         _showSeqVariantMenu(varBtn, entry, variants, currentPath);
       });
     }
@@ -1523,8 +1632,8 @@ function renderSequenceBox(opts) {
 async function _updateSeqVariantBadges() {
   try {
     const tokens = document.querySelectorAll('#poolSequenceBox .seq-token');
-    // Dedupe paths — same source can appear multiple times in the sequence
     const seen = new Set();
+    const needFetch = [];
     for (const tok of tokens) {
       const path = tok.dataset.path;
       const id = tok.dataset.id;
@@ -1534,11 +1643,29 @@ async function _updateSeqVariantBadges() {
       if (!entry) continue;
       const btn = tok.querySelector('.seq-token-var');
       if (!btn) continue;
-      const variants = await _fetchVariants(path);
-      const n = Object.values(variants).reduce((a, arr) => a + (arr?.length || 0), 0);
       const using = entry.variantPath && entry.variantPath !== entry.path;
       btn.classList.toggle('is-rifed', !!using);
       btn.textContent = using ? 'RIFED' : 'ORIG';
+      const local = peekVariants(path);
+      if (local) {
+        const n = Object.values(local).reduce((a, arr) => a + (arr?.length || 0), 0);
+        if (n > 0 && !btn.title.includes('Registered variants')) {
+          btn.title = (btn.title || '') + `\nRegistered variants: ${n}`;
+        }
+        continue;
+      }
+      if (_entrySatisfiesNeed(entry)) continue;
+      needFetch.push(path);
+    }
+    if (!needFetch.length) return;
+    const map = await _fetchVariantsBatch(needFetch);
+    for (const tok of tokens) {
+      const path = tok.dataset.path;
+      const entry = state.pool.sequence.find((e) => String(e.id) === String(tok.dataset.id));
+      const btn = tok.querySelector('.seq-token-var');
+      if (!path || !entry || !btn) continue;
+      const variants = map.get(_normVariantKey(path)) || peekVariants(path) || {};
+      const n = Object.values(variants).reduce((a, arr) => a + (arr?.length || 0), 0);
       if (n > 0 && !btn.title.includes('Registered variants')) {
         btn.title = (btn.title || '') + `\nRegistered variants: ${n}`;
       }
@@ -2106,38 +2233,99 @@ registerListKeys('pool', _seqListApi);
 // ── Per-clip variant picker ─────────────────────────────────────────────
 
 /** In-flight + short TTL cache — stops render storms from melting the server. */
-const _variantsCache = new Map(); // path → { at, data }
-const _variantsInflight = new Map(); // path → Promise
+const _variantsCache = new Map(); // normalized path → { at, data }
+const _variantsInflight = new Map(); // normalized path → Promise
 const VARIANTS_TTL_MS = 15000;
+const VARIANT_BATCH_LIMIT = 100;
+
+function _normVariantKey(path) {
+  return normalizeAbsPath(path || '') || String(path || '');
+}
+
+function peekVariants(path) {
+  if (!path) return null;
+  const key = _normVariantKey(path);
+  const hit = _variantsCache.get(key);
+  if (hit && (Date.now() - hit.at) < VARIANTS_TTL_MS) return hit.data;
+  return null;
+}
+
+function _putVariantsCache(path, variants) {
+  const key = _normVariantKey(path);
+  if (!key) return;
+  _variantsCache.set(key, { at: Date.now(), data: variants || {} });
+}
+
+async function _fetchVariantsBatch(paths) {
+  const unique = [];
+  const seen = new Set();
+  for (const raw of paths || []) {
+    const key = _normVariantKey(raw);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(key);
+  }
+  const result = new Map();
+  if (!unique.length) return result;
+
+  for (let i = 0; i < unique.length; i += VARIANT_BATCH_LIMIT) {
+    const chunk = unique.slice(i, i + VARIANT_BATCH_LIMIT);
+    let failed = false;
+    try {
+      const res = await fetch('/api/variants/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths: chunk }),
+      });
+      if (!res.ok) {
+        failed = true;
+        recordVariantBatch(chunk.length, true);
+        for (const p of chunk) result.set(p, peekVariants(p) || {});
+        continue;
+      }
+      const data = await res.json();
+      recordVariantBatch(chunk.length, false);
+      for (const p of chunk) {
+        const variants = data && data[p] != null ? data[p] : {};
+        _putVariantsCache(p, variants);
+        result.set(p, variants);
+      }
+    } catch (err) {
+      failed = true;
+      recordVariantBatch(chunk.length, true);
+      console.warn('[SEQ] variants batch failed', err);
+      for (const p of chunk) result.set(p, peekVariants(p) || {});
+    }
+    if (failed) { /* already recorded */ }
+  }
+  return result;
+}
 
 async function _fetchVariants(path) {
   if (!path) return {};
-  const hit = _variantsCache.get(path);
-  if (hit && (Date.now() - hit.at) < VARIANTS_TTL_MS) return hit.data;
+  const key = _normVariantKey(path);
+  const cached = peekVariants(key);
+  if (cached) return cached;
 
-  const pending = _variantsInflight.get(path);
+  const pending = _variantsInflight.get(key);
   if (pending) return pending;
 
   const p = (async () => {
     try {
-      const res = await fetch(`/api/variants?path=${encodeURIComponent(path)}`);
-      if (!res.ok) return {};
-      const data = await res.json();
-      const variants = data.variants || {};
-      _variantsCache.set(path, { at: Date.now(), data: variants });
-      return variants;
+      const map = await _fetchVariantsBatch([key]);
+      return map.get(key) || {};
     } catch {
-      return hit?.data || {};
+      return peekVariants(key) || {};
     } finally {
-      _variantsInflight.delete(path);
+      _variantsInflight.delete(key);
     }
   })();
-  _variantsInflight.set(path, p);
+  _variantsInflight.set(key, p);
   return p;
 }
 
 function _invalidateVariantsCache(path) {
-  if (path) _variantsCache.delete(path);
+  if (path) _variantsCache.delete(_normVariantKey(path));
   else _variantsCache.clear();
 }
 
@@ -2278,6 +2466,9 @@ export {
   seqPrev,
   seqNext,
   _fetchVariants,
+  _fetchVariantsBatch,
+  peekVariants,
+  recoverSequenceVariants,
   _showSeqVariantMenu,
   _maybeAutoRifeAll,
   _maybeAutoRifeForPath,

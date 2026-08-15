@@ -51,6 +51,7 @@ import { renderJobsForm, stopJobsPoll } from '/js/tabs/jobs.js';
 import { renderImageEditForm, collectImageEditBody } from '/js/tabs/imageedit.js';
 import { refreshInputPreview, bindInputPreviewListeners } from '/js/ui/input-preview.js';
 import { setupNavSectionCollapse, ensureNavSectionForTab } from '/js/ui/nav-sections.js';
+import { globalMediaIndex } from '/js/media-index.js';
 import {
   findPoolItem, displayFocusPath, setPoolHover, clearPoolHover,
   setPoolFocus, updateSelectionHighlights, updatePoolFocusFrame,
@@ -239,10 +240,16 @@ let state = {
     thumbnailsToRam: false,
     phashToRam: false,
     autosaveInterval: 30,
+    lazyThumbnails: false,
     warmModels: { deepdream: false, styletransfer: false, fastsam: false },
   },
   formState: {},
 };
+
+if (typeof window !== 'undefined') {
+  window.state = state;
+  window.globalMediaIndex = globalMediaIndex;
+}
 
 const SETTINGS_DEFAULTS = {
   thumbnailSize: 'H',
@@ -250,6 +257,7 @@ const SETTINGS_DEFAULTS = {
   thumbnailsToRam: false,
   phashToRam: false,
   autosaveInterval: 30,
+  lazyThumbnails: false,
   warmModels: { deepdream: false, styletransfer: false, fastsam: false },
 };
 

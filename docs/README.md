@@ -38,7 +38,7 @@
 
 ---
 
-## At a glance — `000.000.5.06` (2026-08-14)
+## At a glance — `000.000.5.14` (2026-08-14)
 
 ### Shipped recently
 | Doc / feature | Ver |
@@ -63,6 +63,7 @@
 | Doc | Intent |
 |-----|--------|
 | [universal-persistence-spec.md](universal-persistence-spec.md) | **Implemented `5.06`** — desk snapshot / metadata / lazy-load |
+| [performance-catalog-ux-spec.md](performance-catalog-ux-spec.md) | **Implemented Phase 1 `5.14`** — cache-first restore + batch APIs |
 | [tilagup-mtapi-mode-spec.md](tilagup-mtapi-mode-spec.md) | Agent tiled SD |
 | [image-quality-rating-spec.md](image-quality-rating-spec.md) | Pool quality scores |
 | [fastsam-sam-multimodel-spec.md](fastsam-sam-multimodel-spec.md) | **FastSAM + SAM multimodel selector** — stronger backends on Intel OpenVINO |

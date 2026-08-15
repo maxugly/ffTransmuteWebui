@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-14  \
-> **VERSION:** `000.000.5.13`  \
+> **VERSION:** `000.000.5.14`  \
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -101,6 +101,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Universal persistence** | Full desk snapshot: metadata + signatures round-trip, `/api/media_signature`, shared lazy-loader (100px margin, max-5 fallback), settings precedence (project loads never overwrite globals), schema v2 migration, inactive-tab formState | `universal-persistence-spec.md` · **`5.06`** |
 | **Settings layout polish** | Tight one-page cards hug content width; Neural FX blurb wraps after “Default is off” | `settings.js`, `settings.css` · **`5.12`** |
 | **Settings card layout spec** | House style so new Settings cards ship tight (one-line head, packed controls, max-content width) | `settings-card-layout-spec.md` · **`5.13`** |
+| **Catalog UX Phase 1** | Cache-first eager restore; `POST /api/media_signatures` + `POST /api/variants/batch` (max 100); `window.globalMediaIndex`; persisted-variant fast path (zero variant requests when dense enough); Instant RIFE COW + hash recovery + unreferenced lower-density GC | `performance-catalog-ux-spec.md` · **`5.14`** |
 
 **Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale, **qr_art** *(in tree — see §4)*. Root `AGENTS.md`.
 
@@ -216,7 +217,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.5.13` (Settings card layout spec is the house style for new Settings UI.)
+- **Current:** `000.000.5.14` (Catalog UX Phase 1: cache-first restore, batch signatures/variants, Instant RIFE recovery.)
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  
@@ -232,7 +233,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 Agents wait for human assignment.
 
 1. **Close partials:** list/sequence keys, progress polish, tool-docs gaps.  
-2. ~~**Universal persistence**~~ — **shipped `5.06`**.  
+2. ~~**Universal persistence**~~ — **shipped `5.06`**. Catalog Phase 1 **`5.14`**.  
 3. **Product choice:** quality rating *or* tilagup mode.  
 4. Agent polish (streaming / Ollama) when vision UX needs it.  
 5. Explicit backlog picks only (depth, flow, facerestore, …).

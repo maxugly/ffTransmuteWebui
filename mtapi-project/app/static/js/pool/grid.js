@@ -34,7 +34,8 @@ import {
   setupTileInfoMenu, showPoolContextMenu,
 } from '/app.js';
 import { observe as lazyObserve, unobserve as lazyUnobserve, clearPending as lazyClearPending } from '/js/lazy-loader.js';
-import { validateItemSignature, assignCardThumbs, metaRetryHtml } from '/js/pool/freshness.js';
+import { validateItemSignature, assignCardThumbs, metaRetryHtml, hasRestoredIdentity } from '/js/pool/freshness.js';
+import { globalMediaIndex } from '/js/media-index.js';
 
 const _observedVideoCards = new Set();
 
@@ -47,6 +48,23 @@ async function activateVideoCard(card, item, { force = false } = {}) {
   if (!card || !item) return;
   if (!(state.pool.items.includes(item) || state.pool.items.some((i) => i.path === item.path))) return;
   const idx = state.pool.items.indexOf(item);
+
+  // Restore fast-path: existing records reuse persisted identity. Do not
+  // signature-scan, hash, probe, or regenerate thumbs on project open.
+  if (!force && hasRestoredIdentity(item)) {
+    try { globalMediaIndex.put(item); } catch (_) { /* ignore */ }
+    if (item.meta) {
+      const el = document.getElementById(`poolMeta-${idx}`) || card.querySelector('.pool-overlay-text');
+      if (el) el.innerHTML = buildPoolMetaHtml(item);
+    } else if (item.metaError) {
+      const el = document.getElementById(`poolMeta-${idx}`) || card.querySelector('.pool-overlay-text');
+      if (el) el.innerHTML = metaRetryHtml(item.metaError);
+      bindVideoRetry(card, item);
+    }
+    assignCardThumbs(card, item, { bust: false });
+    return;
+  }
+
   let stale = force;
   try {
     const result = await validateItemSignature(item, { force });
@@ -68,6 +86,7 @@ async function activateVideoCard(card, item, { force = false } = {}) {
   }
 
   if (item.meta && !stale) {
+    try { globalMediaIndex.put(item); } catch (_) { /* ignore */ }
     const el = document.getElementById(`poolMeta-${idx}`) || card.querySelector('.pool-overlay-text');
     if (el) el.innerHTML = buildPoolMetaHtml(item);
     assignCardThumbs(card, item, { bust: false });
@@ -123,11 +142,15 @@ async function fillJoinTargetOptions() {
 }
 
 async function _variantNodeHtml(path) {
-  // Use shared cached /api/variants (sequence.js) — never raw-fetch per card paint
+  // Local cache / persisted map only — never GET /api/variants per card paint.
   let variants = {};
   try {
-    const { _fetchVariants } = await import('/js/pool/sequence.js');
-    variants = await _fetchVariants(path);
+    const { peekVariants, _fetchVariants } = await import('/js/pool/sequence.js');
+    const local = typeof peekVariants === 'function' ? peekVariants(path) : null;
+    variants = local || {};
+    if (!local && state.settings?.lazyThumbnails) {
+      variants = await _fetchVariants(path);
+    }
   } catch {
     variants = {};
   }

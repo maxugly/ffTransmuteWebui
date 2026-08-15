@@ -1,32 +1,31 @@
 /**
  * File-signature freshness helpers for both media pools.
  *
- * On viewport entry the caller fetches /api/media_signature (no ffmpeg).
- * A missing or changed signature clears meta so /api/media_info can run.
- * Unchanged metaError is not retried unless the user clicks Retry Metadata.
+ * Restore is cache-first: existing records reuse path + filename + filesize
+ * and never hit /api/media_signature. Validation is targeted (retry, missing
+ * identity, optional lazy mode) and goes through the batch queue.
  */
 import { state } from '/app.js';
 import { poolThumbUrl } from '/js/pool/persistence.js';
-
-const _sigInflight = new Map();
+import { enqueueSignature } from '/js/lazy-loader.js';
+import { globalMediaIndex } from '/js/media-index.js';
 
 function signaturesEqual(a, b) {
   if (!a || !b) return false;
   return Number(a.size) === Number(b.size) && Number(a.mtime_ns) === Number(b.mtime_ns);
 }
 
-async function fetchMediaSignature(path) {
-  if (!path) return null;
-  if (_sigInflight.has(path)) return _sigInflight.get(path);
-  const job = fetch(`/api/media_signature?path=${encodeURIComponent(path)}`)
-    .then(async (res) => {
-      if (res.status === 404) return null;
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    })
-    .finally(() => _sigInflight.delete(path));
-  _sigInflight.set(path, job);
-  return job;
+/**
+ * Cheap restored identity: persisted path + filename + filesize plus cached
+ * payload (hash and/or meta). Startup/project switch trusts this without
+ * stating the file.
+ */
+function hasRestoredIdentity(item) {
+  if (!item || !item.path) return false;
+  const name = item.name || '';
+  const size = item.size ?? item.meta?.size;
+  if (!name || size == null) return false;
+  return !!(item.hash || item.meta);
 }
 
 function applySignature(item, sig) {
@@ -34,9 +33,14 @@ function applySignature(item, sig) {
   item.meta_signature = { size: Number(sig.size), mtime_ns: Number(sig.mtime_ns) };
 }
 
+async function fetchMediaSignature(path) {
+  if (!path) return null;
+  return enqueueSignature(path);
+}
+
 /**
- * Compare stored meta_signature to disk.
- * Stale/null signatures clear meta + metaError so the caller can re-probe.
+ * Compare stored meta_signature to disk via the batch endpoint.
+ * Not used for ordinary restore of existing records.
  */
 async function validateItemSignature(item, { force = false } = {}) {
   const sig = await fetchMediaSignature(item.path);
@@ -48,9 +52,40 @@ async function validateItemSignature(item, { force = false } = {}) {
   if (stale) {
     item.meta = null;
     item.metaError = null;
+    try { globalMediaIndex.invalidate(item); } catch (_) { /* ignore */ }
   }
   applySignature(item, sig);
+  if (item.size == null && sig.size != null) item.size = sig.size;
   return { stale, missing: false, signature: item.meta_signature };
+}
+
+/**
+ * Targeted hash recovery when cheap identity fails (moved/changed file).
+ */
+async function recoverItemByHash(item) {
+  const hash = item?.hash || item?.meta?.hash;
+  if (!hash && !item?.path) return null;
+  try {
+    const res = await fetch('/api/media/recover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        hash: hash || null,
+        last_path: item.path || null,
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data || !data.found || !data.path) return null;
+    if (data.path !== item.path) {
+      item.path = data.path;
+    }
+    if (data.hash) item.hash = data.hash;
+    try { globalMediaIndex.put(item); } catch (_) { /* ignore */ }
+    return data;
+  } catch (_) {
+    return null;
+  }
 }
 
 function thumbUrlWithBust(item, which, mtimeNs) {
@@ -67,6 +102,16 @@ function assignCardThumbs(card, item, { bust = false } = {}) {
   card.querySelectorAll('img.pool-thumb').forEach((img) => {
     const which = img.dataset.which || 'first';
     img.src = thumbUrlWithBust(item, which, m);
+    img.addEventListener('error', function onThumbErr() {
+      img.removeEventListener('error', onThumbErr);
+      if (img.dataset.recovered) return;
+      img.dataset.recovered = '1';
+      recoverItemByHash(item).then((rec) => {
+        if (rec && rec.path) {
+          img.src = thumbUrlWithBust(item, which, item.meta_signature?.mtime_ns);
+        }
+      });
+    }, { once: true });
   });
 }
 
@@ -97,6 +142,8 @@ function metaRetryHtml(error) {
 export {
   fetchMediaSignature,
   validateItemSignature,
+  hasRestoredIdentity,
+  recoverItemByHash,
   assignCardThumbs,
   refreshAssignedPoolThumbs,
   thumbUrlWithBust,
