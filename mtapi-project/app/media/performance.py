@@ -75,6 +75,10 @@ async def save_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
         tmp.replace(SETTINGS_PATH)
         global _settings_cache
         _settings_cache = None
+        from .catalog import catalog_if_ready
+        cat = catalog_if_ready()
+        if cat is not None:
+            await cat.apply_settings(data)
         return {"ok": True, **data}
 
 
@@ -86,6 +90,10 @@ class ByteLRU:
         self._items: OrderedDict[Any, bytes | str] = OrderedDict()
         self._bytes = 0
         self._lock = asyncio.Lock()
+        self.evicted = 0
+
+    def _value_size(self, value: bytes | str) -> int:
+        return len(value.encode("utf-8")) if isinstance(value, str) else len(value)
 
     async def get(self, key: Any) -> bytes | str | None:
         async with self._lock:
@@ -95,33 +103,58 @@ class ByteLRU:
             return value
 
     async def put(self, key: Any, value: bytes | str) -> None:
-        size = len(value.encode("utf-8")) if isinstance(value, str) else len(value)
+        size = self._value_size(value)
         if size > self.max_bytes:
             return
         async with self._lock:
             old = self._items.pop(key, None)
             if old is not None:
-                self._bytes -= len(old.encode("utf-8")) if isinstance(old, str) else len(old)
+                self._bytes -= self._value_size(old)
             self._items[key] = value
             self._bytes += size
             while self._bytes > self.max_bytes and self._items:
                 _, evicted = self._items.popitem(last=False)
-                self._bytes -= len(evicted.encode("utf-8")) if isinstance(evicted, str) else len(evicted)
+                self._bytes -= self._value_size(evicted)
+                self.evicted += 1
 
     async def invalidate(self, key: Any) -> None:
         async with self._lock:
             old = self._items.pop(key, None)
             if old is not None:
-                self._bytes -= len(old.encode("utf-8")) if isinstance(old, str) else len(old)
+                self._bytes -= self._value_size(old)
 
     async def clear(self) -> None:
         async with self._lock:
             self._items.clear()
             self._bytes = 0
 
+    async def drop_sizes_except(self, keep_size: str) -> int:
+        """Remove RAM entries whose key[2] is not ``keep_size``. Disk is untouched."""
+        removed = 0
+        async with self._lock:
+            for key in list(self._items):
+                size_token = key[2] if isinstance(key, tuple) and len(key) >= 3 else None
+                if size_token == keep_size:
+                    continue
+                old = self._items.pop(key, None)
+                if old is None:
+                    continue
+                self._bytes -= self._value_size(old)
+                self.evicted += 1
+                removed += 1
+        return removed
+
+    def has(self, key: Any) -> bool:
+        return key in self._items
+
     async def stats(self) -> dict[str, int]:
         async with self._lock:
-            return {"entries": len(self._items), "bytes": self._bytes, "max_bytes": self.max_bytes}
+            return {
+                "entries": len(self._items),
+                "bytes": self._bytes,
+                "max_bytes": self.max_bytes,
+                "evicted": self.evicted,
+            }
 
 
 # Conservative defaults for a local media server. These are byte limits, not
