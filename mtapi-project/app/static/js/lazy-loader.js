@@ -169,9 +169,34 @@ function drainThumbQueue() {
   }
 }
 
-/** Assign img.src through a bounded in-flight queue (real network, not just callbacks). */
+function _isCacheOnlyThumbUrl(url) {
+  return typeof url === 'string'
+    && url.includes('/api/thumbnail')
+    && url.includes('hash=')
+    && !url.includes('path=');
+}
+
+/** Assign img.src. Cache-only hash URLs are set immediately (reload must show thumbs). */
 function assignThumbSrc(img, url) {
   if (!img || !url) return Promise.resolve(false);
+  if (_isCacheOnlyThumbUrl(url)) {
+    return new Promise((resolve) => {
+      const finish = (ok) => {
+        img.removeEventListener('load', onLoad);
+        img.removeEventListener('error', onErr);
+        resolve(ok);
+      };
+      const onLoad = () => finish(true);
+      const onErr = () => finish(false);
+      img.addEventListener('load', onLoad, { once: true });
+      img.addEventListener('error', onErr, { once: true });
+      if (img.getAttribute('src') === url && img.complete && img.naturalWidth > 0) {
+        finish(true);
+        return;
+      }
+      img.src = url;
+    });
+  }
   return new Promise((resolve) => {
     for (let i = pendingThumbs.length - 1; i >= 0; i--) {
       if (pendingThumbs[i].img === img) {

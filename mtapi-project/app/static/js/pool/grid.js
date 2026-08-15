@@ -976,12 +976,12 @@ function renderPoolGrid() {
       ${seqPos.length > 0 ? `<span class="pool-seq-indicator">${seqPos.join(' ')}</span>` : ''}
       <div class="pool-frames">
         <div class="pool-frame">
-          <img class="pool-thumb" alt="First frame" loading="lazy" data-which="first" draggable="false"
+          <img class="pool-thumb" alt="First frame" loading="lazy" data-which="first" draggable="false"${item.hash ? ` src="${poolThumbUrl(item, 'first')}"` : ''}
                onerror="this.classList.add('broken'); this.alt='no frame';">
           ${showLabels ? '<span class="pool-frame-label">FIRST</span>' : ''}
         </div>
         <div class="pool-frame">
-          <img class="pool-thumb" alt="Last frame" loading="lazy" data-which="last" draggable="false"
+          <img class="pool-thumb" alt="Last frame" loading="lazy" data-which="last" draggable="false"${item.hash ? ` src="${poolThumbUrl(item, 'last')}"` : ''}
                onerror="this.classList.add('broken'); this.alt='no frame';">
           ${showLabels ? '<span class="pool-frame-label">LAST</span>' : ''}
         </div>

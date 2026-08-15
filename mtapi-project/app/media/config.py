@@ -89,21 +89,29 @@ def _thumb_is_current(content_hash: str, which: str, size: str = "H") -> bool:
 
 
 def existing_thumb_file(content_hash: str, which: str, size: str = "H") -> Path | None:
-    """Return an on-disk JPEG if it is already usable. No record/index I/O."""
+    """Return an on-disk JPEG if it is already usable. No record/index I/O.
+
+    Prefer the requested size, then H, then the unsized legacy file. A Low
+    request must not 404 when High already exists — that is a display miss
+    with a perfectly good cache hit.
+    """
     if not content_hash:
         return None
     which = which if which in ("first", "last") else "first"
     size = normalize_thumb_size(size)
-    tp = _thumb_path(content_hash, which, size)
-    if _thumb_is_current(content_hash, which, size):
-        return tp
-    if which == "first" and size == "H":
-        legacy = _hash_dir(content_hash) / "first.jpg"
-        try:
-            if legacy.exists() and legacy.stat().st_size > 0:
-                return legacy
-        except OSError:
-            return None
+    candidates = [size]
+    for extra in ("H", "M", "L"):
+        if extra not in candidates:
+            candidates.append(extra)
+    for cand in candidates:
+        if _thumb_is_current(content_hash, which, cand):
+            return _thumb_path(content_hash, which, cand)
+    legacy = _hash_dir(content_hash) / f"{which}.jpg"
+    try:
+        if legacy.exists() and legacy.stat().st_size > 0:
+            return legacy
+    except OSError:
+        return None
     return None
 
 
