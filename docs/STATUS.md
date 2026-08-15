@@ -2,7 +2,7 @@
 
 > **Updated:** 2026-08-15  \
 > **VERSION:** `000.000.6.0`  \
-> **Branch:** `wip` (local tree often uncommitted — `git status`)  
+> **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
 **Also read:** `AGENTS.md` (root) · `mtapi-project/AGENTS.md` · [README.md](README.md) · [SESSION-STOPPING-STATE.md](SESSION-STOPPING-STATE.md)
