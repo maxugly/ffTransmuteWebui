@@ -758,7 +758,7 @@ function renderImagePoolGrid() {
       </div>
       <div class="pool-frames img-pool-single">
         <div class="pool-frame">
-          <img class="pool-thumb" alt="${escapeHtml(item.name || '')}" loading="lazy" data-which="first" draggable="false"${item.hash ? ` src="${imageThumbUrl(item)}"` : ''}
+          <img class="pool-thumb" alt="${escapeHtml(item.name || '')}" loading="eager" data-which="first" draggable="false"${item.hash ? ` src="${imageThumbUrl(item)}"` : ''}
                onerror="this.classList.add('broken'); this.alt='no image';">
         </div>
       </div>

@@ -47,12 +47,7 @@ const instrument = {
 };
 
 function isLazyMode() {
-  try {
-    // Explicit opt-out only. Default is pay-once: start immediately.
-    return window.state?.settings?.viewportLazyThumbnails === true;
-  } catch (_) {
-    return false;
-  }
+  return false;
 }
 
 function observerAvailable() {

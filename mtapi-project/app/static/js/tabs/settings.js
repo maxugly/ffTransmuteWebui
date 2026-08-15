@@ -93,10 +93,9 @@ export function renderSettingsForm() {
           <div class="settings-switches">
             ${switchHtml('settingsThumbRam', 'Keep thumbnails in RAM', state.settings.thumbnailsToRam)}
             ${switchHtml('settingsPhashRam', 'Keep hashes in RAM', state.settings.phashToRam)}
-            ${switchHtml('settingsViewportLazy', 'Load thumbs only when visible', !!state.settings.viewportLazyThumbnails)}
           </div>
         </div>
-        <p class="settings-card-desc">L = 120px, M = 240px, H = 480px. Cached thumbs load immediately;<br>missing ones generate in the background. Visible-only is an opt-out.</p>
+        <p class="settings-card-desc">L = 120px, M = 240px, H = 480px. Settings persist in the browser<br>and on the server. Cached thumbs load immediately, not on scroll.</p>
       </section>
       <section class="settings-card settings-warm" aria-labelledby="settingsWarmTitle">
         <div class="settings-card-head">
@@ -144,7 +143,6 @@ export function renderSettingsForm() {
   const bindSwitch = (id, patch) => document.getElementById(id)?.addEventListener('change', (e) => saveSettings({ [patch]: e.target.checked }));
   bindSwitch('settingsThumbRam', 'thumbnailsToRam');
   bindSwitch('settingsPhashRam', 'phashToRam');
-  bindSwitch('settingsViewportLazy', 'viewportLazyThumbnails');
   document.getElementById('settingsWarmDeepdream')?.addEventListener('change', e => saveSettings({ warmModels: { deepdream: e.target.checked } }));
   document.getElementById('settingsWarmStyle')?.addEventListener('change', e => saveSettings({ warmModels: { styletransfer: e.target.checked } }));
   document.getElementById('settingsWarmFastsam')?.addEventListener('change', e => saveSettings({ warmModels: { fastsam: e.target.checked } }));

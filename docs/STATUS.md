@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-14  \
-> **VERSION:** `000.000.5.21`  \
+> **VERSION:** `000.000.5.22`  \
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 

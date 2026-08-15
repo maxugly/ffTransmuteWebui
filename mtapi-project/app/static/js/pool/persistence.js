@@ -247,19 +247,10 @@ function applyDeskSnapshot(desk, { restoreSettings = true } = {}) {
   if (s.watcher && typeof s.watcher === 'object') {
     state.watcher = { ...state.watcher, ...s.watcher };
   }
-  // Named project loads MUST drop settings. Session restore MAY apply them.
-  if (restoreSettings && s.settings && typeof s.settings === 'object') {
-    state.settings = {
-      ...state.settings, ...s.settings,
-      warmModels: { ...(state.settings.warmModels || {}), ...(s.settings.warmModels || {}) },
-    };
-    try { localStorage.setItem('mtapi.settings', JSON.stringify(state.settings)); } catch (_) {}
-    try {
-      window.dispatchEvent(new CustomEvent('mtapi.settingsChanged', {
-        detail: { thumbnailSize: state.settings.thumbnailSize, source: 'session' },
-      }));
-    } catch (_) { /* ignore */ }
-  }
+  // Settings are global (localStorage + /api/settings). Session/project
+  // snapshots must never overwrite them — that made size/toggles appear
+  // to "not persist" on reload.
+  void restoreSettings;
 }
 
 // ── Pool persistence ──────────────────────────────────────────────────────
@@ -295,6 +286,7 @@ function buildPoolStatePayload() {
         path: s.path,
         name: s.name || basename(s.path),
         target_duration: n,
+        _had_target: !!s._hadTarget,
         variant_path: s.variantPath || null,
         // Remember densify strength so Instant does not re-RIFE after reload
         rife_multiplier: (s._rifeMultiplier != null && s._rifeMultiplier > 0)
@@ -383,6 +375,7 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
       path: s.path,
       name: s.name || basename(s.path),
       targetDuration: td,
+      _hadTarget: !!s._had_target,
       variantPath: vp,
       _rifeMultiplier: rm,
       _variantHash: (typeof vh === 'string' && vh) ? vh : null,

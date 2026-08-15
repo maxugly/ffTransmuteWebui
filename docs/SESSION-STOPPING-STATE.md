@@ -1,7 +1,7 @@
 # Session stopping state — handoff
 
 > **Date:** 2026-08-14  
-> **VERSION:** `000.000.5.21`  
+> **VERSION:** `000.000.5.22`  
 > **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
@@ -44,6 +44,7 @@
 | **Thumb queue coverage** | Settings size refresh uses the same 8-fetch cap | `freshness.js` · **`5.18`** |
 | **Pay-once thumbs** | Display is cache-only; missing thumbs generate in background; work starts immediately | `5.19` |
 | **No redo** | Same path+size never re-hashes; cache-hit open does not rewrite; failed thumbs not retried | `5.20` |
+| **Reload thumbs** | Hash `src` written on the card at render; 8-queue no longer withholds src; L/M serves H if needed | `5.21` |
 
 Earlier stable: filter platform, dual pools, Convert, neural ops, Prompt Library, Recohere, Agent, OpenVINO stills.
 
