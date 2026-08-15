@@ -38,7 +38,15 @@ _index_cache: tuple[float, dict[str, Any]] | None = None
 
 # ── index (path → hash, skipped when size/mtime match) ─────────────────────
 
+def _catalog_ready():
+    from .catalog import catalog_if_ready
+    return catalog_if_ready()
+
+
 def _load_index() -> dict[str, Any]:
+    cat = _catalog_ready()
+    if cat is not None:
+        return cat.index_document()
     global _index_cache
     try:
         current_mtime = INDEX_PATH.stat().st_mtime
@@ -67,6 +75,10 @@ def _load_index() -> dict[str, Any]:
 
 
 def _save_index(index: dict[str, Any]) -> None:
+    cat = _catalog_ready()
+    if cat is not None:
+        cat.persist_index()
+        return
     _ensure_dirs()
     tmp = INDEX_PATH.with_suffix(".tmp")
     tmp.write_text(json.dumps(index, indent=2, sort_keys=True), encoding="utf-8")
@@ -75,6 +87,10 @@ def _save_index(index: dict[str, Any]) -> None:
 
 
 async def _update_index_entry(path: Path, content_hash: str, size: int, mtime_ns: int) -> None:
+    cat = _catalog_ready()
+    if cat is not None:
+        cat.update_path_mapping(path, content_hash, size, mtime_ns, persist=True)
+        return
     async with _index_lock:
         index = _load_index()
         index["paths"][_path_key(path)] = {
@@ -86,12 +102,36 @@ async def _update_index_entry(path: Path, content_hash: str, size: int, mtime_ns
         _save_index(index)
 
 
-def lookup_cached_hash(path: Path, index: dict[str, Any] | None = None) -> str | None:
+def lookup_cached_hash(
+    path: Path,
+    index: dict[str, Any] | None = None,
+    *,
+    check_source: bool = False,
+) -> str | None:
     """Return content hash if this path is indexed at the same file size.
 
     Cheap identity is path + filename + size. mtime must not force a re-hash
     (copy, backup, and NAS tools change mtime without changing bytes).
+    After catalog_ready, display callers omit check_source and never stat.
     """
+    cat = _catalog_ready()
+    if cat is not None and not check_source:
+        return cat.hash_for_path(path)
+    if cat is not None and check_source:
+        cat.note_source_stat()
+        try:
+            st = path.stat()
+        except OSError:
+            return None
+        key_hash = cat.hash_for_path(path)
+        if key_hash is None:
+            return None
+        rec = cat.record_for_hash(key_hash)
+        if rec is None:
+            return None
+        if rec.size and rec.size != st.st_size:
+            return None
+        return key_hash
     try:
         st = path.stat()
     except OSError:
@@ -111,6 +151,13 @@ def lookup_cached_hash(path: Path, index: dict[str, Any] | None = None) -> str |
 
 def lookup_cached_hash_batch(paths: list[Path], index: dict[str, Any] | None = None) -> dict[str, str | None]:
     """Batch version: return mapping of resolved_path -> hash (or None)."""
+    cat = _catalog_ready()
+    if cat is not None:
+        out: dict[str, str | None] = {}
+        for path in paths:
+            key = str(path)
+            out[key] = cat.hash_for_path(path)
+        return out
     if index is None:
         index = _load_index()
     out: dict[str, str | None] = {}
@@ -181,6 +228,10 @@ def _empty_record(content_hash: str, size: int = 0) -> dict[str, Any]:
 
 
 def load_record(content_hash: str) -> dict[str, Any] | None:
+    cat = _catalog_ready()
+    if cat is not None:
+        rec = cat.record_for_hash(content_hash)
+        return cat.serving_dict(rec) if rec is not None else None
     rp = _record_path(content_hash)
     if not rp.exists():
         return None
@@ -196,6 +247,13 @@ def load_record(content_hash: str) -> dict[str, Any] | None:
 
 
 def save_record(record: dict[str, Any]) -> None:
+    cat = _catalog_ready()
+    if cat is not None:
+        payload = dict(record)
+        if payload.get("history") == []:
+            payload.pop("history", None)
+        cat.upsert_record(payload)
+        return
     content_hash = record["hash"]
     d = _hash_dir(content_hash)
     d.mkdir(parents=True, exist_ok=True)
@@ -246,7 +304,7 @@ def append_history(
 async def resolve_hash(path: Path, index: dict[str, Any] | None = None) -> tuple[str, bool]:
     """Return (content_hash, was_cached)."""
     path = path.resolve()
-    cached = lookup_cached_hash(path, index=index)
+    cached = lookup_cached_hash(path, index=index, check_source=True)
     if cached:
         return cached, True
 
@@ -765,12 +823,23 @@ async def get_variants(
     - ``hash_if_missing=False`` (batch / restore) never hashes the parent.
     """
     try:
-        parent = Path(parent_path).expanduser().resolve()
+        parent = Path(parent_path).expanduser()
+    except OSError:
+        return None
+    cat = _catalog_ready()
+    if cat is not None:
+        rec = cat.record_for_path(parent)
+        if rec is not None:
+            return rec.variants or {}
+        if not hash_if_missing:
+            return {}
+    try:
+        parent = parent.resolve()
     except OSError:
         return None
     if not parent.is_file():
         return None
-    parent_hash = lookup_cached_hash(parent)
+    parent_hash = lookup_cached_hash(parent, check_source=True)
     if not parent_hash:
         if not hash_if_missing:
             index = _load_index()
@@ -800,6 +869,9 @@ async def get_variants(
 # ── stats ──────────────────────────────────────────────────────────────────
 
 def media_cache_stats() -> dict[str, Any]:
+    cat = _catalog_ready()
+    if cat is not None:
+        return cat.status_now()
     _ensure_dirs()
     index = _load_index()
     hash_dirs = [p for p in BY_HASH_DIR.iterdir()] if BY_HASH_DIR.exists() else []

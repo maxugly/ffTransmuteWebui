@@ -79,6 +79,10 @@ async def save_project_file(
 
 
 def load_project_file(project_path: str | Path) -> dict[str, Any]:
+    from .catalog import catalog_if_ready
+    cat = catalog_if_ready()
+    if cat is not None:
+        return cat.load_project_membership(project_path)
     path = Path(project_path).expanduser().resolve()
     if not path.is_file():
         return {"ok": False, "error": f"Project not found: {path}"}

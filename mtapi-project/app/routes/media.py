@@ -158,6 +158,16 @@ def register(app: FastAPI, probe_fn) -> None:
             # POST /api/thumbnails/ensure so the desk never waits on ffmpeg.
             which_fast = (which or "first").lower()
             if which_fast in ("first", "last"):
+                from ..media.catalog import catalog_if_ready
+                cat = catalog_if_ready()
+                if cat is not None:
+                    payload, src = await cat.serve_hash_thumbnail(content_hash, which_fast, size)
+                    if payload is None:
+                        raise HTTPException(status_code=404, detail=f"Thumbnail not available ({which_fast})")
+                    headers = {"Cache-Control": "public, max-age=31536000, immutable"}
+                    if isinstance(payload, (bytes, bytearray)):
+                        return Response(content=bytes(payload), media_type="image/jpeg", headers=headers)
+                    return FileResponse(str(payload), media_type="image/jpeg", headers=headers)
                 ready = media.existing_thumb_file(content_hash, which_fast, size)
                 if ready is not None:
                     return await _serve_thumbnail(ready, content_hash, which_fast, size)
@@ -270,6 +280,13 @@ def register(app: FastAPI, probe_fn) -> None:
 
     @app.get("/api/media/{content_hash}", tags=["meta"])
     async def get_media_by_hash(content_hash: str):
+        from ..media.catalog import catalog_if_ready
+        cat = catalog_if_ready()
+        if cat is not None:
+            payload = cat.public_payload(content_hash)
+            if not payload:
+                raise HTTPException(status_code=404, detail="Unknown media hash")
+            return payload
         record = media.load_record(content_hash)
         if not record:
             raise HTTPException(status_code=404, detail="Unknown media hash")
@@ -297,7 +314,16 @@ def register(app: FastAPI, probe_fn) -> None:
 
     @app.get("/api/media_cache", tags=["meta"])
     async def media_cache_info():
+        from ..media.catalog import catalog_if_ready
+        cat = catalog_if_ready()
+        if cat is not None:
+            return {"ok": True, **(await cat.status())}
         return {"ok": True, **media.media_cache_stats()}
+
+    @app.get("/api/catalog/status", tags=["meta"])
+    async def catalog_status():
+        from ..media.catalog import get_catalog
+        return await get_catalog().status()
 
     # ── frame strip ──────────────────────────────────────────────────────────
 

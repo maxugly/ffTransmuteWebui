@@ -153,8 +153,14 @@ def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY
         hit = _variants_resp_cache.get(key)
         if hit and (now - hit[0]) < _VARIANTS_RESP_TTL:
             return hit[1]
-        variants = await media_cache.get_variants(Path(key))
-        payload = {"path": key, "variants": variants or {}}
+        from ..media.catalog import catalog_if_ready
+        cat = catalog_if_ready()
+        if cat is not None:
+            variants = cat.variants_for_path(key)
+            payload = {"path": key, "variants": variants or {}}
+        else:
+            variants = await media_cache.get_variants(Path(key))
+            payload = {"path": key, "variants": variants or {}}
         _variants_resp_cache[key] = (now, payload)
         # Bound memory if a client hammers many paths
         if len(_variants_resp_cache) > 256:
@@ -169,10 +175,14 @@ def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY
         paths, err = media_cache.parse_batch_paths((body or {}).get("paths"))
         if err:
             raise HTTPException(status_code=400, detail=err)
+        from ..media.catalog import catalog_if_ready
+        cat = catalog_if_ready()
         out: dict[str, dict | None] = {}
         for p in paths:
-            variants = await media_cache.get_variants(p, hash_if_missing=False)
-            out[p] = variants
+            if cat is not None:
+                out[p] = cat.variants_for_path(p)
+            else:
+                out[p] = await media_cache.get_variants(p, hash_if_missing=False)
         return out
 
     @app.post("/api/variants/gc", tags=["meta"])

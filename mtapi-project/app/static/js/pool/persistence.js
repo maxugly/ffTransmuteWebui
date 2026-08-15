@@ -934,12 +934,14 @@ function itemShowsThumb(item, which) {
 
 function poolThumbUrl(item, which) {
   const size = String(state.settings?.thumbnailSize || 'H').toUpperCase();
-  const version = 3;
+  const w = which || 'first';
+  const rev = item && item.thumb_rev && item.thumb_rev[w];
+  const version = rev != null ? rev : 3;
   // Prefer content-hash once known — permanent cache key independent of path
   if (item.hash) {
-    return `/api/thumbnail?hash=${encodeURIComponent(item.hash)}&which=${which}&s=${encodeURIComponent(size)}&v=${version}`;
+    return `/api/thumbnail?hash=${encodeURIComponent(item.hash)}&which=${w}&s=${encodeURIComponent(size)}&v=${version}`;
   }
-  return `/api/thumbnail?path=${encodeURIComponent(item.path)}&which=${which}&s=${encodeURIComponent(size)}&v=${version}`;
+  return `/api/thumbnail?path=${encodeURIComponent(item.path)}&which=${w}&s=${encodeURIComponent(size)}&v=${version}`;
 }
 
 function shortHash(h) {

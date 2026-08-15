@@ -103,3 +103,10 @@ from .performance import (  # noqa: F401
     thumbnail_cache,
     phash_cache,
 )
+from .catalog import (  # noqa: F401
+    THUMB_RAM_BUDGET,
+    CatalogIndex,
+    CatalogLockHeld,
+    catalog_if_ready,
+    get_catalog,
+)

@@ -514,6 +514,10 @@ def enrich_items_from_records(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def load_pool_state() -> dict[str, Any]:
+    from .catalog import catalog_if_ready
+    cat = catalog_if_ready()
+    if cat is not None:
+        return cat.pool_state_payload()
     state = _default_pool_state()
     if not POOL_STATE_PATH.exists():
         return {**state, "ok": True, "restored": False}
@@ -553,6 +557,10 @@ async def save_pool_state(payload: dict[str, Any]) -> dict[str, Any]:
         tmp = POOL_STATE_PATH.with_suffix(".tmp")
         tmp.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
         tmp.replace(POOL_STATE_PATH)
+        from .catalog import catalog_if_ready
+        cat = catalog_if_ready()
+        if cat is not None:
+            cat.apply_membership_snapshot(data)
         return {
             "ok": True,
             "path": str(POOL_STATE_PATH),

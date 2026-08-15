@@ -83,18 +83,30 @@ async def open_media(
 
         if record_open and not was_cached:
             record["open_count"] = int(record.get("open_count") or 0) + 1
-            hist = record.setdefault("history", [])
-            hist.append({
-                "ts": time.time(),
-                "event": "opened",
-                "path": str(path),
-                "cached_hash": was_cached,
-            })
-            if len(hist) > 200:
-                record["history"] = hist[-200:]
+            from .catalog import catalog_if_ready
+            cat = catalog_if_ready()
+            if cat is not None:
+                cat.append_history(
+                    content_hash,
+                    "opened",
+                    detail={"path": str(path), "cached_hash": was_cached},
+                )
+                record.pop("history", None)
+            else:
+                hist = record.setdefault("history", [])
+                hist.append({
+                    "ts": time.time(),
+                    "event": "opened",
+                    "path": str(path),
+                    "cached_hash": was_cached,
+                })
+                if len(hist) > 200:
+                    record["history"] = hist[-200:]
             dirty = True
 
         if dirty or not was_cached:
+            if record.get("history") == []:
+                record.pop("history", None)
             save_record(record)
 
     elapsed = round(time.time() - t0, 3)

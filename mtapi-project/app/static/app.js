@@ -316,6 +316,22 @@ async function applySettingsPrecedence() {
   applyUiTweaks(state.settings.scrollbarWidth);
 }
 
+async function waitForCatalogReady() {
+  window.catalogStatus = window.catalogStatus || { catalog_ready: false };
+  for (let i = 0; i < 120; i++) {
+    try {
+      const res = await fetch('/api/catalog/status');
+      if (res.ok) {
+        const data = await res.json();
+        window.catalogStatus = data;
+        if (data && data.catalog_ready) return data;
+      }
+    } catch (_) { /* server still binding */ }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return window.catalogStatus;
+}
+
 
 function defaultTileInfo() {
   const o = {};
@@ -619,6 +635,7 @@ async function init() {
   setupAllPanelResize();
   bindInputPreviewListeners();
   await applySettingsPrecedence();
+  await waitForCatalogReady();
   await checkHealth();
   await fetchOperations();
   await restorePoolState();
