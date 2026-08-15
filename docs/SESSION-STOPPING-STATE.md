@@ -1,14 +1,14 @@
 # Session stopping state — handoff
 
 > **Date:** 2026-08-15  
-> **VERSION:** `000.000.5.38`  
+> **VERSION:** `000.000.6.0`  
 > **Branch:** `wip`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 5.38)
+## 1. Shipped this stretch (through 6.0)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|

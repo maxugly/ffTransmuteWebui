@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-15  \
-> **VERSION:** `000.000.5.38`  \
+> **VERSION:** `000.000.6.0`  \
 > **Branch:** `wip` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -240,7 +240,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.5.38` (Server-resident catalog **Implemented** — §11–12 accepted. Catalog virtualization still Partial at `5.37`.)
+- **Current:** `000.000.6.0` (Release includes the implemented server-resident catalog and the Partial catalog virtualization checkpoint.)
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  

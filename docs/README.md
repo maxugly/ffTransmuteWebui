@@ -38,7 +38,7 @@
 
 ---
 
-## At a glance — `000.000.5.14` (2026-08-14)
+## At a glance — `000.000.6.0` (2026-08-15)
 
 ### Shipped recently
 | Doc / feature | Ver |
