@@ -1,11 +1,12 @@
 # Server-Resident Catalog Index
 
-> **Status:** Proposed — implementation in tree `000.000.5.38` (Partial). Do not mark Implemented until §11–12 pass.
+> **Status:** **Implemented** `000.000.5.38`
 > **Scope:** `mtapi-project` media catalog and thumbnail serving
-> **Priority:** Assigned next implementation after `5.37` virtualization
-> **Review:** Architecture-review acceptance rules locked 2026-08-15. Still
->   Proposed until I/O counters, restart tests, process lock, warmer tests,
->   and browser tests pass. Do not mark Implemented from a Python dict.
+> **Priority:** Shipped after `5.37` virtualization
+> **Review:** Architecture-review acceptance rules locked 2026-08-15.
+>   §11–12 I/O counters, restart, process lock, warmer, and browser checks
+>   accepted on `wip` (not pushed). `ram_evicted` is monotonic for the
+>   warmer epoch and can rise after later disk-fallback puts.
 >
 > **Locked decisions (do not reopen during implementation):**
 > - Await full metadata hydration in the FastAPI startup hook before serving.

@@ -122,7 +122,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Header title gone** | No redundant tab title in the top bar. V-in/out buttons hug the left | `index.html`, `layout.css` · **`5.34`** |
 | **Input preview not sidebar** | Nav `aside` is `.app-sidebar`; input preview is a `div` so collapse/resize no longer shrink it | `index.html`, `layout.css` · **`5.35`** |
 | **Catalog virtualization** | Hover/scroll/select never `/api/media_info`. Path-keyed index + bounded queues. Video **and** Image Pool use `.pool-scroll-canvas`. JS scroll work p95 ~1ms. **Partial:** headless rAF p95 is not the spec’s vsync 16.6ms compositor target | `catalog-interaction-virtualization-spec.md` · **`5.37` Partial** |
-| **Server-resident catalog** | CatalogIndex hydrates before serve; display routes read RAM; exclusive process lock; 64 MiB JPEG warmer. **Partial / still Proposed** until spec §11–12 browser + I/O proof is accepted | `server-memory-catalog-spec.md` · **`5.38` Partial** |
+| **Server-resident catalog** | CatalogIndex hydrates the full cache before serve; display paths read RAM; exclusive process lock; 64 MiB JPEG warmer; `/api/catalog/status`. §11–12 I/O, lock, warmer, restart, Video+Image+Sequence browser checks accepted | `server-memory-catalog-spec.md` · **`5.38`** |
 
 **Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale, **qr_art** *(in tree — see §4)*. Root `AGENTS.md`.
 
@@ -132,7 +132,6 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 
 | Area | Status | Next |
 |------|--------|------|
-| **Server-resident catalog** | CatalogIndex + lock + RAM display + warmer in `5.38` | Keep **Proposed** until spec §11–12 I/O, restart, lock, warmer, and browser checks are accepted — `server-memory-catalog-spec.md` |
 | **Catalog virtualization** | Hover/queues/Image+Video virt in `5.37` | Headed vsync 16.6ms compositor p95 — `catalog-interaction-virtualization-spec.md` |
 | **Workspace progress** | RIFE + **dump dir watch** in tree | multi-phase remaining ETA polish — `workspace-progress-spec.md` |
 | **Tool bottom docs** | Several tabs have blocks; not universal | Finish roll-out — `tool-bottom-docs-spec.md` |
@@ -150,19 +149,19 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 | # | Spec | Intent | Notes |
 |---|------|--------|--------|
-| 1 | [server-memory-catalog-spec.md](server-memory-catalog-spec.md) | **Assigned to builder** — one server-resident catalog index + optional RAM thumbnail warmer | **Proposed** until I/O counters, restart, process lock, warmer, and browser tests pass |
-| 2 | Finish remaining §4 partials | Daily UX + headed 16.6ms compositor p95 + verify upscale | After catalog index, or in parallel only on unrelated surfaces |
-| 3 | [job-queue-spec.md](job-queue-spec.md) | **Implemented v1 `4.64`** — memory FIFO + Jobs tab | Persist pending = later |
-| 4 | [universal-persistence-spec.md](universal-persistence-spec.md) | **Implemented `5.06`** — desk snapshot + metadata + lazy-load | Bug #1 closed |
-| 5 | [tilagup-mtapi-mode-spec.md](tilagup-mtapi-mode-spec.md) | Multi-step agent tiled SD | Sibling `/home/m/snc/cod/tilagup` |
-| 6 | [image-quality-rating-spec.md](image-quality-rating-spec.md) | Pool tech/aesthetic scores | **Fix pool normalize first** |
-| 7 | [fastsam-sam-multimodel-spec.md](fastsam-sam-multimodel-spec.md) | **FastSAM + SAM multimodel selector** — stronger backends (FastSAM-x, SAM ViT-L/H) on OpenVINO/Intel, AUTO device fallback | **`4.82`+ proposed** |
-| 8 | [performance-settings-spec.md](performance-settings-spec.md) | Performance settings tab, thumbnail resolution, and RAM cache prefs | **Proposed** — budget setting later; not this catalog task |
+| 1 | Finish remaining §4 partials | Daily UX + headed 16.6ms compositor p95 + verify upscale | Catalog index shipped `5.38` |
+| 2 | [job-queue-spec.md](job-queue-spec.md) | **Implemented v1 `4.64`** — memory FIFO + Jobs tab | Persist pending = later |
+| 3 | [universal-persistence-spec.md](universal-persistence-spec.md) | **Implemented `5.06`** — desk snapshot + metadata + lazy-load | Bug #1 closed |
+| 4 | [tilagup-mtapi-mode-spec.md](tilagup-mtapi-mode-spec.md) | Multi-step agent tiled SD | Sibling `/home/m/snc/cod/tilagup` |
+| 5 | [image-quality-rating-spec.md](image-quality-rating-spec.md) | Pool tech/aesthetic scores | **Fix pool normalize first** |
+| 6 | [fastsam-sam-multimodel-spec.md](fastsam-sam-multimodel-spec.md) | **FastSAM + SAM multimodel selector** — stronger backends (FastSAM-x, SAM ViT-L/H) on OpenVINO/Intel, AUTO device fallback | **`4.82`+ proposed** |
+| 7 | [performance-settings-spec.md](performance-settings-spec.md) | Performance settings tab, thumbnail resolution, and RAM cache prefs | **Proposed** — budget setting later |
 
 ### 5.2 Recently shipped (orientation)
 
 | Spec | Version |
 |------|---------|
+| [server-memory-catalog-spec.md](server-memory-catalog-spec.md) | **`000.000.5.38`** |
 | [prompt-library-spec.md](prompt-library-spec.md) | **`000.000.4.61`** |
 | [rife-recoherence-spec.md](rife-recoherence-spec.md) | **`000.000.4.60`** |
 | [agent-vision-tab-spec.md](agent-vision-tab-spec.md) | Phase A+API **`4.59`** |
@@ -241,7 +240,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.5.38` (Server-resident catalog **Partial** — CatalogIndex in tree; spec stays **Proposed** until §11–12 pass. Catalog virtualization still Partial at `5.37`.)
+- **Current:** `000.000.5.38` (Server-resident catalog **Implemented** — §11–12 accepted. Catalog virtualization still Partial at `5.37`.)
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  
@@ -254,12 +253,11 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 8. Suggested build order (roadmap)
 
-1. **Assigned:** [server-memory-catalog-spec.md](server-memory-catalog-spec.md) — keep **Proposed** until verification in that spec §11–12 passes.  
-2. Close remaining §4 partials (list/sequence keys, progress polish, tool-docs, headed 16.6ms compositor).  
-3. ~~**Universal persistence**~~ — **shipped `5.06`**. Catalog Phase 1 **`5.14`**.  
-4. **Product choice:** quality rating *or* tilagup mode.  
-5. Agent polish (streaming / Ollama) when vision UX needs it.  
-6. Explicit backlog picks only (depth, flow, facerestore, …).
+1. Close remaining §4 partials (list/sequence keys, progress polish, tool-docs, headed 16.6ms compositor).  
+2. ~~**Server-resident catalog**~~ — **shipped `5.38`**. ~~**Universal persistence**~~ — **shipped `5.06`**. Catalog Phase 1 **`5.14`**.  
+3. **Product choice:** quality rating *or* tilagup mode.  
+4. Agent polish (streaming / Ollama) when vision UX needs it.  
+5. Explicit backlog picks only (depth, flow, facerestore, …).
 
 ---
 

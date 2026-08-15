@@ -437,8 +437,8 @@
         "file": "server-memory-catalog-spec.md",
         "path": "docs/server-memory-catalog-spec.md",
         "category": "Core Architecture / WebUI",
-        "status": "Proposed / Partial 000.000.5.38",
-        "summary": "One server-resident CatalogIndex: hydrate before serve, RAM display paths, exclusive process lock, 64 MiB JPEG warmer. Stay Proposed until I/O counters, restart, lock, warmer, and browser §11–12 pass."
+        "status": "Implemented 000.000.5.38",
+        "summary": "One server-resident CatalogIndex: hydrate before serve, RAM display paths, exclusive process lock, 64 MiB JPEG warmer. §11–12 I/O, restart, lock, warmer, and browser checks accepted."
     },
     {
         "file": "settings-card-layout-spec.md",
