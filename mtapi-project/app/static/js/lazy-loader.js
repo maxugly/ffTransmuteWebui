@@ -13,6 +13,7 @@
 
 const PREFETCH_MARGIN = '100px 0px';
 const MAX_CONCURRENT = 5;
+const MAX_THUMB_CONCURRENT = 8;
 const SIGNATURE_BATCH_LIMIT = 100;
 const SIGNATURE_FLUSH_MS = 100;
 
@@ -27,6 +28,9 @@ const pendingSignatureQueue = [];
 const pendingSignatureSet = new Set();
 const signatureWaiters = new Map(); // path → [resolve]
 let signatureTimer = null;
+
+const pendingThumbs = [];
+let thumbActive = 0;
 
 const instrument = {
   signatureBatches: 0,
@@ -126,12 +130,55 @@ function unobserve(element) {
   }
 }
 
+function _finishThumbJob(job, ok) {
+  thumbActive = Math.max(0, thumbActive - 1);
+  try { job.resolve(ok); } catch (_) { /* ignore */ }
+  drainThumbQueue();
+}
+
+function drainThumbQueue() {
+  while (thumbActive < MAX_THUMB_CONCURRENT && pendingThumbs.length) {
+    const job = pendingThumbs.shift();
+    const img = job.img;
+    if (!img || !img.isConnected) {
+      try { job.resolve(false); } catch (_) { /* ignore */ }
+      continue;
+    }
+    thumbActive += 1;
+    const done = (ok) => {
+      img.removeEventListener('load', onLoad);
+      img.removeEventListener('error', onErr);
+      _finishThumbJob(job, ok);
+    };
+    const onLoad = () => done(true);
+    const onErr = () => done(false);
+    img.addEventListener('load', onLoad, { once: true });
+    img.addEventListener('error', onErr, { once: true });
+    if (img.getAttribute('src') === job.url && img.complete && img.naturalWidth > 0) {
+      done(true);
+      continue;
+    }
+    img.loading = 'eager';
+    img.src = job.url;
+  }
+}
+
+/** Assign img.src through a bounded in-flight queue (real network, not just callbacks). */
+function assignThumbSrc(img, url) {
+  if (!img || !url) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    pendingThumbs.push({ img, url, resolve });
+    drainThumbQueue();
+  });
+}
+
 function clearPending() {
   pending.length = 0;
   pendingSet.clear();
   pendingSignatureQueue.length = 0;
   pendingSignatureSet.clear();
   signatureWaiters.clear();
+  pendingThumbs.length = 0;
 }
 
 function disconnectAll() {
@@ -236,7 +283,9 @@ function stats() {
     fallback: !observerAvailable() || !isLazyMode(),
     maxConcurrent: MAX_CONCURRENT,
     lazyMode: isLazyMode(),
-    queueDepth: pendingSignatureQueue.length + pending.length,
+    queueDepth: pendingSignatureQueue.length + pending.length + pendingThumbs.length,
+    thumbPending: pendingThumbs.length,
+    thumbActive,
     signatureQueue: pendingSignatureQueue.length,
     signatureBatches: instrument.signatureBatches,
     signatureItems: instrument.signatureItems,
@@ -250,7 +299,7 @@ function stats() {
 if (typeof window !== 'undefined') {
   window.__mtapiLazyLoader = {
     observe, unobserve, clearPending, disconnectAll, setForceFallback, stats,
-    enqueueSignature, flushSignatureQueue, recordVariantBatch,
+    enqueueSignature, flushSignatureQueue, recordVariantBatch, assignThumbSrc,
   };
 }
 
@@ -264,7 +313,9 @@ export {
   enqueueSignature,
   flushSignatureQueue,
   recordVariantBatch,
+  assignThumbSrc,
   PREFETCH_MARGIN,
   MAX_CONCURRENT,
+  MAX_THUMB_CONCURRENT,
   SIGNATURE_BATCH_LIMIT,
 };

@@ -136,8 +136,14 @@ def register(app: FastAPI, probe_fn) -> None:
                 )
         elif not content_hash:
             raise HTTPException(status_code=400, detail="Provide path or hash")
-        elif source is None:
-            source = media.source_path_for_hash(content_hash)
+        elif frame is None:
+            # Hash-only hot path: serve an existing JPEG without opening
+            # record.json, the path index, or the source file.
+            which_fast = (which or "first").lower()
+            if which_fast in ("first", "last"):
+                ready = media.existing_thumb_file(content_hash, which_fast, size)
+                if ready is not None:
+                    return await _serve_thumbnail(ready, content_hash, which_fast, size)
 
         # Range / scrub frame (1-based inclusive)
         if frame is not None:

@@ -27,6 +27,7 @@ from .config import (  # noqa: F401
     _record_path,
     _thumb_is_current,
     _thumb_path,
+    existing_thumb_file,
     THUMBNAIL_SIZES,
     normalize_thumb_size,
 )

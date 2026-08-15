@@ -88,6 +88,25 @@ def _thumb_is_current(content_hash: str, which: str, size: str = "H") -> bool:
         return False
 
 
+def existing_thumb_file(content_hash: str, which: str, size: str = "H") -> Path | None:
+    """Return an on-disk JPEG if it is already usable. No record/index I/O."""
+    if not content_hash:
+        return None
+    which = which if which in ("first", "last") else "first"
+    size = normalize_thumb_size(size)
+    tp = _thumb_path(content_hash, which, size)
+    if _thumb_is_current(content_hash, which, size):
+        return tp
+    if which == "first" and size == "H":
+        legacy = _hash_dir(content_hash) / "first.jpg"
+        try:
+            if legacy.exists() and legacy.stat().st_size > 0:
+                return legacy
+        except OSError:
+            return None
+    return None
+
+
 def _mark_extract_version(content_hash: str, which: str, size: str = "H") -> None:
     d = _hash_dir(content_hash)
     d.mkdir(parents=True, exist_ok=True)

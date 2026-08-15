@@ -359,12 +359,22 @@ def stat_signature(path: str | Path) -> dict[str, int] | None:
 
 
 def source_path_for_hash(content_hash: str) -> Path | None:
-    """First existing recorded file for this hash. Never hashes or probes."""
+    """First existing recorded file for this hash.
+
+    Only walks the record's remembered paths. Does not scan the global
+    path index (that is O(indexed files) and belongs on recovery, not
+    every thumbnail request).
+    """
     if not content_hash:
         return None
-    for raw in find_existing_paths_for_hash(content_hash):
+    rec = load_record(content_hash)
+    if not rec:
+        return None
+    for raw in rec.get("paths") or []:
+        if not raw:
+            continue
         try:
-            p = Path(raw)
+            p = Path(str(raw))
             if p.is_file() and p.stat().st_size > 0:
                 return p
         except OSError:

@@ -7,7 +7,7 @@
  */
 import { state } from '/app.js';
 import { poolThumbUrl } from '/js/pool/persistence.js';
-import { enqueueSignature } from '/js/lazy-loader.js';
+import { enqueueSignature, assignThumbSrc } from '/js/lazy-loader.js';
 import { globalMediaIndex } from '/js/media-index.js';
 
 function signaturesEqual(a, b) {
@@ -99,28 +99,12 @@ function thumbUrlWithBust(item, which, mtimeNs) {
 function assignCardThumbs(card, item, { bust = false } = {}) {
   if (!card) return;
   const m = bust ? item.meta_signature?.mtime_ns : null;
-  const size = String(item && window.state?.settings?.thumbnailSize || 'H').toUpperCase();
   card.querySelectorAll('img.pool-thumb').forEach((img) => {
     const which = img.dataset.which || 'first';
-    img.src = thumbUrlWithBust(item, which, m);
-    img.addEventListener('error', function onThumbErr() {
-      if (img.dataset.thumbRetry) {
-        img.classList.add('broken');
-        return;
-      }
-      img.dataset.thumbRetry = '1';
-      // One path fallback so a missing disk JPEG can be extracted.
-      // Do not call /api/media/recover here — a 404/500 thumb is not a moved file.
-      if (item.path) {
-        const q = new URLSearchParams({
-          path: item.path, which, s: size, v: '3',
-        });
-        if (m != null && Number.isFinite(Number(m))) q.set('m', String(m));
-        img.src = `/api/thumbnail?${q.toString()}`;
-        return;
-      }
-      img.classList.add('broken');
-    }, { once: true });
+    const url = thumbUrlWithBust(item, which, m);
+    assignThumbSrc(img, url).then((ok) => {
+      if (!ok) img.classList.add('broken');
+    });
   });
 }
 

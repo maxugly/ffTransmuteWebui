@@ -18,6 +18,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "warm_models": {"deepdream": False, "styletransfer": False, "fastsam": False},
 }
 _settings_lock = asyncio.Lock()
+_settings_cache: tuple[float, dict[str, Any]] | None = None
 
 
 def _normalize_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
@@ -40,11 +41,22 @@ def _normalize_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def load_settings() -> dict[str, Any]:
+    global _settings_cache
     try:
-        raw = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
-    except (FileNotFoundError, OSError, ValueError):
+        mtime = SETTINGS_PATH.stat().st_mtime
+    except OSError:
+        mtime = -1.0
         raw = {}
-    return _normalize_settings(raw)
+    else:
+        if _settings_cache is not None and _settings_cache[0] == mtime:
+            return _settings_cache[1]
+        try:
+            raw = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+        except (FileNotFoundError, OSError, ValueError):
+            raw = {}
+    data = _normalize_settings(raw)
+    _settings_cache = (mtime, data)
+    return data
 
 
 async def save_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
@@ -54,6 +66,8 @@ async def save_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
         tmp = SETTINGS_PATH.with_suffix(".tmp")
         tmp.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
         tmp.replace(SETTINGS_PATH)
+        global _settings_cache
+        _settings_cache = None
         return {"ok": True, **data}
 
 
