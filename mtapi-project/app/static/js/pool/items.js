@@ -1,6 +1,7 @@
 import { state, elements, logConsole, showPreview, renderPoolForm, renderStyleTransferForm, renderFaceMorphForm, renderWithoutBgForm, checkHealth, switchTab, formatBytes } from '/app.js';
 import { isVideoPath, basename, formatDurationExact } from '/js/utils.js';
 import { shortHash, buildPoolMetaHtml, poolThumbUrl, scheduleSavePoolState } from '/js/pool/persistence.js';
+import { assignThumbSrc } from '/js/lazy-loader.js';
 import { applySeqTokenTimeStyles, updateSeqClipSettings, displayFocusPath, updatePoolFocusFrame, setPoolFocus, updateSelectionHighlights, updateSeqTransportUI, seqStop, addPathToSequence } from '/js/pool/sequence.js';
 import { runQuickTransmute } from '/js/tabs/quick.js';
 import { addMultiClipPath } from '/js/tabs/transmute.js';
@@ -56,7 +57,7 @@ async function loadPoolItemMeta(item, idx) {
         if (!img.getAttribute('src')) return;
         const which = img.dataset.which || 'first';
         const next = poolThumbUrl(item, which);
-        if (img.getAttribute('src').includes('path=')) img.src = next;
+        if (img.getAttribute('src').includes('path=')) assignThumbSrc(img, next);
       });
     }
   }

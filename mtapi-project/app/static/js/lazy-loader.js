@@ -166,6 +166,15 @@ function drainThumbQueue() {
 function assignThumbSrc(img, url) {
   if (!img || !url) return Promise.resolve(false);
   return new Promise((resolve) => {
+    for (let i = pendingThumbs.length - 1; i >= 0; i--) {
+      if (pendingThumbs[i].img === img) {
+        pendingThumbs[i].url = url;
+        const prev = pendingThumbs[i].resolve;
+        pendingThumbs[i].resolve = resolve;
+        try { prev(false); } catch (_) { /* ignore */ }
+        return;
+      }
+    }
     pendingThumbs.push({ img, url, resolve });
     drainThumbQueue();
   });

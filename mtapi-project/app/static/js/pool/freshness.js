@@ -118,7 +118,10 @@ function refreshAssignedPoolThumbs() {
     if (!item) return;
     const which = img.dataset.which || 'first';
     const m = item.meta_signature?.mtime_ns;
-    img.src = thumbUrlWithBust(item, which, m);
+    assignThumbSrc(img, thumbUrlWithBust(item, which, m)).then((ok) => {
+      if (!ok) img.classList.add('broken');
+      else img.classList.remove('broken');
+    });
   });
 }
 

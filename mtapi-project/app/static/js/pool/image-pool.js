@@ -10,7 +10,7 @@ import {
   scheduleSavePoolState, poolThumbUrl, shortHash, projectLabel,
   projectNew, projectOpen, projectSave,
 } from '/js/pool/persistence.js';
-import { observe as lazyObserve, unobserve as lazyUnobserve, clearPending as lazyClearPending } from '/js/lazy-loader.js';
+import { observe as lazyObserve, unobserve as lazyUnobserve, clearPending as lazyClearPending, assignThumbSrc } from '/js/lazy-loader.js';
 import { validateItemSignature, assignCardThumbs, metaRetryHtml, hasRestoredIdentity } from '/js/pool/freshness.js';
 import { globalMediaIndex } from '/js/media-index.js';
 
@@ -126,7 +126,7 @@ async function loadImageItemMeta(item) {
       if (metaEl) metaEl.innerHTML = buildImageMetaHtml(item);
       if (item.hash) {
         const img = card.querySelector('img.pool-thumb');
-        if (img && img.getAttribute('src')) img.src = imageThumbUrl(item);
+        if (img && img.getAttribute('src')) assignThumbSrc(img, imageThumbUrl(item));
       }
     }
   }

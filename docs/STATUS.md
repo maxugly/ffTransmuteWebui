@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-14  \
-> **VERSION:** `000.000.5.17`  \
+> **VERSION:** `000.000.5.18`  \
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -105,6 +105,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Hash-only thumbnail 500** | Hash URLs resolve a recorded source path, skip `thumb_failed` extracts, return 404 not 500; thumb `onerror` no longer POSTs `/api/media/recover` | `thumbnails.py`, `freshness.js` · **`5.15`** |
 | **Thumbnail load speed** | Hash-only serve of an existing JPEG does not parse `record.json` or scan `index.json`; browser assigns at most 8 in-flight thumb `src`s | `media.py`, `lazy-loader.js` · **`5.16`** |
 | **Eager-thumb regression** | Default is viewport-lazy again. `preloadAllThumbnails` is opt-in. Restored meta still paints without re-probe. | `lazy-loader.js` · **`5.17`** |
+| **Thumb queue coverage** | Size/settings refresh and hash-upgrade src writes go through `assignThumbSrc` (max 8). | `freshness.js` · **`5.18`** |
 
 **Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale, **qr_art** *(in tree — see §4)*. Root `AGENTS.md`.
 
@@ -220,7 +221,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.5.17` (Viewport-lazy thumbs are the default again. Preload-all is optional.)
+- **Current:** `000.000.5.18` (Settings/size thumb refresh uses the same 8-fetch cap.)
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  
