@@ -1342,6 +1342,7 @@ if (typeof window !== 'undefined') {
       try {
         updateCatalogStatus();
         _videoVirt?.refreshAllVisible?.();
+        applySeqTokenTimeStyles();
         const path = displayFocusPath();
         const frame = document.getElementById('poolFocusFrame');
         if (frame) frame.dataset.focusPath = '';

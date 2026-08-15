@@ -296,6 +296,7 @@ async function _runProbe(path) {
         item.metaError = null;
         if (data.size != null) item.size = data.size;
         if (data.name) item.name = data.name;
+        try { window.scheduleSavePoolState?.(); } catch (_) { /* ignore */ }
       }
     } else {
       throw new Error(data?.error || 'probe failed');
