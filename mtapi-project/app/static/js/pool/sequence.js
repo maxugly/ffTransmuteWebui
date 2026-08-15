@@ -187,8 +187,10 @@ async function attachCachedRifeVariants() {
   let already = 0;
   for (const e of seq) {
     if (!e.path) continue;
-    if (e.variantPath && e.variantPath !== e.path && _bestHaveM(e) >= 2) {
-      e._rifeStatus = 'done';
+    if (e.rifeNeed === 'rifed' || e.rifeNeed === 'noRifeNeeded'
+        || (e.variantPath && e.variantPath !== e.path && _bestHaveM(e) >= 2)) {
+      if (e.rifeNeed !== 'noRifeNeeded') e.rifeNeed = e.rifeNeed || 'rifed';
+      e._rifeStatus = e.rifeNeed === 'rifed' ? 'done' : e._rifeStatus;
       already += 1;
       continue;
     }
@@ -1087,42 +1089,15 @@ async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
   }
 
   try {
-    // Reuse the global variant cache first. Do not probe or encode yet.
+    // Only ask the cache about clips we do not already have an answer for.
     await attachCachedRifeVariants();
-
-    const candidates = [];
-    for (const entry of seq) {
-      const need = refreshRifeNeed(entry);
-      if (!force && need !== 'needsRife') {
-        if (need === 'rifed') entry._rifeStatus = 'done';
-        continue;
-      }
-      candidates.push(entry);
-    }
-
-    // Probe only clips that still might need densify and have no fps/duration.
-    for (const entry of candidates) {
-      let item = findPoolItem(entry.path);
-      if (!item) {
-        item = { path: entry.path, name: entry.name || basename(entry.path), meta: null };
-        state.pool.items.push(item);
-      }
-      const needProbe = force || !item.meta?.fps || !item.meta?.duration;
-      if (!needProbe) continue;
-      if (_alreadyHasUsableRife(entry) && !force) continue;
-      try {
-        await loadPoolItemMeta(item, state.pool.items.indexOf(item));
-      } catch (e) {
-        logConsole(`[SEQ RIFE]: probe failed ${entry.name} — ${e.message}`, 'error');
-      }
-    }
 
     const target = _resolvedTargetFps();
     let need = 0;
     let queued = 0;
     let already = 0;
     for (const entry of seq) {
-      const kind = refreshRifeNeed(entry);
+      const kind = entry.rifeNeed || refreshRifeNeed(entry);
       if (kind !== 'needsRife') {
         if (kind === 'rifed') {
           already += 1;
@@ -1131,6 +1106,10 @@ async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
         continue;
       }
       const info = _rifeInfoForEntry(entry);
+      if (!info?.needed) {
+        entry.rifeNeed = refreshRifeNeed(entry);
+        if (entry.rifeNeed !== 'needsRife') continue;
+      }
       need += 1;
       if (info?.needed && _queueInstantRife(entry, info, { skipRender: true })) queued += 1;
     }
@@ -1660,13 +1639,7 @@ function renderSequenceBox(opts) {
           || e._rifeStatus === 'failed' || _findQueuedRife(e.id)) {
         return false;
       }
-      if (e._rifeStatus === 'done' && e.variantPath && e.variantPath !== e.path && _bestHaveM(e) > 0) {
-        return false;
-      }
-      const d = _densityInfoForEntry(e);
-      if (!d?.needed) return false;
-      if (e.variantPath && (_bestHaveM(e) >= (d.multiplier || 2))) return false;
-      return true;
+      return (e.rifeNeed || refreshRifeNeed(e)) === 'needsRife';
     });
     if (hasIdleNeed) _scheduleInstantRifeKick();
   }
@@ -1701,7 +1674,8 @@ async function _updateSeqVariantBadges() {
         }
         continue;
       }
-      if (_entrySatisfiesNeed(entry)) continue;
+      if (entry.rifeNeed === 'rifed' || entry.rifeNeed === 'noRifeNeeded'
+          || _entrySatisfiesNeed(entry)) continue;
       needFetch.push(path);
     }
     if (!needFetch.length) return;
