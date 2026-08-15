@@ -117,20 +117,25 @@ function _densityInfoForEntry(entry) {
  * Honors densify on disk / in memory (haveM), even if user currently stitches ORIG.
  * Selecting a rifed path must set _rifeMultiplier or NEED stays wrong forever.
  */
+function _alreadyHasUsableRife(entry) {
+  return !!(entry && entry.variantPath && entry.variantPath !== entry.path && _bestHaveM(entry) >= 2);
+}
+
 function _rifeInfoForEntry(entry) {
   if (!state.pool.useRife) return { needed: false, reason: 'RIFE interpolate off' };
   const dens = _densityInfoForEntry(entry);
-  if (!dens.needed) return dens;
   const haveM = _bestHaveM(entry);
-  if (haveM > 0 && entry.variantPath && entry.variantPath !== entry.path) {
-    const where = basename(entry.variantPath);
-    return {
-      ...dens,
-      needed: false,
-      reason: `already densified ×${haveM} — not re-encoding automatically`,
-      haveM,
-    };
+  if (_alreadyHasUsableRife(entry)) {
+    if (!dens.needed || haveM >= (dens.multiplier || 2)) {
+      return {
+        ...dens,
+        needed: false,
+        reason: `already densified ×${haveM} — not re-encoding`,
+        haveM,
+      };
+    }
   }
+  if (!dens.needed) return dens;
   return dens;
 }
 
@@ -1050,7 +1055,6 @@ function _maybeAutoRifeEntry(entry, { quiet = false } = {}) {
 async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
   if (!state.pool.instantRife) return { queued: 0, reason: 'instant off' };
   _hydrationComplete = false;
-  // Instant always implies join densify path
   state.pool.useRife = true;
   const ur = document.getElementById('poolUseRife');
   if (ur) ur.checked = true;
@@ -1063,65 +1067,44 @@ async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
     return { queued: 0, reason: 'empty sequence' };
   }
 
-  setClientBusy('Instant RIFE: probing clips…');
-  _updateInstantRifeStrip();
-
   try {
-    // Ensure pool items exist + meta for every sequence path
+    // Reuse the global variant cache first. Do not probe or encode yet.
+    await attachCachedRifeVariants();
+
+    const candidates = [];
     for (const entry of seq) {
+      if (!force && _alreadyHasUsableRife(entry) && !_rifeInfoForEntry(entry)?.needed) {
+        entry._rifeStatus = 'done';
+        continue;
+      }
+      candidates.push(entry);
+    }
+
+    // Probe only clips that still might need densify and have no fps/duration.
+    for (const entry of candidates) {
       let item = findPoolItem(entry.path);
       if (!item) {
         item = { path: entry.path, name: entry.name || basename(entry.path), meta: null };
         state.pool.items.push(item);
       }
       const needProbe = force || !item.meta?.fps || !item.meta?.duration;
-      if (needProbe) {
-        try {
-          await loadPoolItemMeta(item, state.pool.items.indexOf(item));
-        } catch (e) {
-          logConsole(`[SEQ RIFE]: probe failed ${entry.name} — ${e.message}`, 'error');
-        }
+      if (!needProbe) continue;
+      if (_alreadyHasUsableRife(entry) && !force) continue;
+      try {
+        await loadPoolItemMeta(item, state.pool.items.indexOf(item));
+      } catch (e) {
+        logConsole(`[SEQ RIFE]: probe failed ${entry.name} — ${e.message}`, 'error');
       }
     }
 
     const target = _resolvedTargetFps();
-    if (!target) {
-      logConsole('[SEQ RIFE]: still no fps after probe — cannot densify');
-      clearClientBusy();
-      _updateInstantRifeStrip();
-      _hydrationComplete = true;
-      return { queued: 0, reason: 'no fps' };
-    }
-
-    setClientBusy('Instant RIFE: checking existing densify…');
-    for (const entry of seq) {
-      // Avoid re-querying the global variant registry when persistence already
-      // recorded a densified file strong enough for this entry's current need.
-      // The registry is only needed for missing variants or when a denser
-      // variant may be required.
-      const before = _rifeInfoForEntry(entry);
-      const haveBefore = _bestHaveM(entry);
-      if (entry.variantPath && entry.variantPath !== entry.path
-          && haveBefore > 0
-          && (!before?.needed || haveBefore >= (before.multiplier || 2))) {
-        entry._rifeStatus = 'done';
-        entry._rifeError = null;
-        continue;
-      }
-      try {
-        await _hydrateEntryFromVariants(entry);
-      } catch (e) {
-        logConsole(`[SEQ RIFE]: variant lookup failed ${entry.name} — ${e.message}`, 'error');
-      }
-    }
-
     let need = 0;
     let queued = 0;
     let already = 0;
     for (const entry of seq) {
       const info = _rifeInfoForEntry(entry);
       if (!info?.needed) {
-        if (entry.variantPath && entry.variantPath !== entry.path) {
+        if (_alreadyHasUsableRife(entry)) {
           already += 1;
           entry._rifeStatus = 'done';
         }
@@ -1132,30 +1115,17 @@ async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
     }
 
     logConsole(
-      `[SEQ RIFE]: scan complete — ${seq.length} clips, ${need} need densify, `
-      + `${queued} queued, ${already} already densified (reused), target ${target} fps`,
+      `[SEQ RIFE]: ${seq.length} clips — ${already} already densified, `
+      + `${need} need work, ${queued} queued`
+      + (target ? `, target ${target} fps` : ''),
     );
 
-    renderSequenceBox();
+    renderSequenceBox({ skipInstantKick: true });
     if (queued > 0) {
       _drainInstantRifeQueue();
     } else {
       clearClientBusy();
       _updateInstantRifeStrip();
-      if (need === 0 && seq.length) {
-        const strip = document.getElementById('seqInstantRifeStrip');
-        if (strip) {
-          strip.className = 'seq-instant-strip is-idle';
-          strip.textContent =
-            `Instant RIFE: nothing to densify @ ${target} fps `
-            + `(set Time longer than native to slow, or raise RIFE fps above native)`;
-          strip.title = [
-            'Instant only densifies when content fps after Time stretch is below target fps.',
-            'Example: 24fps clip stretched to 2× length → needs ×2 at target 24.',
-            'Or set RIFE fps to 60 to densify even without stretch.',
-          ].join('\n');
-        }
-      }
     }
     _hydrationComplete = true;
     return { queued, need, target };

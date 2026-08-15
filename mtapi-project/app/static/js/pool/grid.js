@@ -427,16 +427,8 @@ function _bindSequencePanel() {
   });
   document.getElementById('poolUseRife')?.addEventListener('change', (e) => {
     state.pool.useRife = e.target.checked;
-    if (e.target.checked) {
-      const inst = document.getElementById('poolInstantRife');
-      if (inst && !inst.checked) {
-        inst.checked = true;
-        state.pool.instantRife = true;
-      }
-    }
     scheduleSavePoolState();
-    renderSequenceBox();
-    if (state.pool.useRife && state.pool.instantRife) _maybeAutoRifeAll();
+    renderSequenceBox({ skipInstantKick: true });
   });
   document.getElementById('poolInstantRife')?.addEventListener('change', (e) => {
     state.pool.instantRife = e.target.checked;
