@@ -740,6 +740,7 @@ function renderImagePoolGrid() {
     const isSelected = ip.selectedPath === item.path;
     card.className = `pool-card img-pool-card${isSelected ? ' selected' : ''}`;
     card.dataset.path = item.path;
+    if (item.hash) card.dataset.hash = item.hash;
     card.dataset.idx = String(idx >= 0 ? idx : 0);
 
     const metaHtml = item.metaError && !item.meta

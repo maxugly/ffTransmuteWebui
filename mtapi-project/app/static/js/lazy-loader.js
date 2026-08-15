@@ -1,9 +1,11 @@
 /**
  * Shared card activator + thumbnail preload for Video Pool and Image Pool.
  *
- * Default is viewport-lazy (IntersectionObserver, 100px margin). Eager
- * preload of every card was a large-pool regression; it is opt-in via
- * settings.preloadAllThumbnails.
+ * Pay once, reuse always:
+ *   Display requests only cached JPEGs (GET ?hash= — 200 or instant 404).
+ *   Missing thumbs are generated in the background (POST /api/thumbnails/ensure).
+ *   Default is to start that work immediately, not on scroll.
+ *   settings.preloadAllThumbnails=false is an escape hatch (viewport-lazy).
  *
  * Signature validation (when actually needed) is batched via
  * POST /api/media_signatures — never one request per card.
@@ -12,6 +14,8 @@
 const PREFETCH_MARGIN = '100px 0px';
 const MAX_CONCURRENT = 5;
 const MAX_THUMB_CONCURRENT = 8;
+const MAX_ENSURE_CONCURRENT = 2;
+const ENSURE_BATCH = 10;
 const SIGNATURE_BATCH_LIMIT = 100;
 const SIGNATURE_FLUSH_MS = 100;
 
@@ -29,6 +33,9 @@ let signatureTimer = null;
 
 const pendingThumbs = [];
 let thumbActive = 0;
+const pendingEnsure = [];
+const pendingEnsureKeys = new Set();
+let ensureActive = 0;
 
 const instrument = {
   signatureBatches: 0,
@@ -41,10 +48,10 @@ const instrument = {
 
 function isLazyMode() {
   try {
-    // Only preload every card when the user explicitly opts in.
-    return !window.state?.settings?.preloadAllThumbnails;
+    // Explicit opt-out only. Default is pay-once: start immediately.
+    return window.state?.settings?.viewportLazyThumbnails === true;
   } catch (_) {
-    return true;
+    return false;
   }
 }
 
@@ -180,6 +187,61 @@ function assignThumbSrc(img, url) {
   });
 }
 
+function enqueueEnsureThumb(item, which) {
+  if (!item) return;
+  const key = `${item.hash || item.path || ''}:${which || 'first'}`;
+  if (!key || pendingEnsureKeys.has(key)) return;
+  pendingEnsureKeys.add(key);
+  pendingEnsure.push({
+    hash: item.hash || null,
+    path: item.path || null,
+    which: which || 'first',
+    key,
+  });
+  drainEnsureQueue();
+}
+
+async function drainEnsureQueue() {
+  if (ensureActive >= MAX_ENSURE_CONCURRENT || !pendingEnsure.length) return;
+  const batch = pendingEnsure.splice(0, ENSURE_BATCH);
+  ensureActive += 1;
+  try {
+    const res = await fetch('/api/thumbnails/ensure', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items: batch.map(({ hash, path, which }) => ({ hash, path, which })) }),
+    });
+    const data = res.ok ? await res.json() : null;
+    const byKey = new Map();
+    for (const row of (data && data.results) || []) {
+      if (row && row.hash) byKey.set(`${row.hash}:${row.which}`, row);
+    }
+    for (const job of batch) {
+      pendingEnsureKeys.delete(job.key);
+      const row = byKey.get(`${job.hash}:${job.which}`);
+      if (row && row.ok) {
+        document.querySelectorAll(`img.pool-thumb[data-which="${job.which}"]`).forEach((img) => {
+          const card = img.closest('.pool-card, .img-pool-card');
+          if (!card) return;
+          if (job.hash && card.dataset.hash && card.dataset.hash !== job.hash) return;
+          if (job.path && card.dataset.path && card.dataset.path !== job.path) return;
+          const src = img.getAttribute('src');
+          if (src && src.includes('hash=')) {
+            img.src = src.replace(/([?&])m=\d+/, `$1m=${Date.now()}`)
+              + (src.includes('m=') ? '' : `${src.includes('?') ? '&' : '?'}m=${Date.now()}`);
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[lazy-loader] ensure failed', err);
+    for (const job of batch) pendingEnsureKeys.delete(job.key);
+  } finally {
+    ensureActive -= 1;
+    if (pendingEnsure.length) drainEnsureQueue();
+  }
+}
+
 function clearPending() {
   pending.length = 0;
   pendingSet.clear();
@@ -187,6 +249,8 @@ function clearPending() {
   pendingSignatureSet.clear();
   signatureWaiters.clear();
   pendingThumbs.length = 0;
+  pendingEnsure.length = 0;
+  pendingEnsureKeys.clear();
 }
 
 function disconnectAll() {
@@ -308,6 +372,7 @@ if (typeof window !== 'undefined') {
   window.__mtapiLazyLoader = {
     observe, unobserve, clearPending, disconnectAll, setForceFallback, stats,
     enqueueSignature, flushSignatureQueue, recordVariantBatch, assignThumbSrc,
+    enqueueEnsureThumb,
   };
 }
 
@@ -322,6 +387,7 @@ export {
   flushSignatureQueue,
   recordVariantBatch,
   assignThumbSrc,
+  enqueueEnsureThumb,
   PREFETCH_MARGIN,
   MAX_CONCURRENT,
   MAX_THUMB_CONCURRENT,

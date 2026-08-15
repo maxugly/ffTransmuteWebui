@@ -1,14 +1,14 @@
 # Session stopping state — handoff
 
 > **Date:** 2026-08-14  
-> **VERSION:** `000.000.5.18`  
+> **VERSION:** `000.000.5.19`  
 > **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 5.18)
+## 1. Shipped this stretch (through 5.19)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
@@ -42,6 +42,7 @@
 | **Thumbnail load speed** | Existing JPEG served without record/index scan; 8-wide in-flight img queue | `media.py`, `lazy-loader.js` · **`5.16`** |
 | **Eager-thumb regression** | Viewport-lazy is default again; preload-all is opt-in | `lazy-loader.js` · **`5.17`** |
 | **Thumb queue coverage** | Settings size refresh uses the same 8-fetch cap | `freshness.js` · **`5.18`** |
+| **Pay-once thumbs** | Display is cache-only; missing thumbs generate in background; work starts immediately | `5.19` |
 
 Earlier stable: filter platform, dual pools, Convert, neural ops, Prompt Library, Recohere, Agent, OpenVINO stills.
 

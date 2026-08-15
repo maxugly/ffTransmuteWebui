@@ -7,7 +7,7 @@
  */
 import { state } from '/app.js';
 import { poolThumbUrl } from '/js/pool/persistence.js';
-import { enqueueSignature, assignThumbSrc } from '/js/lazy-loader.js';
+import { enqueueSignature, assignThumbSrc, enqueueEnsureThumb } from '/js/lazy-loader.js';
 import { globalMediaIndex } from '/js/media-index.js';
 
 function signaturesEqual(a, b) {
@@ -103,7 +103,13 @@ function assignCardThumbs(card, item, { bust = false } = {}) {
     const which = img.dataset.which || 'first';
     const url = thumbUrlWithBust(item, which, m);
     assignThumbSrc(img, url).then((ok) => {
-      if (!ok) img.classList.add('broken');
+      if (ok) {
+        img.classList.remove('broken');
+        return;
+      }
+      img.classList.add('broken');
+      // Display GET is cache-only. Generate in the background, then retry.
+      enqueueEnsureThumb(item, which);
     });
   });
 }

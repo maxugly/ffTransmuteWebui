@@ -240,7 +240,7 @@ let state = {
     thumbnailsToRam: false,
     phashToRam: false,
     autosaveInterval: 30,
-    preloadAllThumbnails: false,
+    viewportLazyThumbnails: false,
     warmModels: { deepdream: false, styletransfer: false, fastsam: false },
   },
   formState: {},
@@ -257,7 +257,7 @@ const SETTINGS_DEFAULTS = {
   thumbnailsToRam: false,
   phashToRam: false,
   autosaveInterval: 30,
-  preloadAllThumbnails: false,
+  viewportLazyThumbnails: false,
   warmModels: { deepdream: false, styletransfer: false, fastsam: false },
 };
 

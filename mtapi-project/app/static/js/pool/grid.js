@@ -560,6 +560,7 @@ function _bindSequencePanel() {
     const v = parseFloat(raw);
     if (Number.isFinite(v) && v > 0) {
       state.pool.sequence[idx].targetDuration = v;
+      state.pool.sequence[idx]._hadTarget = true;
       state.pool.selectedSeqId = state.pool.sequence[idx].id;
     } else if (!raw) {
       state.pool.sequence[idx].targetDuration = null;
@@ -949,6 +950,7 @@ function renderPoolGrid() {
     const seqPos = sequencePositions(item.path);
     card.className = `pool-card${isSelected ? ' selected' : ''}${isHovered ? ' hovered' : ''}${seqPos.length > 0 ? ' seq-active' : ''}`;
     card.dataset.path = item.path;
+    if (item.hash) card.dataset.hash = item.hash;
     card.dataset.idx = String(idx >= 0 ? idx : 0);
     card.draggable = true;
     card.title = 'Drag into sequence to stitch';
