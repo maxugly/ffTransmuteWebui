@@ -50,6 +50,76 @@ def register(app: FastAPI, probe_fn) -> None:
             record_open=True,
         )
 
+    @app.get("/api/media_hash", tags=["meta"])
+    async def media_hash(path: str):
+        """Content-hash only. Never probes, extracts thumbs, or records an open."""
+        path_obj = Path(path).expanduser().resolve()
+        if not path_obj.exists() or not path_obj.is_file():
+            raise HTTPException(status_code=404, detail="File not found")
+        content_hash, cached = await media.resolve_hash(path_obj)
+        st = path_obj.stat()
+        return {
+            "ok": True,
+            "path": str(path_obj),
+            "hash": content_hash,
+            "cached": bool(cached),
+            "size": int(st.st_size),
+        }
+
+    @app.get("/api/media_signature", tags=["meta"])
+    async def media_signature(path: str):
+        """Return size + mtime_ns via OS stat. Never invokes ffmpeg."""
+        path_obj = Path(path).expanduser().resolve()
+        if not path_obj.exists() or not path_obj.is_file():
+            raise HTTPException(status_code=404, detail="File not found")
+        st = path_obj.stat()
+        return {
+            "ok": True,
+            "path": str(path_obj),
+            "size": int(st.st_size),
+            "mtime_ns": int(st.st_mtime_ns),
+        }
+
+    @app.post("/api/media_signatures", tags=["meta"])
+    async def media_signatures_batch(body: dict):
+        """Batch size + mtime_ns via OS stat. Never invokes ffmpeg/ffprobe."""
+        paths, err = media.parse_batch_paths((body or {}).get("paths"))
+        if err:
+            raise HTTPException(status_code=400, detail=err)
+        out: dict[str, dict[str, int] | None] = {}
+        for p in paths:
+            out[p] = media.stat_signature(p)
+        return out
+
+    @app.post("/api/media/recover", tags=["meta"])
+    async def media_recover(body: dict):
+        """Targeted hash recovery for a moved/missing file. Never re-encodes."""
+        body = body or {}
+        hash_val = body.get("hash") or body.get("content_hash")
+        last_path = body.get("last_path") or body.get("path")
+        parent_path = body.get("parent_path")
+        multiplier = body.get("multiplier")
+        try:
+            mult = int(multiplier) if multiplier is not None else None
+        except (TypeError, ValueError):
+            mult = None
+        if not hash_val and not last_path and not parent_path:
+            raise HTTPException(status_code=400, detail="hash, last_path, or parent_path is required")
+        result = media.recover_media_path(
+            content_hash=str(hash_val) if hash_val else None,
+            last_path=last_path,
+            parent_path=parent_path,
+            multiplier=mult,
+        )
+        if result.get("found") and result.get("recovered") and result.get("path") and result.get("hash"):
+            try:
+                p = Path(result["path"])
+                st = p.stat()
+                await media._update_index_entry(p, str(result["hash"]), int(st.st_size), int(st.st_mtime_ns))
+            except OSError:
+                pass
+        return result
+
     @app.get("/api/thumbnail", tags=["meta"])
     async def get_thumbnail(
         path: str | None = None,
@@ -82,6 +152,26 @@ def register(app: FastAPI, probe_fn) -> None:
                 )
         elif not content_hash:
             raise HTTPException(status_code=400, detail="Provide path or hash")
+        elif frame is None:
+            # Hash-only is display-only: serve a cached JPEG or 404.
+            # Never hash, probe, or extract here — that belongs on ?path= or
+            # POST /api/thumbnails/ensure so the desk never waits on ffmpeg.
+            which_fast = (which or "first").lower()
+            if which_fast in ("first", "last"):
+                from ..media.catalog import catalog_if_ready
+                cat = catalog_if_ready()
+                if cat is not None:
+                    payload, src = await cat.serve_hash_thumbnail(content_hash, which_fast, size)
+                    if payload is None:
+                        raise HTTPException(status_code=404, detail=f"Thumbnail not available ({which_fast})")
+                    headers = {"Cache-Control": "public, max-age=31536000, immutable"}
+                    if isinstance(payload, (bytes, bytearray)):
+                        return Response(content=bytes(payload), media_type="image/jpeg", headers=headers)
+                    return FileResponse(str(payload), media_type="image/jpeg", headers=headers)
+                ready = media.existing_thumb_file(content_hash, which_fast, size)
+                if ready is not None:
+                    return await _serve_thumbnail(ready, content_hash, which_fast, size)
+                raise HTTPException(status_code=404, detail=f"Thumbnail not available ({which_fast})")
 
         # Range / scrub frame (1-based inclusive)
         if frame is not None:
@@ -103,8 +193,8 @@ def register(app: FastAPI, probe_fn) -> None:
             )
             if not thumb:
                 raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to extract frame {frame_n}",
+                    status_code=404,
+                    detail=f"Thumbnail not available for frame {frame_n}",
                 )
             return await _serve_thumbnail(thumb, content_hash, f"frame:{frame_n}", size)
 
@@ -113,7 +203,7 @@ def register(app: FastAPI, probe_fn) -> None:
             raise HTTPException(status_code=400, detail="which must be 'first' or 'last'")
         thumb = await media.get_thumb_file(content_hash, which, source_path=source, size=size)
         if not thumb:
-            raise HTTPException(status_code=500, detail=f"Failed to extract {which} frame")
+            raise HTTPException(status_code=404, detail=f"Thumbnail not available ({which})")
         return await _serve_thumbnail(thumb, content_hash, which, size)
 
     async def _serve_thumbnail(path: Path, content_hash: str, which: str, size: str):
@@ -135,8 +225,68 @@ def register(app: FastAPI, probe_fn) -> None:
             headers={"Cache-Control": "public, max-age=31536000, immutable"},
         )
 
+    @app.post("/api/thumbnails/ensure", tags=["meta"])
+    async def ensure_thumbnails(body: dict):
+        """Generate missing first/last thumbs. Cache-fill only — never for display."""
+        raw = (body or {}).get("items")
+        if not isinstance(raw, list):
+            raise HTTPException(status_code=400, detail="items must be a list")
+        if len(raw) > 20:
+            raise HTTPException(status_code=400, detail="maximum 20 items per request")
+        size = media.normalize_thumb_size((body or {}).get("s") or "H")
+        out = []
+        for it in raw:
+            if not isinstance(it, dict):
+                continue
+            which = (it.get("which") or "first").lower()
+            if which not in ("first", "last"):
+                which = "first"
+            content_hash = it.get("hash")
+            source = None
+            raw_path = it.get("path")
+            if raw_path:
+                p = Path(str(raw_path)).expanduser()
+                if p.is_file():
+                    source = p
+                    if not content_hash:
+                        content_hash, _ = await media.resolve_hash(p)
+            if not content_hash:
+                out.append({"ok": False, "error": "hash or existing path required", "which": which})
+                continue
+            ready = media.existing_thumb_file(content_hash, which, size)
+            if ready is not None:
+                out.append({"ok": True, "cached": True, "hash": content_hash, "which": which})
+                continue
+            rec = media.load_record(content_hash)
+            failed = (rec or {}).get("thumb_failed") or {}
+            if failed.get(which) == media.FRAME_EXTRACT_VERSION:
+                out.append({
+                    "ok": False, "cached": True, "hash": content_hash, "which": which,
+                    "error": "previous extract failed",
+                })
+                continue
+            if source is None:
+                source = media.source_path_for_hash(content_hash)
+            thumb = await media.get_thumb_file(
+                content_hash, which, source_path=source, size=size,
+            )
+            out.append({
+                "ok": bool(thumb),
+                "cached": False,
+                "hash": content_hash,
+                "which": which,
+            })
+        return {"ok": True, "results": out}
+
     @app.get("/api/media/{content_hash}", tags=["meta"])
     async def get_media_by_hash(content_hash: str):
+        from ..media.catalog import catalog_if_ready
+        cat = catalog_if_ready()
+        if cat is not None:
+            payload = cat.public_payload(content_hash)
+            if not payload:
+                raise HTTPException(status_code=404, detail="Unknown media hash")
+            return payload
         record = media.load_record(content_hash)
         if not record:
             raise HTTPException(status_code=404, detail="Unknown media hash")
@@ -164,7 +314,16 @@ def register(app: FastAPI, probe_fn) -> None:
 
     @app.get("/api/media_cache", tags=["meta"])
     async def media_cache_info():
+        from ..media.catalog import catalog_if_ready
+        cat = catalog_if_ready()
+        if cat is not None:
+            return {"ok": True, **(await cat.status())}
         return {"ok": True, **media.media_cache_stats()}
+
+    @app.get("/api/catalog/status", tags=["meta"])
+    async def catalog_status():
+        from ..media.catalog import get_catalog
+        return await get_catalog().status()
 
     # ── frame strip ──────────────────────────────────────────────────────────
 

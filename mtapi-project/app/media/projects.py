@@ -13,7 +13,13 @@ from pathlib import Path
 from typing import Any
 
 from .config import MEDIA_ROOT
-from .pool import _normalize_media_entries, _normalize_pool_payload
+from .pool import (
+    POOL_SCHEMA_VERSION,
+    _existing_path_or_none,
+    _normalize_pool_payload,
+    _schema_version,
+    enrich_items_from_records,
+)
 
 log = logging.getLogger("mtapi.media_store")
 
@@ -40,8 +46,10 @@ async def save_project_file(
 ) -> dict[str, Any]:
     path = _ensure_project_ext(Path(project_path).expanduser().resolve())
     path.parent.mkdir(parents=True, exist_ok=True)
-    pool = _normalize_pool_payload(payload)
+    # Named projects never store global settings. Save must not touch media cache.
+    pool = _normalize_pool_payload(payload, require_exists=False, drop_settings=True)
     proj_name = name or payload.get("project_name") or path.stem.replace(".ffproject", "")
+    desk = pool.get("desk")
     doc = {
         "kind": PROJECT_KIND,
         "project_version": PROJECT_VERSION,
@@ -49,7 +57,7 @@ async def save_project_file(
         "created_at": payload.get("created_at") or time.time(),
         "updated_at": time.time(),
         "pool": pool,
-        "desk": payload.get("desk") if isinstance(payload.get("desk"), dict) else None,
+        "desk": desk,
     }
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(doc, indent=2, sort_keys=True), encoding="utf-8")
@@ -71,6 +79,10 @@ async def save_project_file(
 
 
 def load_project_file(project_path: str | Path) -> dict[str, Any]:
+    from .catalog import catalog_if_ready
+    cat = catalog_if_ready()
+    if cat is not None:
+        return cat.load_project_membership(project_path)
     path = Path(project_path).expanduser().resolve()
     if not path.is_file():
         return {"ok": False, "error": f"Project not found: {path}"}
@@ -80,84 +92,30 @@ def load_project_file(project_path: str | Path) -> dict[str, Any]:
         return {"ok": False, "error": f"Invalid project JSON: {e}"}
 
     if isinstance(raw, dict) and raw.get("kind") == PROJECT_KIND and isinstance(raw.get("pool"), dict):
-        pool_raw = raw["pool"]
+        pool_raw = dict(raw["pool"])
         name = raw.get("name") or path.stem
         created = raw.get("created_at")
         updated = raw.get("updated_at")
+        raw_version = raw.get("project_version", pool_raw.get("version"))
+        desk_raw = raw.get("desk") if isinstance(raw.get("desk"), dict) else pool_raw.get("desk")
     elif isinstance(raw, dict) and ("items" in raw or "sequence" in raw):
-        pool_raw = raw
+        pool_raw = dict(raw)
         name = path.stem
         created = raw.get("created_at")
         updated = raw.get("updated_at")
+        raw_version = raw.get("project_version", raw.get("version"))
+        desk_raw = raw.get("desk")
     else:
         return {"ok": False, "error": "Unrecognized project file format"}
 
+    if isinstance(desk_raw, dict) and "desk" not in pool_raw:
+        pool_raw["desk"] = desk_raw
+
     missing: list[str] = []
-    items_out = _normalize_media_entries(pool_raw.get("items"), missing=missing)
-    images_out = _normalize_media_entries(pool_raw.get("images"), missing=missing)
-
-    sequence_out = []
-    for it in pool_raw.get("sequence") or []:
-        if isinstance(it, str):
-            p = it
-            name_e = Path(p).name
-            td = None
-            vp = None
-            rm = None
-        elif isinstance(it, dict):
-            p = it.get("path")
-            name_e = it.get("name") or (Path(p).name if p else None)
-            td = it.get("target_duration")
-            vp = it.get("variant_path")
-            rm = it.get("rife_multiplier")
-        else:
-            continue
-        if not p:
-            continue
-        pth = Path(p)
-        if not pth.is_file():
-            missing.append(p)
-            continue
-        entry = {"path": str(pth.resolve()), "name": name_e or pth.name}
-        if td is not None:
-            try:
-                tdf = float(td)
-                if tdf > 0:
-                    entry["target_duration"] = tdf
-            except (TypeError, ValueError):
-                pass
-        if isinstance(it, dict):
-            vp = it.get("variant_path")
-            if vp:
-                entry["variant_path"] = str(Path(vp).expanduser().resolve())
-            rm = it.get("rife_multiplier")
-            try:
-                if rm is not None and int(rm) >= 2:
-                    entry["rife_multiplier"] = int(rm)
-            except (TypeError, ValueError):
-                pass
-        if vp:
-            entry["variant_path"] = vp
-        if rm:
-            try:
-                m = int(rm)
-                if m >= 2:
-                    entry["rife_multiplier"] = m
-            except (TypeError, ValueError):
-                pass
-        sequence_out.append(entry)
-
-    selected = pool_raw.get("selected_path")
-    if selected and not Path(selected).is_file():
-        selected = None
-    selected_image = pool_raw.get("selected_image_path")
-    if selected_image and not Path(selected_image).is_file():
-        selected_image = None
-    tile_zoom = pool_raw.get("tile_zoom", 200)
-    try:
-        tile_zoom = int(tile_zoom)
-    except Exception:
-        tile_zoom = 200
+    # Named project loads must drop desk.settings so they cannot overwrite globals.
+    pool = _normalize_pool_payload(
+        pool_raw, require_exists=True, drop_settings=True, missing=missing,
+    )
 
     try:
         LAST_PROJECT_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -165,32 +123,23 @@ def load_project_file(project_path: str | Path) -> dict[str, Any]:
     except Exception:
         pass
 
+    enrich_items_from_records(pool)
+
     return {
         "ok": True,
         "path": str(path),
         "name": name,
         "created_at": created,
         "updated_at": updated,
-        "version": pool_raw.get("version", 1),
-        "items": items_out,
-        "images": images_out,
-        "sequence": sequence_out,
-        "selected_path": selected,
-        "selected_image_path": selected_image,
-        "reconcile": pool_raw.get("reconcile") or "pad",
-        "aspect": pool_raw.get("aspect") or "auto",
-        "aspect_custom": pool_raw.get("aspect_custom") or "",
-        "output_path": pool_raw.get("output_path") or "",
-        "tile_zoom": tile_zoom,
-        "tile_info": pool_raw.get("tile_info") if isinstance(pool_raw.get("tile_info"), dict) else None,
-        "layout": pool_raw.get("layout") if isinstance(pool_raw.get("layout"), dict) else None,
-        "desk": raw.get("desk") if isinstance(raw.get("desk"), dict) else (
-            pool_raw.get("desk") if isinstance(pool_raw.get("desk"), dict) else None
-        ),
+        **pool,
+        "selected_path": _existing_path_or_none(pool.get("selected_path")),
+        "selected_image_path": _existing_path_or_none(pool.get("selected_image_path")),
+        "migrated_from": _schema_version(raw_version),
+        "project_version": POOL_SCHEMA_VERSION,
         "missing": missing,
-        "item_count": len(items_out),
-        "image_count": len(images_out),
-        "sequence_count": len(sequence_out),
+        "item_count": len(pool["items"]),
+        "image_count": len(pool.get("images") or []),
+        "sequence_count": len(pool["sequence"]),
     }
 
 

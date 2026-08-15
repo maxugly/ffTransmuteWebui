@@ -13,6 +13,7 @@ import {
   projectLabel,
   poolThumbUrl, shortHash, buildPoolMetaHtml,
   captureCurrentFormState, applySavedFormState,
+  isApplyingFormState,
   _poolSeqId, _poolSaveTimer, _poolPersistReady,
 } from '/js/pool/persistence.js';
 import {
@@ -45,11 +46,13 @@ import { renderZoompanForm, collectZoompanBody } from '/js/tabs/zoompan.js';
 import { renderImageSortForm, collectImageSortBody } from '/js/tabs/imagesort.js';
 import { renderImgCompareForm } from '/js/tabs/imgcompare.js';
 import { renderNotesForm } from '/js/tabs/notes.js';
-import { renderSettingsForm } from '/js/tabs/settings.js';
+import { renderSettingsForm, applyUiTweaks, readStoredScrollbarWidth } from '/js/tabs/settings.js';
 import { renderJobsForm, stopJobsPoll } from '/js/tabs/jobs.js';
 import { renderImageEditForm, collectImageEditBody } from '/js/tabs/imageedit.js';
 import { refreshInputPreview, bindInputPreviewListeners } from '/js/ui/input-preview.js';
 import { setupNavSectionCollapse, ensureNavSectionForTab } from '/js/ui/nav-sections.js';
+import { globalMediaIndex } from '/js/media-index.js';
+import '/js/repair-queue.js';
 import {
   findPoolItem, displayFocusPath, setPoolHover, clearPoolHover,
   setPoolFocus, updateSelectionHighlights, updatePoolFocusFrame,
@@ -128,8 +131,12 @@ let state = {
   pool: {
     items: [], // { path, name, size?, meta?, hash? }  — Video Pool
     selectedPath: null, // sticky selection (click) — syncs library ↔ sequence
+    selectedPaths: new Set(), // multi-select (shift / ctrl) by canonical path
+    selectionAnchor: null,
     selectedSeqId: null, // precise sequence entry id when a token is selected
-    filterQuery: '', // live fuzzy filter for pool grid (pool + sequence tabs)
+    filterQuery: '', // live filter for pool grid (pool + sequence tabs)
+    searchMode: 'fuzzy', // 'fuzzy' | 'strict'
+    gridScrollTop: 0,
     hoverPath: null,    // temporary hover only (does not change selection)
     loading: false,
     // Sequence composer: ordered clips to stitch
@@ -191,6 +198,10 @@ let state = {
     images: [], // {path, name, score?}[] — slot [0] is always base
     folder: null,
     selected: 0, // index of selected row for shared reorder buttons
+    sortMode: 'phash',
+    sortStrategy: 'radial',
+    sortOrder: 'nearest_first',
+    output: '',
   },
   // Cut workspace: clip endpoints + two reference stills + shared image-compare state
   // Compare fields: mode / overlayOpacity / abPosition — see js/ui/image-compare.js
@@ -234,21 +245,92 @@ let state = {
     thumbnailsToRam: false,
     phashToRam: false,
     autosaveInterval: 30,
+    viewportLazyThumbnails: true,
+    scrollbarWidth: 6,
     warmModels: { deepdream: false, styletransfer: false, fastsam: false },
   },
   formState: {},
 };
 
-try {
-  const savedSettings = JSON.parse(localStorage.getItem('mtapi.settings') || 'null');
-  if (savedSettings && typeof savedSettings === 'object') {
-    state.settings = {
-      ...state.settings,
-      ...savedSettings,
-      warmModels: { ...state.settings.warmModels, ...(savedSettings.warmModels || {}) },
-    };
+if (typeof window !== 'undefined') {
+  window.state = state;
+  window.globalMediaIndex = globalMediaIndex;
+}
+
+const SETTINGS_DEFAULTS = {
+  thumbnailSize: 'H',
+  thumbnailSizeIndex: 2,
+  thumbnailsToRam: false,
+  phashToRam: false,
+  autosaveInterval: 30,
+  viewportLazyThumbnails: true,
+  scrollbarWidth: 6,
+  warmModels: { deepdream: false, styletransfer: false, fastsam: false },
+};
+
+function mapServerSettings(data) {
+  if (!data || typeof data !== 'object') return {};
+  const mapped = {};
+  if (data.thumbnail_size) mapped.thumbnailSize = data.thumbnail_size;
+  if (data.thumbnails_to_ram != null) mapped.thumbnailsToRam = !!data.thumbnails_to_ram;
+  if (data.phash_to_ram != null) mapped.phashToRam = !!data.phash_to_ram;
+  if (data.autosave_interval != null) mapped.autosaveInterval = data.autosave_interval;
+  if (data.scrollbar_width != null) mapped.scrollbarWidth = data.scrollbar_width;
+  if (data.warm_models && typeof data.warm_models === 'object') {
+    mapped.warmModels = { ...SETTINGS_DEFAULTS.warmModels, ...data.warm_models };
   }
-} catch (_) { /* use defaults */ }
+  const idx = { L: 0, M: 1, H: 2 }[mapped.thumbnailSize];
+  if (idx != null) mapped.thumbnailSizeIndex = idx;
+  return mapped;
+}
+
+/** Startup: server settings, then localStorage (local wins), then defaults. */
+async function applySettingsPrecedence() {
+  let server = {};
+  try {
+    const res = await fetch('/api/settings');
+    if (res.ok) server = mapServerSettings(await res.json());
+  } catch (_) { /* defaults */ }
+  let local = {};
+  try {
+    const raw = JSON.parse(localStorage.getItem('mtapi.settings') || 'null');
+    if (raw && typeof raw === 'object') local = raw;
+  } catch (_) { /* ignore */ }
+  if (local && local.viewportLazyThumbnails == null && local.preloadAllThumbnails != null) {
+    local.viewportLazyThumbnails = local.preloadAllThumbnails !== true;
+  }
+  if (server && server.viewportLazyThumbnails == null && server.preloadAllThumbnails != null) {
+    server.viewportLazyThumbnails = server.preloadAllThumbnails !== true;
+  }
+  state.settings = {
+    ...SETTINGS_DEFAULTS,
+    ...server,
+    ...local,
+    warmModels: {
+      ...SETTINGS_DEFAULTS.warmModels,
+      ...(server.warmModels || {}),
+      ...(local.warmModels || {}),
+    },
+  };
+  state.settings.scrollbarWidth = readStoredScrollbarWidth();
+  applyUiTweaks(state.settings.scrollbarWidth);
+}
+
+async function waitForCatalogReady() {
+  window.catalogStatus = window.catalogStatus || { catalog_ready: false };
+  for (let i = 0; i < 120; i++) {
+    try {
+      const res = await fetch('/api/catalog/status');
+      if (res.ok) {
+        const data = await res.json();
+        window.catalogStatus = data;
+        if (data && data.catalog_ready) return data;
+      }
+    } catch (_) { /* server still binding */ }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return window.catalogStatus;
+}
 
 
 function defaultTileInfo() {
@@ -552,6 +634,8 @@ async function init() {
   setupPreviewConsoleResize();
   setupAllPanelResize();
   bindInputPreviewListeners();
+  await applySettingsPrecedence();
+  await waitForCatalogReady();
   await checkHealth();
   await fetchOperations();
   await restorePoolState();
@@ -566,9 +650,11 @@ function setupEventListeners() {
   // Capture DOM-backed form values as they change. This is delegated because
   // operation tabs mount/unmount their controls during navigation.
   elements.actionPanel?.addEventListener('input', () => {
+    if (isApplyingFormState()) return;
     try { captureCurrentFormState(); scheduleSavePoolState(); } catch (_) {}
   });
   elements.actionPanel?.addEventListener('change', () => {
+    if (isApplyingFormState()) return;
     try { captureCurrentFormState(); scheduleSavePoolState(); } catch (_) {}
   });
   // Navigation Tabs
@@ -780,7 +866,7 @@ function switchTab(tab) {
   if (tab === 'settings') title = 'Settings';
   // Library tabs: drop the big header title (sidebar already shows active item)
   if (tab === 'pool' || tab === 'sequence' || tab === 'images') title = '';
-  elements.tabTitle.textContent = title;
+  if (elements.tabTitle) elements.tabTitle.textContent = title;
 
   // Hide Run / Queue on library / settings-only tabs (compare is interactive, not a job)
   const hideRun = (
@@ -829,6 +915,11 @@ function switchTab(tab) {
 
 // Render Specific Tab Forms
 function renderTabForm(tab) {
+  try {
+    elements.actionPanel?.querySelectorAll('.pool-card, .img-pool-card').forEach((el) => {
+      window.__mtapiLazyLoader?.unobserve(el);
+    });
+  } catch (_) { /* ignore */ }
   elements.actionPanel.innerHTML = '';
   const root = elements.actionPanelRoot || elements.actionPanel;
   if (root) {
@@ -927,6 +1018,22 @@ import {
 
 // ── Sidebar & preview collapse ────────────────────────────────────────────
 
+function applySidebarExpandedWidth() {
+  const aside = document.querySelector('.app-sidebar');
+  if (!aside) return;
+  if (document.body.classList.contains('sidebar-collapsed')) {
+    aside.style.width = '';
+    return;
+  }
+  try {
+    const saved = parseInt(localStorage.getItem('mtapi_sidebar_w') || '', 10);
+    if (saved >= 120 && saved <= 600) {
+      aside.style.width = saved + 'px';
+      document.documentElement.style.setProperty('--sidebar-w', saved + 'px');
+    }
+  } catch (_) { /* ignore */ }
+}
+
 function toggleSidebarCollapse() {
   const collapsed = document.body.classList.toggle('sidebar-collapsed');
   const btn = document.getElementById('btnSidebarCollapse');
@@ -934,18 +1041,30 @@ function toggleSidebarCollapse() {
     btn.textContent = collapsed ? '▶' : '◀';
     btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
   }
+  applySidebarExpandedWidth();
   try { localStorage.setItem('mtapi_sidebar_collapsed', collapsed ? '1' : '0'); } catch (_) {}
   fitPreviewViewer();
 }
 
-function togglePreviewCollapse() {
-  const collapsed = document.body.classList.toggle('preview-collapsed');
+function syncPreviewCollapseBtn() {
+  const collapsed = document.body.classList.contains('preview-collapsed');
   const btn = document.getElementById('btnPreviewCollapse');
-  if (btn) {
-    btn.textContent = collapsed ? '◀' : '▶';
-    btn.title = collapsed ? 'Expand preview' : 'Collapse preview';
-  }
-  try { localStorage.setItem('mtapi_preview_collapsed', collapsed ? '1' : '0'); } catch (_) {}
+  if (!btn) return;
+  btn.textContent = collapsed ? '▼' : '▲';
+  btn.title = collapsed ? 'Show Media Output Preview' : 'Hide Media Output Preview';
+  btn.setAttribute('aria-label', btn.title);
+  btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+}
+
+function togglePreviewCollapse() {
+  document.body.classList.toggle('preview-collapsed');
+  syncPreviewCollapseBtn();
+  try {
+    localStorage.setItem(
+      'mtapi_preview_collapsed',
+      document.body.classList.contains('preview-collapsed') ? '1' : '0',
+    );
+  } catch (_) { /* ignore */ }
   setTimeout(() => fitPreviewViewer(), 100);
 }
 
@@ -956,11 +1075,11 @@ function loadSavedCollapseState() {
       const sb = document.getElementById('btnSidebarCollapse');
       if (sb) { sb.textContent = '▶'; sb.title = 'Expand sidebar'; }
     }
+    applySidebarExpandedWidth();
     if (localStorage.getItem('mtapi_preview_collapsed') === '1') {
       document.body.classList.add('preview-collapsed');
-      const pb = document.getElementById('btnPreviewCollapse');
-      if (pb) { pb.textContent = '◀'; pb.title = 'Expand preview'; }
     }
+    syncPreviewCollapseBtn();
   } catch (_) {}
 }
 
@@ -995,21 +1114,15 @@ function _setupDragResize(el, { axis, onDrag, startVals, onEnd }) {
 
 function setupSidebarResize() {
   const handle = document.getElementById('sidebarResize');
-  const aside = document.querySelector('aside');
+  const aside = document.querySelector('.app-sidebar');
   if (!handle || !aside) return;
 
-  // Restore saved width (apply as inline style so it beats collapsed CSS)
-  try {
-    const saved = parseInt(localStorage.getItem('mtapi_sidebar_w') || '', 10);
-    if (saved >= 56 && saved <= 600) {
-      aside.style.width = saved + 'px';
-      document.documentElement.style.setProperty('--sidebar-w', saved + 'px');
-    }
-  } catch (_) {}
+  applySidebarExpandedWidth();
 
   _setupDragResize(handle, {
     axis: 'x',
     onDrag: (deltaX, start) => {
+      if (document.body.classList.contains('sidebar-collapsed')) return;
       const newW = Math.max(120, Math.min(600, start.startWidth + deltaX));
       aside.style.width = newW + 'px';
       document.documentElement.style.setProperty('--sidebar-w', newW + 'px');

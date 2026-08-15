@@ -1,14 +1,14 @@
 # Session stopping state — handoff
 
-> **Date:** 2026-08-13  
-> **VERSION:** `000.000.5.05`  
-> **Branch:** `main`  
+> **Date:** 2026-08-15  
+> **VERSION:** `000.000.6.0`  
+> **Branch:** `wip`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 5.05)
+## 1. Shipped this stretch (through 6.0)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
@@ -34,6 +34,28 @@
 | Upscale / Cut / Job queue | Earlier `4.64` | ops + Jobs tab |
 | **QR & Illusion Art Generator** | Dual-mode (text QR or custom pattern) + ControlNet QR Monster + optional IP-Adapter | `qr_illusion_ops.py`, `js/tabs/qr_illusion.js` · **`5.05`** |
 | **State tracking / popup spam** | Removed post-load auto-RIFE scan; project load no longer triggers Instant densify; backend restores variant_path + rife_multiplier; already-rifed clips never re-encoded; alert() replaced with logConsole | `pool.py`, `persistence.js`, `items.js`, `sequence.js`, `job-control.js` · **`5.03`** |
+| **Universal persistence** | Metadata + `meta_signature` round-trip; `/api/media_signature`; shared `lazy-loader.js` (100px margin, max-5 fallback); settings precedence (named projects never overwrite globals); schema v2 migration; inactive-tab formState | `universal-persistence-spec.md` · **`5.06`** |
+| **Settings layout polish** | Tight one-page cards hug content; Neural FX blurb wraps after “Default is off” | `settings.js`, `settings.css` · **`5.12`** |
+| **Settings card layout spec** | House style for new Settings cards — one-line head, packed controls, max-content | `settings-card-layout-spec.md` · **`5.13`** |
+| **Catalog UX Phase 1** | Eager memory-restore of saved metadata (no network probe); batch `/api/media_signatures` + `/api/variants/batch`; `window.globalMediaIndex`; already-dense Instant RIFE is zero variant requests; moved RIFE recovered by hash; lower-density GC only after promote + unreferenced | `performance-catalog-ux-spec.md` · **`5.14`** |
+| **Hash-only thumb 500** | Hash-only `/api/thumbnail` uses recorded source / 404s; no recover-on-error loop | `thumbnails.py` · **`5.15`** |
+| **Thumbnail load speed** | Existing JPEG served without record/index scan; 8-wide in-flight img queue | `media.py`, `lazy-loader.js` · **`5.16`** |
+| **Viewport-lazy regression** | Default is strictly `viewportLazyThumbnails=true`; `preloadAllThumbnails` is a deprecated legacy alias (`preloadAllThumbnails=true` → `viewportLazyThumbnails=false`). | `lazy-loader.js` · **`5.17`** |
+| **Thumb queue coverage** | Settings size refresh uses the same 8-fetch cap | `freshness.js` · **`5.18`** |
+| **Pay-once thumbs** | Display is cache-only; missing thumbnails generate only through the idle repair queue or explicit user repair; ordinary display and scrolling never generate thumbnails. | `5.19` |
+| **No redo** | Same path+size never re-hashes; cache-hit open does not rewrite; failed thumbs not retried | `5.20` |
+| **Reload thumbs** | Hash `src` written on the card at render; 8-queue no longer withholds src; L/M serves H if needed | `5.21` |
+| **Viewport-lazy default enforced** | Default is strictly viewport-lazy per `catalog-interaction-virtualization-spec.md`; settings from localStorage + `/api/settings` | `5.22` |
+| **Instant / project load** | No re-scan of known clips; Instant uses `rifeNeed` | `5.23`–`5.26` |
+| **Scroll keeps thumbs painted** | Ignore hover while the pool grid is scrolling; no hover translate; `src` stays | `layout.js`, `sequence.js`, `pool.css` · **`5.27`** |
+| **Open does not re-scan thumbs** | Session items had hash but almost no meta, so hover fired `media_info?ensure_thumbs=true`. Restore now copies record meta + thumb flags; failed extracts are not 404-retried. | `pool.py`, `sequence.js` · **`5.28`** |
+| **Scrollbar width setting** | UI tweaks 6–30px. `5.30` real px sheet; `5.31` cap 30 | `settings.js`, `base.css` · **`5.29`–`5.31`** |
+| **Preview collapse in header** | ▲/▼ after Stop; no right-edge tab | `index.html`, `layout.css` · **`5.32`** |
+| **Sidebar collapse is icon-wide** | 44px icon rail; title gone; inline resize width cleared | `layout.css`, `app.js` · **`5.33`** |
+| **Header title gone** | Tab title removed; V-in/out flush left | `index.html`, `layout.css` · **`5.34`** |
+| **Input preview not sidebar** | Nav scoped to `.app-sidebar`; preview is a div | `index.html`, `layout.css` · **`5.35`** |
+| **Catalog virtualization** | Hover invariant, queue caps proven (8/4/2/2), Video+Image `.pool-scroll-canvas`, JS scroll work p95 ~1ms. **Partial** — do not claim 16.6ms compositor p95 from headless rAF | `catalog-interaction-virtualization-spec.md` · **`5.37` Partial** |
+| **Server-resident catalog** | CatalogIndex hydrates all records before serve; RAM display paths; exclusive lock; 64 MiB JPEG warmer; `/api/catalog/status`. §11–12 I/O, lock, warmer, restart, Video+Image+Sequence browser checks accepted | `server-memory-catalog-spec.md` · **`5.38`** |
 
 Earlier stable: filter platform, dual pools, Convert, neural ops, Prompt Library, Recohere, Agent, OpenVINO stills.
 
@@ -53,10 +75,11 @@ Next strip→video ops: inherit params, import JS helper, call `build_evolve_vid
 
 | Area | Next |
 |------|------|
+| Catalog virtualization | Headed vsync 16.6ms compositor p95 — `catalog-interaction-virtualization-spec.md` |
 | Workspace progress | Multi-phase ETA polish — `workspace-progress-spec.md` |
 | Tool bottom docs | Roll out remaining tabs |
 | UI list keys | Edge cases — `ui-list-nav-timer-spec.md` |
-| Universal persistence | Full desk snapshot — `universal-persistence-spec.md` |
+| Universal persistence | **Shipped `5.06`** — `universal-persistence-spec.md` |
 | Evolve multi/video/ouro | Spec phases C–E — stills only shipped |
 | Job queue persist | Memory FIFO only |
 | Tilagup / quality rating | Specs; human priority |
@@ -70,7 +93,7 @@ Next strip→video ops: inherit params, import JS helper, call `build_evolve_vid
 1. ~~Autosave overwrites named projects~~ — fixed `4.63`.  
 2. List reorder jumps scroll to top.  
 3. Arrows scroll page outside wired lists.  
-4. Inactive tab knobs not in project JSON.  
+4. ~~Inactive tab knobs not in project JSON~~ — fixed `5.06`.  
 5. Pool normalize strips unknown fields (blocks quality rating).  
 6. Extreme RIFE M × large K — no soft warn.  
 7. Long POST can die under heavy DeepDream (browser “Failed to fetch”) — server crash/OOM; evolve/async-job polish later.  
@@ -148,9 +171,9 @@ cd mtapi-project && .venv/bin/python run.py   # :24590
 | Role | First read | Then |
 |------|------------|------|
 | Spec writer | STATUS §5 | Docs only |
+| Builder (next) | remaining §4 partials | Headed 16.6ms compositor, progress polish, tool-docs |
 | Builder (evolve UX DRY) | `evolve_video.py` + dream/style tabs | Shared RIFE knob fragment |
 | Builder (progress) | `workspace-progress-spec.md` | ETA polish |
-| Builder (persistence) | `universal-persistence-spec.md` | When prioritized |
 
 **WebUI smoke:** DeepDream Evolve on still (Inception, Preview W 512, Max loss off); Style Evolve one still (Frames 16, Str 0→main, RIFE off).
 

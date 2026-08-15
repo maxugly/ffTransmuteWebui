@@ -1,8 +1,8 @@
 # Project status — agent & human source of truth
 
-> **Updated:** 2026-08-13  \
-> **VERSION:** `000.000.5.05`  \
-> **Branch:** `main` (local tree often uncommitted — `git status`)  
+> **Updated:** 2026-08-15  \
+> **VERSION:** `000.000.6.0`  \
+> **Branch:** `wip` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
 **Also read:** `AGENTS.md` (root) · `mtapi-project/AGENTS.md` · [README.md](README.md) · [SESSION-STOPPING-STATE.md](SESSION-STOPPING-STATE.md)
@@ -98,6 +98,31 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Single-flight restore** | Soft-cancel must not abort fetch (orphaned server job); server rejects concurrent /ops/* | `job-control.js`, `job_queue.py`, `main.py` · `4.93` |
 | **Instant re-render storm fix** | Queue no-op no longer re-renders; variants cache; failed no tight-retry; dual RIFE killed | `sequence.js`, `grid.js` · `4.92` |
 | **Settings tab (blank)** | Workspace · bare chrome (no global/preview/Run); scaffold for perf prefs | `js/tabs/settings.js`, `css/settings.css` · `4.91` |
+| **Universal persistence** | Full desk snapshot: metadata + signatures round-trip, `/api/media_signature`, shared lazy-loader (100px margin, max-5 fallback), settings precedence (project loads never overwrite globals), schema v2 migration, inactive-tab formState | `universal-persistence-spec.md` · **`5.06`** |
+| **Settings layout polish** | Tight one-page cards hug content width; Neural FX blurb wraps after “Default is off” | `settings.js`, `settings.css` · **`5.12`** |
+| **Settings card layout spec** | House style so new Settings cards ship tight (one-line head, packed controls, max-content width) | `settings-card-layout-spec.md` · **`5.13`** |
+| **Catalog UX Phase 1** | Eager memory-restore of saved metadata (no network probe); `POST /api/media_signatures` + `POST /api/variants/batch` (max 100); `window.globalMediaIndex`; persisted-variant fast path (zero variant requests when dense enough); Instant RIFE COW + hash recovery + unreferenced lower-density GC | `performance-catalog-ux-spec.md` · **`5.14`** |
+| **Hash-only thumbnail 500** | Hash URLs resolve a recorded source path, skip `thumb_failed` extracts, return 404 not 500; thumb `onerror` no longer POSTs `/api/media/recover` | `thumbnails.py`, `freshness.js` · **`5.15`** |
+| **Thumbnail load speed** | Hash-only serve of an existing JPEG does not parse `record.json` or scan `index.json`; browser assigns at most 8 in-flight thumb `src`s | `media.py`, `lazy-loader.js` · **`5.16`** |
+| **Viewport-lazy regression** | Default is strictly `viewportLazyThumbnails=true`. `preloadAllThumbnails` is a deprecated legacy alias (`preloadAllThumbnails=true` → `viewportLazyThumbnails=false`). | `lazy-loader.js` · **`5.17`** |
+| **Thumb queue coverage** | Size/settings refresh and hash-upgrade src writes go through `assignThumbSrc` (max 8). | `freshness.js` · **`5.18`** |
+| **Pay-once thumbs** | `GET ?hash=` is cache-only (404, no ffmpeg). `POST /api/thumbnails/ensure` fills misses in the background ONLY via idle-queue or explicit repair. | `media.py`, `lazy-loader.js` · **`5.19`** |
+| **No redo** | Index lookup is path+size (not mtime). Cache-hit media open does not probe/extract/rewrite. Failed extracts stay failed until Retry. | `cache.py`, `open.py` · **`5.20`** |
+| **Reload thumbs** | Hash `src` written on the card at render; 8-queue no longer withholds src; L/M serves H if needed | `grid.js`, `lazy-loader.js` · **`5.21`** |
+| **Viewport-lazy default enforced** | Default is strictly viewport-lazy per `catalog-interaction-virtualization-spec.md`; settings from localStorage + `/api/settings` only | `lazy-loader.js`, `settings.js` · **`5.22`** |
+| **No Instant scan on project load** | Opening a project does not re-probe / re-scan already-known clips | `sequence.js`, `persistence.js` · **`5.23`** |
+| **Instant only needs density** | Instant encodes only clips that still need a higher M | `sequence.js` · **`5.24`** |
+| **rifeNeed** | `rifed \| needsRife \| noRifeNeeded` on sequence entries | `sequence.js` · **`5.25`** |
+| **Instant reads rifeNeed** | No sequence-wide variant scan; Instant uses in-memory rifeNeed | `sequence.js` · **`5.26`** |
+| **Scroll keeps thumbs painted** | Hover/transform locked while the pool grid is scrolling; no full-grid restyle; `src` stays on the card | `layout.js`, `sequence.js`, `pool.css` · **`5.27`** |
+| **Open does not re-scan thumbs** | Restore copies record meta + thumb flags; hover never calls `media_info`; failed extracts are not GET/ensured again | `pool.py`, `sequence.js`, `freshness.js` · **`5.28`** |
+| **Scrollbar width setting** | Settings → UI tweaks. 6–30px. `5.30` actually changes the bar; `5.31` raises the cap to 30px | `settings.js`, `base.css` · **`5.29`–`5.31`** |
+| **Preview collapse in header** | Media Output Preview toggles from ▲/▼ in the top bar after Stop. Side tab handle removed | `index.html`, `layout.css`, `app.js` · **`5.32`** |
+| **Sidebar collapse is icon-wide** | Collapsed aside is 44px (icons only). Title + logo hide. Saved drag-width no longer keeps it fat | `layout.css`, `app.js` · **`5.33`** |
+| **Header title gone** | No redundant tab title in the top bar. V-in/out buttons hug the left | `index.html`, `layout.css` · **`5.34`** |
+| **Input preview not sidebar** | Nav `aside` is `.app-sidebar`; input preview is a `div` so collapse/resize no longer shrink it | `index.html`, `layout.css` · **`5.35`** |
+| **Catalog virtualization** | Hover/scroll/select never `/api/media_info`. Path-keyed index + bounded queues. Video **and** Image Pool use `.pool-scroll-canvas`. JS scroll work p95 ~1ms. **Partial:** headless rAF p95 is not the spec’s vsync 16.6ms compositor target | `catalog-interaction-virtualization-spec.md` · **`5.37` Partial** |
+| **Server-resident catalog** | CatalogIndex hydrates the full cache before serve; display paths read RAM; exclusive process lock; 64 MiB JPEG warmer; `/api/catalog/status`. §11–12 I/O, lock, warmer, restart, Video+Image+Sequence browser checks accepted | `server-memory-catalog-spec.md` · **`5.38`** |
 
 **Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale, **qr_art** *(in tree — see §4)*. Root `AGENTS.md`.
 
@@ -107,11 +132,11 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 
 | Area | Status | Next |
 |------|--------|------|
+| **Catalog virtualization** | Hover/queues/Image+Video virt in `5.37` | Headed vsync 16.6ms compositor p95 — `catalog-interaction-virtualization-spec.md` |
 | **Workspace progress** | RIFE + **dump dir watch** in tree | multi-phase remaining ETA polish — `workspace-progress-spec.md` |
 | **Tool bottom docs** | Several tabs have blocks; not universal | Finish roll-out — `tool-bottom-docs-spec.md` |
 | **UI list / sequence keys** | Sequence L/R + scroll-into-view **shipped `4.64`**; some pool edge cases may remain | `ui-list-nav-timer-spec.md` |
 | **Agent polish** | Phase A+API shipped | Streaming, Image Pool send-to, Ollama, multi-tool loop |
-| **Universal persistence** | **Sacred named-project autosave fixed `4.63`**; full desk snapshot still open | `universal-persistence-spec.md` |
 | Image Sort true TSP | Out of scope | Chain is greedy only |
 
 ---
@@ -124,18 +149,19 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 | # | Spec | Intent | Notes |
 |---|------|--------|--------|
-| 1 | Finish §4 partials | Daily UX + verify upscale | High leverage |
+| 1 | Finish remaining §4 partials | Daily UX + headed 16.6ms compositor p95 + verify upscale | Catalog index shipped `5.38` |
 | 2 | [job-queue-spec.md](job-queue-spec.md) | **Implemented v1 `4.64`** — memory FIFO + Jobs tab | Persist pending = later |
-| 3 | [universal-persistence-spec.md](universal-persistence-spec.md) | Stop autosave clobbering named projects | Bug #1 |
+| 3 | [universal-persistence-spec.md](universal-persistence-spec.md) | **Implemented `5.06`** — desk snapshot + metadata + lazy-load | Bug #1 closed |
 | 4 | [tilagup-mtapi-mode-spec.md](tilagup-mtapi-mode-spec.md) | Multi-step agent tiled SD | Sibling `/home/m/snc/cod/tilagup` |
 | 5 | [image-quality-rating-spec.md](image-quality-rating-spec.md) | Pool tech/aesthetic scores | **Fix pool normalize first** |
 | 6 | [fastsam-sam-multimodel-spec.md](fastsam-sam-multimodel-spec.md) | **FastSAM + SAM multimodel selector** — stronger backends (FastSAM-x, SAM ViT-L/H) on OpenVINO/Intel, AUTO device fallback | **`4.82`+ proposed** |
-| 7 | [performance-settings-spec.md](performance-settings-spec.md) | Performance settings tab, thumbnail resolution, and RAM cache prefs | **Proposed** |
+| 7 | [performance-settings-spec.md](performance-settings-spec.md) | Performance settings tab, thumbnail resolution, and RAM cache prefs | **Proposed** — budget setting later |
 
 ### 5.2 Recently shipped (orientation)
 
 | Spec | Version |
 |------|---------|
+| [server-memory-catalog-spec.md](server-memory-catalog-spec.md) | **`000.000.5.38`** |
 | [prompt-library-spec.md](prompt-library-spec.md) | **`000.000.4.61`** |
 | [rife-recoherence-spec.md](rife-recoherence-spec.md) | **`000.000.4.60`** |
 | [agent-vision-tab-spec.md](agent-vision-tab-spec.md) | Phase A+API **`4.59`** |
@@ -202,10 +228,10 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 6. Known bugs / product debt
 
-1. ~~**Autosave can overwrite named projects**~~ → **fixed `4.63`** (session-only autosave; named file only on explicit Save). Full desk snapshot still partial (`universal-persistence-spec.md`).  
+1. ~~**Autosave can overwrite named projects**~~ → **fixed `4.63`** (session-only autosave; named file only on explicit Save). Full desk snapshot **`5.06`**.  
 2. **List reorder** jumps scroll to top.  
 3. **Arrows** scroll page outside wired list tabs.  
-4. **Inactive tab knobs** not in project JSON (DOM destroyed on tab switch).  
+4. ~~**Inactive tab knobs** not in project JSON~~ → **fixed `5.06`** (formState + continuous desk bindings).  
 5. **High RIFE M** × large K = huge jobs; no soft warn.  
 6. Pool **normalize strips unknown fields** — blocks quality rating.  
 7. Large **uncommitted** tree risk — `git status` before ship/push.
@@ -214,7 +240,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.5.05` (QR & Illusion Art Generator: dual-mode QR generation from text or custom pattern image + ControlNet QR Monster via OpenVINO img2img, optional IP-Adapter with dual conditioning via PyTorch pipeline with GPU→CPU fallback. Scannability badge via pyzbar for QR mode. IP-Adapter path enforces 512×512 to keep RAM <12GB on 1335U.)
+- **Current:** `000.000.6.0` (Release includes the implemented server-resident catalog and the Partial catalog virtualization checkpoint.)
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  
@@ -227,10 +253,8 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 8. Suggested build order (roadmap)
 
-Agents wait for human assignment.
-
-1. **Close partials:** list/sequence keys, progress polish, tool-docs gaps.  
-2. **Universal persistence** — full desk snapshot / inactive knobs.  
+1. Close remaining §4 partials (list/sequence keys, progress polish, tool-docs, headed 16.6ms compositor).  
+2. ~~**Server-resident catalog**~~ — **shipped `5.38`**. ~~**Universal persistence**~~ — **shipped `5.06`**. Catalog Phase 1 **`5.14`**.  
 3. **Product choice:** quality rating *or* tilagup mode.  
 4. Agent polish (streaming / Ollama) when vision UX needs it.  
 5. Explicit backlog picks only (depth, flow, facerestore, …).

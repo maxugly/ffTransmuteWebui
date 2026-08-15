@@ -153,8 +153,14 @@ def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY
         hit = _variants_resp_cache.get(key)
         if hit and (now - hit[0]) < _VARIANTS_RESP_TTL:
             return hit[1]
-        variants = await media_cache.get_variants(Path(key))
-        payload = {"path": key, "variants": variants}
+        from ..media.catalog import catalog_if_ready
+        cat = catalog_if_ready()
+        if cat is not None:
+            variants = cat.variants_for_path(key)
+            payload = {"path": key, "variants": variants or {}}
+        else:
+            variants = await media_cache.get_variants(Path(key))
+            payload = {"path": key, "variants": variants or {}}
         _variants_resp_cache[key] = (now, payload)
         # Bound memory if a client hammers many paths
         if len(_variants_resp_cache) > 256:
@@ -162,6 +168,45 @@ def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY
             for k, _ in oldest:
                 _variants_resp_cache.pop(k, None)
         return payload
+
+    @app.post("/api/variants/batch", tags=["meta"])
+    async def api_variants_batch(body: dict):
+        """Batch variant lookup. Missing/inaccessible files return null."""
+        paths, err = media_cache.parse_batch_paths((body or {}).get("paths"))
+        if err:
+            raise HTTPException(status_code=400, detail=err)
+        from ..media.catalog import catalog_if_ready
+        cat = catalog_if_ready()
+        out: dict[str, dict | None] = {}
+        for p in paths:
+            if cat is not None:
+                out[p] = cat.variants_for_path(p)
+            else:
+                out[p] = await media_cache.get_variants(p, hash_if_missing=False)
+        return out
+
+    @app.post("/api/variants/gc", tags=["meta"])
+    async def api_variants_gc(body: dict):
+        """Delete unreferenced lower-density RIFE variants after promotion."""
+        body = body or {}
+        parent = body.get("parent_path") or body.get("path")
+        if not parent:
+            raise HTTPException(status_code=400, detail="parent_path is required")
+        p = Path(str(parent)).expanduser()
+        if not p.is_absolute():
+            raise HTTPException(status_code=400, detail="parent_path must be absolute")
+        try:
+            keep_m = int(body.get("keep_multiplier") or 0)
+        except (TypeError, ValueError):
+            keep_m = 0
+        if keep_m < 2:
+            raise HTTPException(status_code=400, detail="keep_multiplier must be >= 2")
+        keep_paths = body.get("keep_paths") or []
+        if not isinstance(keep_paths, list):
+            keep_paths = []
+        return media_cache.gc_lower_density_rifed(
+            p, keep_multiplier=keep_m, keep_paths=[str(x) for x in keep_paths if x],
+        )
 
     @app.post("/api/open-folder", tags=["meta"])
     async def open_folder(body: dict):

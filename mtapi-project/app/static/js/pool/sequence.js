@@ -6,16 +6,19 @@ import {
   setPreviewAspect,
   clearPreviewAspect,
 } from '/app.js';
-import { loadPoolItemMeta, selectPoolItem } from '/js/pool/items.js';
+import { selectPoolItem } from '/js/pool/items.js';
 import { isVideoPath, basename, escapeHtml, formatDurationExact } from '/js/utils.js';
 import {
-  poolThumbUrl, shortHash, nextSeqId,
+  poolThumbUrl, itemShowsThumb, shortHash, nextSeqId,
   scheduleSavePoolState, savePoolStateNow, refreshPoolToolbarCounts,
 } from '/js/pool/persistence.js';
 import {
   runOpWithCancel, onStopRequest, isMainJobBusy,
   setClientBusy, clearClientBusy, abortMainJob,
 } from '/js/job-control.js';
+import { normalizeAbsPath } from '/js/media-index.js';
+import { recordVariantBatch, enqueueSignature } from '/js/lazy-loader.js';
+import { isPoolGridScrolling, installPoolScrollPaint, lastPoolPointer } from '/js/pool/layout.js';
 
 // ── Sequence composer ─────────────────────────────────────────────────────
 
@@ -115,20 +118,43 @@ function _densityInfoForEntry(entry) {
  * Honors densify on disk / in memory (haveM), even if user currently stitches ORIG.
  * Selecting a rifed path must set _rifeMultiplier or NEED stays wrong forever.
  */
+function _alreadyHasUsableRife(entry) {
+  return !!(entry && entry.variantPath && entry.variantPath !== entry.path && _bestHaveM(entry) >= 2);
+}
+
+/** Canonical Instant decision: 'rifed' | 'needsRife' | 'noRifeNeeded'. */
+function refreshRifeNeed(entry) {
+  if (!entry) return 'noRifeNeeded';
+  const dens = _densityInfoForEntry(entry);
+  const haveM = _bestHaveM(entry);
+  const hasVar = _alreadyHasUsableRife(entry);
+  let need;
+  if (hasVar && (!dens.needed || haveM >= (dens.multiplier || 2))) {
+    need = 'rifed';
+  } else if (dens.needed && (!hasVar || haveM < (dens.multiplier || 2))) {
+    need = 'needsRife';
+  } else {
+    need = 'noRifeNeeded';
+  }
+  entry.rifeNeed = need;
+  return need;
+}
+
 function _rifeInfoForEntry(entry) {
   if (!state.pool.useRife) return { needed: false, reason: 'RIFE interpolate off' };
   const dens = _densityInfoForEntry(entry);
-  if (!dens.needed) return dens;
   const haveM = _bestHaveM(entry);
-  if (haveM > 0 && entry.variantPath && entry.variantPath !== entry.path) {
-    const where = basename(entry.variantPath);
-    return {
-      ...dens,
-      needed: false,
-      reason: `already densified ×${haveM} — not re-encoding automatically`,
-      haveM,
-    };
+  if (_alreadyHasUsableRife(entry)) {
+    if (!dens.needed || haveM >= (dens.multiplier || 2)) {
+      return {
+        ...dens,
+        needed: false,
+        reason: `already densified ×${haveM} — not re-encoding`,
+        haveM,
+      };
+    }
   }
+  if (!dens.needed) return dens;
   return dens;
 }
 
@@ -143,7 +169,60 @@ const _instantRifeQueue = []; // { entryId, path, name, multiplier, effFps, targ
 let _instantRifeDraining = false;
 let _instantRifeStop = false;
 let _instantRifeStopHookBound = false;
-let _hydrationComplete = true;
+let _hydrationComplete = false;
+
+function setInstantHydrationGate(complete) {
+  _hydrationComplete = !!complete;
+}
+
+/**
+ * Attach already-registered RIFE files from the media cache.
+ * No probe, no encode, no busy UI. Same video in another project reuses
+ * the global variant list.
+ */
+async function attachCachedRifeVariants() {
+  const seq = state.pool.sequence || [];
+  if (!seq.length) return { attached: 0 };
+  const need = [];
+  const seen = new Set();
+  let already = 0;
+  for (const e of seq) {
+    if (!e.path) continue;
+    if (e.rifeNeed === 'rifed' || e.rifeNeed === 'noRifeNeeded'
+        || (e.variantPath && e.variantPath !== e.path && _bestHaveM(e) >= 2)) {
+      if (e.rifeNeed !== 'noRifeNeeded') e.rifeNeed = e.rifeNeed || 'rifed';
+      e._rifeStatus = e.rifeNeed === 'rifed' ? 'done' : e._rifeStatus;
+      already += 1;
+      continue;
+    }
+    const k = _normVariantKey(e.path);
+    if (!seen.has(k)) {
+      seen.add(k);
+      need.push(e.path);
+    }
+  }
+  let attached = already;
+  if (need.length) {
+    const map = await _fetchVariantsBatch(need);
+    for (const e of seq) {
+      if (e.variantPath && e.variantPath !== e.path && _bestHaveM(e) >= 2) continue;
+      const variants = map.get(_normVariantKey(e.path)) || peekVariants(e.path);
+      const best = _pickBestRifed(variants);
+      if (!best) continue;
+      e.variantPath = best.path;
+      e._rifeMultiplier = best.multiplier;
+      if (best.hash) e._variantHash = best.hash;
+      e._rifeStatus = 'done';
+      e._rifeError = null;
+      refreshRifeNeed(e);
+      attached += 1;
+    }
+  }
+  if (attached > already) {
+    try { scheduleSavePoolState(); } catch (_) { /* ignore */ }
+  }
+  return { attached };
+}
 /** Currently encoding entry id (for status strip). */
 let _instantRifeRunningId = null;
 /**
@@ -413,6 +492,87 @@ function _bestHaveM(entry) {
   return Math.max(0, Number(entry._rifeMultiplier) || 0);
 }
 
+function _entrySatisfiesNeed(entry) {
+  if (!entry || !entry.path) return false;
+  if (!entry.variantPath || entry.variantPath === entry.path) return false;
+  const have = _bestHaveM(entry);
+  if (have < 2) return false;
+  const dens = _densityInfoForEntry(entry);
+  const needM = dens?.needed ? (dens.multiplier || 2) : 0;
+  return !dens?.needed || have >= needM;
+}
+
+async function _pathExistsCheap(path) {
+  if (!path) return false;
+  try {
+    const sig = await enqueueSignature(path);
+    return !!(sig && sig.size != null);
+  } catch (_) {
+    return false;
+  }
+}
+
+async function _recoverMissingVariant(entry, needM) {
+  if (!entry) return false;
+  const persisted = entry.variantPath && entry.variantPath !== entry.path && _bestHaveM(entry) >= (needM || 2);
+  if (persisted) {
+    const exists = await _pathExistsCheap(entry.variantPath);
+    if (exists) return true;
+  } else if (!entry.variantPath || entry.variantPath === entry.path) {
+    return false;
+  } else {
+    const exists = await _pathExistsCheap(entry.variantPath);
+    if (exists && _bestHaveM(entry) >= (needM || 2)) return true;
+    if (exists) return false;
+  }
+  try {
+    const res = await fetch('/api/media/recover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        hash: entry._variantHash || null,
+        last_path: entry.variantPath || null,
+        parent_path: entry.path,
+        multiplier: entry._rifeMultiplier || needM || null,
+      }),
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (!data || !data.found || !data.path) return false;
+    entry.variantPath = data.path;
+    if (data.hash) entry._variantHash = data.hash;
+    if (_bestHaveM(entry) < 2) entry._rifeMultiplier = needM || 2;
+    return _bestHaveM(entry) >= (needM || 2);
+  } catch (_) {
+    return false;
+  }
+}
+
+async function recoverSequenceVariants() {
+  const seq = state.pool.sequence || [];
+  for (const entry of seq) {
+    if (!entry.variantPath || entry.variantPath === entry.path) continue;
+    await _recoverMissingVariant(entry, entry._rifeMultiplier || 2);
+  }
+}
+
+async function _gcLowerDensityAfterPromote(entry, _prevPath, _prevM, _prevHash) {
+  if (!entry?.path || !entry.variantPath) return;
+  const keepM = _bestHaveM(entry);
+  if (keepM < 2) return;
+  try {
+    await fetch('/api/variants/gc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        parent_path: entry.path,
+        keep_multiplier: keepM,
+        keep_paths: [entry.variantPath],
+      }),
+    });
+  } catch (_) { /* ignore */ }
+}
+
 /**
  * Pick densest existing rifed variant from /api/variants map.
  * @returns {{ path: string, multiplier: number } | null}
@@ -428,7 +588,7 @@ function _pickBestRifed(variants) {
     const score = Number.isFinite(m) && m >= 2 ? m : 2;
     if (score > bestM) {
       bestM = score;
-      best = { path: v.path, multiplier: score };
+      best = { path: v.path, multiplier: score, hash: v.hash || null };
     }
   }
   return best;
@@ -441,6 +601,13 @@ function _pickBestRifed(variants) {
  */
 async function _hydrateEntryFromVariants(entry) {
   if (!entry || !entry.path) return null;
+  if (_entrySatisfiesNeed(entry)) {
+    entry._rifeStatus = 'done';
+    entry._rifeError = null;
+    return entry.variantPath
+      ? { path: entry.variantPath, multiplier: _bestHaveM(entry) }
+      : null;
+  }
   const variants = await _fetchVariants(entry.path);
   const best = _pickBestRifed(variants);
 
@@ -591,6 +758,19 @@ async function _kickInstantRifeScan() {
   let changed = 0;
   let reused = 0;
   for (const entry of state.pool.sequence) {
+    // The project/session snapshot already carries the selected densified
+    // path and multiplier.  If that saved variant covers the current need,
+    // trust it and avoid a registry request during project restore.
+    const before = _rifeInfoForEntry(entry);
+    const haveBefore = _bestHaveM(entry);
+    if (entry.variantPath && entry.variantPath !== entry.path
+        && haveBefore > 0
+        && (!before?.needed || haveBefore >= (before.multiplier || 2))) {
+      entry._rifeStatus = 'done';
+      entry._rifeError = null;
+      reused += 1;
+      continue;
+    }
     try {
       await _hydrateEntryFromVariants(entry);
     } catch (_) { /* ignore hydrate errors */ }
@@ -667,7 +847,20 @@ async function _drainInstantRifeQueue() {
         : `Instant RIFE ×${info.multiplier} · ${entry.name}`;
       setClientBusy(label);
 
+      const recovered = await _recoverMissingVariant(entry, info.multiplier);
+      if (recovered) {
+        entry._rifeStatus = 'done';
+        entry._rifeError = null;
+        logConsole(`[SEQ RIFE]: recovered ${entry.name} → ${basename(entry.variantPath)} (×${entry._rifeMultiplier}) — not re-encoding`);
+        renderSequenceBox({ skipInstantKick: true });
+        scheduleSavePoolState();
+        continue;
+      }
+
       const runM = info.multiplier;
+      const previousVariant = entry.variantPath || null;
+      const previousM = entry._rifeMultiplier || 0;
+      const previousHash = entry._variantHash || null;
       entry._rifeStatus = 'running';
       entry._rifeError = null;
       entry._rifeRunningMultiplier = runM;
@@ -734,15 +927,21 @@ async function _drainInstantRifeQueue() {
         }
 
         if (data && data.ok) {
-          // Keep densest file only
+          // Promote only after success. Previous valid variant stays until then.
+          const prevPath = entry.variantPath;
           const prevM = entry._rifeMultiplier || 0;
+          const prevHash = entry._variantHash || null;
           if (!entry.variantPath || runM >= prevM) {
             entry.variantPath = data.output_path || entry.variantPath;
             entry._rifeMultiplier = runM;
+            const vh = data.meta?.variant_hash;
+            if (vh) entry._variantHash = vh;
           }
           entry._rifeError = null;
           entry._rifeRunningMultiplier = null;
           _invalidateVariantsCache(entry.path);
+          try { scheduleSavePoolState(); } catch (_) { /* ignore */ }
+          _gcLowerDensityAfterPromote(entry, prevPath, prevM, prevHash).catch(() => {});
 
           // If Time/target changed during the run and we need higher M, immediately re-queue
           const still = _rifeInfoForEntry(entry);
@@ -878,7 +1077,6 @@ function _maybeAutoRifeEntry(entry, { quiet = false } = {}) {
 async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
   if (!state.pool.instantRife) return { queued: 0, reason: 'instant off' };
   _hydrationComplete = false;
-  // Instant always implies join densify path
   state.pool.useRife = true;
   const ur = document.getElementById('poolUseRife');
   if (ur) ur.checked = true;
@@ -891,86 +1089,44 @@ async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
     return { queued: 0, reason: 'empty sequence' };
   }
 
-  setClientBusy('Instant RIFE: probing clips…');
-  _updateInstantRifeStrip();
-
   try {
-    // Ensure pool items exist + meta for every sequence path
-    for (const entry of seq) {
-      let item = findPoolItem(entry.path);
-      if (!item) {
-        item = { path: entry.path, name: entry.name || basename(entry.path), meta: null };
-        state.pool.items.push(item);
-      }
-      const needProbe = force || !item.meta?.fps || !item.meta?.duration;
-      if (needProbe) {
-        try {
-          await loadPoolItemMeta(item, state.pool.items.indexOf(item));
-        } catch (e) {
-          logConsole(`[SEQ RIFE]: probe failed ${entry.name} — ${e.message}`, 'error');
-        }
-      }
-    }
+    // Only ask the cache about clips we do not already have an answer for.
+    await attachCachedRifeVariants();
 
     const target = _resolvedTargetFps();
-    if (!target) {
-      logConsole('[SEQ RIFE]: still no fps after probe — cannot densify');
-      clearClientBusy();
-      _updateInstantRifeStrip();
-      _hydrationComplete = true;
-      return { queued: 0, reason: 'no fps' };
-    }
-
-    setClientBusy('Instant RIFE: checking existing densify…');
-    for (const entry of seq) {
-      try {
-        await _hydrateEntryFromVariants(entry);
-      } catch (e) {
-        logConsole(`[SEQ RIFE]: variant lookup failed ${entry.name} — ${e.message}`, 'error');
-      }
-    }
-
     let need = 0;
     let queued = 0;
     let already = 0;
     for (const entry of seq) {
-      const info = _rifeInfoForEntry(entry);
-      if (!info?.needed) {
-        if (entry.variantPath && entry.variantPath !== entry.path) {
+      const kind = entry.rifeNeed || refreshRifeNeed(entry);
+      if (kind !== 'needsRife') {
+        if (kind === 'rifed') {
           already += 1;
           entry._rifeStatus = 'done';
         }
         continue;
       }
+      const info = _rifeInfoForEntry(entry);
+      if (!info?.needed) {
+        entry.rifeNeed = refreshRifeNeed(entry);
+        if (entry.rifeNeed !== 'needsRife') continue;
+      }
       need += 1;
-      if (_queueInstantRife(entry, info, { skipRender: true })) queued += 1;
+      if (info?.needed && _queueInstantRife(entry, info, { skipRender: true })) queued += 1;
     }
 
     logConsole(
-      `[SEQ RIFE]: scan complete — ${seq.length} clips, ${need} need densify, `
-      + `${queued} queued, ${already} already densified (reused), target ${target} fps`,
+      `[SEQ RIFE]: ${seq.length} clips — ${already} already densified, `
+      + `${need} need work, ${queued} queued`
+      + (target ? `, target ${target} fps` : ''),
     );
 
-    renderSequenceBox();
+    renderSequenceBox({ skipInstantKick: true });
     if (queued > 0) {
       _drainInstantRifeQueue();
     } else {
       clearClientBusy();
       _updateInstantRifeStrip();
-      if (need === 0 && seq.length) {
-        const strip = document.getElementById('seqInstantRifeStrip');
-        if (strip) {
-          strip.className = 'seq-instant-strip is-idle';
-          strip.textContent =
-            `Instant RIFE: nothing to densify @ ${target} fps `
-            + `(set Time longer than native to slow, or raise RIFE fps above native)`;
-          strip.title = [
-            'Instant only densifies when content fps after Time stretch is below target fps.',
-            'Example: 24fps clip stretched to 2× length → needs ×2 at target 24.',
-            'Or set RIFE fps to 60 to densify even without stretch.',
-          ].join('\n');
-        }
-      }
     }
     _hydrationComplete = true;
     return { queued, need, target };
@@ -1012,10 +1168,12 @@ function displayFocusPath() {
 
 /** Temporary hover — updates Selection preview only; does not change selection. */
 function setPoolHover(path) {
+  if (isPoolGridScrolling()) return;
   if (!path) {
     clearPoolHover();
     return;
   }
+  if (state.pool.hoverPath === path) return;
   state.pool.hoverPath = path;
   state.pool.focusPath = path; // keep legacy field in sync for any remaining callers
   updatePoolFocusFrame(path);
@@ -1023,11 +1181,23 @@ function setPoolHover(path) {
 }
 
 function clearPoolHover() {
+  if (isPoolGridScrolling()) return;
   if (!state.pool.hoverPath) return;
   state.pool.hoverPath = null;
   state.pool.focusPath = state.pool.selectedPath;
   updatePoolFocusFrame(state.pool.selectedPath);
   updateSelectionHighlights();
+}
+
+/** After scroll stops: hover the card still under the pointer, else clear. */
+function applyPoolHoverAtPoint() {
+  if (isPoolGridScrolling()) return;
+  const { x, y } = lastPoolPointer();
+  const under = document.elementFromPoint(x, y);
+  const card = under && under.closest ? under.closest('.pool-card:not(.img-pool-card), .seq-token') : null;
+  const path = card && card.dataset ? card.dataset.path : null;
+  if (path) setPoolHover(path);
+  else clearPoolHover();
 }
 
 /** Sticky click selection — library and sequence stay in sync by path. */
@@ -1041,26 +1211,71 @@ function setPoolFocus(path, opts = {}) {
 }
 
 /** Sync .selected / .hovered classes across pool cards and sequence tokens. */
+let _hlSel = null;
+let _hlHov = null;
+
+function _attrEscape(value) {
+  return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function _elsForPath(path) {
+  if (!path) return [];
+  const sel = `[data-path="${_attrEscape(path)}"]`;
+  return [
+    ...document.querySelectorAll(`.pool-card${sel}`),
+    ...document.querySelectorAll(`.seq-token${sel}`),
+  ];
+}
+
+function _applyHighlight(el, sel, hov) {
+  const p = el.dataset.path;
+  const multi = (typeof window !== 'undefined' && window.state?.pool?.selectedPaths instanceof Set)
+    ? window.state.pool.selectedPaths
+    : null;
+  const isSel = multi ? multi.has(p) : (!!sel && p === sel);
+  const isHov = !!hov && p === hov;
+  el.classList.toggle('selected', isSel);
+  el.classList.toggle('hovered', isHov);
+  if (el.classList.contains('seq-token')) {
+    el.classList.toggle('focused', isHov || (isSel && !hov));
+  } else {
+    el.classList.toggle('focused', isHov);
+  }
+}
+
 function updateSelectionHighlights() {
   const sel = state.pool.selectedPath;
   const hov = state.pool.hoverPath;
-  document.querySelectorAll('.pool-card').forEach(el => {
-    const p = el.dataset.path;
-    el.classList.toggle('selected', !!sel && p === sel);
-    el.classList.toggle('hovered', !!hov && p === hov);
-    el.classList.toggle('focused', !!hov && p === hov); // alias for existing CSS
-  });
-  document.querySelectorAll('.seq-token').forEach(el => {
-    const p = el.dataset.path;
-    el.classList.toggle('selected', !!sel && p === sel);
-    el.classList.toggle('hovered', !!hov && p === hov);
-    el.classList.toggle('focused', (!!hov && p === hov) || (!!sel && p === sel && !hov));
-  });
+  const multi = state.pool.selectedPaths instanceof Set ? state.pool.selectedPaths : null;
+  const sig = multi ? `${[...multi].join('\0')}|${hov}` : `${sel}|${hov}`;
+  if (sig === _hlSel && hov === _hlHov && !multi) return;
+  const changed = new Set();
+  if (sel !== _hlSel) {
+    if (_hlSel) changed.add(_hlSel);
+    if (sel) changed.add(sel);
+  }
+  if (hov !== _hlHov) {
+    if (_hlHov) changed.add(_hlHov);
+    if (hov) changed.add(hov);
+  }
+  if (multi) {
+    for (const p of multi) changed.add(p);
+    document.querySelectorAll('.pool-card.selected, .seq-token.selected').forEach((el) => {
+      if (el.dataset.path) changed.add(el.dataset.path);
+    });
+  }
+  _hlSel = multi ? sig : sel;
+  _hlHov = hov;
+  for (const p of changed) {
+    for (const el of _elsForPath(p)) _applyHighlight(el, sel, hov);
+  }
 }
 
 function updatePoolFocusFrame(path) {
   const frame = document.getElementById('poolFocusFrame');
   if (!frame) return;
+  if (frame.dataset.focusPath === String(path || '') && frame.childElementCount) return;
+  frame.dataset.focusPath = String(path || '');
 
   if (!path) {
     frame.innerHTML = `<div class="pool-focus-empty">Hover or click a clip</div>`;
@@ -1073,11 +1288,12 @@ function updatePoolFocusFrame(path) {
     item = { path, name: basename(path), hash: null, meta: null };
   }
 
-  const firstSrc = poolThumbUrl(item, 'first');
-  const lastSrc = poolThumbUrl(item, 'last');
+  const firstSrc = itemShowsThumb(item, 'first') ? poolThumbUrl(item, 'first') : '';
+  const lastSrc = itemShowsThumb(item, 'last') ? poolThumbUrl(item, 'last') : '';
   const name = item.name || basename(path);
   const m = item.meta || {};
-  const dur = m.duration != null ? formatDurationExact(m.duration) : '';
+  const hasMeta = !!(item.meta);
+  const dur = hasMeta && m.duration != null ? formatDurationExact(m.duration) : '';
   const hash = item.hash || m.hash || '';
   const seqPos = sequencePositions(path);
 
@@ -1096,41 +1312,31 @@ function updatePoolFocusFrame(path) {
     ${seqPos.length > 0 ? `<span class="pool-seq-indicator">${seqPos.join(' ')}</span>` : ''}
     <div class="pool-focus-frames">
       <div class="pool-frame">
-        <img class="pool-thumb" src="${firstSrc}" alt="First" draggable="false"
-             onerror="this.classList.add('broken')">
+        <img class="pool-thumb" alt="First" decoding="async" draggable="false"${firstSrc ? ` src="${firstSrc}"` : ''}>
         <span class="pool-frame-label">FIRST</span>
       </div>
       <div class="pool-frame">
-        <img class="pool-thumb" src="${lastSrc}" alt="Last" draggable="false"
-             onerror="this.classList.add('broken')">
+        <img class="pool-thumb" alt="Last" decoding="async" draggable="false"${lastSrc ? ` src="${lastSrc}"` : ''}>
         <span class="pool-frame-label">LAST</span>
       </div>
     </div>
     <div class="pool-focus-meta pool-overlay-text">
       <div class="pool-meta-name" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
       <div class="pool-meta-path" title="${escapeHtml(path)}">${escapeHtml(path)}</div>
-      <div class="pool-meta-row">
+      ${hasMeta ? `<div class="pool-meta-row">
         ${hash ? `<span class="pool-hash">#${escapeHtml(shortHash(hash))}</span>` : ''}
         ${dur ? `<span>${dur}</span>` : ''}
         ${m.fps ? `<span>${m.fps} fps</span>` : ''}
         ${m.frames != null ? `<span>${m.frames} fr</span>` : ''}
-      </div>
+      </div>` : `<div class="pool-meta-unavailable">metadata unavailable</div>`}
       ${seqTimingHtml}
     </div>
   `;
 
-  // Lazy-load meta if unknown
-  const poolItem = findPoolItem(path);
-  if (poolItem && !poolItem.meta && !poolItem.metaError) {
-    const idx = state.pool.items.indexOf(poolItem);
-    loadPoolItemMeta(poolItem, idx).then(() => {
-      if (displayFocusPath() === path) updatePoolFocusFrame(path);
-      renderSequenceBox(); // refresh duration labels on tokens
-    });
-  }
 }
 
 function setupSequenceDropZone() {
+  installPoolScrollPaint(applyPoolHoverAtPoint);
   const box = document.getElementById('poolSequenceBox');
   if (!box) return;
 
@@ -1197,6 +1403,7 @@ function addPathToSequence(path, insertAt = null) {
     path,
     name,
     targetDuration: null, // seconds; null = native length
+    _hadTarget: false,
     variantPath: (state.pool.selectedVariantPaths || {})[path] || null,
     _rifeStatus: null, // null | 'pending' | 'running' | 'done' | 'skipped'
   };
@@ -1379,7 +1586,7 @@ function renderSequenceBox(opts) {
       varBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const currentPath = entry.variantPath || entry.path;
-        const variants = await _fetchVariants(entry.path);
+        const variants = peekVariants(entry.path) || await _fetchVariants(entry.path);
         _showSeqVariantMenu(varBtn, entry, variants, currentPath);
       });
     }
@@ -1418,6 +1625,11 @@ function renderSequenceBox(opts) {
         tok.style.background = speedInfo.bgCss;
         tok.style.borderColor = speedInfo.borderCss;
       }
+    } else if (durEl && entry._hadTarget) {
+      durEl.style.color = 'rgba(251, 191, 36, 0.75)';
+      durEl.style.fontWeight = '600';
+      durEl.style.textShadow = 'none';
+      tok.classList.add('was-stretched');
     }
 
     tok.addEventListener('click', (e) => {
@@ -1478,13 +1690,7 @@ function renderSequenceBox(opts) {
           || e._rifeStatus === 'failed' || _findQueuedRife(e.id)) {
         return false;
       }
-      if (e._rifeStatus === 'done' && e.variantPath && e.variantPath !== e.path && _bestHaveM(e) > 0) {
-        return false;
-      }
-      const d = _densityInfoForEntry(e);
-      if (!d?.needed) return false;
-      if (e.variantPath && (_bestHaveM(e) >= (d.multiplier || 2))) return false;
-      return true;
+      return (e.rifeNeed || refreshRifeNeed(e)) === 'needsRife';
     });
     if (hasIdleNeed) _scheduleInstantRifeKick();
   }
@@ -1497,8 +1703,8 @@ function renderSequenceBox(opts) {
 async function _updateSeqVariantBadges() {
   try {
     const tokens = document.querySelectorAll('#poolSequenceBox .seq-token');
-    // Dedupe paths — same source can appear multiple times in the sequence
     const seen = new Set();
+    const needFetch = [];
     for (const tok of tokens) {
       const path = tok.dataset.path;
       const id = tok.dataset.id;
@@ -1508,11 +1714,30 @@ async function _updateSeqVariantBadges() {
       if (!entry) continue;
       const btn = tok.querySelector('.seq-token-var');
       if (!btn) continue;
-      const variants = await _fetchVariants(path);
-      const n = Object.values(variants).reduce((a, arr) => a + (arr?.length || 0), 0);
       const using = entry.variantPath && entry.variantPath !== entry.path;
       btn.classList.toggle('is-rifed', !!using);
       btn.textContent = using ? 'RIFED' : 'ORIG';
+      const local = peekVariants(path);
+      if (local) {
+        const n = Object.values(local).reduce((a, arr) => a + (arr?.length || 0), 0);
+        if (n > 0 && !btn.title.includes('Registered variants')) {
+          btn.title = (btn.title || '') + `\nRegistered variants: ${n}`;
+        }
+        continue;
+      }
+      if (entry.rifeNeed === 'rifed' || entry.rifeNeed === 'noRifeNeeded'
+          || _entrySatisfiesNeed(entry)) continue;
+      needFetch.push(path);
+    }
+    if (!needFetch.length) return;
+    const map = await _fetchVariantsBatch(needFetch);
+    for (const tok of tokens) {
+      const path = tok.dataset.path;
+      const entry = state.pool.sequence.find((e) => String(e.id) === String(tok.dataset.id));
+      const btn = tok.querySelector('.seq-token-var');
+      if (!path || !entry || !btn) continue;
+      const variants = map.get(_normVariantKey(path)) || peekVariants(path) || {};
+      const n = Object.values(variants).reduce((a, arr) => a + (arr?.length || 0), 0);
       if (n > 0 && !btn.title.includes('Registered variants')) {
         btn.title = (btn.title || '') + `\nRegistered variants: ${n}`;
       }
@@ -1685,6 +1910,7 @@ function onSeqClipDurationChange() {
       return;
     }
     state.pool.sequence[idx].targetDuration = v;
+    state.pool.sequence[idx]._hadTarget = true;
     state.pool.selectedSeqId = state.pool.sequence[idx].id;
     logConsole(`[SEQ]: ${state.pool.sequence[idx].name} target time = ${v}s`);
   }
@@ -1719,11 +1945,15 @@ function applySeqTokenTimeStyles() {
     const durEl = tok.querySelector('.seq-token-dur');
     if (durEl) {
       durEl.textContent = speedInfo.durLabel;
-      durEl.classList.toggle('timed', !!speedInfo.stretched);
+      durEl.classList.toggle('timed', !!speedInfo.stretched || !!speedInfo.hadTarget);
       if (speedInfo.stretched && speedInfo.textColor) {
         durEl.style.color = speedInfo.textColor;
         durEl.style.fontWeight = '700';
         durEl.style.textShadow = speedInfo.textShadow || 'none';
+      } else if (speedInfo.hadTarget) {
+        durEl.style.color = 'rgba(251, 191, 36, 0.75)';
+        durEl.style.fontWeight = '600';
+        durEl.style.textShadow = 'none';
       } else {
         durEl.style.color = '';
         durEl.style.fontWeight = '';
@@ -1732,10 +1962,17 @@ function applySeqTokenTimeStyles() {
     }
     if (speedInfo.stretched && speedInfo.bgCss) {
       tok.classList.add('time-stretched');
+      tok.classList.remove('was-stretched');
       tok.style.background = speedInfo.bgCss;
       tok.style.borderColor = speedInfo.borderCss;
+    } else if (speedInfo.hadTarget) {
+      tok.classList.remove('time-stretched');
+      tok.classList.add('was-stretched');
+      tok.style.background = '';
+      tok.style.borderColor = '';
     } else {
       tok.classList.remove('time-stretched');
+      tok.classList.remove('was-stretched');
       tok.style.background = '';
       tok.style.borderColor = '';
     }
@@ -1771,12 +2008,13 @@ function seqClipSpeedInfo(entry) {
   const hasTarget = target != null && Number.isFinite(target) && target > 0;
 
   // Always show target time when set (even before native meta loads)
+  const hadTarget = !!entry._hadTarget;
   if (hasTarget) {
     const durLabel = ` ${formatDurationExact(target)}`;
     if (!(native > 0) || Math.abs(target - native) <= 0.001) {
       // target set but equal to native, or native unknown \u2014 still show target
       if (native > 0 && Math.abs(target - native) <= 0.001) {
-        return { stretched: false, durLabel: ` ${formatDurationExact(native)}`, speed: 1, tint: 0 };
+        return { stretched: false, durLabel: ` ${formatDurationExact(native)}`, speed: 1, tint: 0, hadTarget };
       }
       // unknown native: show target, mild amber until we can score
       if (!(native > 0)) {
@@ -1785,6 +2023,7 @@ function seqClipSpeedInfo(entry) {
           durLabel,
           speed: 1,
           tint: 0,
+          hadTarget,
           textColor: '#fbbf24',
           textShadow: '0 0 6px rgba(251,191,36,0.45)',
           bgCss: 'rgba(251, 191, 36, 0.12)',
@@ -1794,8 +2033,10 @@ function seqClipSpeedInfo(entry) {
     }
 
     const speed = native / target; // >1 faster
-    let t = Math.log(speed) / Math.log(3); // -1 @ \u2153, 0 @ 1, +1 @ 3\u00D7
-    t = Math.max(-1, Math.min(1, t));
+    const logSpeed = Math.log(speed);
+    const log3 = Math.log(3);
+    const shaped = Math.sign(logSpeed) * Math.pow(Math.abs(logSpeed) / log3, 0.35);
+    let t = Math.max(-1, Math.min(1, shaped));
     const abs = Math.abs(t);
 
     // High-contrast text colors for the duration digits
@@ -1811,8 +2052,8 @@ function seqClipSpeedInfo(entry) {
       textShadow = `0 0 ${4 + 6 * abs}px rgba(239, 68, 68, ${0.35 + 0.45 * abs})`;
     }
 
-    const alpha = 0.1 + 0.35 * abs;
-    const borderA = 0.3 + 0.5 * abs;
+    const alpha = 0.2 + 0.3 * abs;
+    const borderA = 0.4 + 0.5 * abs;
     let r, g, b;
     if (t >= 0) {
       r = Math.round(16 + (16 - 40) * 0 + 40 * (1 - abs)); r = Math.round(40 + (16 - 40) * abs);
@@ -1829,6 +2070,7 @@ function seqClipSpeedInfo(entry) {
       durLabel,
       speed,
       tint: t,
+      hadTarget,
       textColor,
       textShadow,
       bgCss: `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`,
@@ -1837,7 +2079,7 @@ function seqClipSpeedInfo(entry) {
   }
 
   const durLabel = native != null && native > 0 ? ` ${formatDurationExact(native)}` : '';
-  return { stretched: false, durLabel, speed: 1, tint: 0 };
+  return { stretched: false, durLabel, speed: 1, tint: 0, hadTarget };
 }
 
 function seqClipTokenTitle(entry, speedInfo) {
@@ -1845,7 +2087,9 @@ function seqClipTokenTitle(entry, speedInfo) {
   let t = entry.path;
   if (speedInfo.stretched && native != null) {
     const pct = Math.round(speedInfo.speed * 100);
-    t += `\nnative ${formatDurationExact(native)} \u2192 ${formatDurationExact(entry.targetDuration)} (${pct}% speed)`;
+    t += `\nnative ${formatDurationExact(native)} → ${formatDurationExact(entry.targetDuration)} (${pct}% speed)`;
+  } else if (entry._hadTarget && native != null) {
+    t += `\nnative ${formatDurationExact(native)} (target was set)`;
   } else if (native != null) {
     t += `\nnative ${formatDurationExact(native)}`;
   }
@@ -2080,38 +2324,65 @@ registerListKeys('pool', _seqListApi);
 // ── Per-clip variant picker ─────────────────────────────────────────────
 
 /** In-flight + short TTL cache — stops render storms from melting the server. */
-const _variantsCache = new Map(); // path → { at, data }
-const _variantsInflight = new Map(); // path → Promise
+const _variantsCache = new Map(); // normalized path → { at, data }
+const _variantsInflight = new Map(); // normalized path → Promise
 const VARIANTS_TTL_MS = 15000;
+const VARIANT_BATCH_LIMIT = 100;
+
+function _normVariantKey(path) {
+  return normalizeAbsPath(path || '') || String(path || '');
+}
+
+function peekVariants(path) {
+  if (!path) return null;
+  const key = _normVariantKey(path);
+  const hit = _variantsCache.get(key);
+  if (hit && (Date.now() - hit.at) < VARIANTS_TTL_MS) return hit.data;
+  return null;
+}
+
+function _putVariantsCache(path, variants) {
+  const key = _normVariantKey(path);
+  if (!key) return;
+  _variantsCache.set(key, { at: Date.now(), data: variants || {} });
+}
+
+async function _fetchVariantsBatch(paths) {
+  const { fetchVariantsBatch } = await import('/js/repair-queue.js');
+  const map = await fetchVariantsBatch(paths);
+  const result = new Map();
+  for (const [p, variants] of map) {
+    if (variants && typeof variants === 'object') _putVariantsCache(p, variants);
+    result.set(p, variants || peekVariants(p) || {});
+  }
+  return result;
+}
 
 async function _fetchVariants(path) {
   if (!path) return {};
-  const hit = _variantsCache.get(path);
-  if (hit && (Date.now() - hit.at) < VARIANTS_TTL_MS) return hit.data;
+  const key = _normVariantKey(path);
+  const cached = peekVariants(key);
+  if (cached) return cached;
 
-  const pending = _variantsInflight.get(path);
+  const pending = _variantsInflight.get(key);
   if (pending) return pending;
 
   const p = (async () => {
     try {
-      const res = await fetch(`/api/variants?path=${encodeURIComponent(path)}`);
-      if (!res.ok) return {};
-      const data = await res.json();
-      const variants = data.variants || {};
-      _variantsCache.set(path, { at: Date.now(), data: variants });
-      return variants;
+      const map = await _fetchVariantsBatch([key]);
+      return map.get(key) || {};
     } catch {
-      return hit?.data || {};
+      return peekVariants(key) || {};
     } finally {
-      _variantsInflight.delete(path);
+      _variantsInflight.delete(key);
     }
   })();
-  _variantsInflight.set(path, p);
+  _variantsInflight.set(key, p);
   return p;
 }
 
 function _invalidateVariantsCache(path) {
-  if (path) _variantsCache.delete(path);
+  if (path) _variantsCache.delete(_normVariantKey(path));
   else _variantsCache.clear();
 }
 
@@ -2252,6 +2523,11 @@ export {
   seqPrev,
   seqNext,
   _fetchVariants,
+  _fetchVariantsBatch,
+  peekVariants,
+  recoverSequenceVariants,
+  attachCachedRifeVariants,
+  setInstantHydrationGate,
   _showSeqVariantMenu,
   _maybeAutoRifeAll,
   _maybeAutoRifeForPath,

@@ -6,7 +6,8 @@
 body.settings-tab-active .global-inputs-panel {
   display: none !important;
 }
-body.settings-tab-active header .header-actions {
+body.settings-tab-active header .header-actions,
+body.settings-tab-active header .global-quick-btns {
   display: none !important;
 }
 body.settings-tab-active .app-content {
@@ -16,8 +17,7 @@ body.settings-tab-active .app-content {
   min-height: 0;
   height: auto;
 }
-body.settings-tab-active .app-content .preview-panel,
-body.settings-tab-active .app-content .preview-collapse-handle {
+body.settings-tab-active .app-content .preview-panel {
   display: none !important;
 }
 body.settings-tab-active .action-panel {
@@ -45,12 +45,13 @@ body.settings-tab-active .tool-input-preview {
 .settings-workspace {
   flex: 1 1 auto;
   width: 100%;
-  max-width: 920px;
-  margin: 0 auto;
+  max-width: 520px;
+  margin: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  align-items: flex-start;
+  gap: 16px;
   padding: 24px 8px 32px;
   box-sizing: border-box;
 }
@@ -105,8 +106,10 @@ body.settings-tab-active .tool-input-preview {
   border-radius: 12px;
   border: 1px solid var(--panel-border, rgba(255, 255, 255, 0.08));
   background: rgba(12, 18, 28, 0.72);
-  padding: 14px 16px 16px;
-  min-height: 110px;
+  padding: 12px 14px 12px;
+  width: max-content;
+  max-width: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -119,6 +122,12 @@ body.settings-tab-active .tool-input-preview {
   background: rgba(8, 12, 20, 0.45);
 }
 
+.settings-card-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+}
 .settings-card-kicker {
   font-size: 0.68rem;
   font-weight: 650;
@@ -126,8 +135,8 @@ body.settings-tab-active .tool-input-preview {
   text-transform: uppercase;
   color: var(--text-dim, #64748b);
 }
-
 .settings-card-name {
+  margin: 0;
   font-size: 0.98rem;
   font-weight: 600;
   color: var(--text, #e8eef8);
@@ -140,18 +149,35 @@ body.settings-tab-active .tool-input-preview {
   color: var(--text-muted, #94a3b8);
 }
 
-.settings-performance { gap: 12px; }
-.settings-knob-row { display: flex; flex-wrap: wrap; align-items: center; gap: 28px; }
+/* Settings house style: one page, tight cards, controls in a row, blurb last. */
+.settings-performance,
+.settings-warm,
+.settings-ui { gap: 10px; }
+.settings-knob-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
 .settings-discrete-knob, .settings-autosave-knob {
-  display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 92px;
+  display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 0;
 }
 .settings-discrete-knob .daw-knob, .settings-autosave-knob .daw-knob { cursor: ns-resize; }
-.settings-scale { width: 84px; display: flex; justify-content: space-between; color: var(--text-dim, #64748b); font-size: .68rem; }
-.settings-scale span:nth-child(2) { color: var(--text-muted, #94a3b8); }
-.settings-switches, .settings-warm-grid { display: grid; gap: 10px; min-width: 260px; flex: 1; }
-.settings-warm-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.settings-switches {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: auto;
+}
+.settings-warm-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 22px;
+}
 .settings-switch-row {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  display: flex; align-items: center; justify-content: flex-start; gap: 8px;
+  width: auto;
   color: var(--text, #e8eef8); font-size: .83rem; cursor: pointer;
 }
 .settings-switch-row input { position: absolute; opacity: 0; pointer-events: none; }

@@ -23,7 +23,7 @@ from .config import (
     THUMBNAIL_SIZES,
     normalize_thumb_size,
 )
-from .cache import append_history, load_record, resolve_hash, save_record
+from .cache import append_history, load_record, resolve_hash, save_record, source_path_for_hash
 from .performance import load_settings, phash_cache
 
 log = logging.getLogger("mtapi.media_store")
@@ -384,9 +384,12 @@ async def get_thumb_file(
     *,
     size: str = "H",
 ) -> Path | None:
-    """Return path to thumb JPEG, generating if needed and source_path given.
+    """Return path to thumb JPEG, generating if needed.
 
-    Stale last-frame thumbs (pre accuracy fix) are regenerated automatically.
+    Hash-only callers have no source_path. Resolve one from the record's
+    remembered paths so existing cache records can still serve thumbs.
+    Already-failed extracts (thumb_failed == FRAME_EXTRACT_VERSION) are not
+    retried. Missing thumbs with no usable source return None (caller 404s).
     """
     which = which if which in ("first", "last") else "first"
     size = normalize_thumb_size(size)
@@ -395,6 +398,20 @@ async def get_thumb_file(
     tp = _thumb_path(content_hash, which, size)
     if _thumb_is_current(content_hash, which, size):
         return tp
+    # Legacy unsized first.jpg from before per-size cache keys.
+    if which == "first" and size == "H":
+        legacy = _hash_dir(content_hash) / "first.jpg"
+        if legacy.exists() and legacy.stat().st_size > 0:
+            return legacy
+
+    rec = load_record(content_hash)
+    failed = (rec or {}).get("thumb_failed") or {}
+    if failed.get(which) == FRAME_EXTRACT_VERSION:
+        return None
+
+    if source_path is None or not source_path.is_file():
+        source_path = source_path_for_hash(content_hash)
+
     if source_path is not None and source_path.is_file():
         ok = await extract_frame(source_path, tp, which, size=size)
         if ok:
@@ -406,11 +423,16 @@ async def get_thumb_file(
                         pp.unlink()
                 except OSError:
                     pass
-            rec = load_record(content_hash)
+            rec = rec or load_record(content_hash)
             if rec:
                 rec.setdefault("thumbs", {})[which] = True
+                if "thumb_failed" in rec:
+                    rec["thumb_failed"].pop(which, None)
                 save_record(rec)
             return tp
+        if rec is not None:
+            rec.setdefault("thumb_failed", {})[which] = FRAME_EXTRACT_VERSION
+            save_record(rec)
     return None
 
 
@@ -519,6 +541,8 @@ async def get_frame_thumb_file(
     tp = _frame_n_thumb_path(content_hash, n, size)
     if tp.exists() and tp.stat().st_size > 0:
         return tp
+    if source_path is None or not source_path.is_file():
+        source_path = source_path_for_hash(content_hash)
     if source_path is None or not source_path.is_file():
         return None
 

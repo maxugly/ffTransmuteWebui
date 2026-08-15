@@ -8,7 +8,7 @@ import {
 import {
   projectNew, projectOpen, projectSave, savePoolStateNow,
   scheduleSavePoolState, stitchPoolSequence, refreshPoolToolbarCounts,
-  projectLabel, poolThumbUrl, shortHash, buildPoolMetaHtml,
+  projectLabel, poolThumbUrl, itemShowsThumb, shortHash, buildPoolMetaHtml,
 } from '/js/pool/persistence.js';
 import {
   findPoolItem, displayFocusPath, setPoolHover, clearPoolHover,
@@ -21,7 +21,7 @@ import {
   _maybeAutoRifeAll, setSeqTokenSize, applySeqTokenSize,
 } from '/js/pool/sequence.js';
 import {
-  loadPoolItemMeta, selectPoolItem, removePoolItem, clearPool,
+  selectPoolItem, removePoolItem, clearPool,
   addPathsToPool, importPoolFiles, importPoolFolder,
   sendPoolPathTo, applyPoolAsInput, scrollToSelected,
 } from '/js/pool/items.js';
@@ -33,6 +33,64 @@ import {
   setPoolZoom, applyPoolZoom,
   setupTileInfoMenu, showPoolContextMenu,
 } from '/app.js';
+import { clearPending as lazyClearPending } from '/js/lazy-loader.js';
+import { assignCardThumbs, metaRetryHtml } from '/js/pool/freshness.js';
+import { globalMediaIndex, normalizeAbsPath } from '/js/media-index.js';
+import { createVirtualGrid } from '/js/pool/virtual-grid.js';
+import {
+  beginRender, endRender, markFirstWindowReady, markHydrated,
+  repairItem,
+} from '/js/repair-queue.js';
+import { installPoolScrollPaint } from '/js/pool/layout.js';
+
+let _videoVirt = null;
+let _statusTimer = null;
+
+function ensureSelectedPaths() {
+  if (!(state.pool.selectedPaths instanceof Set)) {
+    const seed = Array.isArray(state.pool.selectedPaths)
+      ? state.pool.selectedPaths
+      : (state.pool.selectedPath ? [state.pool.selectedPath] : []);
+    state.pool.selectedPaths = new Set(seed.filter(Boolean));
+  }
+  if (state.pool.selectedPath) state.pool.selectedPaths.add(state.pool.selectedPath);
+  return state.pool.selectedPaths;
+}
+
+function metadataUnavailableHtml() {
+  return `<span class="pool-meta-unavailable">metadata unavailable</span>`
+    + `<button type="button" class="btn pool-info-mini pool-retry-meta">Repair Metadata</button>`;
+}
+
+function paintVideoCard(card, item) {
+  if (!card || !item) return;
+  try { globalMediaIndex.put(item); } catch (_) { /* ignore */ }
+  const el = card.querySelector('.pool-overlay-text');
+  if (el) {
+    if (item.meta) el.innerHTML = buildPoolMetaHtml(item);
+    else if (item.metaError) el.innerHTML = metaRetryHtml(item.metaError);
+    else el.innerHTML = metadataUnavailableHtml();
+  }
+  assignCardThumbs(card, item, { bust: false });
+}
+
+function bindVideoRetry(card, item) {
+  card.querySelectorAll('.pool-retry-meta').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const path = card.dataset.path || item?.path;
+      const live = findPoolItem(path) || item;
+      if (live) repairItem(live, { force: true });
+    });
+  });
+}
+
+function activateVideoCard(card, item) {
+  // Display-only. Never probes. Repair is the idle queue or Repair Metadata.
+  paintVideoCard(card, item);
+  bindVideoRetry(card, item);
+}
 
 // ── Join / Sequence helpers ─────────────────────────────────────────────────
 
@@ -55,11 +113,12 @@ async function fillJoinTargetOptions() {
 }
 
 async function _variantNodeHtml(path) {
-  // Use shared cached /api/variants (sequence.js) — never raw-fetch per card paint
+  // Local cache / persisted map only — never GET /api/variants per card paint.
   let variants = {};
   try {
-    const { _fetchVariants } = await import('/js/pool/sequence.js');
-    variants = await _fetchVariants(path);
+    const { peekVariants } = await import('/js/pool/sequence.js');
+    const local = typeof peekVariants === 'function' ? peekVariants(path) : null;
+    variants = local || {};
   } catch {
     variants = {};
   }
@@ -77,6 +136,15 @@ async function _variantNodeHtml(path) {
 // ─── Video Pool ───────────────────────────────────────────────────────────
 
 function renderPoolForm() {
+  const existing = document.getElementById('poolGrid');
+  if (existing && elements.actionPanel.contains(existing) && !document.getElementById('poolCompose')) {
+    applyPoolZoom();
+    renderPoolGrid();
+    updateSelectionHighlights();
+    updateCatalogStatus();
+    return;
+  }
+
   const count = state.pool.items.length;
   const selected = state.pool.selectedPath;
   const seqCount = state.pool.sequence?.length || 0;
@@ -85,8 +153,8 @@ function renderPoolForm() {
     <div class="pool-workspace-inner">
       <div class="pool-top">
         ${_poolToolbarHtml(count, selected, seqCount, { showSeqTools: false })}
-        <div class="pool-grid-wrap">
-          <div class="pool-grid" id="poolGrid"></div>
+        <div class="pool-grid-wrap" id="poolGridWrap">
+          <div class="pool-scroll-canvas" id="poolGrid" tabindex="0"></div>
         </div>
       </div>
     </div>
@@ -98,10 +166,12 @@ function renderPoolForm() {
   _bindPoolToolbar();
   zoomBindings();
   _bindTileInfoMenu();
+  installPoolScrollPaint();
 
   applyPoolZoom();
   renderPoolGrid();
   updateSelectionHighlights();
+  updateCatalogStatus();
 }
 
 /**
@@ -130,8 +200,15 @@ function _poolToolbarHtml(count, selected, seqCount, opts) {
 
         <input type="search" class="pool-filter-input" id="poolFilterInput"
           placeholder="Filter video pool…" value="${escapeHtml(q)}"
-          title="Instant fuzzy filter (name, path, codec, hash…)"
+          title="Filter by name, path, codec, hash…"
           autocomplete="off" spellcheck="false">
+        <label class="pool-search-mode" title="Strict uses a precomputed search string. Fuzzy keeps subsequence matching.">
+          Search
+          <select id="poolSearchMode" class="pool-search-mode-select">
+            <option value="fuzzy" ${(state.pool.searchMode || 'fuzzy') !== 'strict' ? 'selected' : ''}>Fuzzy</option>
+            <option value="strict" ${state.pool.searchMode === 'strict' ? 'selected' : ''}>Strict</option>
+          </select>
+        </label>
 
         <button class="btn btn-primary" id="btnPoolImportFiles" type="button">+ Files</button>
         <button class="btn" id="btnPoolImportFolder" type="button">+ Folder</button>
@@ -164,22 +241,22 @@ function _poolToolbarHtml(count, selected, seqCount, opts) {
       </div>
       <div class="pool-toolbar-meta">
         <span class="pool-count">${count} in video pool${showSeqTools ? ' · ' + seqCount + ' in sequence' : ''}</span>
-        ${selected ? `
-          <div class="pool-use-wrap">
-            <label for="poolUseTarget" class="pool-use-label">Use as input</label>
-            <select id="poolUseTarget" class="pool-use-select">
-              <option value="">— target —</option>
-              <option value="sequence">Add to sequence</option>
-              <option value="cut">Cut (global video + range)</option>
-              <option value="mosh">Datamosh input</option>
-              <option value="transmute">Transmute input</option>
-              <option value="multi">Add to Multi clips</option>
-              <option value="advanced">Advanced input</option>
-            </select>
-            <button class="btn btn-primary" id="btnPoolUse" type="button">Apply</button>
-          </div>
-          <button class="btn pool-jump-btn" id="btnJumpSelected" type="button" title="Jump to selected clip in grid">!</button>
-        ` : ''}
+        <div class="catalog-status" id="catalogStatus" aria-live="polite"></div>
+        <button type="button" class="btn pool-info-mini" id="btnRepairMetadata" title="Queue missing hash, metadata, and thumbnails">Repair Metadata</button>
+        <div class="pool-use-wrap" ${selected ? '' : 'hidden'}>
+          <label for="poolUseTarget" class="pool-use-label">Use as input</label>
+          <select id="poolUseTarget" class="pool-use-select">
+            <option value="">— target —</option>
+            <option value="sequence">Add to sequence</option>
+            <option value="cut">Cut (global video + range)</option>
+            <option value="mosh">Datamosh input</option>
+            <option value="transmute">Transmute input</option>
+            <option value="multi">Add to Multi clips</option>
+            <option value="advanced">Advanced input</option>
+          </select>
+          <button class="btn btn-primary" id="btnPoolUse" type="button">Apply</button>
+        </div>
+        <button class="btn pool-jump-btn" id="btnJumpSelected" type="button" title="Jump to selected clip in grid" ${selected ? '' : 'hidden'}>!</button>
       </div>
     </div>`;
 }
@@ -234,6 +311,22 @@ function _bindPoolToolbar() {
       }
     });
   }
+
+  const modeEl = document.getElementById('poolSearchMode');
+  if (modeEl) {
+    modeEl.value = state.pool.searchMode === 'strict' ? 'strict' : 'fuzzy';
+    modeEl.addEventListener('change', () => {
+      state.pool.searchMode = modeEl.value === 'strict' ? 'strict' : 'fuzzy';
+      renderPoolGrid();
+      _updatePoolFilterCount();
+      scheduleSavePoolState();
+    });
+  }
+
+  document.getElementById('btnRepairMetadata')?.addEventListener('click', () => {
+    for (const it of state.pool.items || []) repairItem(it, { force: false });
+    updateCatalogStatus();
+  });
 }
 
 /** Substring or simple subsequence fuzzy match (case-insensitive). */
@@ -275,9 +368,19 @@ function poolItemSearchText(item) {
 }
 
 function filteredPoolItems() {
-  const q = state.pool.filterQuery || '';
+  const q = String(state.pool.filterQuery || '').trim();
   const items = state.pool.items || [];
-  if (!String(q).trim()) return items.slice();
+  if (!q) return items.slice();
+  const mode = state.pool.searchMode === 'strict' ? 'strict' : 'fuzzy';
+  if (mode === 'strict') {
+    const needle = q.toLowerCase();
+    return items.filter((it) => {
+      if (!it._searchString) {
+        try { globalMediaIndex.refreshSearchString(it); } catch (_) { /* ignore */ }
+      }
+      return String(it._searchString || poolItemSearchText(it).toLowerCase()).includes(needle);
+    });
+  }
   return items.filter((it) => fuzzyMatch(q, poolItemSearchText(it)));
 }
 
@@ -339,16 +442,8 @@ function _bindSequencePanel() {
   });
   document.getElementById('poolUseRife')?.addEventListener('change', (e) => {
     state.pool.useRife = e.target.checked;
-    if (e.target.checked) {
-      const inst = document.getElementById('poolInstantRife');
-      if (inst && !inst.checked) {
-        inst.checked = true;
-        state.pool.instantRife = true;
-      }
-    }
     scheduleSavePoolState();
-    renderSequenceBox();
-    if (state.pool.useRife && state.pool.instantRife) _maybeAutoRifeAll();
+    renderSequenceBox({ skipInstantKick: true });
   });
   document.getElementById('poolInstantRife')?.addEventListener('change', (e) => {
     state.pool.instantRife = e.target.checked;
@@ -472,6 +567,7 @@ function _bindSequencePanel() {
     const v = parseFloat(raw);
     if (Number.isFinite(v) && v > 0) {
       state.pool.sequence[idx].targetDuration = v;
+      state.pool.sequence[idx]._hadTarget = true;
       state.pool.selectedSeqId = state.pool.sequence[idx].id;
     } else if (!raw) {
       state.pool.sequence[idx].targetDuration = null;
@@ -709,6 +805,16 @@ function _composeHtml() {
 }
 
 function renderSequenceForm() {
+  const existing = document.getElementById('poolGrid');
+  const compose = document.getElementById('poolCompose');
+  if (existing && compose && elements.actionPanel.contains(existing)) {
+    applyPoolZoom();
+    renderPoolGrid();
+    updateSelectionHighlights();
+    updateCatalogStatus();
+    return;
+  }
+
   const count = state.pool.items.length;
   const seqCount = state.pool.sequence.length;
   const selected = state.pool.selectedPath;
@@ -719,8 +825,8 @@ function renderSequenceForm() {
     <div class="pool-workspace-inner">
       <div class="pool-top">
         ${_poolToolbarHtml(count, selected, seqCount, { showSeqTools: true })}
-        <div class="pool-grid-wrap${col.pool ? ' is-collapsed' : ''}">
-          <div class="pool-grid" id="poolGrid"></div>
+        <div class="pool-grid-wrap${col.pool ? ' is-collapsed' : ''}" id="poolGridWrap">
+          <div class="pool-scroll-canvas" id="poolGrid" tabindex="0"></div>
         </div>
       </div>
 
@@ -748,6 +854,7 @@ function renderSequenceForm() {
   updateSelectionHighlights();
   updateSeqTransportUI();
   refreshPoolToolbarCounts();
+  updateCatalogStatus();
   if (state.pool.matchResults) {
     renderMatchResults(state.pool.matchResults);
   }
@@ -818,155 +925,137 @@ function showClipInfoOverlay(item) {
   document.body.appendChild(overlay);
 }
 
-function renderPoolGrid() {
-  const grid = document.getElementById('poolGrid');
-  if (!grid) return;
+function _cardItem(card) {
+  const path = card?.dataset?.path;
+  return path ? findPoolItem(path) : null;
+}
 
-  if (state.pool.items.length === 0) {
-    grid.innerHTML = `
-      <div class="pool-empty">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-          <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
-        </svg>
-        <p>No videos in the pool.</p>
-        <p class="pool-empty-hint">Import files/folder, then drag cards into the sequence strip.</p>
-      </div>
-    `;
-    _updatePoolFilterCount();
-    return;
-  }
-
-  const items = filteredPoolItems();
-  if (items.length === 0) {
-    const q = escapeHtml(state.pool.filterQuery || '');
-    grid.innerHTML = `
-      <div class="pool-empty">
-        <p>No clips match <strong>${q}</strong>.</p>
-        <p class="pool-empty-hint">Clear the filter (Esc) or try a shorter fuzzy query.</p>
-      </div>
-    `;
-    _updatePoolFilterCount();
-    return;
-  }
-
-  grid.innerHTML = '';
-  items.forEach((item) => {
-    const idx = state.pool.items.indexOf(item);
-    const card = document.createElement('article');
-    const isSelected = state.pool.selectedPath === item.path;
-    const isHovered = state.pool.hoverPath === item.path;
-    const seqPos = sequencePositions(item.path);
-    card.className = `pool-card${isSelected ? ' selected' : ''}${isHovered ? ' hovered' : ''}${seqPos.length > 0 ? ' seq-active' : ''}`;
-    card.dataset.path = item.path;
-    card.dataset.idx = String(idx >= 0 ? idx : 0);
-    card.draggable = true;
-    card.title = 'Drag into sequence to stitch';
-
-    const firstSrc = poolThumbUrl(item, 'first');
-    const lastSrc = poolThumbUrl(item, 'last');
-    const meta = item.meta;
-    const loadingMeta = !meta && !item.metaError;
-    const info = ensureTileInfo();
-    const showLabels = info.frame_labels !== false;
-    const metaHtml = loadingMeta
-      ? '<span class="pool-meta-loading">hashing + probing…</span>'
-      : buildPoolMetaHtml(item);
-    const hasOverlay = loadingMeta || (metaHtml && metaHtml.trim().length > 0);
-
-    card.innerHTML = `
+function ensurePoolCardSkeleton(card) {
+  if (card.dataset.skel === '1') return;
+  card.innerHTML = `
       <div class="pool-card-actions">
         <div class="pool-send-wrap">
           <button type="button" class="btn pool-send-btn" title="Send this clip to a tool">Send to ▾</button>
         </div>
-        <button class="pool-card-remove" type="button" title="Remove from pool" data-remove="${idx}">✕</button>
+        <button class="pool-card-remove" type="button" title="Remove from pool">✕</button>
       </div>
-      ${seqPos.length > 0 ? `<span class="pool-seq-indicator">${seqPos.join(' ')}</span>` : ''}
+      <span class="pool-seq-indicator" hidden></span>
       <div class="pool-frames">
         <div class="pool-frame">
-          <img class="pool-thumb" src="${firstSrc}" alt="First frame" loading="lazy" data-which="first" draggable="false"
-               onerror="this.classList.add('broken'); this.alt='no frame';">
-          ${showLabels ? '<span class="pool-frame-label">FIRST</span>' : ''}
+          <img class="pool-thumb" alt="First frame" decoding="async" data-which="first" draggable="false">
+          <span class="pool-frame-label">FIRST</span>
         </div>
         <div class="pool-frame">
-          <img class="pool-thumb" src="${lastSrc}" alt="Last frame" loading="lazy" data-which="last" draggable="false"
-               onerror="this.classList.add('broken'); this.alt='no frame';">
-          ${showLabels ? '<span class="pool-frame-label">LAST</span>' : ''}
+          <img class="pool-thumb" alt="Last frame" decoding="async" data-which="last" draggable="false">
+          <span class="pool-frame-label">LAST</span>
         </div>
       </div>
-      ${hasOverlay ? `
-      <div class="pool-overlay${!loadingMeta && !metaHtml.trim() ? ' empty' : ''}">
-        <div class="pool-overlay-text" id="poolMeta-${idx}">
-          ${metaHtml}
-        </div>
-      </div>` : `<div class="pool-overlay-text" id="poolMeta-${idx}" style="display:none"></div>`}
-      <button class="pool-card-info-btn" type="button" title="Clip info" data-info-idx="${idx}">ⓘ</button>
-      <div id="poolVariants-${idx}"></div>
+      <div class="pool-overlay">
+        <div class="pool-overlay-text"></div>
+      </div>
+      <button class="pool-card-info-btn" type="button" title="Clip info">ⓘ</button>
+      <div class="pool-variants"></div>
     `;
+  card.dataset.skel = '1';
+}
 
-    card.addEventListener('click', (e) => {
-      if (e.target.closest('.pool-card-remove, .pool-send-wrap, .pool-card-info-btn')) return;
-      selectPoolItem(item.path);
+function fillPoolCardLite(card, item, index) {
+  ensurePoolCardSkeleton(card);
+  const path = item.path;
+  const selected = ensureSelectedPaths();
+  card.classList.toggle('selected', selected.has(path) || state.pool.selectedPath === path);
+  card.dataset.path = path;
+  if (item.hash) card.dataset.hash = item.hash;
+  else delete card.dataset.hash;
+  card.dataset.idx = String(index);
+  const first = card.querySelector('img.pool-thumb[data-which="first"]');
+  const last = card.querySelector('img.pool-thumb[data-which="last"]');
+  if (first) {
+    if (itemShowsThumb(item, 'first')) {
+      const url = poolThumbUrl(item, 'first');
+      if (first.getAttribute('src') !== url) first.setAttribute('src', url);
+    } else if (first.hasAttribute('src')) first.removeAttribute('src');
+  }
+  if (last) {
+    if (itemShowsThumb(item, 'last')) {
+      const url = poolThumbUrl(item, 'last');
+      if (last.getAttribute('src') !== url) last.setAttribute('src', url);
+    } else if (last.hasAttribute('src')) last.removeAttribute('src');
+  }
+}
+
+function fillPoolCard(card, item, index) {
+  ensurePoolCardSkeleton(card);
+  const path = item.path;
+  const selected = ensureSelectedPaths();
+  const isSelected = selected.has(path) || state.pool.selectedPath === path;
+  const isHovered = state.pool.hoverPath === path;
+  const seqPos = sequencePositions(path);
+  card.classList.toggle('selected', isSelected);
+  card.classList.toggle('hovered', isHovered);
+  card.classList.toggle('seq-active', seqPos.length > 0);
+  card.dataset.path = path;
+  if (item.hash) card.dataset.hash = item.hash;
+  else delete card.dataset.hash;
+  card.dataset.idx = String(index);
+  card.draggable = true;
+  card.title = 'Drag into sequence to stitch';
+
+  const info = ensureTileInfo();
+  const showLabels = info.frame_labels !== false;
+  card.querySelectorAll('.pool-frame-label').forEach((el) => { el.hidden = !showLabels; });
+  const badge = card.querySelector('.pool-seq-indicator');
+  if (badge) {
+    if (seqPos.length) {
+      badge.hidden = false;
+      badge.textContent = seqPos.join(' ');
+    } else {
+      badge.hidden = true;
+      badge.textContent = '';
+    }
+  }
+  const metaEl = card.querySelector('.pool-overlay-text');
+  if (metaEl) {
+    if (item.metaError && !item.meta) metaEl.innerHTML = metaRetryHtml(item.metaError);
+    else if (item.meta) metaEl.innerHTML = buildPoolMetaHtml(item);
+    else metaEl.innerHTML = metadataUnavailableHtml();
+  }
+  assignCardThumbs(card, item, { bust: false });
+  const variantContainer = card.querySelector('.pool-variants');
+  if (variantContainer && variantContainer.dataset.for !== path) {
+    variantContainer.dataset.for = path;
+    variantContainer.innerHTML = '';
+    requestAnimationFrame(() => {
+      if (card.dataset.path !== path) return;
+      _variantNodeHtml(path).then((html) => {
+        if (card.dataset.path !== path) return;
+        variantContainer.innerHTML = html;
+      });
     });
+  }
+}
 
-    card.addEventListener('mouseenter', () => setPoolHover(item.path));
-    card.addEventListener('mouseleave', (e) => {
-      const to = e.relatedTarget;
-      if (to && (to.closest?.('.pool-card') || to.closest?.('.seq-token'))) return;
-      clearPoolHover();
-    });
+function _openSendMenu(card, sendBtn, item) {
+  const existing = document.querySelector('.pool-send-menu-portal');
+  if (existing) {
+    if (existing._sourceCard === card) {
+      existing.remove();
+      card.classList.remove('menu-open');
+      return;
+    }
+    existing._sourceCard?.classList.remove('menu-open');
+    existing.remove();
+  }
 
-    card.addEventListener('dragstart', (e) => {
-      if (e.target.closest('.pool-send-wrap, .pool-card-remove')) {
-        e.preventDefault();
-        return;
-      }
-      e.dataTransfer.setData('application/x-pool-path', item.path);
-      e.dataTransfer.setData('text/plain', item.path);
-      e.dataTransfer.effectAllowed = 'copy';
-      card.classList.add('dragging');
-    });
-    card.addEventListener('dragend', () => card.classList.remove('dragging'));
-
-    card.querySelector('.pool-card-remove')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      removePoolItem(idx);
-    });
-
-    card.querySelector('.pool-card-info-btn')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      showClipInfoOverlay(item);
-    });
-
-    const sendWrap = card.querySelector('.pool-send-wrap');
-    const sendBtn = card.querySelector('.pool-send-btn');
-    sendBtn?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      e.preventDefault();
-
-      // Close any existing menu
-      const existing = document.querySelector('.pool-send-menu-portal');
-      if (existing) {
-        if (existing._sourceCard === card) {
-          existing.remove();
-          card.classList.remove('menu-open');
-          return;
-        }
-        existing._sourceCard?.classList.remove('menu-open');
-        existing.remove();
-      }
-
-      card.classList.add('menu-open');
-
-      // Build menu as portal on document.body with fixed positioning
-      const rect = sendBtn.getBoundingClientRect();
-      const menu = document.createElement('div');
-      menu.className = 'pool-send-menu pool-send-menu-portal';
-      menu._sourceCard = card;
-      menu.style.position = 'fixed';
-      menu.style.right = (window.innerWidth - rect.right) + 'px';
-      menu.style.zIndex = '99999';
-      menu.innerHTML = `
+  card.classList.add('menu-open');
+  const rect = sendBtn.getBoundingClientRect();
+  const menu = document.createElement('div');
+  menu.className = 'pool-send-menu pool-send-menu-portal';
+  menu._sourceCard = card;
+  menu.style.position = 'fixed';
+  menu.style.right = `${window.innerWidth - rect.right}px`;
+  menu.style.zIndex = '99999';
+  menu.innerHTML = `
         <button type="button" class="pool-send-item pool-send-quick" data-send="quick">${escapeHtml(quickTransmuteLabel())}</button>
         <div class="pool-send-sep"></div>
         <button type="button" class="pool-send-item" data-send="mosh">Datamosh</button>
@@ -988,132 +1077,279 @@ function renderPoolGrid() {
         <button type="button" class="pool-send-item" data-send="save_first_png">Save first frame PNG…</button>
         <button type="button" class="pool-send-item" data-send="save_last_png">Save last frame PNG…</button>
       `;
-      document.body.appendChild(menu);
+  document.body.appendChild(menu);
+  const pad = 6;
+  const menuRect = menu.getBoundingClientRect();
+  let top = rect.bottom + 3;
+  if (top + menuRect.height > window.innerHeight - pad) top = rect.top - menuRect.height - 3;
+  if (top < pad) top = pad;
+  menu.style.top = `${top}px`;
 
-      // Clamp position to viewport
-      const pad = 6;
-      const menuRect = menu.getBoundingClientRect();
-      let top = rect.bottom + 3;
-      if (top + menuRect.height > window.innerHeight - pad) {
-        top = rect.top - menuRect.height - 3;
-      }
-      if (top < pad) top = pad;
-      menu.style.top = `${top}px`;
-
-      menu.querySelectorAll('.pool-send-item').forEach(opt => {
-        opt.addEventListener('click', (ev) => {
-          ev.stopPropagation();
-          ev.preventDefault();
-          const target = opt.dataset.send;
-          menu.remove();
-          card.classList.remove('menu-open');
-          sendPoolPathTo(item.path, target);
-        });
-      });
-
-      // Click outside to dismiss
-      const dismiss = (ev) => {
-        if (!menu.contains(ev.target) && ev.target !== sendBtn) {
-          menu.remove();
-          card.classList.remove('menu-open');
-          document.removeEventListener('click', dismiss, true);
-        }
-      };
-      setTimeout(() => document.addEventListener('click', dismiss, true), 0);
+  menu.querySelectorAll('.pool-send-item').forEach((opt) => {
+    opt.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      ev.preventDefault();
+      const target = opt.dataset.send;
+      menu.remove();
+      card.classList.remove('menu-open');
+      sendPoolPathTo(item.path, target);
     });
-    sendWrap?.addEventListener('mousedown', (e) => e.stopPropagation());
-    sendWrap?.addEventListener('pointerdown', (e) => e.stopPropagation());
+  });
+  const dismiss = (ev) => {
+    if (!menu.contains(ev.target) && ev.target !== sendBtn) {
+      menu.remove();
+      card.classList.remove('menu-open');
+      document.removeEventListener('click', dismiss, true);
+    }
+  };
+  setTimeout(() => document.addEventListener('click', dismiss, true), 0);
+}
 
-    card.addEventListener('dblclick', (e) => {
-      if (e.target.closest('.pool-card-remove, .pool-send-wrap')) return;
-      addPathToSequence(item.path);
-    });
-
-    card.addEventListener('contextmenu', (e) => {
-      if (e.target.closest('.pool-card-remove')) return;
+function bindVirtualCard(card) {
+  card.addEventListener('click', (e) => {
+    const retry = e.target.closest('.pool-retry-meta');
+    if (retry) {
       e.preventDefault();
       e.stopPropagation();
-      selectPoolItem(item.path);
-      showPoolContextMenu(e.clientX, e.clientY, item.path);
-    });
-
-    grid.appendChild(card);
-
-    // Metadata is requested only when a card approaches the viewport. The
-    // old restore path started one request per item, which froze large pools.
-    if (!meta && !item.metaError) card.dataset.metaPending = '1';
-
-    const variantContainer = card.querySelector(`#poolVariants-${idx}`);
-    if (variantContainer) {
-      _variantNodeHtml(item.path).then(html => {
-        variantContainer.innerHTML = html;
-        variantContainer.querySelectorAll('.variant-row').forEach(r => {
-          r.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const p = r.dataset.variantPath;
-            if (!p) return;
-            state.pool.selectedVariantPaths = state.pool.selectedVariantPaths || {};
-            state.pool.selectedVariantPaths[item.path] = p;
-            scheduleSavePoolState();
-            renderPoolGrid();
-          });
-        });
-      });
+      const live = findPoolItem(card.dataset.path);
+      if (live) repairItem(live, { force: true });
+      return;
     }
+    if (e.target.closest('.pool-card-remove, .pool-send-wrap, .pool-card-info-btn, .variant-row')) return;
+    const path = card.dataset.path;
+    if (path) selectPoolItem(path, { shiftKey: e.shiftKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey });
+    document.getElementById('poolGrid')?.focus?.({ preventScroll: true });
   });
-  _observeVisiblePoolMeta(grid);
-  _updatePoolFilterCount();
+  card.addEventListener('mouseenter', () => {
+    if (card.dataset.path) setPoolHover(card.dataset.path);
+  });
+  card.addEventListener('mouseleave', (e) => {
+    const to = e.relatedTarget;
+    if (to && (to.closest?.('.pool-card') || to.closest?.('.seq-token'))) return;
+    clearPoolHover();
+  });
+  card.addEventListener('dragstart', (e) => {
+    if (e.target.closest('.pool-send-wrap, .pool-card-remove')) {
+      e.preventDefault();
+      return;
+    }
+    const path = card.dataset.path;
+    if (!path) return;
+    e.dataTransfer.setData('application/x-pool-path', path);
+    e.dataTransfer.setData('text/plain', path);
+    e.dataTransfer.effectAllowed = 'copy';
+    card.classList.add('dragging');
+  });
+  card.addEventListener('dragend', () => card.classList.remove('dragging'));
+  card.addEventListener('click', (e) => {
+    const rm = e.target.closest('.pool-card-remove');
+    if (!rm) return;
+    e.stopPropagation();
+    const path = card.dataset.path;
+    const idx = state.pool.items.findIndex((i) => i.path === path);
+    if (idx >= 0) removePoolItem(idx);
+  });
+  card.addEventListener('click', (e) => {
+    const info = e.target.closest('.pool-card-info-btn');
+    if (!info) return;
+    e.stopPropagation();
+    const item = _cardItem(card);
+    if (item) showClipInfoOverlay(item);
+  });
+  card.addEventListener('click', (e) => {
+    const sendBtn = e.target.closest('.pool-send-btn');
+    if (!sendBtn) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const item = _cardItem(card);
+    if (item) _openSendMenu(card, sendBtn, item);
+  });
+  card.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.pool-send-wrap')) e.stopPropagation();
+  });
+  card.addEventListener('dblclick', (e) => {
+    if (e.target.closest('.pool-card-remove, .pool-send-wrap')) return;
+    if (card.dataset.path) addPathToSequence(card.dataset.path);
+  });
+  card.addEventListener('contextmenu', (e) => {
+    if (e.target.closest('.pool-card-remove')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const path = card.dataset.path;
+    if (!path) return;
+    selectPoolItem(path);
+    showPoolContextMenu(e.clientX, e.clientY, path);
+  });
+  card.addEventListener('click', (e) => {
+    const row = e.target.closest('.variant-row');
+    if (!row) return;
+    e.stopPropagation();
+    const p = row.dataset.variantPath;
+    const itemPath = card.dataset.path;
+    if (!p || !itemPath) return;
+    state.pool.selectedVariantPaths = state.pool.selectedVariantPaths || {};
+    state.pool.selectedVariantPaths[itemPath] = p;
+    scheduleSavePoolState();
+    renderPoolGrid();
+  });
 }
 
-let _poolMetaObserver = null;
-let _poolMetaActive = 0;
-const _poolMetaQueue = [];
-const _poolMetaQueued = new Set();
-const POOL_META_CONCURRENCY = 4;
+function _bindGridKeyboard(wrap) {
+  if (!wrap || wrap.dataset.keysBound) return;
+  wrap.dataset.keysBound = '1';
+  wrap.addEventListener('keydown', (e) => {
+    if (!e.key || !e.key.startsWith('Arrow')) return;
+    if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) return;
+    const items = filteredPoolItems();
+    if (!items.length || !_videoVirt) return;
+    const cols = Math.max(1, _videoVirt.layout.cols || 1);
+    let idx = items.findIndex((it) => it.path === state.pool.selectedPath);
+    if (idx < 0) idx = 0;
+    let next = idx;
+    if (e.key === 'ArrowRight') next = Math.min(items.length - 1, idx + 1);
+    else if (e.key === 'ArrowLeft') next = Math.max(0, idx - 1);
+    else if (e.key === 'ArrowDown') next = Math.min(items.length - 1, idx + cols);
+    else if (e.key === 'ArrowUp') next = Math.max(0, idx - cols);
+    else return;
+    e.preventDefault();
+    e.stopPropagation();
+    selectPoolItem(items[next].path, { shiftKey: e.shiftKey });
+    _videoVirt.scrollToPath(items[next].path, { block: 'nearest' });
+  });
+}
 
-function _drainPoolMetaQueue() {
-  while (_poolMetaActive < POOL_META_CONCURRENCY && _poolMetaQueue.length) {
-    const job = _poolMetaQueue.shift();
-    _poolMetaQueued.delete(job.item.path);
-    if (job.item.meta || job.item.metaError) continue;
-    _poolMetaActive += 1;
-    Promise.resolve(loadPoolItemMeta(job.item, job.idx))
-      .finally(() => {
-        _poolMetaActive -= 1;
-        _drainPoolMetaQueue();
+function updateCatalogStatus() {
+  const el = document.getElementById('catalogStatus');
+  if (!el) return;
+  const counts = globalMediaIndex.catalogCounts(state.pool.items || []);
+  const html = [
+    `<span>Restored ${counts.restored}</span>`,
+    `<span>Known metadata ${counts.knownMetadata}</span>`,
+    `<span>Known thumbnails ${counts.knownThumbnails}</span>`,
+    `<span>Missing ${counts.missing}</span>`,
+    `<span>Queued ${counts.queued}</span>`,
+    `<span>Repairing ${counts.repairing}</span>`,
+    `<span>Failed ${counts.failed}</span>`,
+  ].join(' · ');
+  if (el.dataset.sig === html) return;
+  el.dataset.sig = html;
+  el.innerHTML = html;
+}
+
+function renderPoolGrid() {
+  const canvas = document.getElementById('poolGrid');
+  const wrap = canvas?.closest('.pool-grid-wrap') || document.getElementById('poolGridWrap');
+  if (!canvas || !wrap) return;
+
+  beginRender();
+  try {
+    if (state.pool.items.length === 0) {
+      lazyClearPending();
+      if (_videoVirt) {
+        try { _videoVirt.destroy(); } catch (_) { /* ignore */ }
+        _videoVirt = null;
+      }
+      canvas.style.height = '';
+      canvas.innerHTML = `
+      <div class="pool-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+        </svg>
+        <p>No videos in the pool.</p>
+        <p class="pool-empty-hint">Import files/folder, then drag cards into the sequence strip.</p>
+      </div>
+    `;
+      _updatePoolFilterCount();
+      updateCatalogStatus();
+      return;
+    }
+
+    const items = filteredPoolItems();
+    if (items.length === 0) {
+      if (_videoVirt) {
+        try { _videoVirt.destroy(); } catch (_) { /* ignore */ }
+        _videoVirt = null;
+      }
+      const q = escapeHtml(state.pool.filterQuery || '');
+      canvas.style.height = '';
+      canvas.innerHTML = `
+      <div class="pool-empty">
+        <p>No clips match <strong>${q}</strong>.</p>
+        <p class="pool-empty-hint">Clear the filter (Esc) or try a shorter query.</p>
+      </div>
+    `;
+      _updatePoolFilterCount();
+      updateCatalogStatus();
+      return;
+    }
+
+    const empty = canvas.querySelector('.pool-empty');
+    if (empty) empty.remove();
+
+    const minCol = state.pool.tileZoom || 200;
+    if (_videoVirt && _videoVirt._canvas !== canvas) {
+      try { _videoVirt.destroy(); } catch (_) { /* ignore */ }
+      _videoVirt = null;
+    }
+    if (!_videoVirt) {
+      canvas.innerHTML = '';
+      canvas.style.height = '';
+      _videoVirt = createVirtualGrid({
+        wrap,
+        canvas,
+        getItems: () => filteredPoolItems(),
+        renderCard: fillPoolCard,
+        recycleCard: fillPoolCardLite,
+        bindCard: bindVirtualCard,
+        minColWidth: minCol,
       });
+      _videoVirt._canvas = canvas;
+      window.__mtapiVirtualGrid = _videoVirt;
+      _bindGridKeyboard(wrap);
+    }
+    const sig = `${state.pool.filterQuery || ''}|${state.pool.searchMode || 'fuzzy'}|${state.pool.items.length}|${state.pool.tileZoom}`;
+    if (_videoVirt._sig !== sig) {
+      _videoVirt.invalidate();
+      _videoVirt._sig = sig;
+    }
+
+    const savedTop = state.pool.gridScrollTop;
+    _videoVirt.sync();
+    if (savedTop != null && Number.isFinite(Number(savedTop)) && wrap.scrollTop === 0 && savedTop > 0) {
+      _videoVirt.setScrollTop(savedTop);
+    }
+    if (!wrap.dataset.scrollPersist) {
+      wrap.dataset.scrollPersist = '1';
+      wrap.addEventListener('scroll', () => {
+        state.pool.gridScrollTop = wrap.scrollTop;
+      }, { passive: true });
+    }
+    markFirstWindowReady();
+    try { performance.mark('firstVisibleCard'); } catch (_) { /* ignore */ }
+    _updatePoolFilterCount();
+    updateCatalogStatus();
+  } finally {
+    endRender();
   }
 }
 
-function _queueVisiblePoolMeta(item, idx) {
-  if (!item || item.meta || item.metaError || _poolMetaQueued.has(item.path)) return;
-  _poolMetaQueued.add(item.path);
-  _poolMetaQueue.push({ item, idx });
-  _drainPoolMetaQueue();
-}
-
-function _observeVisiblePoolMeta(grid) {
-  if (_poolMetaObserver) _poolMetaObserver.disconnect();
-  const cards = [...grid.querySelectorAll('.pool-card[data-meta-pending="1"]')];
-  if (!cards.length) return;
-  if (typeof IntersectionObserver === 'undefined') {
-    cards.slice(0, POOL_META_CONCURRENCY * 2).forEach(card => {
-      const idx = Number(card.dataset.idx);
-      const item = state.pool.items[idx];
-      _queueVisiblePoolMeta(item, idx);
-    });
-    return;
-  }
-  _poolMetaObserver = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (!entry.isIntersecting) return;
-      const card = entry.target;
-      const idx = Number(card.dataset.idx);
-      _queueVisiblePoolMeta(state.pool.items[idx], idx);
-      _poolMetaObserver.unobserve(card);
-    });
-  }, { root: grid, rootMargin: '500px 0px' });
-  cards.forEach(card => _poolMetaObserver.observe(card));
+if (typeof window !== 'undefined') {
+  window.addEventListener('mtapi.catalogRepair', () => {
+    if (_statusTimer) return;
+    _statusTimer = setTimeout(() => {
+      _statusTimer = null;
+      try {
+        updateCatalogStatus();
+        _videoVirt?.refreshAllVisible?.();
+        applySeqTokenTimeStyles();
+        const path = displayFocusPath();
+        const frame = document.getElementById('poolFocusFrame');
+        if (frame) frame.dataset.focusPath = '';
+        if (path) updatePoolFocusFrame(path);
+      } catch (_) { /* ignore */ }
+    }, 50);
+  });
 }
 
 // ── Frame match (pHash next-clip finder) ──────────────────────────────────
@@ -1337,4 +1573,5 @@ function renderMatchResults(data) {
 export {
   renderPoolForm, renderSequenceForm, renderPoolGrid, sequencePositions,
   showClipInfoOverlay, runPoolMatch, renderMatchResults,
+  filteredPoolItems, ensureSelectedPaths, updateCatalogStatus, metadataUnavailableHtml,
 };

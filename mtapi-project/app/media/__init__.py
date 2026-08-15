@@ -27,10 +27,12 @@ from .config import (  # noqa: F401
     _record_path,
     _thumb_is_current,
     _thumb_path,
+    existing_thumb_file,
     THUMBNAIL_SIZES,
     normalize_thumb_size,
 )
 from .cache import (  # noqa: F401
+    BATCH_PATH_LIMIT,
     _empty_record,
     _load_index,
     _lock_for_hash,
@@ -38,15 +40,21 @@ from .cache import (  # noqa: F401
     _save_index,
     _update_index_entry,
     append_history,
+    find_existing_paths_for_hash,
+    source_path_for_hash,
+    gc_lower_density_rifed,
     get_variants,
     hash_file,
     load_record,
     lookup_cached_hash,
     media_cache_stats,
+    parse_batch_paths,
     record_operation,
+    recover_media_path,
     register_variant,
     resolve_hash,
     save_record,
+    stat_signature,
 )
 from .thumbnails import (  # noqa: F401
     _compute_phash_hex,
@@ -67,7 +75,10 @@ from .open import (  # noqa: F401
     open_media,
 )
 from .pool import (  # noqa: F401
+    DESK_TAB_DEFAULTS,
+    POOL_SCHEMA_VERSION,
     _default_pool_state,
+    _normalize_media_entries,
     _normalize_pool_payload,
     load_pool_state,
     save_pool_state,
@@ -91,4 +102,11 @@ from .performance import (  # noqa: F401
     save_settings,
     thumbnail_cache,
     phash_cache,
+)
+from .catalog import (  # noqa: F401
+    THUMB_RAM_BUDGET,
+    CatalogIndex,
+    CatalogLockHeld,
+    catalog_if_ready,
+    get_catalog,
 )

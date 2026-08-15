@@ -51,6 +51,12 @@ async def rife_interpolate(p: RifeParams) -> OperationResult:
         p.output_path, source=input_path, default_suffix="_rife",
         default_ext=".mp4", allowed_exts=VIDEO_EXTS,
     )
+    # Original source is immutable — never encode onto the input path.
+    if out.resolve() == input_path.resolve():
+        from ..pathutil import unique_output_path
+        out = unique_output_path(
+            input_path.with_name(f"{input_path.stem}_rife{input_path.suffix}")
+        )
 
     rife_fn = make_rife_directory_fn(
         multiplier=p.multiplier, model=p.model, tta=p.tta, uhd=p.uhd,
@@ -76,7 +82,7 @@ async def rife_interpolate(p: RifeParams) -> OperationResult:
             from ..media import register_variant
             from ..video_pipeline import probe
             info = await probe(str(input_path))
-            await register_variant(
+            rec = await register_variant(
                 str(input_path),
                 kind="rifed",
                 variant_path=str(out),
@@ -86,6 +92,16 @@ async def rife_interpolate(p: RifeParams) -> OperationResult:
                     "has_audio": bool(info.get("has_audio")),
                 },
             )
+            variant_hash = None
+            if rec:
+                for v in reversed((rec.get("variants") or {}).get("rifed") or []):
+                    if v.get("path") == str(out):
+                        variant_hash = v.get("hash")
+                        break
+            extra = dict(result.meta or {})
+            extra["variant_hash"] = variant_hash
+            extra["multiplier"] = p.multiplier
+            result.meta = extra
         except Exception as e:
             log = __import__("logging").getLogger("mtapi.rife")
             log.warning("variant registration failed: %s", e)

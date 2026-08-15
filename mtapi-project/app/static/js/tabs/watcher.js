@@ -1,6 +1,7 @@
 import { state, elements } from '/app.js';
 import { escapeHtml } from '/js/utils.js';
 import { setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { isApplyingFormState } from '/js/pool/persistence.js';
 
 // ── Folder Watcher tab ────────────────────────────────────────────────────
 
@@ -158,6 +159,7 @@ function renderWatcherForm() {
   document.getElementById('watcherEnabled')?.addEventListener('change', async () => {
     const on = document.getElementById('watcherEnabled')?.value === '1';
     state.watcher.enabled = on;
+    if (isApplyingFormState()) return;
     const data = await applyPaths();
     if (data && data.ok === false) {
       alert(data.error || data.last_error || 'Could not enable watcher');
@@ -177,9 +179,22 @@ function renderWatcherForm() {
     updateWatcherLiveUI(data || state.watcher.status);
   });
 
-  document.getElementById('watcherInDir')?.addEventListener('change', () => applyPaths());
-  document.getElementById('watcherOutDir')?.addEventListener('change', () => applyPaths());
-  document.getElementById('watcherResizeMode')?.addEventListener('change', () => applyPaths());
+  const bindWatcherField = (id, key) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const sync = () => {
+      if (key === 'resize_mode') state.watcher.resize_mode = el.value || 'letterbox';
+      else state.watcher[key] = el.value?.trim() || '';
+    };
+    el.addEventListener('input', sync);
+    el.addEventListener('change', () => {
+      sync();
+      if (!isApplyingFormState()) applyPaths();
+    });
+  };
+  bindWatcherField('watcherInDir', 'in_dir');
+  bindWatcherField('watcherOutDir', 'out_dir');
+  bindWatcherField('watcherResizeMode', 'resize_mode');
 
   // Initial fetch + poll while tab open
   fetchWatcherStatus().then((data) => {

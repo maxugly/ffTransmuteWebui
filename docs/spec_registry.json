@@ -420,6 +420,41 @@
         "summary": "Audio engine dropdown in Sequence tab. Rubberband default with DAW quality flags (transients/formants/pitchq), 48kHz sample-rate normalization (aresample=48000) to prevent chipmunking, and 10ms micro-fade on every clip fragment. atempo/pitch/mute are placeholder stubs raising NotImplementedError."
     },
     {
+        "file": "performance-catalog-ux-spec.md",
+        "path": "docs/performance-catalog-ux-spec.md",
+        "category": "Core Architecture / WebUI",
+        "status": "Implemented Phase 1 000.000.5.14; virtualization superseded by catalog-interaction-virtualization-spec.md 5.36",
+        "summary": "McMaster-Carr catalog UX Phase 1: cache-first eager restore, POST /api/media_signatures, POST /api/variants/batch, window.globalMediaIndex, persisted-variant fast path, Instant RIFE copy-on-write + hash recovery + unreferenced lower-density GC. 5.27: pool scroll ignores hover/transform. 5.28: restore copies record meta/thumb flags so open does not media_info/ensure already-scanned clips. Phase 2/3 virtualization shipped in catalog-interaction-virtualization-spec.md 5.36."
+    },
+    {
+        "file": "catalog-interaction-virtualization-spec.md",
+        "path": "docs/catalog-interaction-virtualization-spec.md",
+        "category": "Core Architecture / WebUI",
+        "status": "Partial 000.000.5.37",
+        "summary": "Path-keyed index, hover never media_info, bounded queues (ensure 8, probe 4, hash 2, variant 2×100), Video+Image .pool-scroll-canvas virtualizer, Strict/Fuzzy search. 5.37: JS scroll work p95 ~1ms; form re-entry <10ms; queue caps exercised. Not Implemented: vsync-locked 16.6ms compositor p95 (headless rAF interval is not that measurement)."
+    },
+    {
+        "file": "server-memory-catalog-spec.md",
+        "path": "docs/server-memory-catalog-spec.md",
+        "category": "Core Architecture / WebUI",
+        "status": "Implemented 000.000.5.38",
+        "summary": "One server-resident CatalogIndex: hydrate before serve, RAM display paths, exclusive process lock, 64 MiB JPEG warmer. §11–12 I/O, restart, lock, warmer, and browser checks accepted."
+    },
+    {
+        "file": "settings-card-layout-spec.md",
+        "path": "docs/settings-card-layout-spec.md",
+        "category": "UX",
+        "status": "Implemented 000.000.5.13 (UI tweaks 5.29)",
+        "summary": "Settings house style: one page of tight max-content cards, kicker+title on one line, packed controls, switches beside labels, two-line blurbs. 5.29–5.31: Display / UI tweaks scrollbar knob, 6–30px."
+    },
+    {
+        "file": "universal-persistence-spec.md",
+        "path": "docs/universal-persistence-spec.md",
+        "category": "Core Architecture / WebUI",
+        "status": "Implemented 000.000.5.06",
+        "summary": "Full desk snapshot: metadata/signature round-trip for Video+Image pools, /api/media_signature freshness, shared lazy-loader with bounded fallback, settings precedence (named projects never overwrite globals), schema v2 migration, inactive-tab formState."
+    },
+    {
         "file": "video-image-pools-spec.md",
         "path": "docs/video-image-pools-spec.md",
         "category": "Core Architecture / WebUI",

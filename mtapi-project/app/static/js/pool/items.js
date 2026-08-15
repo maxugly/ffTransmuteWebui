@@ -1,6 +1,7 @@
 import { state, elements, logConsole, showPreview, renderPoolForm, renderStyleTransferForm, renderFaceMorphForm, renderWithoutBgForm, checkHealth, switchTab, formatBytes } from '/app.js';
 import { isVideoPath, basename, formatDurationExact } from '/js/utils.js';
 import { shortHash, buildPoolMetaHtml, poolThumbUrl, scheduleSavePoolState } from '/js/pool/persistence.js';
+import { assignThumbSrc } from '/js/lazy-loader.js';
 import { applySeqTokenTimeStyles, updateSeqClipSettings, displayFocusPath, updatePoolFocusFrame, setPoolFocus, updateSelectionHighlights, updateSeqTransportUI, seqStop, addPathToSequence } from '/js/pool/sequence.js';
 import { runQuickTransmute } from '/js/tabs/quick.js';
 import { addMultiClipPath } from '/js/tabs/transmute.js';
@@ -9,15 +10,17 @@ import { addMultiClipPath } from '/js/tabs/transmute.js';
 
 async function loadPoolItemMeta(item, idx) {
   try {
-    const res = await fetch(`/api/media_info?path=${encodeURIComponent(item.path)}&ensure_thumbs=true`);
+    const res = await fetch(`/api/media_info?path=${encodeURIComponent(item.path)}&ensure_thumbs=false`);
     const data = await res.json();
     if (data && data.ok) {
       item.meta = data;
       item.hash = data.hash || item.hash;
       item.history_count = data.history_count;
       item.open_count = data.open_count;
+      item.metaError = null;
       if (data.size != null) item.size = data.size;
       if (data.name) item.name = data.name;
+      if (data.has_audio != null && item.meta) item.meta.has_audio = data.has_audio;
       const tag = data.cached ? 'cache hit' : 'hashed new';
       const elap = data.elapsed_s != null ? ` in ${data.elapsed_s}s` : '';
       logConsole(`[POOL]: ${item.name || item.path} → #${shortHash(data.hash)} (${tag}${elap})`);
@@ -37,7 +40,9 @@ async function loadPoolItemMeta(item, idx) {
   }
   if (item.hash) {
     try { scheduleSavePoolState(); } catch (_) { /* ignore */ }
+    try { window.globalMediaIndex?.put(item); } catch (_) { /* ignore */ }
   }
+  try { window.dispatchEvent(new CustomEvent('mtapi.catalogRepair')); } catch (_) { /* ignore */ }
 
   if (state.activeTab !== 'pool' && state.activeTab !== 'sequence') return;
   const liveIdx = state.pool.items.findIndex(i => i.path === item.path);
@@ -50,11 +55,10 @@ async function loadPoolItemMeta(item, idx) {
     if (card) {
       card.dataset.hash = item.hash;
       card.querySelectorAll('img.pool-thumb').forEach(img => {
+        if (!img.getAttribute('src')) return;
         const which = img.dataset.which || 'first';
         const next = poolThumbUrl(item, which);
-        if (img.getAttribute('src') && img.getAttribute('src').includes('path=')) {
-          img.src = next;
-        }
+        if (img.getAttribute('src').includes('path=')) assignThumbSrc(img, next);
       });
     }
   }
@@ -63,12 +67,49 @@ async function loadPoolItemMeta(item, idx) {
 function scrollToSelected() {
   const path = state.pool.selectedPath;
   if (!path) return;
+  const virt = window.__mtapiVirtualGrid;
+  if (virt && typeof virt.scrollToPath === 'function') {
+    virt.scrollToPath(path, { behavior: 'smooth', block: 'center' });
+    return;
+  }
   const card = Array.from(document.querySelectorAll('.pool-card')).find(c => c.dataset.path === path);
   if (card?.scrollIntoView) card.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
-function selectPoolItem(path) {
+function selectPoolItem(path, ev = null) {
   if (!path) return;
+  const selected = state.pool.selectedPaths instanceof Set
+    ? state.pool.selectedPaths
+    : new Set(state.pool.selectedPath ? [state.pool.selectedPath] : []);
+  state.pool.selectedPaths = selected;
+
+  const shift = !!(ev && ev.shiftKey);
+  const toggle = !!(ev && (ev.metaKey || ev.ctrlKey));
+  if (shift) {
+    const items = (typeof window !== 'undefined' && window.__mtapiVirtualGrid?.items)
+      ? window.__mtapiVirtualGrid.items
+      : (state.pool.items || []);
+    const anchor = state.pool.selectionAnchor || state.pool.selectedPath || path;
+    const a = items.findIndex((it) => it.path === anchor);
+    const b = items.findIndex((it) => it.path === path);
+    if (a >= 0 && b >= 0) {
+      const lo = Math.min(a, b);
+      const hi = Math.max(a, b);
+      selected.clear();
+      for (let i = lo; i <= hi; i++) selected.add(items[i].path);
+    } else {
+      selected.add(path);
+    }
+  } else if (toggle) {
+    if (selected.has(path)) selected.delete(path);
+    else selected.add(path);
+    state.pool.selectionAnchor = path;
+  } else {
+    selected.clear();
+    selected.add(path);
+    state.pool.selectionAnchor = path;
+  }
+
   state.pool.selectedPath = path;
   state.pool.hoverPath = null;
   state.pool.focusPath = path;
@@ -99,28 +140,18 @@ function selectPoolItem(path) {
   const findBtn = document.getElementById('btnFindNext');
   if (findBtn && !state.pool.matchLoading) findBtn.disabled = false;
 
-  const toolbarMeta = document.querySelector('.pool-toolbar-meta');
-  if (toolbarMeta) {
-    toolbarMeta.innerHTML = `
-      <span class="pool-count">${state.pool.items.length} in video pool · ${state.pool.sequence.length} in sequence</span>
-      <div class="pool-use-wrap">
-        <label for="poolUseTarget" class="pool-use-label">Use as input</label>
-        <select id="poolUseTarget" class="pool-use-select">
-          <option value="">— target —</option>
-          <option value="sequence">Add to sequence</option>
-          <option value="cut">Cut (global video + range)</option>
-          <option value="mosh">Datamosh input</option>
-          <option value="transmute">Transmute input</option>
-          <option value="multi">Add to Multi clips</option>
-          <option value="advanced">Advanced input</option>
-        </select>
-        <button class="btn btn-primary" id="btnPoolUse" type="button">Apply</button>
-      </div>
-      <button class="btn pool-jump-btn" id="btnJumpSelected" type="button" title="Jump to selected clip in grid">!</button>
-    `;
-    document.getElementById('btnPoolUse')?.addEventListener('click', applyPoolAsInput);
-    document.getElementById('btnJumpSelected')?.addEventListener('click', scrollToSelected);
+  const countEl = document.querySelector('.pool-count');
+  if (countEl) {
+    const q = (state.pool.filterQuery || '').trim();
+    const shown = q ? (window.__mtapiVirtualGrid?.items?.length ?? state.pool.items.length) : state.pool.items.length;
+    countEl.textContent = q
+      ? `${shown} shown · ${state.pool.items.length} in video pool · ${state.pool.sequence.length} in sequence`
+      : `${state.pool.items.length} in video pool · ${state.pool.sequence.length} in sequence`;
   }
+  const useWrap = document.querySelector('.pool-use-wrap');
+  if (useWrap) useWrap.hidden = !state.pool.selectedPath;
+  const jump = document.getElementById('btnJumpSelected');
+  if (jump) jump.hidden = !state.pool.selectedPath;
 }
 
 function removePoolItem(idx) {
@@ -131,6 +162,7 @@ function removePoolItem(idx) {
     state.pool.selectedPath = null;
     state.pool.focusPath = null;
   }
+  try { state.pool.selectedPaths?.delete?.(removed.path); } catch (_) { /* ignore */ }
   if (state.pool.hoverPath === removed.path) {
     state.pool.hoverPath = null;
   }
@@ -146,6 +178,9 @@ function clearPool() {
   if (state.pool.items.length === 0) return;
   if (!confirm(`Clear all ${state.pool.items.length} clips from the pool?`)) return;
   seqStop();
+  import('/js/lazy-loader.js').then((m) => {
+    try { m.clearPending(); } catch (_) { /* ignore */ }
+  }).catch(() => {});
   state.pool.items = [];
   state.pool.selectedPath = null;
   logConsole('[POOL]: Cleared');
@@ -175,13 +210,15 @@ function addPathsToPool(paths) {
       continue;
     }
     existingPaths.add(path);
-    state.pool.items.push({
+    const addedItem = {
       path,
       name: basename(path),
       size: null,
       meta: null,
       hash: null,
-    });
+    };
+    state.pool.items.push(addedItem);
+    try { window.globalMediaIndex?.put(addedItem); } catch (_) { /* ignore */ }
     if (!firstNew) firstNew = path;
     added++;
   }

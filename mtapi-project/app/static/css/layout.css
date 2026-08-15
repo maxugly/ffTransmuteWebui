@@ -333,72 +333,62 @@ body.preview-resizing {
   background: rgba(255,255,255,0.06);
 }
 
-/* Sidebar collapsed — icon-only mode */
-body.sidebar-collapsed aside {
-  width: 56px;
+/* Sidebar collapsed — icon column only (beats inline resize width) */
+body.sidebar-collapsed .app-sidebar {
+  width: 44px !important;
+  min-width: 44px;
+  max-width: 44px;
+  overflow: hidden;
 }
 body.sidebar-collapsed .brand h1,
+body.sidebar-collapsed .brand > svg,
 body.sidebar-collapsed .nav-header,
 body.sidebar-collapsed .status-indicator span {
-  display: none;
+  display: none !important;
 }
 body.sidebar-collapsed .brand {
-  padding: 8px 6px;
+  padding: 8px 4px;
   justify-content: center;
+  gap: 0;
 }
 body.sidebar-collapsed .nav-item {
-  padding: 6px;
+  padding: 6px 0;
   justify-content: center;
   gap: 0;
   font-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 body.sidebar-collapsed .nav-menu {
-  padding: 6px 4px;
+  padding: 6px 2px;
   gap: 2px;
 }
 body.sidebar-collapsed .status-indicator {
-  padding: 6px 4px;
+  padding: 6px 0;
   justify-content: center;
 }
+body.sidebar-collapsed .sidebar-resize {
+  display: none;
+}
 
-/* Preview panel collapsed — handle stays visible at right edge */
+/* Preview panel collapsed — workspace is the form only */
 body.preview-collapsed .app-content {
   grid-template-columns: 1fr !important;
 }
 body.preview-collapsed .preview-panel {
   display: none;
 }
-body.preview-collapsed .preview-collapse-handle .preview-collapse-btn {
-  transform: none;
-}
 body.preview-collapsed .panel-divider,
 body.preview-collapsed #panelDivider {
   display: none !important;
 }
 
-.preview-collapse-handle {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-  cursor: pointer;
-  border-left: 1px solid var(--panel-border);
-  background: rgba(10, 15, 26, 0.45);
-  backdrop-filter: blur(4px);
-  transition: background 0.15s;
-}
-.preview-collapse-handle:hover {
-  background: rgba(59, 130, 246, 0.12);
-}
-.preview-collapse-handle .preview-collapse-btn {
-  border: none;
-  padding: 2px 4px;
-  font-size: 0.7rem;
+header .preview-collapse-btn {
+  margin-left: 4px;
+  min-width: 28px;
+  height: 32px;
+  padding: 0 8px;
+  font-size: 0.75rem;
 }
 
 /* ── Panel resize drag handles ───────────────────────────────────────────── */
@@ -435,7 +425,7 @@ body.panel-resizing {
 }
 
 /* Sidebar */
-aside {
+.app-sidebar {
   width: var(--sidebar-w);
   height: 100vh;
   background: rgba(10, 15, 26, 0.6);
@@ -607,25 +597,19 @@ main {
 
 /* Header */
 header {
-  padding: 12px 20px;
+  padding: 4px 8px 4px 4px;
   border-bottom: 1px solid var(--panel-border);
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   background: rgba(10, 15, 26, 0.2);
   position: relative;
-  gap: 16px;
-}
-
-header h2 {
-  font-size: 1.1rem;
-  font-weight: 600;
-  flex-shrink: 0;
+  gap: 8px;
 }
 
 .global-probe-overlay {
   position: absolute;
-  left: 20px;
+  left: 4px;
   background: var(--bg-panel);
   padding: 6px 12px;
   border-radius: 6px;
@@ -638,17 +622,17 @@ header h2 {
 }
 
 .global-quick-btns {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
   display: flex;
-  gap: 6px;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
 }
 
 .btn-quick {
   font-size: 0.72rem;
   font-weight: 500;
-  padding: 3px 10px;
+  padding: 2px 6px;
   border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--panel-border);
@@ -672,6 +656,7 @@ header h2 {
   display: flex;
   gap: 8px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 /* ── Global shared path input bar ───────────────────────────────────────── */

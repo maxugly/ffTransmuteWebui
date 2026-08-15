@@ -50,10 +50,15 @@ async def open_media(
             st = path.stat()
             record = _empty_record(content_hash, size=st.st_size)
 
+        dirty = False
+        before_paths = list(record.get("paths") or [])
         _remember_path(record, path)
+        if (record.get("paths") or []) != before_paths:
+            dirty = True
         st = path.stat()
-        if not was_cached or record.get("size") != st.st_size:
+        if record.get("size") != st.st_size:
             record["size"] = st.st_size
+            dirty = True
 
         if not record.get("meta") and probe_fn is not None:
             meta = await probe_fn(path)
@@ -65,24 +70,44 @@ async def open_media(
             else:
                 record["meta"] = None
                 record["meta_error"] = meta.get("error")
+            dirty = True
 
         if ensure_thumbs_flag:
             thumbs = await ensure_thumbs(content_hash, path, record=record)
             record.setdefault("thumbs", {}).update(thumbs)
+            if thumbs and not all(thumbs.values()):
+                dirty = True
+            elif thumbs and any(thumbs.values()):
+                # Only dirty if we just created a file (not already current).
+                pass
 
-        if record_open:
+        if record_open and not was_cached:
             record["open_count"] = int(record.get("open_count") or 0) + 1
-            hist = record.setdefault("history", [])
-            hist.append({
-                "ts": time.time(),
-                "event": "opened",
-                "path": str(path),
-                "cached_hash": was_cached,
-            })
-            if len(hist) > 200:
-                record["history"] = hist[-200:]
+            from .catalog import catalog_if_ready
+            cat = catalog_if_ready()
+            if cat is not None:
+                cat.append_history(
+                    content_hash,
+                    "opened",
+                    detail={"path": str(path), "cached_hash": was_cached},
+                )
+                record.pop("history", None)
+            else:
+                hist = record.setdefault("history", [])
+                hist.append({
+                    "ts": time.time(),
+                    "event": "opened",
+                    "path": str(path),
+                    "cached_hash": was_cached,
+                })
+                if len(hist) > 200:
+                    record["history"] = hist[-200:]
+            dirty = True
 
-        save_record(record)
+        if dirty or not was_cached:
+            if record.get("history") == []:
+                record.pop("history", None)
+            save_record(record)
 
     elapsed = round(time.time() - t0, 3)
     return _public_payload(record, path, was_cached=was_cached, elapsed=elapsed)
@@ -128,6 +153,7 @@ def _public_payload(
     for k in (
         "width", "height", "fps", "duration", "frames",
         "video_codec", "audio_codec", "format_name", "bit_rate",
+        "has_audio",
     ):
         if k in meta:
             out[k] = meta[k]

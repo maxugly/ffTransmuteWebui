@@ -38,7 +38,15 @@ _index_cache: tuple[float, dict[str, Any]] | None = None
 
 # ── index (path → hash, skipped when size/mtime match) ─────────────────────
 
+def _catalog_ready():
+    from .catalog import catalog_if_ready
+    return catalog_if_ready()
+
+
 def _load_index() -> dict[str, Any]:
+    cat = _catalog_ready()
+    if cat is not None:
+        return cat.index_document()
     global _index_cache
     try:
         current_mtime = INDEX_PATH.stat().st_mtime
@@ -67,6 +75,10 @@ def _load_index() -> dict[str, Any]:
 
 
 def _save_index(index: dict[str, Any]) -> None:
+    cat = _catalog_ready()
+    if cat is not None:
+        cat.persist_index()
+        return
     _ensure_dirs()
     tmp = INDEX_PATH.with_suffix(".tmp")
     tmp.write_text(json.dumps(index, indent=2, sort_keys=True), encoding="utf-8")
@@ -75,6 +87,10 @@ def _save_index(index: dict[str, Any]) -> None:
 
 
 async def _update_index_entry(path: Path, content_hash: str, size: int, mtime_ns: int) -> None:
+    cat = _catalog_ready()
+    if cat is not None:
+        cat.update_path_mapping(path, content_hash, size, mtime_ns, persist=True)
+        return
     async with _index_lock:
         index = _load_index()
         index["paths"][_path_key(path)] = {
@@ -86,8 +102,36 @@ async def _update_index_entry(path: Path, content_hash: str, size: int, mtime_ns
         _save_index(index)
 
 
-def lookup_cached_hash(path: Path, index: dict[str, Any] | None = None) -> str | None:
-    """Return content hash if path is indexed and size+mtime still match."""
+def lookup_cached_hash(
+    path: Path,
+    index: dict[str, Any] | None = None,
+    *,
+    check_source: bool = False,
+) -> str | None:
+    """Return content hash if this path is indexed at the same file size.
+
+    Cheap identity is path + filename + size. mtime must not force a re-hash
+    (copy, backup, and NAS tools change mtime without changing bytes).
+    After catalog_ready, display callers omit check_source and never stat.
+    """
+    cat = _catalog_ready()
+    if cat is not None and not check_source:
+        return cat.hash_for_path(path)
+    if cat is not None and check_source:
+        cat.note_source_stat()
+        try:
+            st = path.stat()
+        except OSError:
+            return None
+        key_hash = cat.hash_for_path(path)
+        if key_hash is None:
+            return None
+        rec = cat.record_for_hash(key_hash)
+        if rec is None:
+            return None
+        if rec.size and rec.size != st.st_size:
+            return None
+        return key_hash
     try:
         st = path.stat()
     except OSError:
@@ -97,15 +141,23 @@ def lookup_cached_hash(path: Path, index: dict[str, Any] | None = None) -> str |
     entry = index.get("paths", {}).get(_path_key(path))
     if not entry:
         return None
-    if entry.get("size") == st.st_size and entry.get("mtime_ns") == st.st_mtime_ns:
-        h = entry.get("hash")
-        if h and _record_path(h).exists():
-            return h
+    if entry.get("size") != st.st_size:
+        return None
+    h = entry.get("hash")
+    if h and _record_path(h).exists():
+        return h
     return None
 
 
 def lookup_cached_hash_batch(paths: list[Path], index: dict[str, Any] | None = None) -> dict[str, str | None]:
     """Batch version: return mapping of resolved_path -> hash (or None)."""
+    cat = _catalog_ready()
+    if cat is not None:
+        out: dict[str, str | None] = {}
+        for path in paths:
+            key = str(path)
+            out[key] = cat.hash_for_path(path)
+        return out
     if index is None:
         index = _load_index()
     out: dict[str, str | None] = {}
@@ -119,7 +171,7 @@ def lookup_cached_hash_batch(paths: list[Path], index: dict[str, Any] | None = N
         if not entry:
             out[str(path.resolve())] = None
             continue
-        if entry.get("size") == st.st_size and entry.get("mtime_ns") == st.st_mtime_ns:
+        if entry.get("size") == st.st_size:
             h = entry.get("hash")
             if h and _record_path(h).exists():
                 out[str(path.resolve())] = h
@@ -176,6 +228,10 @@ def _empty_record(content_hash: str, size: int = 0) -> dict[str, Any]:
 
 
 def load_record(content_hash: str) -> dict[str, Any] | None:
+    cat = _catalog_ready()
+    if cat is not None:
+        rec = cat.record_for_hash(content_hash)
+        return cat.serving_dict(rec) if rec is not None else None
     rp = _record_path(content_hash)
     if not rp.exists():
         return None
@@ -191,6 +247,13 @@ def load_record(content_hash: str) -> dict[str, Any] | None:
 
 
 def save_record(record: dict[str, Any]) -> None:
+    cat = _catalog_ready()
+    if cat is not None:
+        payload = dict(record)
+        if payload.get("history") == []:
+            payload.pop("history", None)
+        cat.upsert_record(payload)
+        return
     content_hash = record["hash"]
     d = _hash_dir(content_hash)
     d.mkdir(parents=True, exist_ok=True)
@@ -241,7 +304,7 @@ def append_history(
 async def resolve_hash(path: Path, index: dict[str, Any] | None = None) -> tuple[str, bool]:
     """Return (content_hash, was_cached)."""
     path = path.resolve()
-    cached = lookup_cached_hash(path, index=index)
+    cached = lookup_cached_hash(path, index=index, check_source=True)
     if cached:
         return cached, True
 
@@ -309,6 +372,393 @@ async def record_operation(
 # disk; the central record holds the named association. No sidecar JSON.
 
 RECENT_CAP = 32  # shared cap for recent-path lists and per-kind variant lists
+BATCH_PATH_LIMIT = 100
+
+
+def parse_batch_paths(raw_paths: Any) -> tuple[list[str], str | None]:
+    """Normalize a batch path list.
+
+    Returns (unique_absolute_paths, error). ``error`` is a human message when
+    the payload is invalid (not a list, a relative path, or more than
+    ``BATCH_PATH_LIMIT`` unique entries). Duplicates are stripped. Relative
+    paths are rejected. Missing files are kept — callers map them to null.
+    """
+    if not isinstance(raw_paths, list):
+        return [], "paths must be a list"
+    unique: list[str] = []
+    seen: set[str] = set()
+    for item in raw_paths:
+        if item is None:
+            continue
+        text = str(item).strip()
+        if not text:
+            continue
+        p = Path(text).expanduser()
+        if not p.is_absolute():
+            return [], f"path must be absolute: {text}"
+        try:
+            key = str(p.resolve())
+        except OSError:
+            key = str(p)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(key)
+    if len(unique) > BATCH_PATH_LIMIT:
+        return [], f"maximum {BATCH_PATH_LIMIT} unique paths per request"
+    return unique, None
+
+
+def stat_signature(path: str | Path) -> dict[str, int] | None:
+    """Direct os.stat only. Missing/inaccessible files return None."""
+    p = Path(path)
+    try:
+        st = p.stat()
+    except OSError:
+        return None
+    if not p.is_file():
+        return None
+    return {"size": int(st.st_size), "mtime_ns": int(st.st_mtime_ns)}
+
+
+def source_path_for_hash(content_hash: str) -> Path | None:
+    """First existing recorded file for this hash.
+
+    Only walks the record's remembered paths. Does not scan the global
+    path index (that is O(indexed files) and belongs on recovery, not
+    every thumbnail request).
+    """
+    if not content_hash:
+        return None
+    rec = load_record(content_hash)
+    if not rec:
+        return None
+    for raw in rec.get("paths") or []:
+        if not raw:
+            continue
+        try:
+            p = Path(str(raw))
+            if p.is_file() and p.stat().st_size > 0:
+                return p
+        except OSError:
+            continue
+    return None
+
+
+def find_existing_paths_for_hash(content_hash: str) -> list[str]:
+    """Known locations of a content-hash that still exist on disk.
+
+    Searches the record's remembered paths and the path index. This is
+    identity recovery, not a filesystem walk.
+    """
+    if not content_hash:
+        return []
+    found: list[str] = []
+    seen: set[str] = set()
+
+    def _add(raw: str | Path | None) -> None:
+        if not raw:
+            return
+        try:
+            p = Path(str(raw)).expanduser()
+            if not p.is_file():
+                return
+            key = str(p.resolve())
+        except OSError:
+            return
+        if key in seen:
+            return
+        seen.add(key)
+        found.append(key)
+
+    rec = load_record(content_hash)
+    if rec:
+        for p in rec.get("paths") or []:
+            _add(p)
+    index = _load_index()
+    for path_key, entry in (index.get("paths") or {}).items():
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("hash") != content_hash:
+            continue
+        _add(path_key)
+    return found
+
+
+def recover_media_path(
+    *,
+    content_hash: str | None = None,
+    last_path: str | Path | None = None,
+    parent_path: str | Path | None = None,
+    multiplier: int | None = None,
+) -> dict[str, Any]:
+    """Targeted identity recovery for a moved/missing file.
+
+    Never hashes, never probes, never re-encodes. Returns the first existing
+    path that matches the stored hash (or a parent-record rifed entry).
+    """
+    if last_path:
+        lp = Path(str(last_path)).expanduser()
+        try:
+            if lp.is_file():
+                resolved = str(lp.resolve())
+                return {
+                    "ok": True,
+                    "found": True,
+                    "recovered": False,
+                    "path": resolved,
+                    "hash": content_hash,
+                    "candidates": [resolved],
+                }
+        except OSError:
+            pass
+
+    hash_candidates: list[str] = []
+    if content_hash:
+        hash_candidates.append(content_hash)
+
+    if parent_path:
+        parent = Path(str(parent_path)).expanduser()
+        try:
+            parent_res = parent.resolve() if parent.exists() else parent
+        except OSError:
+            parent_res = parent
+        parent_hash = lookup_cached_hash(parent_res) if parent_res.exists() else None
+        if not parent_hash:
+            index = _load_index()
+            entry = (index.get("paths") or {}).get(_path_key(parent_res))
+            if isinstance(entry, dict):
+                parent_hash = entry.get("hash")
+        rec = load_record(parent_hash) if parent_hash else None
+        if rec:
+            for v in (rec.get("variants") or {}).get("rifed") or []:
+                if not isinstance(v, dict):
+                    continue
+                if last_path and v.get("path") and Path(str(v["path"])).resolve() == Path(str(last_path)).expanduser():
+                    if v.get("hash"):
+                        hash_candidates.append(str(v["hash"]))
+                if multiplier is not None:
+                    try:
+                        m = int((v.get("detail") or {}).get("multiplier") or 0)
+                    except (TypeError, ValueError):
+                        m = 0
+                    if m == int(multiplier) and v.get("hash"):
+                        hash_candidates.append(str(v["hash"]))
+                if v.get("hash"):
+                    hash_candidates.append(str(v["hash"]))
+
+    seen_h: set[str] = set()
+    all_found: list[str] = []
+    matched_hash: str | None = content_hash
+    for h in hash_candidates:
+        if not h or h in seen_h:
+            continue
+        seen_h.add(h)
+        found = find_existing_paths_for_hash(h)
+        if found:
+            matched_hash = h
+            for p in found:
+                if p not in all_found:
+                    all_found.append(p)
+
+    if all_found:
+        new_path = all_found[0]
+        if parent_path and matched_hash:
+            try:
+                parent = Path(str(parent_path)).expanduser()
+                parent_hash = lookup_cached_hash(parent) if parent.exists() else None
+                if not parent_hash:
+                    index = _load_index()
+                    entry = (index.get("paths") or {}).get(_path_key(parent.resolve() if parent.exists() else parent))
+                    parent_hash = entry.get("hash") if isinstance(entry, dict) else None
+                rec = load_record(parent_hash) if parent_hash else None
+                if rec:
+                    dirty = False
+                    for v in (rec.get("variants") or {}).get("rifed") or []:
+                        if isinstance(v, dict) and v.get("hash") == matched_hash:
+                            v["path"] = new_path
+                            dirty = True
+                    if dirty:
+                        save_record(rec)
+            except OSError:
+                pass
+        return {
+            "ok": True,
+            "found": True,
+            "recovered": True,
+            "path": new_path,
+            "hash": matched_hash,
+            "candidates": all_found,
+        }
+    return {
+        "ok": True,
+        "found": False,
+        "recovered": False,
+        "path": None,
+        "hash": content_hash,
+        "candidates": [],
+    }
+
+
+def _recover_variant_paths(record: dict[str, Any]) -> bool:
+    """Rewrite missing variant paths in-place when the hash still exists."""
+    dirty = False
+    variants = record.get("variants") or {}
+    for _kind, entries in variants.items():
+        if not isinstance(entries, list):
+            continue
+        for v in entries:
+            if not isinstance(v, dict):
+                continue
+            raw = v.get("path")
+            if raw:
+                try:
+                    if Path(str(raw)).is_file():
+                        continue
+                except OSError:
+                    pass
+            h = v.get("hash")
+            if not h:
+                continue
+            found = find_existing_paths_for_hash(str(h))
+            if found:
+                v["path"] = found[0]
+                dirty = True
+    return dirty
+
+
+def _collect_referenced_media_paths() -> set[str]:
+    """Paths still named by the session autosave and the last named project."""
+    refs: set[str] = set()
+
+    def _add(raw: Any) -> None:
+        if not raw:
+            return
+        try:
+            refs.add(str(Path(str(raw)).expanduser().resolve()))
+        except OSError:
+            refs.add(str(raw))
+
+    def _absorb(doc: Any) -> None:
+        if not isinstance(doc, dict):
+            return
+        pool = doc.get("pool") if isinstance(doc.get("pool"), dict) else doc
+        if not isinstance(pool, dict):
+            return
+        for key in ("items", "images"):
+            for it in pool.get(key) or []:
+                if isinstance(it, dict):
+                    _add(it.get("path"))
+        for s in pool.get("sequence") or []:
+            if isinstance(s, str):
+                _add(s)
+                continue
+            if not isinstance(s, dict):
+                continue
+            _add(s.get("path"))
+            _add(s.get("variant_path") or s.get("variantPath"))
+        svp = pool.get("selected_variant_paths") or pool.get("selectedVariantPaths") or {}
+        if isinstance(svp, dict):
+            for v in svp.values():
+                _add(v)
+
+    try:
+        if POOL_STATE_PATH.is_file():
+            _absorb(json.loads(POOL_STATE_PATH.read_text(encoding="utf-8")))
+    except Exception as e:
+        log.warning("referenced-path session load failed: %s", e)
+
+    try:
+        from .projects import LAST_PROJECT_PATH
+        if LAST_PROJECT_PATH.is_file():
+            last = LAST_PROJECT_PATH.read_text(encoding="utf-8").strip()
+            if last and Path(last).is_file():
+                _absorb(json.loads(Path(last).read_text(encoding="utf-8")))
+    except Exception as e:
+        log.warning("referenced-path project load failed: %s", e)
+
+    return refs
+
+
+def gc_lower_density_rifed(
+    parent_path: str | Path,
+    *,
+    keep_multiplier: int,
+    keep_paths: list[str] | None = None,
+) -> dict[str, Any]:
+    """Delete unreferenced rifed files below ``keep_multiplier``.
+
+    The original source is never deleted. A lower-density variant is removed
+    only when no saved session/project still names its path.
+    """
+    parent = Path(parent_path).expanduser().resolve()
+    keep: set[str] = set()
+    try:
+        keep.add(str(parent))
+    except OSError:
+        pass
+    for raw in keep_paths or []:
+        try:
+            keep.add(str(Path(str(raw)).expanduser().resolve()))
+        except OSError:
+            keep.add(str(raw))
+
+    referenced = _collect_referenced_media_paths() | keep
+    parent_hash = lookup_cached_hash(parent)
+    if not parent_hash:
+        index = _load_index()
+        entry = (index.get("paths") or {}).get(_path_key(parent))
+        parent_hash = entry.get("hash") if isinstance(entry, dict) else None
+    if not parent_hash:
+        return {"ok": True, "deleted": [], "kept": [], "reason": "parent not indexed"}
+
+    rec = load_record(parent_hash)
+    if not rec:
+        return {"ok": True, "deleted": [], "kept": [], "reason": "no record"}
+
+    rifed = list((rec.get("variants") or {}).get("rifed") or [])
+    remaining: list[dict[str, Any]] = []
+    deleted: list[str] = []
+    kept: list[str] = []
+
+    for v in rifed:
+        if not isinstance(v, dict):
+            continue
+        raw = v.get("path")
+        try:
+            m = int((v.get("detail") or {}).get("multiplier") or 0)
+        except (TypeError, ValueError):
+            m = 0
+        try:
+            resolved = str(Path(str(raw)).expanduser().resolve()) if raw else ""
+        except OSError:
+            resolved = str(raw or "")
+
+        if not resolved or resolved == str(parent):
+            remaining.append(v)
+            continue
+        if m >= int(keep_multiplier):
+            remaining.append(v)
+            if resolved:
+                kept.append(resolved)
+            continue
+        if resolved in referenced:
+            remaining.append(v)
+            kept.append(resolved)
+            continue
+        try:
+            p = Path(resolved)
+            if p.is_file():
+                p.unlink()
+            deleted.append(resolved)
+        except OSError as e:
+            log.warning("gc unlink failed for %s: %s", resolved, e)
+            remaining.append(v)
+            kept.append(resolved)
+
+    rec.setdefault("variants", {})["rifed"] = remaining
+    save_record(rec)
+    return {"ok": True, "deleted": deleted, "kept": kept, "keep_multiplier": int(keep_multiplier)}
 
 
 async def register_variant(
@@ -357,29 +807,57 @@ async def get_variants(
     parent_path: str | Path,
     *,
     include_missing: bool = False,
-) -> dict[str, list[dict[str, Any]]]:
+    hash_if_missing: bool = True,
+) -> dict[str, list[dict[str, Any]]] | None:
     """Return record['variants'] for the clip at parent_path, or {}.
 
     - Old records without a 'variants' key return {} (no KeyError).
+    - Missing/inaccessible parent files return None (batch callers map to null).
     - By default, entries whose 'path' no longer exists on disk are dropped,
       so callers never load dead files. Pass include_missing=True to keep them
       (e.g. so the UI can show the variant greyed-out as "missing").
+    - Missing variant files are recovered by stored content hash before drop.
     - If the path index is cold (mtime miss / never indexed), resolve_hash once
       so Instant RIFE can see already-registered densify files. GET must not
       stay forever empty when the rifed sibling is already in the record.
+    - ``hash_if_missing=False`` (batch / restore) never hashes the parent.
     """
-    parent = Path(parent_path).resolve()
-    parent_hash = lookup_cached_hash(parent)
-    if not parent_hash:
-        # Cold index: one hash (cached thereafter). Empty variants if unknown file.
-        try:
-            parent_hash, _ = await resolve_hash(parent)
-        except OSError:
+    try:
+        parent = Path(parent_path).expanduser()
+    except OSError:
+        return None
+    cat = _catalog_ready()
+    if cat is not None:
+        rec = cat.record_for_path(parent)
+        if rec is not None:
+            return rec.variants or {}
+        if not hash_if_missing:
             return {}
+    try:
+        parent = parent.resolve()
+    except OSError:
+        return None
+    if not parent.is_file():
+        return None
+    parent_hash = lookup_cached_hash(parent, check_source=True)
+    if not parent_hash:
+        if not hash_if_missing:
+            index = _load_index()
+            entry = (index.get("paths") or {}).get(_path_key(parent))
+            parent_hash = entry.get("hash") if isinstance(entry, dict) else None
+            if not parent_hash or not _record_path(parent_hash).exists():
+                return {}
+        else:
+            try:
+                parent_hash, _ = await resolve_hash(parent)
+            except OSError:
+                return None
     rec = load_record(parent_hash)
     if not rec:
         return {}
-    variants = rec.get("variants", {})
+    if _recover_variant_paths(rec):
+        save_record(rec)
+    variants = rec.get("variants") or {}
     if include_missing:
         return variants
     return {
@@ -391,6 +869,9 @@ async def get_variants(
 # ── stats ──────────────────────────────────────────────────────────────────
 
 def media_cache_stats() -> dict[str, Any]:
+    cat = _catalog_ready()
+    if cat is not None:
+        return cat.status_now()
     _ensure_dirs()
     index = _load_index()
     hash_dirs = [p for p in BY_HASH_DIR.iterdir()] if BY_HASH_DIR.exists() else []

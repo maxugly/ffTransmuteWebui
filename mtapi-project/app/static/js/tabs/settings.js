@@ -3,6 +3,54 @@ import { state, elements } from '/app.js';
 import { setupContinuousKnob } from '/js/ui/knobs.js';
 
 const SIZE_LABELS = ['L', 'M', 'H'];
+const SCROLLBAR_MIN = 6;
+const SCROLLBAR_MAX = 30;
+const SCROLLBAR_STEP = 2;
+
+const SCROLLBAR_LS_KEY = 'mtapi.scrollbarWidth';
+
+function clampScrollbarWidth(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return SCROLLBAR_MIN;
+  const snapped = Math.round(n / SCROLLBAR_STEP) * SCROLLBAR_STEP;
+  return Math.max(SCROLLBAR_MIN, Math.min(SCROLLBAR_MAX, snapped));
+}
+
+function readStoredScrollbarWidth() {
+  try {
+    const direct = Number(localStorage.getItem(SCROLLBAR_LS_KEY));
+    if (Number.isFinite(direct) && direct > 0) return clampScrollbarWidth(direct);
+  } catch (_) { /* ignore */ }
+  try {
+    const raw = JSON.parse(localStorage.getItem('mtapi.settings') || 'null');
+    if (raw && raw.scrollbarWidth != null) return clampScrollbarWidth(raw.scrollbarWidth);
+  } catch (_) { /* ignore */ }
+  return SCROLLBAR_MIN;
+}
+
+function persistScrollbarWidth(px) {
+  const w = clampScrollbarWidth(px);
+  try { localStorage.setItem(SCROLLBAR_LS_KEY, String(w)); } catch (_) { /* ignore */ }
+  return w;
+}
+
+function applyUiTweaks(width) {
+  const px = clampScrollbarWidth(width != null ? width : (state.settings?.scrollbarWidth ?? readStoredScrollbarWidth()));
+  if (state.settings) state.settings.scrollbarWidth = px;
+  persistScrollbarWidth(px);
+  const root = document.documentElement;
+  root.style.setProperty('--scrollbar-width', `${px}px`);
+  root.dataset.scrollbar = px > SCROLLBAR_MIN ? 'thick' : 'thin';
+  // Chromium does not recompute ::-webkit-scrollbar width from a CSS variable.
+  // Rewrite a real stylesheet so the bar actually changes.
+  let tag = document.getElementById('mtapi-scrollbar-style');
+  if (!tag) {
+    tag = document.createElement('style');
+    tag.id = 'mtapi-scrollbar-style';
+    document.head.appendChild(tag);
+  }
+  tag.textContent = `::-webkit-scrollbar{width:${px}px !important;height:${px}px !important;}`;
+}
 
 function settingsSnapshot() {
   return {
@@ -10,11 +58,14 @@ function settingsSnapshot() {
     thumbnailSize: SIZE_LABELS[Math.max(0, Math.min(2, Number(state.settings.thumbnailSizeIndex ?? 2)))],
     thumbnailsToRam: !!state.settings.thumbnailsToRam,
     phashToRam: !!state.settings.phashToRam,
+    viewportLazyThumbnails: state.settings.viewportLazyThumbnails !== false,
+    scrollbarWidth: clampScrollbarWidth(state.settings.scrollbarWidth),
     warmModels: { ...(state.settings.warmModels || {}) },
   };
 }
 
 async function saveSettings(patch = {}) {
+  const prevSize = state.settings.thumbnailSize;
   state.settings = {
     ...state.settings,
     ...patch,
@@ -22,6 +73,7 @@ async function saveSettings(patch = {}) {
   };
   const payload = settingsSnapshot();
   try { localStorage.setItem('mtapi.settings', JSON.stringify(state.settings)); } catch (_) {}
+  if (patch.scrollbarWidth != null) applyUiTweaks(payload.scrollbarWidth);
   try {
     await fetch('/api/settings', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -30,10 +82,22 @@ async function saveSettings(patch = {}) {
         thumbnails_to_ram: payload.thumbnailsToRam,
         phash_to_ram: payload.phashToRam,
         autosave_interval: payload.autosaveInterval,
+        scrollbar_width: payload.scrollbarWidth,
         warm_models: payload.warmModels,
       }),
     });
   } catch (_) { /* localStorage remains authoritative for the browser */ }
+  // No import of persistence.js — avoid a cycle. Prefer the global callback.
+  if (typeof window.scheduleSavePoolState === 'function') {
+    window.scheduleSavePoolState();
+  } else {
+    window.dispatchEvent(new CustomEvent('mtapi.saveSettings'));
+  }
+  if (payload.thumbnailSize !== prevSize || patch.thumbnailSize || patch.thumbnailSizeIndex != null) {
+    window.dispatchEvent(new CustomEvent('mtapi.settingsChanged', {
+      detail: { thumbnailSize: payload.thumbnailSize },
+    }));
+  }
 }
 
 function switchHtml(id, label, checked) {
@@ -57,8 +121,10 @@ export function renderSettingsForm() {
         <p class="settings-lede">Performance controls are stored locally and mirrored to the media server. Drag knobs vertically or use the mouse wheel.</p>
       </div>
       <section class="settings-card settings-performance" aria-labelledby="settingsPerformanceTitle">
-        <div class="settings-card-kicker">Performance</div>
-        <h4 class="settings-card-name" id="settingsPerformanceTitle">Pool &amp; cache</h4>
+        <div class="settings-card-head">
+          <span class="settings-card-kicker">Performance</span>
+          <h4 class="settings-card-name" id="settingsPerformanceTitle">Pool &amp; cache</h4>
+        </div>
         <div class="settings-knob-row">
           <div class="settings-discrete-knob">
             <span class="knob-unit-label">Thumbnail size</span>
@@ -66,7 +132,6 @@ export function renderSettingsForm() {
               <div class="daw-knob-dial"></div><div class="daw-knob-indicator" id="settingsThumbKnobInd"></div>
             </div>
             <input class="daw-knob-value-input" id="settingsThumbValue" value="${SIZE_LABELS[sizeIndex]}" readonly>
-            <div class="settings-scale"><span>L</span><span>M</span><span>H</span></div>
             <input type="hidden" id="settingsThumbIndex" value="${sizeIndex}">
           </div>
           <div class="settings-autosave-knob">
@@ -80,19 +145,39 @@ export function renderSettingsForm() {
           <div class="settings-switches">
             ${switchHtml('settingsThumbRam', 'Keep thumbnails in RAM', state.settings.thumbnailsToRam)}
             ${switchHtml('settingsPhashRam', 'Keep hashes in RAM', state.settings.phashToRam)}
+            ${switchHtml('settingsViewportLazy', 'Viewport-lazy thumbnails', state.settings.viewportLazyThumbnails !== false)}
           </div>
         </div>
-        <p class="settings-card-desc">L = 120px, M = 240px, H = 480px. RAM caches are byte-bounded and can be cleared by restarting the server.</p>
+        <p class="settings-card-desc">L = 120px, M = 240px, H = 480px. Changing size does not delete<br>disk or RAM caches. Viewport-lazy is the default.</p>
       </section>
-      <section class="settings-card" aria-labelledby="settingsWarmTitle">
-        <div class="settings-card-kicker">Neural FX</div>
-        <h4 class="settings-card-name" id="settingsWarmTitle">Keep models warm</h4>
-        <p class="settings-card-desc">Keeps the selected worker/model warm when supported. Default is off to avoid VRAM pressure.</p>
-        <div class="settings-warm-grid">
+      <section class="settings-card settings-warm" aria-labelledby="settingsWarmTitle">
+        <div class="settings-card-head">
+          <span class="settings-card-kicker">Neural FX</span>
+          <h4 class="settings-card-name" id="settingsWarmTitle">Keep models warm</h4>
+        </div>
+        <div class="settings-warm-row">
           ${switchHtml('settingsWarmDeepdream', 'DeepDream', warm.deepdream)}
           ${switchHtml('settingsWarmStyle', 'Style Transfer', warm.styletransfer)}
           ${switchHtml('settingsWarmFastsam', 'FastSAM', warm.fastsam)}
         </div>
+        <p class="settings-card-desc">Keeps the selected worker/model warm when supported. Default is off<br>to avoid VRAM pressure.</p>
+      </section>
+      <section class="settings-card settings-ui" aria-labelledby="settingsUiTitle">
+        <div class="settings-card-head">
+          <span class="settings-card-kicker">Display</span>
+          <h4 class="settings-card-name" id="settingsUiTitle">UI tweaks</h4>
+        </div>
+        <div class="settings-knob-row">
+          <div class="settings-discrete-knob">
+            <span class="knob-unit-label">Scrollbar</span>
+            <div class="daw-knob" id="settingsScrollbarKnob" title="Drag up/down · scroll wheel">
+              <div class="daw-knob-dial"></div><div class="daw-knob-indicator" id="settingsScrollbarKnobInd"></div>
+            </div>
+            <input class="daw-knob-value-input" id="settingsScrollbarValue" value="${clampScrollbarWidth(state.settings.scrollbarWidth)}px" readonly>
+            <input type="hidden" id="settingsScrollbarWidth" value="${clampScrollbarWidth(state.settings.scrollbarWidth)}">
+          </div>
+        </div>
+        <p class="settings-card-desc">Width of every scroll bar. ${SCROLLBAR_MIN}px is the current default<br>and the minimum. ${SCROLLBAR_MAX}px is as thick as this goes.</p>
       </section>
     </div>`;
 
@@ -115,6 +200,19 @@ export function renderSettingsForm() {
       if (elements.actionPanel?.dataset.settingsReady === '1') saveSettings({ autosaveInterval: [5, 30, 60][Math.round(v)] || 30 });
     },
   });
+  setupContinuousKnob({
+    knobId: 'settingsScrollbarKnob', indicatorId: 'settingsScrollbarKnobInd',
+    valueId: 'settingsScrollbarValue', hiddenId: 'settingsScrollbarWidth',
+    min: SCROLLBAR_MIN, max: SCROLLBAR_MAX, step: SCROLLBAR_STEP, decimals: 0,
+    format: (v) => `${clampScrollbarWidth(v)}px`,
+    onChange: (v) => {
+      const px = clampScrollbarWidth(v);
+      applyUiTweaks(px);
+      if (elements.actionPanel?.dataset.settingsReady === '1') {
+        saveSettings({ scrollbarWidth: px });
+      }
+    },
+  });
   elements.actionPanel.dataset.settingsReady = '1';
 
   document.getElementById('settingsThumbIndex')?.addEventListener('change', (e) => {
@@ -128,9 +226,10 @@ export function renderSettingsForm() {
   const bindSwitch = (id, patch) => document.getElementById(id)?.addEventListener('change', (e) => saveSettings({ [patch]: e.target.checked }));
   bindSwitch('settingsThumbRam', 'thumbnailsToRam');
   bindSwitch('settingsPhashRam', 'phashToRam');
+  bindSwitch('settingsViewportLazy', 'viewportLazyThumbnails');
   document.getElementById('settingsWarmDeepdream')?.addEventListener('change', e => saveSettings({ warmModels: { deepdream: e.target.checked } }));
   document.getElementById('settingsWarmStyle')?.addEventListener('change', e => saveSettings({ warmModels: { styletransfer: e.target.checked } }));
   document.getElementById('settingsWarmFastsam')?.addEventListener('change', e => saveSettings({ warmModels: { fastsam: e.target.checked } }));
 }
 
-export { saveSettings };
+export { saveSettings, applyUiTweaks, clampScrollbarWidth, readStoredScrollbarWidth };
