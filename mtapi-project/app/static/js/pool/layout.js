@@ -102,6 +102,7 @@ function expandMatchesRoom() {
 }
 
 function setupPoolLayoutChrome() {
+  installPoolScrollPaint();
   applyPoolLayout();
 
   document.querySelectorAll('[data-collapse]').forEach(head => {
@@ -165,6 +166,56 @@ function setupPoolLayoutChrome() {
   });
 }
 
+// Fast scroll must not restyle the wall. Hover/transform on 900+ cards
+// blanks already-decoded thumbs until the pointer stops.
+const SCROLL_IDLE_MS = 140;
+let _scrollPaintInstalled = false;
+let _gridScrolling = false;
+let _scrollIdleTimer = null;
+let _lastPtr = { x: 0, y: 0 };
+let _onScrollIdle = null;
+
+function isPoolGridScrolling() {
+  return _gridScrolling;
+}
+
+function lastPoolPointer() {
+  return _lastPtr;
+}
+
+function _setGridScrolling(on) {
+  if (_gridScrolling === on) return;
+  _gridScrolling = on;
+  document.querySelectorAll('.pool-grid-wrap').forEach((el) => {
+    el.classList.toggle('is-scrolling', on);
+  });
+}
+
+function _onGridScroll() {
+  if (!_gridScrolling) _setGridScrolling(true);
+  clearTimeout(_scrollIdleTimer);
+  _scrollIdleTimer = setTimeout(() => {
+    _setGridScrolling(false);
+    try { if (typeof _onScrollIdle === 'function') _onScrollIdle(); } catch (_) { /* ignore */ }
+  }, SCROLL_IDLE_MS);
+}
+
+function installPoolScrollPaint(onIdle) {
+  if (typeof onIdle === 'function') _onScrollIdle = onIdle;
+  if (_scrollPaintInstalled) return;
+  _scrollPaintInstalled = true;
+  document.addEventListener('scroll', (e) => {
+    const t = e.target;
+    if (!t || t === document || t === document.documentElement || t === document.body) return;
+    if (t.classList?.contains('pool-grid-wrap') || t.closest?.('.pool-grid-wrap')) {
+      _onGridScroll();
+    }
+  }, { capture: true, passive: true });
+  document.addEventListener('pointermove', (e) => {
+    _lastPtr = { x: e.clientX, y: e.clientY };
+  }, { passive: true });
+}
+
 function bindPoolDragResize(el, { axis, onMove, startVals }) {
   if (!el) return;
   el.addEventListener('pointerdown', (e) => {
@@ -196,4 +247,5 @@ function bindPoolDragResize(el, { axis, onMove, startVals }) {
 export {
   ensurePoolLayout, applyPoolLayout, togglePoolSection,
   expandMatchesRoom, setupPoolLayoutChrome, bindPoolDragResize,
+  isPoolGridScrolling, installPoolScrollPaint, lastPoolPointer,
 };

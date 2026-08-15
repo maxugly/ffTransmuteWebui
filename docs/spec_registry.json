@@ -423,15 +423,15 @@
         "file": "performance-catalog-ux-spec.md",
         "path": "docs/performance-catalog-ux-spec.md",
         "category": "Core Architecture / WebUI",
-        "status": "Implemented Phase 1 000.000.5.14",
-        "summary": "McMaster-Carr catalog UX Phase 1: cache-first eager restore, POST /api/media_signatures, POST /api/variants/batch, window.globalMediaIndex, persisted-variant fast path, Instant RIFE copy-on-write + hash recovery + unreferenced lower-density GC. Phase 2/3 not shipped."
+        "status": "Implemented Phase 1 000.000.5.14 (scroll-paint 5.27, restore 5.28)",
+        "summary": "McMaster-Carr catalog UX Phase 1: cache-first eager restore, POST /api/media_signatures, POST /api/variants/batch, window.globalMediaIndex, persisted-variant fast path, Instant RIFE copy-on-write + hash recovery + unreferenced lower-density GC. 5.27: pool scroll ignores hover/transform. 5.28: restore copies record meta/thumb flags so open does not media_info/ensure already-scanned clips. Phase 2/3 virtualization not shipped."
     },
     {
         "file": "settings-card-layout-spec.md",
         "path": "docs/settings-card-layout-spec.md",
         "category": "UX",
-        "status": "Implemented 000.000.5.13",
-        "summary": "Settings house style: one page of tight max-content cards, kicker+title on one line, packed controls, switches beside labels, two-line blurbs. Layout law for new Settings cards."
+        "status": "Implemented 000.000.5.13 (UI tweaks 5.29)",
+        "summary": "Settings house style: one page of tight max-content cards, kicker+title on one line, packed controls, switches beside labels, two-line blurbs. 5.29–5.31: Display / UI tweaks scrollbar knob, 6–30px."
     },
     {
         "file": "universal-persistence-spec.md",

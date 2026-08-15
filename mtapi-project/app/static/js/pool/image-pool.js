@@ -7,12 +7,13 @@
 import { state, elements, logConsole, showPreview, checkHealth, switchTab, formatBytes } from '/app.js';
 import { isImagePath, basename, escapeHtml } from '/js/utils.js';
 import {
-  scheduleSavePoolState, poolThumbUrl, shortHash, projectLabel,
+  scheduleSavePoolState, poolThumbUrl, itemShowsThumb, shortHash, projectLabel,
   projectNew, projectOpen, projectSave,
 } from '/js/pool/persistence.js';
 import { observe as lazyObserve, unobserve as lazyUnobserve, clearPending as lazyClearPending, assignThumbSrc } from '/js/lazy-loader.js';
 import { validateItemSignature, assignCardThumbs, metaRetryHtml, hasRestoredIdentity } from '/js/pool/freshness.js';
 import { globalMediaIndex } from '/js/media-index.js';
+import { installPoolScrollPaint } from '/js/pool/layout.js';
 
 const _observedImageCards = new Set();
 
@@ -98,7 +99,7 @@ function WORKSPACE_HINT() {
 
 async function loadImageItemMeta(item) {
   try {
-    const res = await fetch(`/api/media_info?path=${encodeURIComponent(item.path)}&ensure_thumbs=true`);
+    const res = await fetch(`/api/media_info?path=${encodeURIComponent(item.path)}&ensure_thumbs=false`);
     const data = await res.json();
     if (data && data.ok) {
       item.meta = data;
@@ -648,6 +649,7 @@ function renderImagePoolForm() {
 
   elements.actionPanel.innerHTML = html;
   (elements.actionPanelRoot || elements.actionPanel).classList.add('pool-active');
+  installPoolScrollPaint();
 
   document.getElementById('btnProjectNew')?.addEventListener('click', projectNew);
   document.getElementById('btnProjectOpen')?.addEventListener('click', projectOpen);
@@ -758,8 +760,7 @@ function renderImagePoolGrid() {
       </div>
       <div class="pool-frames img-pool-single">
         <div class="pool-frame">
-          <img class="pool-thumb" alt="${escapeHtml(item.name || '')}" loading="eager" data-which="first" draggable="false"${item.hash ? ` src="${imageThumbUrl(item)}"` : ''}
-               onerror="this.classList.add('broken'); this.alt='no image';">
+          <img class="pool-thumb" alt="${escapeHtml(item.name || '')}" loading="eager" decoding="async" data-which="first" draggable="false"${itemShowsThumb(item, 'first') ? ` src="${imageThumbUrl(item)}"` : ''}>
         </div>
       </div>
       <div class="pool-overlay">

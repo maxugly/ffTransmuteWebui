@@ -6,7 +6,7 @@
  * identity, optional lazy mode) and goes through the batch queue.
  */
 import { state } from '/app.js';
-import { poolThumbUrl } from '/js/pool/persistence.js';
+import { poolThumbUrl, itemShowsThumb } from '/js/pool/persistence.js';
 import { enqueueSignature, assignThumbSrc, enqueueEnsureThumb } from '/js/lazy-loader.js';
 import { globalMediaIndex } from '/js/media-index.js';
 
@@ -99,14 +99,21 @@ function assignCardThumbs(card, item, { bust = false } = {}) {
   const m = bust ? item.meta_signature?.mtime_ns : null;
   card.querySelectorAll('img.pool-thumb').forEach((img) => {
     const which = img.dataset.which || 'first';
+    if (item.thumbsFailed && item.thumbsFailed[which]) {
+      img.removeAttribute('src');
+      return;
+    }
+    if (!itemShowsThumb(item, which)) {
+      enqueueEnsureThumb(item, which);
+      return;
+    }
     const url = thumbUrlWithBust(item, which, m);
     assignThumbSrc(img, url).then((ok) => {
       if (ok) {
         img.classList.remove('broken');
         return;
       }
-      img.classList.add('broken');
-      // Display GET is cache-only. Generate in the background, then retry.
+      // Known cache miss: fill in the background. Do not paint a broken icon.
       enqueueEnsureThumb(item, which);
     });
   });

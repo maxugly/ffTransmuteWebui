@@ -15,6 +15,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "thumbnails_to_ram": False,
     "phash_to_ram": False,
     "autosave_interval": 30,
+    "scrollbar_width": 6,
     "warm_models": {"deepdream": False, "styletransfer": False, "fastsam": False},
 }
 _settings_lock = asyncio.Lock()
@@ -28,11 +29,17 @@ def _normalize_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
         interval = int(raw.get("autosave_interval", DEFAULT_SETTINGS["autosave_interval"]))
     except (TypeError, ValueError):
         interval = DEFAULT_SETTINGS["autosave_interval"]
+    try:
+        bar = int(raw.get("scrollbar_width", DEFAULT_SETTINGS["scrollbar_width"]))
+    except (TypeError, ValueError):
+        bar = DEFAULT_SETTINGS["scrollbar_width"]
+    bar = max(6, min(30, int(round(bar / 2) * 2)))
     return {
         "thumbnail_size": normalize_thumb_size(raw.get("thumbnail_size", "H")),
         "thumbnails_to_ram": bool(raw.get("thumbnails_to_ram", False)),
         "phash_to_ram": bool(raw.get("phash_to_ram", False)),
         "autosave_interval": max(5, min(3600, interval)),
+        "scrollbar_width": bar,
         "warm_models": {
             name: bool(warm.get(name, False))
             for name in ("deepdream", "styletransfer", "fastsam")

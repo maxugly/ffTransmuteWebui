@@ -18,6 +18,7 @@ from .pool import (
     _existing_path_or_none,
     _normalize_pool_payload,
     _schema_version,
+    enrich_items_from_records,
 )
 
 log = logging.getLogger("mtapi.media_store")
@@ -117,6 +118,8 @@ def load_project_file(project_path: str | Path) -> dict[str, Any]:
         LAST_PROJECT_PATH.write_text(str(path), encoding="utf-8")
     except Exception:
         pass
+
+    enrich_items_from_records(pool)
 
     return {
         "ok": True,

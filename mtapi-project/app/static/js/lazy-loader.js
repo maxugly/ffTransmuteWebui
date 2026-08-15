@@ -155,11 +155,15 @@ function drainThumbQueue() {
     const onErr = () => done(false);
     img.addEventListener('load', onLoad, { once: true });
     img.addEventListener('error', onErr, { once: true });
-    if (img.getAttribute('src') === job.url && img.complete && img.naturalWidth > 0) {
-      done(true);
+    img.loading = 'eager';
+    img.decoding = 'async';
+    if (img.getAttribute('src') === job.url) {
+      if (img.complete) {
+        done(img.naturalWidth > 0);
+        continue;
+      }
       continue;
     }
-    img.loading = 'eager';
     img.src = job.url;
   }
 }
@@ -185,8 +189,12 @@ function assignThumbSrc(img, url) {
       const onErr = () => finish(false);
       img.addEventListener('load', onLoad, { once: true });
       img.addEventListener('error', onErr, { once: true });
-      if (img.getAttribute('src') === url && img.complete && img.naturalWidth > 0) {
-        finish(true);
+      img.decoding = 'async';
+      if (img.getAttribute('src') === url) {
+        if (img.complete) {
+          finish(img.naturalWidth > 0);
+          return;
+        }
         return;
       }
       img.src = url;

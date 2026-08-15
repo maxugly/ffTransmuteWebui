@@ -8,7 +8,7 @@ import {
 import {
   projectNew, projectOpen, projectSave, savePoolStateNow,
   scheduleSavePoolState, stitchPoolSequence, refreshPoolToolbarCounts,
-  projectLabel, poolThumbUrl, shortHash, buildPoolMetaHtml,
+  projectLabel, poolThumbUrl, itemShowsThumb, shortHash, buildPoolMetaHtml,
 } from '/js/pool/persistence.js';
 import {
   findPoolItem, displayFocusPath, setPoolHover, clearPoolHover,
@@ -968,13 +968,11 @@ function renderPoolGrid() {
       ${seqPos.length > 0 ? `<span class="pool-seq-indicator">${seqPos.join(' ')}</span>` : ''}
       <div class="pool-frames">
         <div class="pool-frame">
-          <img class="pool-thumb" alt="First frame" loading="eager" data-which="first" draggable="false"${item.hash ? ` src="${poolThumbUrl(item, 'first')}"` : ''}
-               onerror="this.classList.add('broken'); this.alt='no frame';">
+          <img class="pool-thumb" alt="First frame" loading="eager" decoding="async" data-which="first" draggable="false"${itemShowsThumb(item, 'first') ? ` src="${poolThumbUrl(item, 'first')}"` : ''}>
           ${showLabels ? '<span class="pool-frame-label">FIRST</span>' : ''}
         </div>
         <div class="pool-frame">
-          <img class="pool-thumb" alt="Last frame" loading="eager" data-which="last" draggable="false"${item.hash ? ` src="${poolThumbUrl(item, 'last')}"` : ''}
-               onerror="this.classList.add('broken'); this.alt='no frame';">
+          <img class="pool-thumb" alt="Last frame" loading="eager" decoding="async" data-which="last" draggable="false"${itemShowsThumb(item, 'last') ? ` src="${poolThumbUrl(item, 'last')}"` : ''}>
           ${showLabels ? '<span class="pool-frame-label">LAST</span>' : ''}
         </div>
       </div>

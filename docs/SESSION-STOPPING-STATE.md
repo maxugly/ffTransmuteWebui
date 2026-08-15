@@ -1,14 +1,14 @@
 # Session stopping state — handoff
 
-> **Date:** 2026-08-14  
-> **VERSION:** `000.000.5.26`  
+> **Date:** 2026-08-15  
+> **VERSION:** `000.000.5.31`  
 > **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 5.20)
+## 1. Shipped this stretch (through 5.31)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
@@ -45,6 +45,11 @@
 | **Pay-once thumbs** | Display is cache-only; missing thumbs generate in background; work starts immediately | `5.19` |
 | **No redo** | Same path+size never re-hashes; cache-hit open does not rewrite; failed thumbs not retried | `5.20` |
 | **Reload thumbs** | Hash `src` written on the card at render; 8-queue no longer withholds src; L/M serves H if needed | `5.21` |
+| **No lazy + settings persist** | Eager thumbs; settings from localStorage + `/api/settings` | `5.22` |
+| **Instant / project load** | No re-scan of known clips; Instant uses `rifeNeed` | `5.23`–`5.26` |
+| **Scroll keeps thumbs painted** | Ignore hover while the pool grid is scrolling; no hover translate; `src` stays | `layout.js`, `sequence.js`, `pool.css` · **`5.27`** |
+| **Open does not re-scan thumbs** | Session items had hash but almost no meta, so hover fired `media_info?ensure_thumbs=true`. Restore now copies record meta + thumb flags; failed extracts are not 404-retried. | `pool.py`, `sequence.js` · **`5.28`** |
+| **Scrollbar width setting** | UI tweaks 6–30px. `5.30` real px sheet; `5.31` cap 30 | `settings.js`, `base.css` · **`5.29`–`5.31`** |
 
 Earlier stable: filter platform, dual pools, Convert, neural ops, Prompt Library, Recohere, Agent, OpenVINO stills.
 

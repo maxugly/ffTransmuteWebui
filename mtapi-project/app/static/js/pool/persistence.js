@@ -95,6 +95,7 @@ function serializePoolItem(item) {
     meta_signature: serializeSignature(item.meta_signature),
     history_count: serializeCounter(item.history_count ?? item.meta?.history_count),
     open_count: serializeCounter(item.open_count ?? item.meta?.open_count),
+    thumbsFailed: item.thumbsFailed || null,
   };
 }
 
@@ -112,6 +113,8 @@ function hydratePoolItem(it) {
     meta_signature: serializeSignature(it.meta_signature),
     history_count: serializeCounter(it.history_count),
     open_count: serializeCounter(it.open_count),
+    thumbs: it.thumbs || null,
+    thumbsFailed: it.thumbsFailed || it.thumbs_failed || null,
   };
 }
 
@@ -148,6 +151,7 @@ function migratePoolPayload(data) {
 function captureCurrentFormState() {
   const tab = state.activeTab;
   if (!tab || !elements.actionPanel) return;
+  if (tab === 'settings') return;
   const controls = {};
   elements.actionPanel.querySelectorAll('input[id], select[id], textarea[id]').forEach((el) => {
     if (FORM_STATE_SKIP.has(el.id) || el.type === 'button' || el.type === 'submit') return;
@@ -165,6 +169,7 @@ function captureCurrentFormState() {
  * delegated resave / watcher POSTs (duplicate snapshot side effects).
  */
 function applySavedFormState(tab) {
+  if (tab === 'settings') return;
   const controls = state.formState?.[tab];
   if (!controls || !elements.actionPanel) return;
   _applyingFormState = true;
@@ -900,6 +905,15 @@ async function stitchPoolSequence() {
   }
 }
 
+/** False when the record already paid for a failed extract — do not GET 404. */
+function itemShowsThumb(item, which) {
+  const w = which || 'first';
+  if (!item || !item.hash) return false;
+  if (item.thumbsFailed && item.thumbsFailed[w]) return false;
+  if (item.thumbs && item.thumbs[w] === false) return false;
+  return true;
+}
+
 function poolThumbUrl(item, which) {
   const size = String(state.settings?.thumbnailSize || 'H').toUpperCase();
   const version = 3;
@@ -990,6 +1004,6 @@ export {
   savePoolStateNow, restorePoolState,
   refreshPoolToolbarCounts, ensureVideoOutputPath,
   stitchPoolSequence,
-  poolThumbUrl, shortHash, buildPoolMetaHtml,
+  poolThumbUrl, itemShowsThumb, shortHash, buildPoolMetaHtml,
   isApplyingFormState, serializePoolItem, hydratePoolItem, migratePoolPayload,
 };

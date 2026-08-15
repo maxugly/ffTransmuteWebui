@@ -6,10 +6,10 @@ import {
   setPreviewAspect,
   clearPreviewAspect,
 } from '/app.js';
-import { loadPoolItemMeta, selectPoolItem } from '/js/pool/items.js';
+import { selectPoolItem } from '/js/pool/items.js';
 import { isVideoPath, basename, escapeHtml, formatDurationExact } from '/js/utils.js';
 import {
-  poolThumbUrl, shortHash, nextSeqId,
+  poolThumbUrl, itemShowsThumb, shortHash, nextSeqId,
   scheduleSavePoolState, savePoolStateNow, refreshPoolToolbarCounts,
 } from '/js/pool/persistence.js';
 import {
@@ -18,6 +18,7 @@ import {
 } from '/js/job-control.js';
 import { normalizeAbsPath } from '/js/media-index.js';
 import { recordVariantBatch, enqueueSignature } from '/js/lazy-loader.js';
+import { isPoolGridScrolling, installPoolScrollPaint, lastPoolPointer } from '/js/pool/layout.js';
 
 // ── Sequence composer ─────────────────────────────────────────────────────
 
@@ -1167,10 +1168,12 @@ function displayFocusPath() {
 
 /** Temporary hover — updates Selection preview only; does not change selection. */
 function setPoolHover(path) {
+  if (isPoolGridScrolling()) return;
   if (!path) {
     clearPoolHover();
     return;
   }
+  if (state.pool.hoverPath === path) return;
   state.pool.hoverPath = path;
   state.pool.focusPath = path; // keep legacy field in sync for any remaining callers
   updatePoolFocusFrame(path);
@@ -1178,11 +1181,23 @@ function setPoolHover(path) {
 }
 
 function clearPoolHover() {
+  if (isPoolGridScrolling()) return;
   if (!state.pool.hoverPath) return;
   state.pool.hoverPath = null;
   state.pool.focusPath = state.pool.selectedPath;
   updatePoolFocusFrame(state.pool.selectedPath);
   updateSelectionHighlights();
+}
+
+/** After scroll stops: hover the card still under the pointer, else clear. */
+function applyPoolHoverAtPoint() {
+  if (isPoolGridScrolling()) return;
+  const { x, y } = lastPoolPointer();
+  const under = document.elementFromPoint(x, y);
+  const card = under && under.closest ? under.closest('.pool-card:not(.img-pool-card), .seq-token') : null;
+  const path = card && card.dataset ? card.dataset.path : null;
+  if (path) setPoolHover(path);
+  else clearPoolHover();
 }
 
 /** Sticky click selection — library and sequence stay in sync by path. */
@@ -1196,21 +1211,53 @@ function setPoolFocus(path, opts = {}) {
 }
 
 /** Sync .selected / .hovered classes across pool cards and sequence tokens. */
+let _hlSel = null;
+let _hlHov = null;
+
+function _attrEscape(value) {
+  return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function _elsForPath(path) {
+  if (!path) return [];
+  const sel = `[data-path="${_attrEscape(path)}"]`;
+  return [
+    ...document.querySelectorAll(`.pool-card${sel}`),
+    ...document.querySelectorAll(`.seq-token${sel}`),
+  ];
+}
+
+function _applyHighlight(el, sel, hov) {
+  const p = el.dataset.path;
+  const isSel = !!sel && p === sel;
+  const isHov = !!hov && p === hov;
+  el.classList.toggle('selected', isSel);
+  el.classList.toggle('hovered', isHov);
+  if (el.classList.contains('seq-token')) {
+    el.classList.toggle('focused', isHov || (isSel && !hov));
+  } else {
+    el.classList.toggle('focused', isHov);
+  }
+}
+
 function updateSelectionHighlights() {
   const sel = state.pool.selectedPath;
   const hov = state.pool.hoverPath;
-  document.querySelectorAll('.pool-card').forEach(el => {
-    const p = el.dataset.path;
-    el.classList.toggle('selected', !!sel && p === sel);
-    el.classList.toggle('hovered', !!hov && p === hov);
-    el.classList.toggle('focused', !!hov && p === hov); // alias for existing CSS
-  });
-  document.querySelectorAll('.seq-token').forEach(el => {
-    const p = el.dataset.path;
-    el.classList.toggle('selected', !!sel && p === sel);
-    el.classList.toggle('hovered', !!hov && p === hov);
-    el.classList.toggle('focused', (!!hov && p === hov) || (!!sel && p === sel && !hov));
-  });
+  if (sel === _hlSel && hov === _hlHov) return;
+  const changed = new Set();
+  if (sel !== _hlSel) {
+    if (_hlSel) changed.add(_hlSel);
+    if (sel) changed.add(sel);
+  }
+  if (hov !== _hlHov) {
+    if (_hlHov) changed.add(_hlHov);
+    if (hov) changed.add(hov);
+  }
+  _hlSel = sel;
+  _hlHov = hov;
+  for (const p of changed) {
+    for (const el of _elsForPath(p)) _applyHighlight(el, sel, hov);
+  }
 }
 
 function updatePoolFocusFrame(path) {
@@ -1228,8 +1275,8 @@ function updatePoolFocusFrame(path) {
     item = { path, name: basename(path), hash: null, meta: null };
   }
 
-  const firstSrc = poolThumbUrl(item, 'first');
-  const lastSrc = poolThumbUrl(item, 'last');
+  const firstSrc = itemShowsThumb(item, 'first') ? poolThumbUrl(item, 'first') : '';
+  const lastSrc = itemShowsThumb(item, 'last') ? poolThumbUrl(item, 'last') : '';
   const name = item.name || basename(path);
   const m = item.meta || {};
   const dur = m.duration != null ? formatDurationExact(m.duration) : '';
@@ -1251,13 +1298,11 @@ function updatePoolFocusFrame(path) {
     ${seqPos.length > 0 ? `<span class="pool-seq-indicator">${seqPos.join(' ')}</span>` : ''}
     <div class="pool-focus-frames">
       <div class="pool-frame">
-        <img class="pool-thumb" src="${firstSrc}" alt="First" draggable="false"
-             onerror="this.classList.add('broken')">
+        <img class="pool-thumb" alt="First" decoding="async" draggable="false"${firstSrc ? ` src="${firstSrc}"` : ''}>
         <span class="pool-frame-label">FIRST</span>
       </div>
       <div class="pool-frame">
-        <img class="pool-thumb" src="${lastSrc}" alt="Last" draggable="false"
-             onerror="this.classList.add('broken')">
+        <img class="pool-thumb" alt="Last" decoding="async" draggable="false"${lastSrc ? ` src="${lastSrc}"` : ''}>
         <span class="pool-frame-label">LAST</span>
       </div>
     </div>
@@ -1274,18 +1319,10 @@ function updatePoolFocusFrame(path) {
     </div>
   `;
 
-  // Lazy-load meta if unknown
-  const poolItem = findPoolItem(path);
-  if (poolItem && !poolItem.meta && !poolItem.metaError) {
-    const idx = state.pool.items.indexOf(poolItem);
-    loadPoolItemMeta(poolItem, idx).then(() => {
-      if (displayFocusPath() === path) updatePoolFocusFrame(path);
-      renderSequenceBox(); // refresh duration labels on tokens
-    });
-  }
 }
 
 function setupSequenceDropZone() {
+  installPoolScrollPaint(applyPoolHoverAtPoint);
   const box = document.getElementById('poolSequenceBox');
   if (!box) return;
 
@@ -1982,8 +2019,10 @@ function seqClipSpeedInfo(entry) {
     }
 
     const speed = native / target; // >1 faster
-    let t = Math.log(speed) / Math.log(3); // -1 @ \u2153, 0 @ 1, +1 @ 3\u00D7
-    t = Math.max(-1, Math.min(1, t));
+    const logSpeed = Math.log(speed);
+    const log3 = Math.log(3);
+    const shaped = Math.sign(logSpeed) * Math.pow(Math.abs(logSpeed) / log3, 0.35);
+    let t = Math.max(-1, Math.min(1, shaped));
     const abs = Math.abs(t);
 
     // High-contrast text colors for the duration digits
@@ -1999,8 +2038,8 @@ function seqClipSpeedInfo(entry) {
       textShadow = `0 0 ${4 + 6 * abs}px rgba(239, 68, 68, ${0.35 + 0.45 * abs})`;
     }
 
-    const alpha = 0.1 + 0.35 * abs;
-    const borderA = 0.3 + 0.5 * abs;
+    const alpha = 0.2 + 0.3 * abs;
+    const borderA = 0.4 + 0.5 * abs;
     let r, g, b;
     if (t >= 0) {
       r = Math.round(16 + (16 - 40) * 0 + 40 * (1 - abs)); r = Math.round(40 + (16 - 40) * abs);

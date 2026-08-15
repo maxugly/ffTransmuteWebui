@@ -46,7 +46,7 @@ import { renderZoompanForm, collectZoompanBody } from '/js/tabs/zoompan.js';
 import { renderImageSortForm, collectImageSortBody } from '/js/tabs/imagesort.js';
 import { renderImgCompareForm } from '/js/tabs/imgcompare.js';
 import { renderNotesForm } from '/js/tabs/notes.js';
-import { renderSettingsForm } from '/js/tabs/settings.js';
+import { renderSettingsForm, applyUiTweaks, readStoredScrollbarWidth } from '/js/tabs/settings.js';
 import { renderJobsForm, stopJobsPoll } from '/js/tabs/jobs.js';
 import { renderImageEditForm, collectImageEditBody } from '/js/tabs/imageedit.js';
 import { refreshInputPreview, bindInputPreviewListeners } from '/js/ui/input-preview.js';
@@ -241,6 +241,7 @@ let state = {
     phashToRam: false,
     autosaveInterval: 30,
     viewportLazyThumbnails: false,
+    scrollbarWidth: 6,
     warmModels: { deepdream: false, styletransfer: false, fastsam: false },
   },
   formState: {},
@@ -258,6 +259,7 @@ const SETTINGS_DEFAULTS = {
   phashToRam: false,
   autosaveInterval: 30,
   viewportLazyThumbnails: false,
+  scrollbarWidth: 6,
   warmModels: { deepdream: false, styletransfer: false, fastsam: false },
 };
 
@@ -268,6 +270,7 @@ function mapServerSettings(data) {
   if (data.thumbnails_to_ram != null) mapped.thumbnailsToRam = !!data.thumbnails_to_ram;
   if (data.phash_to_ram != null) mapped.phashToRam = !!data.phash_to_ram;
   if (data.autosave_interval != null) mapped.autosaveInterval = data.autosave_interval;
+  if (data.scrollbar_width != null) mapped.scrollbarWidth = data.scrollbar_width;
   if (data.warm_models && typeof data.warm_models === 'object') {
     mapped.warmModels = { ...SETTINGS_DEFAULTS.warmModels, ...data.warm_models };
   }
@@ -298,6 +301,8 @@ async function applySettingsPrecedence() {
       ...(local.warmModels || {}),
     },
   };
+  state.settings.scrollbarWidth = readStoredScrollbarWidth();
+  applyUiTweaks(state.settings.scrollbarWidth);
 }
 
 

@@ -57,6 +57,7 @@ Shipped examples:
 |------|--------|-------|----------|------------|
 | Pool & cache | `PERFORMANCE` | Pool & cache | Thumbnail knob, Autosave knob, two RAM switches | after `byte-bounded` |
 | Keep models warm | `NEURAL FX` | Keep models warm | DeepDream / Style Transfer / FastSAM switches in one row | after `Default is off` |
+| UI tweaks | `DISPLAY` | UI tweaks | Scrollbar width knob (6–30px) | after `minimum` |
 
 ---
 

@@ -1,6 +1,6 @@
 # Performance: Catalog UX & McMaster-Carr Scale
 
-> **Status:** **Implemented (Phase 1)** `000.000.5.14` — batch signatures, batch variants, global media index, persisted-variant fast path, eager cache-first restore, Instant RIFE COW/recovery/GC. Phase 2 (startup metrics / background validation scan) and Phase 3 (virtualization / search index) are **not** implemented.  
+> **Status:** **Implemented (Phase 1)** `000.000.5.14` — batch signatures, batch variants, global media index, persisted-variant fast path, eager cache-first restore, Instant RIFE COW/recovery/GC. **`5.27`:** pool scroll ignores hover/transform so already-painted thumbs stay on the wall. **`5.28`:** restore copies record meta + thumb flags; open/hover must not `media_info` already-scanned clips. Phase 2 (startup metrics / background validation scan) and Phase 3 (virtualization / search index) are **not** implemented.  
 > **Audience:** Builder Agents (Implementation)  
 > **Goal:** Evolve the pool persistence and rendering architecture to flawlessly handle massive datasets (1,000+ items). Inspired by industrial "McMaster-Carr" catalog UX: instant interaction, heavy indexing, batch API processing, and virtualized scrolling.
 

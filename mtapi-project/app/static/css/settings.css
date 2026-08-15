@@ -151,7 +151,8 @@ body.settings-tab-active .tool-input-preview {
 
 /* Settings house style: one page, tight cards, controls in a row, blurb last. */
 .settings-performance,
-.settings-warm { gap: 10px; }
+.settings-warm,
+.settings-ui { gap: 10px; }
 .settings-knob-row {
   display: flex;
   flex-wrap: wrap;

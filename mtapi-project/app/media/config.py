@@ -75,16 +75,16 @@ def _extract_ver_path(content_hash: str, which: str, size: str = "H") -> Path:
 
 
 def _thumb_is_current(content_hash: str, which: str, size: str = "H") -> bool:
+    """True when a usable JPEG is already on disk.
+
+    extract_v is a write-side stamp for new extracts. An existing JPEG is a
+    paid cache hit — do not hide it because the stamp is older or missing.
+    """
     size = normalize_thumb_size(size)
     tp = _thumb_path(content_hash, which, size)
-    if not tp.exists() or tp.stat().st_size <= 0:
-        return False
-    if which != "last":
-        return True
-    vp = _extract_ver_path(content_hash, which, size)
     try:
-        return vp.read_text(encoding="utf-8").strip() == str(FRAME_EXTRACT_VERSION)
-    except Exception:
+        return tp.exists() and tp.stat().st_size > 0
+    except OSError:
         return False
 
 
@@ -127,20 +127,8 @@ def _mark_extract_version(content_hash: str, which: str, size: str = "H") -> Non
 
 
 def _invalidate_stale_last_thumb(content_hash: str, size: str | None = None) -> None:
-    sizes = [normalize_thumb_size(size)] if size else list(THUMBNAIL_SIZES)
-    for thumb_size in sizes:
-        if _thumb_is_current(content_hash, "last", thumb_size):
-            continue
-        for p in (
-            _thumb_path(content_hash, "last", thumb_size),
-            _phash_path(content_hash, "last"),
-            _extract_ver_path(content_hash, "last", thumb_size),
-        ):
-            try:
-                if p.exists():
-                    p.unlink()
-            except OSError:
-                pass
+    """No-op. Existing last-frame JPEGs stay; a version bump must not delete them."""
+    return
 
 
 def _path_key(path: Path) -> str:

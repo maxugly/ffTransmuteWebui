@@ -169,14 +169,16 @@
   overflow: visible;
   cursor: pointer;
   background: #0a0e16;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  /* no transform transition — hover translate promotes a layer and
+     evicts neighboring decoded thumbs on a fast scroll */
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
   aspect-ratio: 16 / 9;
   min-height: 120px;
   z-index: 1;
+  contain: layout style;
 }
 
 .pool-card:hover {
-  transform: translateY(-1px);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 14px rgba(34, 239, 94, 0.4), 0 0 30px rgba(34, 239, 94, 0.12);
   z-index: 5;
 }
@@ -589,6 +591,18 @@
 .pool-grid-wrap.is-collapsed {
   display: none;
 }
+/* While the wall is moving, ignore hover so we do not restyle 900+ cards
+   or rebuild the selection frame. Thumbs already on the card stay painted. */
+.pool-grid-wrap.is-scrolling {
+  pointer-events: none;
+}
+.pool-grid-wrap.is-scrolling .pool-card,
+.pool-grid-wrap.is-scrolling .pool-card:hover,
+.pool-grid-wrap.is-scrolling .pool-card.selected:hover {
+  transform: none;
+  transition: none;
+  animation: none;
+}
 
 .pool-top.pool-collapsed {
   flex: 0 0 auto;
@@ -806,6 +820,15 @@
 .seq-token.time-stretched.selected {
   box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.55);
 }
+
+/* Persistent indicator for clips that had an explicit target duration */
+.seq-token.was-stretched {
+  border-left: 3px solid rgba(251, 191, 36, 0.4);
+}
+.seq-token.was-stretched .seq-token-dur {
+  color: rgba(251, 191, 36, 0.75);
+}
+
 .seq-token-dur {
   font-variant-numeric: tabular-nums;
   font-family: 'Fira Code', monospace;

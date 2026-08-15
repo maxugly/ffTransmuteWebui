@@ -16,7 +16,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .config import POOL_STATE_PATH
+from .config import POOL_STATE_PATH, existing_thumb_file
+from .cache import load_record
 
 log = logging.getLogger("mtapi.media_store")
 
@@ -226,6 +227,13 @@ def _normalize_media_entry(
         err = it.get("meta_error")
     if err is not None and not isinstance(err, str):
         err = str(err) if err else None
+    failed_raw = it.get("thumbsFailed") or it.get("thumbs_failed") or {}
+    thumbs_failed = None
+    if isinstance(failed_raw, dict) and failed_raw:
+        thumbs_failed = {
+            "first": bool(failed_raw.get("first")),
+            "last": bool(failed_raw.get("last")),
+        }
     return {
         "path": key,
         "name": it.get("name") or path.name,
@@ -236,6 +244,7 @@ def _normalize_media_entry(
         "meta_signature": _normalize_meta_signature(it.get("meta_signature")),
         "history_count": _opt_int(it.get("history_count")),
         "open_count": _opt_int(it.get("open_count")),
+        "thumbsFailed": thumbs_failed,
     }
 
 
@@ -462,6 +471,48 @@ def _normalize_pool_payload(
     }
 
 
+def _record_thumb_flags(content_hash: str, rec: dict[str, Any] | None) -> tuple[dict[str, bool], dict[str, bool]]:
+    """Presence + hard-fail flags from the on-disk record. No ffmpeg."""
+    failed_raw = (rec or {}).get("thumb_failed") or {}
+    failed = {
+        "first": bool(failed_raw.get("first")),
+        "last": bool(failed_raw.get("last")),
+    }
+    thumbs = {
+        "first": (not failed["first"]) and existing_thumb_file(content_hash, "first") is not None,
+        "last": (not failed["last"]) and existing_thumb_file(content_hash, "last") is not None,
+    }
+    return thumbs, failed
+
+
+def enrich_items_from_records(data: dict[str, Any]) -> dict[str, Any]:
+    """Fill persisted items from already-paid records. Display-only — no probe."""
+    for key in ("items", "images"):
+        rows = data.get(key)
+        if not isinstance(rows, list):
+            continue
+        for item in rows:
+            if not isinstance(item, dict):
+                continue
+            h = item.get("hash")
+            if not h:
+                continue
+            rec = load_record(h)
+            if rec is None:
+                continue
+            if not item.get("meta") and rec.get("meta"):
+                item["meta"] = _normalize_meta(rec.get("meta"))
+            if not item.get("metaError") and rec.get("meta_error"):
+                err = rec.get("meta_error")
+                item["metaError"] = err if isinstance(err, str) else str(err)
+            thumbs, failed = _record_thumb_flags(h, rec)
+            item["thumbs"] = thumbs
+            item["thumbsFailed"] = failed
+            if item.get("size") is None and rec.get("size") is not None:
+                item["size"] = _normalize_size(rec.get("size"))
+    return data
+
+
 def load_pool_state() -> dict[str, Any]:
     state = _default_pool_state()
     if not POOL_STATE_PATH.exists():
@@ -482,6 +533,7 @@ def load_pool_state() -> dict[str, Any]:
     )
     selected = _existing_path_or_none(data.get("selected_path"))
     selected_image = _existing_path_or_none(data.get("selected_image_path"))
+    enrich_items_from_records(data)
     return {
         "ok": True,
         "restored": True,

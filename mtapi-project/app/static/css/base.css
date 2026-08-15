@@ -26,12 +26,26 @@
   --radius-sm: 6px;
 }
 
+:root {
+  --scrollbar-width: 6px;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+/* Firefox: no pixel widths. Keep standard props off Chromium so
+   ::-webkit-scrollbar width actually applies. */
+@supports (-moz-appearance: none) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  }
+  :root[data-scrollbar="thick"] * {
+    scrollbar-width: auto;
+  }
 }
 
 html {
@@ -53,8 +67,8 @@ body {
 }
 
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: var(--scrollbar-width);
+  height: var(--scrollbar-width);
 }
 ::-webkit-scrollbar-track {
   background: transparent;

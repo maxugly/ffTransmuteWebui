@@ -10,7 +10,7 @@ import { addMultiClipPath } from '/js/tabs/transmute.js';
 
 async function loadPoolItemMeta(item, idx) {
   try {
-    const res = await fetch(`/api/media_info?path=${encodeURIComponent(item.path)}&ensure_thumbs=true`);
+    const res = await fetch(`/api/media_info?path=${encodeURIComponent(item.path)}&ensure_thumbs=false`);
     const data = await res.json();
     if (data && data.ok) {
       item.meta = data;
