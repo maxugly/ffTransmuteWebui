@@ -504,6 +504,16 @@
   font-style: italic;
 }
 
+.pool-meta-error {
+  color: var(--danger, #f66);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.pool-retry-meta {
+  margin-top: 4px;
+}
+
 /* On pool tab, give the grid more room when viewport is wide */
 @media (min-width: 1400px) {
   .pool-grid {

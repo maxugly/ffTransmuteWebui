@@ -15,6 +15,7 @@ function settingsSnapshot() {
 }
 
 async function saveSettings(patch = {}) {
+  const prevSize = state.settings.thumbnailSize;
   state.settings = {
     ...state.settings,
     ...patch,
@@ -34,6 +35,17 @@ async function saveSettings(patch = {}) {
       }),
     });
   } catch (_) { /* localStorage remains authoritative for the browser */ }
+  // No import of persistence.js — avoid a cycle. Prefer the global callback.
+  if (typeof window.scheduleSavePoolState === 'function') {
+    window.scheduleSavePoolState();
+  } else {
+    window.dispatchEvent(new CustomEvent('mtapi.saveSettings'));
+  }
+  if (payload.thumbnailSize !== prevSize || patch.thumbnailSize || patch.thumbnailSizeIndex != null) {
+    window.dispatchEvent(new CustomEvent('mtapi.settingsChanged', {
+      detail: { thumbnailSize: payload.thumbnailSize },
+    }));
+  }
 }
 
 function switchHtml(id, label, checked) {
@@ -57,8 +69,10 @@ export function renderSettingsForm() {
         <p class="settings-lede">Performance controls are stored locally and mirrored to the media server. Drag knobs vertically or use the mouse wheel.</p>
       </div>
       <section class="settings-card settings-performance" aria-labelledby="settingsPerformanceTitle">
-        <div class="settings-card-kicker">Performance</div>
-        <h4 class="settings-card-name" id="settingsPerformanceTitle">Pool &amp; cache</h4>
+        <div class="settings-card-head">
+          <span class="settings-card-kicker">Performance</span>
+          <h4 class="settings-card-name" id="settingsPerformanceTitle">Pool &amp; cache</h4>
+        </div>
         <div class="settings-knob-row">
           <div class="settings-discrete-knob">
             <span class="knob-unit-label">Thumbnail size</span>
@@ -66,7 +80,6 @@ export function renderSettingsForm() {
               <div class="daw-knob-dial"></div><div class="daw-knob-indicator" id="settingsThumbKnobInd"></div>
             </div>
             <input class="daw-knob-value-input" id="settingsThumbValue" value="${SIZE_LABELS[sizeIndex]}" readonly>
-            <div class="settings-scale"><span>L</span><span>M</span><span>H</span></div>
             <input type="hidden" id="settingsThumbIndex" value="${sizeIndex}">
           </div>
           <div class="settings-autosave-knob">
@@ -82,17 +95,19 @@ export function renderSettingsForm() {
             ${switchHtml('settingsPhashRam', 'Keep hashes in RAM', state.settings.phashToRam)}
           </div>
         </div>
-        <p class="settings-card-desc">L = 120px, M = 240px, H = 480px. RAM caches are byte-bounded and can be cleared by restarting the server.</p>
+        <p class="settings-card-desc">L = 120px, M = 240px, H = 480px. RAM caches are byte-bounded<br>and can be cleared by restarting the server.</p>
       </section>
-      <section class="settings-card" aria-labelledby="settingsWarmTitle">
-        <div class="settings-card-kicker">Neural FX</div>
-        <h4 class="settings-card-name" id="settingsWarmTitle">Keep models warm</h4>
-        <p class="settings-card-desc">Keeps the selected worker/model warm when supported. Default is off to avoid VRAM pressure.</p>
-        <div class="settings-warm-grid">
+      <section class="settings-card settings-warm" aria-labelledby="settingsWarmTitle">
+        <div class="settings-card-head">
+          <span class="settings-card-kicker">Neural FX</span>
+          <h4 class="settings-card-name" id="settingsWarmTitle">Keep models warm</h4>
+        </div>
+        <div class="settings-warm-row">
           ${switchHtml('settingsWarmDeepdream', 'DeepDream', warm.deepdream)}
           ${switchHtml('settingsWarmStyle', 'Style Transfer', warm.styletransfer)}
           ${switchHtml('settingsWarmFastsam', 'FastSAM', warm.fastsam)}
         </div>
+        <p class="settings-card-desc">Keeps the selected worker/model warm when supported. Default is off<br>to avoid VRAM pressure.</p>
       </section>
     </div>`;
 

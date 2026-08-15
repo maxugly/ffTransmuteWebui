@@ -193,7 +193,7 @@ function renderImageSortForm() {
     <div class="form-row">
       <label for="isOutput">Output</label>
       <div class="input-row">
-        <input type="text" id="isOutput" placeholder="blank = auto">
+        <input type="text" id="isOutput" placeholder="blank = auto" value="${escapeHtml(state.imageSort.output || '')}">
         <button type="button" class="btn" id="btnIsOutBrowse">Save As</button>
       </div>
     </div>
@@ -201,21 +201,21 @@ function renderImageSortForm() {
     <div class="form-row">
       <label for="isSortMode">Mode</label>
       <select id="isSortMode">
-        <option value="phash" selected>pHash</option>
-        <option value="ahash">aHash</option>
-        <option value="colorhash">colorhash</option>
-        <option value="mse">MSE</option>
-        <option value="ssim">SSIM</option>
+        <option value="phash"${(state.imageSort.sortMode || 'phash') === 'phash' ? ' selected' : ''}>pHash</option>
+        <option value="ahash"${state.imageSort.sortMode === 'ahash' ? ' selected' : ''}>aHash</option>
+        <option value="colorhash"${state.imageSort.sortMode === 'colorhash' ? ' selected' : ''}>colorhash</option>
+        <option value="mse"${state.imageSort.sortMode === 'mse' ? ' selected' : ''}>MSE</option>
+        <option value="ssim"${state.imageSort.sortMode === 'ssim' ? ' selected' : ''}>SSIM</option>
       </select>
       <label for="isSortStrategy">Strategy</label>
       <select id="isSortStrategy">
-        <option value="radial" selected>To base</option>
-        <option value="chain">Closest next</option>
+        <option value="radial"${(state.imageSort.sortStrategy || 'radial') === 'radial' ? ' selected' : ''}>To base</option>
+        <option value="chain"${state.imageSort.sortStrategy === 'chain' ? ' selected' : ''}>Closest next</option>
       </select>
       <label for="isSortOrder">Order</label>
       <select id="isSortOrder">
-        <option value="nearest_first" selected>Nearest first</option>
-        <option value="farthest_first">Farthest first</option>
+        <option value="nearest_first"${(state.imageSort.sortOrder || 'nearest_first') === 'nearest_first' ? ' selected' : ''}>Nearest first</option>
+        <option value="farthest_first"${state.imageSort.sortOrder === 'farthest_first' ? ' selected' : ''}>Farthest first</option>
       </select>
       <label for="isFit">Fit</label>
       <select id="isFit">
@@ -306,6 +306,18 @@ function renderImageSortForm() {
   _refreshPreRunSummary();
 
   // knobs
+  const bindIsField = (id, key) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const sync = () => { state.imageSort[key] = el.value; };
+    el.addEventListener('input', sync);
+    el.addEventListener('change', sync);
+  };
+  bindIsField('isSortMode', 'sortMode');
+  bindIsField('isSortStrategy', 'sortStrategy');
+  bindIsField('isSortOrder', 'sortOrder');
+  bindIsField('isOutput', 'output');
+
   setupBinaryKnob({
     knobId: 'isUseRifeKnob', indicatorId: 'isUseRifeKnobInd', hiddenId: 'isUseRife',
     leftValue: '0', rightValue: '1', initial: '1',

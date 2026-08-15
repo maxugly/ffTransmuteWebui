@@ -13,6 +13,7 @@ import {
   projectLabel,
   poolThumbUrl, shortHash, buildPoolMetaHtml,
   captureCurrentFormState, applySavedFormState,
+  isApplyingFormState,
   _poolSeqId, _poolSaveTimer, _poolPersistReady,
 } from '/js/pool/persistence.js';
 import {
@@ -191,6 +192,10 @@ let state = {
     images: [], // {path, name, score?}[] — slot [0] is always base
     folder: null,
     selected: 0, // index of selected row for shared reorder buttons
+    sortMode: 'phash',
+    sortStrategy: 'radial',
+    sortOrder: 'nearest_first',
+    output: '',
   },
   // Cut workspace: clip endpoints + two reference stills + shared image-compare state
   // Compare fields: mode / overlayOpacity / abPosition — see js/ui/image-compare.js
@@ -239,16 +244,53 @@ let state = {
   formState: {},
 };
 
-try {
-  const savedSettings = JSON.parse(localStorage.getItem('mtapi.settings') || 'null');
-  if (savedSettings && typeof savedSettings === 'object') {
-    state.settings = {
-      ...state.settings,
-      ...savedSettings,
-      warmModels: { ...state.settings.warmModels, ...(savedSettings.warmModels || {}) },
-    };
+const SETTINGS_DEFAULTS = {
+  thumbnailSize: 'H',
+  thumbnailSizeIndex: 2,
+  thumbnailsToRam: false,
+  phashToRam: false,
+  autosaveInterval: 30,
+  warmModels: { deepdream: false, styletransfer: false, fastsam: false },
+};
+
+function mapServerSettings(data) {
+  if (!data || typeof data !== 'object') return {};
+  const mapped = {};
+  if (data.thumbnail_size) mapped.thumbnailSize = data.thumbnail_size;
+  if (data.thumbnails_to_ram != null) mapped.thumbnailsToRam = !!data.thumbnails_to_ram;
+  if (data.phash_to_ram != null) mapped.phashToRam = !!data.phash_to_ram;
+  if (data.autosave_interval != null) mapped.autosaveInterval = data.autosave_interval;
+  if (data.warm_models && typeof data.warm_models === 'object') {
+    mapped.warmModels = { ...SETTINGS_DEFAULTS.warmModels, ...data.warm_models };
   }
-} catch (_) { /* use defaults */ }
+  const idx = { L: 0, M: 1, H: 2 }[mapped.thumbnailSize];
+  if (idx != null) mapped.thumbnailSizeIndex = idx;
+  return mapped;
+}
+
+/** Startup: server settings, then localStorage (local wins), then defaults. */
+async function applySettingsPrecedence() {
+  let server = {};
+  try {
+    const res = await fetch('/api/settings');
+    if (res.ok) server = mapServerSettings(await res.json());
+  } catch (_) { /* defaults */ }
+  let local = {};
+  try {
+    const raw = JSON.parse(localStorage.getItem('mtapi.settings') || 'null');
+    if (raw && typeof raw === 'object') local = raw;
+  } catch (_) { /* ignore */ }
+  state.settings = {
+    ...SETTINGS_DEFAULTS,
+    ...server,
+    ...local,
+    warmModels: {
+      ...SETTINGS_DEFAULTS.warmModels,
+      ...(server.warmModels || {}),
+      ...(local.warmModels || {}),
+    },
+  };
+}
 
 
 function defaultTileInfo() {
@@ -552,6 +594,7 @@ async function init() {
   setupPreviewConsoleResize();
   setupAllPanelResize();
   bindInputPreviewListeners();
+  await applySettingsPrecedence();
   await checkHealth();
   await fetchOperations();
   await restorePoolState();
@@ -566,9 +609,11 @@ function setupEventListeners() {
   // Capture DOM-backed form values as they change. This is delegated because
   // operation tabs mount/unmount their controls during navigation.
   elements.actionPanel?.addEventListener('input', () => {
+    if (isApplyingFormState()) return;
     try { captureCurrentFormState(); scheduleSavePoolState(); } catch (_) {}
   });
   elements.actionPanel?.addEventListener('change', () => {
+    if (isApplyingFormState()) return;
     try { captureCurrentFormState(); scheduleSavePoolState(); } catch (_) {}
   });
   // Navigation Tabs
@@ -829,6 +874,11 @@ function switchTab(tab) {
 
 // Render Specific Tab Forms
 function renderTabForm(tab) {
+  try {
+    elements.actionPanel?.querySelectorAll('.pool-card, .img-pool-card').forEach((el) => {
+      window.__mtapiLazyLoader?.unobserve(el);
+    });
+  } catch (_) { /* ignore */ }
   elements.actionPanel.innerHTML = '';
   const root = elements.actionPanelRoot || elements.actionPanel;
   if (root) {

@@ -50,6 +50,20 @@ def register(app: FastAPI, probe_fn) -> None:
             record_open=True,
         )
 
+    @app.get("/api/media_signature", tags=["meta"])
+    async def media_signature(path: str):
+        """Return size + mtime_ns via OS stat. Never invokes ffmpeg."""
+        path_obj = Path(path).expanduser().resolve()
+        if not path_obj.exists() or not path_obj.is_file():
+            raise HTTPException(status_code=404, detail="File not found")
+        st = path_obj.stat()
+        return {
+            "ok": True,
+            "path": str(path_obj),
+            "size": int(st.st_size),
+            "mtime_ns": int(st.st_mtime_ns),
+        }
+
     @app.get("/api/thumbnail", tags=["meta"])
     async def get_thumbnail(
         path: str | None = None,

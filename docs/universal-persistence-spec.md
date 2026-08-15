@@ -1,200 +1,181 @@
 # Universal Persistence Spec
 
-> **Status:** **Partial** — core “named project sacred” (pool/session isolation) shipped `000.000.4.63`.  
-> **Remaining Open (Not Implemented):** Full desk snapshot, inactive-tab capture, schema v2 migration, server-side force overwrite checks, and RIFE variant round-trip.
+> **Status:** **Implemented** `000.000.5.06` — metadata round-trip, `/api/media_signature`, shared lazy-loader, settings precedence, schema v2 migration, inactive-tab desk snapshot. Named-project isolation shipped earlier (`4.63`).
 > **Audience:** Builder Agents (Implementation)  
-> **Related handoff:** `docs/SESSION-STOPPING-STATE.md`, `docs/coder-agy-universal-persistence-prompt.md`  
-> **Goal:** Redesign save / load / autosave so that user project files are isolated from session autosaves, preventing the bug where named projects are overwritten unintentionally.
+> **Goal:** Redesign save/load to strictly isolate named projects, perfectly round-trip metadata to prevent eager API hammering, and elegantly lazy-load visual assets via a shared viewport observer.
 
 ---
 
 ## 1. Problem Statement
 
 **Incident 1 (Named Project Overwrite):** 
-1. User builds a Sequence and Saves a named project (`A.ffproject.json`).
-2. User clears the sequence to start a new one.
-3. User uses Save As to a new name (`B.ffproject.json`).
-4. **Bug:** The old named file `A` was still written to or emptied, leaving the user with an empty sequence.
+Save As overwrote the old named file `A` because autosave leaked into it. Fix: Session autosaves are strictly isolated.
 
-**Incident 2 (The Thundering Herd Freeze):**
-1. User imports a massive folder or accumulates 800+ clips in the Video Pool.
-2. User refreshes the page.
-3. **Bug:** The frontend loops over all 800+ items and fires `loadPoolItemMeta()` concurrently. This creates an un-paginated thundering herd of 800+ HTTP requests to `/api/media_info`, which freezes the DOM and crashes the browser tab.
-
-**The Fix (Implemented):** 
-We explicitly isolated session autosave from explicit project saves. Autosaves NEVER overwrite the named project path `A` unless the user explicitly chose Save/Save As for that path in the current UI session.
+**Incident 2 (The Thundering Herd Freeze & Amnesia):**
+1. The frontend (`buildPoolStatePayload`) and backend (`pool.py`, `projects.py`) strip `meta` fields during normalization.
+2. Loading explicitly sets `meta: null`, forcing the UI to refetch everything.
+3. Thumbnail `<img src="..."/>` elements are eagerly assigned in `grid.js` and `image-pool.js`, causing browser freezing on massive folders.
+4. **Fix:** 1:1 Strict Metadata round-trip serialization and a shared Intersection Observer module with a concurrency-limited fallback.
 
 ---
 
 ## 2. Target Architecture
 
-The persistence model is split into three layers:
-
 ### A. Session Autosave (Automatic)
 * **Path:** `~/.cache/mtapi/pool_state.json`
-* **Written on:** Debounced UI changes, window unload, interval.
-* **Restored on:** Cold start. (If `pool_state.json` is missing or invalid, it automatically falls back to `last_project_path.txt`).
-* **Rule:** Never overwrites the last named project.
+* **Restored on:** Cold start. Falls back to `last_project_path.txt`.
 
 ### B. Named Project (User Explicit)
 * **Path:** User-chosen `*.ffproject.json`.
-* **Written on:** Explicit Save or Save As actions only.
 * **Payload:** Full desk snapshot.
-* **Rule:** After Save As to `B`, the active `project.path` becomes `B`. The session autosave stays on the session file. Project `A` is frozen and no longer written to.
-
-### C. Media Cache (Unchanged)
-* **Path:** `~/.cache/mtapi/media/by_hash/...`
-* **Role:** Stores thumbs, phash, strips, etc.
-* **Rule:** Project JSON stores paths/hashes, not binary media.
 
 ---
 
-## 3. Schema (Full Desk JSON)
+## 3. Schema & Metadata Integrity
 
-Both the session and project files should represent a complete snapshot of the workspace.
+**Strict Metadata Preservation:**
+* **Frontend:** `buildPoolStatePayload()` must serialize `meta`, `metaError`, `meta_signature`, `history_count`, and `open_count` for both pools.
+* **Backend Normalization:** `pool.py` and `projects.py` MUST strictly validate and prune the payload to prevent unbound data. Unknown fields must be discarded.
+  ```json
+  {
+    "meta": {
+      "duration": "float", "fps": "float", "width": "int", "height": "int",
+      "video_codec": "str", "audio_codec": "str", "frames": "int", "has_audio": "bool"
+    } | null,
+    "metaError": "string | null",
+    "meta_signature": {"size": "integer", "mtime_ns": "integer"} | null,
+    "history_count": "integer | null",
+    "open_count": "integer | null"
+  }
+  ```
 
-**Must-save Categories:**
-1. **Libraries:** Video Pool (`items[]`), Image Pool (`images[]`), selected paths.
-2. **Sequence:** Ordered `sequence[]` with per-clip durations/ids.
-3. **Global inputs:** `video` (paths), `image` (paths), `pathIn`, `pathOut`, `frameStart`, `frameEnd`.
-4. **Active Tab:** `activeTab`.
-5. **Layout:** Pool/sequence panel sizes, collapsed sections, tile zoom, `tileInfo` flags.
-6. **Form State (All Ops):** 
-   - `facemorph` (images, folder)
-   - `withoutbg` (images, folder)
-   - `styletransfer` (contents, stylePath)
-   - `quick` transmute (reconcile, aspect, custom)
-   - `watcher` (enabled, in_dir, out_dir, target_width, target_height, resize_mode)
-   - New tabs: `imagesort` (sort mode, multiplier, images list, base image), `speedchange` (settings), etc.
-7. **Cut Tab:** `refA`, `refB`, `mode`, `overlayOpacity`, `abPosition`.
-8. **Pan & Zoom:** Boxes, aspect, duration, compare state.
-9. **Project Meta:** `name`, `created_at`, `updated_at`, `project_version` (bump to 2).
+**Cache Preservation Invariant:**
+* Project/session save, Save As, project load, migration, and autosave must never delete or clear media-cache records, disk thumbnails, pHashes, or the server RAM thumbnail cache (`thumbnails_to_ram`). 
+* Pool entries must perfectly preserve their content hashes across all saves. 
+* Cache invalidation is permitted ONLY after a changed file signature or an explicit user “Clear Cache” action.
+* Thumbnail cache keys MUST include every output-affecting thumbnail setting, including resolution/size and JPEG quality. A thumbnail generated at one quality or size must never be served as another setting's result.
 
-**Explicit Non-Goals / Transient (Do Not Save):**
-* `health`, `operations` registry (fetched on load).
-* Live job tokens / progress / sticky timers.
-* Modal file-browser cursor (`state.fb`).
-* `_lastProbedPath`, `_probeOk`.
-* `loading` and `matchLoading` states.
-* Hover states (`hoverPath`).
-* Transient references like `_cutPendingRef`.
+**Freshness & Validation (`/api/media_signature`):**
+* `app/routes/media.py` adds `/api/media_signature`. It accepts `path`. If missing, returns 404.
+* It returns `{ "size": 123, "mtime_ns": 456 }` via direct OS stat (zero ffmpeg).
+* When a pool card intersects, the frontend fetches the signature. If `meta_signature` is null, or differs from the disk signature, `meta` is cleared, `/api/media_info` is queued, and the thumbnail `<img src>` is assigned with `?m=mtime_ns` to bust the browser cache.
+
+**Error Recovery:**
+* Failed probes persist via `metaError`. They are NOT retried endlessly unless the `meta_signature` changes on disk, or the user clicks an explicit "Retry Metadata" button on the UI.
 
 ---
 
-## 4. Coverage Matrix (`ui-state-map` checklist)
+## 4. UI Rendering & Shared Lazy Loading
 
+**Shared Observer Lifecycle (`lazy-loader.js`):**
+* Create a single globally instantiated observer module exporting `.observe(element, callback)` and `.unobserve(element)`.
+* It handles multiple grids naturally via browser API.
+* **Cleanup:** When cards are removed (or pools cleared), grids MUST call `.unobserve(element)` to avoid stale callbacks. Clearing a pool must also clear the observer's internal pending queue.
+* **Observer Logic:** When a card enters the `100px 0px` prefetch margin:
+  1. Validate signature.
+  2. If valid, skip `loadPoolItemMeta`. If stale/null, queue it.
+  3. Assign the thumbnail `<img src>`.
+
+**Bounded Concurrency Fallback:**
+* If `IntersectionObserver` is undefined on the browser, the helper MUST NOT eager-load infinitely. It must execute the callbacks through a bounded Promise queue (max 5 concurrent operations) to prevent freezing.
+
+**Image Pool Explicit Rules:**
+* `applyPoolData()` MUST restore `state.imagePool.items` metadata perfectly.
+* `image-pool.js` MUST register cards to the shared observer and skip `loadImageItemMeta()` if valid metadata exists.
+
+---
+
+## 5. Coverage Matrix & V2 Migration
+
+**State Coverage Matrix:**
 | State Key | Session | Project | Load Restore | Notes |
 |-----------|---------|---------|--------------|-------|
 | `window.globalInputs.*` | ✅ | ✅ | ✅ | Re-probe `totalFrames` on load |
+| `state.pool.items` | ✅ | ✅ | ✅ | Includes strict metadata round-trip |
+| `state.imagePool.items`| ✅ | ✅ | ✅ | Includes strict metadata round-trip |
+| `state.pool.sequence` | ✅ | ✅ | ✅ | Includes sequence durations & modes |
+| `state.pool.layout` | ✅ | ✅ | ✅ | Panel sizes, zoom, flags |
 | `state.activeTab` | ✅ | ✅ | ✅ | |
-| `state.project.*` | ✅ | ✅ | ✅ | |
-| `state.pool.items` | ✅ | ✅ | ✅ | |
-| `state.pool.sequence` | ✅ | ✅ | ✅ | |
-| `state.pool.layout` | ✅ | ✅ | ✅ | |
-| `state.imagePool.items` | ✅ | ✅ | ✅ | |
-| `state.facemorph.*` | ✅ | ✅ | ✅ | Capture inactive tab state |
-| `state.withoutbg.*` | ✅ | ✅ | ✅ | Capture inactive tab state |
-| `state.styletransfer.*` | ✅ | ✅ | ✅ | Capture inactive tab state |
-| `state.quick.*` | ✅ | ✅ | ✅ | Capture inactive tab state |
-| `state.cut.*` | ✅ | ✅ | ✅ | Capture inactive tab state |
-| `state.zoompan.*` | ✅ | ✅ | ✅ | Capture inactive tab state |
-| `state.watcher.enabled` | ✅ | ✅ | ✅ | Must sync with backend watcher |
-| `state.fb` | ❌ | ❌ | ❌ | Transient |
-| `state.health` | ❌ | ❌ | ❌ | Transient |
-| `state.pool.loading` | ❌ | ❌ | ❌ | Transient |
+| `state.facemorph.*` | ✅ | ✅ | ✅ | Must bind continuously oninput/onchange |
+| `state.cut.*` | ✅ | ✅ | ✅ | Must bind continuously oninput/onchange |
+| `state.zoompan.*` | ✅ | ✅ | ✅ | Must bind continuously oninput/onchange |
+| `state.imagesort.*` | ✅ | ✅ | ✅ | Must bind continuously oninput/onchange |
+| `state.styletransfer.*` | ✅ | ✅ | ✅ | Must bind continuously oninput/onchange |
+| `state.quick.*` | ✅ | ✅ | ✅ | Must bind continuously oninput/onchange |
+| `state.watcher.*` | ✅ | ✅ | ✅ | Must bind continuously oninput/onchange |
+| `state.notes.*` | ✅ | ✅ | ✅ | Notes survive restart and project round-trip |
+| `state.settings` | ✅ | ❌ | ❌ | Projects MUST NOT overwrite global settings |
+
+**Settings Precedence:**
+* Precedence (startup): 1. Fetch `/api/settings` once. 2. Partial-merge with `localStorage` (local wins). 3. Fill missing keys with defaults.
+* Restore Rule: Session loads MAY restore settings. Named Project loads MUST drop `data.desk.settings` entirely.
+* Fallback Event: If `window.scheduleSavePoolState` is unavailable, `saveSettings()` dispatches a CustomEvent (`mtapi.saveSettings`) that `persistence.js` listens for to trigger a full snapshot.
+
+**Settings Tab — Thumbnail Controls & Technical Tooltips:**
+* Complete the existing placeholder Settings tab with these global preferences:
+  - `thumbnailSize`: L/M/H resolution control. The UI must explain that resolution generally affects loading speed, browser decode cost, and memory more than JPEG quality does.
+  - `thumbnailQuality`: JPEG quality control, using either a clearly labeled numeric range or Low/Medium/High mapping. Lower quality reduces bytes, while higher quality improves detail at the cost of storage, transfer/read time, and decode work.
+  - `thumbnailsToRam`: Boolean toggle for the server-side RAM thumbnail cache.
+  - `showTooltips`: Boolean toggle, default enabled, controlling technical hover/help messages.
+* `thumbnailQuality` must be passed through thumbnail generation and included in the thumbnail cache key. Changing size or quality must refresh existing pool thumbnails or cause a full grid rerender.
+* Technical hover messages must use one shared, disable-able tooltip mechanism for new and converted existing help text. When `showTooltips` is false, those messages must be suppressed without disabling the associated controls.
+* Tooltips should describe the practical performance tradeoffs: request count/concurrency, resolution, JPEG quality, RAM use, browser decode cost, and cache reuse.
+
+**Global UI Session Continuity:**
+* Switching tabs MUST NOT clear or reset the previously configured tab. The Datamosh → DeepDream example is illustrative only: this rule applies to every operation and workspace tab.
+* Session continuity includes, where applicable:
+  - text and numeric inputs the user typed;
+  - select values, toggles, checkboxes, radio buttons, and knobs;
+  - selected or loaded file paths, image lists, folders, and references;
+  - operation-specific options and preview/display choices.
+* Every tab's persistent controls MUST have a canonical entry in `state`, updated on `input`/`change` or equivalent control events. Tab renderers must initialize from that state instead of replacing it with hard-coded defaults.
+* Switching tabs is an in-session UI action, not a reset. Unmounting a tab's DOM must not destroy its state.
+* Session autosave must capture this state in the full desk snapshot. Explicit named-project Save/Save As must capture it as project state, while global browser preferences such as thumbnail caching and tooltip visibility follow the settings precedence rules above.
+* Notes are persistent workspace state, not an exception. `state.notes` (including both note areas and any future note fields) must be included in the session snapshot so notes survive browser restart, and in named projects when the desk is saved.
+* Only explicitly designated transient values may be discarded: active job progress/tokens, loading flags, hover state, file-browser cursor state, and other values listed as transient in this specification.
+
+**Future Per-Tab Reset Defaults:**
+* The architecture must leave room for a future `Reset Defaults` action on every tab. A reset must restore only that tab's documented sane defaults, must not clear pools, notes, other tabs, or global settings, and must mark the desk dirty so the reset can be autosaved.
+* Tab defaults should be defined as reusable state factories or reset functions rather than scattered only through renderer HTML literals. This future feature is not required for the current persistence implementation unless separately requested.
+
+**Schema V2 Migration:**
+* Missing/Malformed Version: Assume `project_version: 1`.
+* Migration Steps: Map `target_duration` to `targetDuration`. Drop unknown top-level fields. Hydrate missing extended tab keys (`state.facemorph`, etc.) with safe defaults.
+* Persistence: The migrated data is loaded into memory and rewritten to disk as V2 on the very next autosave tick.
 
 ---
 
-## 5. Write Policies
+## 6. Files to Touch (Builder List)
 
-**Save (named)**
-```text
-on Project Save:
-  if path is null → invoke Save As picker
-  snapshot = buildFullDeskSnapshot()
-  if snapshot.sequence is empty AND disk file has content:
-    confirm("Overwrite non-empty project with empty sequence?")
-  write ONLY snapshot to path
-  set project.path = path, dirty=false
-  do NOT rewrite session autosave here.
-```
-
-**Save As**
-```text
-on Save As:
-  pick new path B
-  snapshot = buildFullDeskSnapshot()
-  write ONLY to B
-  project.path = B
-  dirty = false
-```
-
-**Autosave (session)**
-```text
-on debounced change:
-  write buildFullDeskSnapshot() → SESSION_AUTOSAVE_PATH only
-  never write to project.path here
-```
-
-**Open Project**
-```text
-load A → applyFullDeskSnapshot
-project.path = A, dirty = false
-```
-
-**New Project**
-```text
-if dirty, confirm loss of unsaved changes
-clear desk
-project.path = null
-autosave continues to session file only
-```
+* `mtapi-project/app/static/js/pool/persistence.js` & `app.js`: Schema migrations, settings precedence execution, metadata serialization, global event listener.
+* `mtapi-project/app/static/js/lazy-loader.js` (NEW): Centralized IntersectionObserver module with bounded concurrency fallback and lifecycle cleanup.
+* `mtapi-project/app/static/js/pool/grid.js` & `image-pool.js`: Register/unregister cards to shared observer; skip fetching if metadata valid.
+* `mtapi-project/app/static/js/tabs/settings.js`: Dispatch CustomEvent on save.
+* `mtapi-project/app/media/pool.py` & `projects.py`: Strict schema normalization (pruning unknown fields).
+* `mtapi-project/app/routes/media.py` (or `browse.py`): Implement `/api/media_signature`.
 
 ---
 
-## 6. Empty / Overwrite Safeguards
-* Clearing a sequence sets `dirty=true` and autosaves to the **session file**. It must NOT auto-flush to the named project.
-* When executing a manual "Save", if the current sequence is empty but the project on disk has a non-empty sequence, the UI MUST prompt the user for confirmation before overwriting.
+## 7. Verification / Regression Tests
 
----
+1. **Metadata Fast-Path:** Reloading a saved project skips `/api/media_info` completely for valid items.
+2. **Stale Signature:** Modifying a file on disk (via `touch`) forces the UI to hit `/api/media_signature`, clear the `meta`, hit `/api/media_info`, and cache-bust the thumbnail URL with `?m=`.
+3. **Dual Pools:** Both Video and Image pools successfully lazy-load via the single shared observer.
+4. **Observer Cleanup:** Toggling between views or clearing a pool logs zero duplicate or stale metadata requests.
+5. **Settings Protection:** Loading an old `.ffproject.json` does NOT alter global browser preferences.
+6. **V1 Migration:** Opening a legacy project successfully maps `target_duration` to `targetDuration` and hydrates extended tabs without crashing.
+7. **Bounded Fallback:** Disabling `IntersectionObserver` in browser DevTools proves the fallback queue handles 800 items without freezing via max-concurrency limits.
 
-## 7. Versioning & Migration
-* Increment the project JSON schema version to 2 (e.g. `project_version: 2`).
-* When loading older projects that lack the extended tab state keys, initialize them using defaults from `ui-state-map`.
-
----
-
-## 8. Inactive-Tab State Capture
-* All form values must be bound to the global `state` object.
-* When serializing `buildFullDeskSnapshot()`, read values directly from the `state` object rather than querying the DOM, as inactive tabs may have unmounted their DOM nodes.
-
----
-
-## 9. API Changes
-* `/api/project/save` should take an optional `force` boolean to bypass backend checks for empty overwrites.
-* Ensure all paths provided to the backend are absolute.
-
----
-
-## 10. Files to Touch (Builder List)
-* `mtapi-project/app/static/js/pool/persistence.js` (Major refactor of `savePoolStateNow`, `projectSave`, `projectOpen`)
-* `mtapi-project/app/static/app.js` (Expand `state` initialization and serialization logic)
-* `mtapi-project/app/static/js/tabs/*.js` (Ensure all tabs sync form changes to `state` on edit, not just on submit)
-* `mtapi-project/app/media/pool.py` or equivalent backend state handler (to respect separation of project vs session).
-
----
-
-## 11. Conflicts with Existing Docs
-* **Conflict:** `video-image-pools-spec.md` mentions a "quiet dual-save project with session".
-* **Resolution:** This is the root cause of the incident and MUST be removed. The session and project are now strictly isolated.
-
----
-
-## 12. Verification / Regression Tests
-1. **Preserve RIFE metadata on load (Implemented):** `app/media/projects.py`'s `load_project_file` was updated to map `variant_path` and `rife_multiplier` for sequence items. Prior to this, `Save As` -> `Load` would clear all sequence clips back to their un-RIFE'd base file.
-2. Autosave after clearing a sequence does not empty `A`.
-3. Save As `B` then edit → autosave never touches `A`.
-4. Open `A` after restart restores sequence + pools + last tab + sample knobs (e.g., RIFE multiplier).
-5. Empty overwrite of a non-empty project requires explicit confirmation.
-6. Cut refs / Image Sort list / Face Morph list round-trip successfully.
-7. Image Pool + Video Pool both survive a page refresh (F5).
+**Cache Preservation Tests:**
+8. Populate disk and RAM thumbnail caches (`thumbnails_to_ram`).
+9. Save As to a new project.
+10. Confirm the original cache files and records still exist untouched.
+11. Confirm pool item hashes remain perfectly stable in the new project payload.
+12. Confirm unchanged thumbnails are not regenerated or re-decoded.
+13. Confirm server RAM cache remains populated and intact during the Save As operation.
+14. Change thumbnail resolution and JPEG quality, then confirm the requested thumbnail URLs/cache keys differ and existing pool cards refresh.
+15. Toggle `showTooltips` off and confirm technical hover messages are suppressed; toggle it on and confirm they return.
+16. Confirm `thumbnailSize`, `thumbnailQuality`, `thumbnailsToRam`, and `showTooltips` survive the settings persistence flow without named project loads overwriting global preferences.
+17. Configure a Datamosh tab with typed paths, toggles, selects, knobs, and loaded references; switch to DeepDream; then return to Datamosh and confirm every non-transient value is unchanged.
+18. Repeat the tab-switch continuity test across representative tabs with inactive-tab DOM unmounting, then refresh and confirm the session snapshot restores the same values.
+19. Enter text in both Notes areas, close/restart the browser, and confirm the notes return from session persistence; save and reopen a named project and confirm its notes round-trip.

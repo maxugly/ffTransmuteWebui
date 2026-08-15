@@ -1,14 +1,14 @@
 # Session stopping state — handoff
 
-> **Date:** 2026-08-13  
-> **VERSION:** `000.000.5.05`  
+> **Date:** 2026-08-14  
+> **VERSION:** `000.000.5.13`  
 > **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 5.05)
+## 1. Shipped this stretch (through 5.13)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
@@ -34,6 +34,9 @@
 | Upscale / Cut / Job queue | Earlier `4.64` | ops + Jobs tab |
 | **QR & Illusion Art Generator** | Dual-mode (text QR or custom pattern) + ControlNet QR Monster + optional IP-Adapter | `qr_illusion_ops.py`, `js/tabs/qr_illusion.js` · **`5.05`** |
 | **State tracking / popup spam** | Removed post-load auto-RIFE scan; project load no longer triggers Instant densify; backend restores variant_path + rife_multiplier; already-rifed clips never re-encoded; alert() replaced with logConsole | `pool.py`, `persistence.js`, `items.js`, `sequence.js`, `job-control.js` · **`5.03`** |
+| **Universal persistence** | Metadata + `meta_signature` round-trip; `/api/media_signature`; shared `lazy-loader.js` (100px margin, max-5 fallback); settings precedence (named projects never overwrite globals); schema v2 migration; inactive-tab formState | `universal-persistence-spec.md` · **`5.06`** |
+| **Settings layout polish** | Tight one-page cards hug content; Neural FX blurb wraps after “Default is off” | `settings.js`, `settings.css` · **`5.12`** |
+| **Settings card layout spec** | House style for new Settings cards — one-line head, packed controls, max-content | `settings-card-layout-spec.md` · **`5.13`** |
 
 Earlier stable: filter platform, dual pools, Convert, neural ops, Prompt Library, Recohere, Agent, OpenVINO stills.
 
@@ -56,7 +59,7 @@ Next strip→video ops: inherit params, import JS helper, call `build_evolve_vid
 | Workspace progress | Multi-phase ETA polish — `workspace-progress-spec.md` |
 | Tool bottom docs | Roll out remaining tabs |
 | UI list keys | Edge cases — `ui-list-nav-timer-spec.md` |
-| Universal persistence | Full desk snapshot — `universal-persistence-spec.md` |
+| Universal persistence | **Shipped `5.06`** — `universal-persistence-spec.md` |
 | Evolve multi/video/ouro | Spec phases C–E — stills only shipped |
 | Job queue persist | Memory FIFO only |
 | Tilagup / quality rating | Specs; human priority |
@@ -70,7 +73,7 @@ Next strip→video ops: inherit params, import JS helper, call `build_evolve_vid
 1. ~~Autosave overwrites named projects~~ — fixed `4.63`.  
 2. List reorder jumps scroll to top.  
 3. Arrows scroll page outside wired lists.  
-4. Inactive tab knobs not in project JSON.  
+4. ~~Inactive tab knobs not in project JSON~~ — fixed `5.06`.  
 5. Pool normalize strips unknown fields (blocks quality rating).  
 6. Extreme RIFE M × large K — no soft warn.  
 7. Long POST can die under heavy DeepDream (browser “Failed to fetch”) — server crash/OOM; evolve/async-job polish later.  

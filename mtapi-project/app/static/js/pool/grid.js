@@ -33,6 +33,74 @@ import {
   setPoolZoom, applyPoolZoom,
   setupTileInfoMenu, showPoolContextMenu,
 } from '/app.js';
+import { observe as lazyObserve, unobserve as lazyUnobserve, clearPending as lazyClearPending } from '/js/lazy-loader.js';
+import { validateItemSignature, assignCardThumbs, metaRetryHtml } from '/js/pool/freshness.js';
+
+const _observedVideoCards = new Set();
+
+function releaseObservedVideoCards() {
+  for (const el of _observedVideoCards) lazyUnobserve(el);
+  _observedVideoCards.clear();
+}
+
+async function activateVideoCard(card, item, { force = false } = {}) {
+  if (!card || !item) return;
+  if (!(state.pool.items.includes(item) || state.pool.items.some((i) => i.path === item.path))) return;
+  const idx = state.pool.items.indexOf(item);
+  let stale = force;
+  try {
+    const result = await validateItemSignature(item, { force });
+    stale = result.stale;
+    if (result.missing) {
+      item.metaError = item.metaError || 'file not found';
+      const el = document.getElementById(`poolMeta-${idx}`) || card.querySelector('.pool-overlay-text');
+      if (el) el.innerHTML = metaRetryHtml(item.metaError);
+      bindVideoRetry(card, item);
+      return;
+    }
+  } catch (err) {
+    item.metaError = item.metaError || err.message || 'signature failed';
+    const el = document.getElementById(`poolMeta-${idx}`) || card.querySelector('.pool-overlay-text');
+    if (el) el.innerHTML = metaRetryHtml(item.metaError);
+    bindVideoRetry(card, item);
+    assignCardThumbs(card, item, { bust: true });
+    return;
+  }
+
+  if (item.meta && !stale) {
+    const el = document.getElementById(`poolMeta-${idx}`) || card.querySelector('.pool-overlay-text');
+    if (el) el.innerHTML = buildPoolMetaHtml(item);
+    assignCardThumbs(card, item, { bust: false });
+    return;
+  }
+  if (item.metaError && !stale && !force) {
+    const el = document.getElementById(`poolMeta-${idx}`) || card.querySelector('.pool-overlay-text');
+    if (el) el.innerHTML = metaRetryHtml(item.metaError);
+    bindVideoRetry(card, item);
+    assignCardThumbs(card, item, { bust: false });
+    return;
+  }
+
+  await loadPoolItemMeta(item, idx);
+  const el = document.getElementById(`poolMeta-${idx}`) || card.querySelector('.pool-overlay-text');
+  if (el) {
+    el.innerHTML = (item.metaError && !item.meta)
+      ? metaRetryHtml(item.metaError)
+      : buildPoolMetaHtml(item);
+  }
+  bindVideoRetry(card, item);
+  assignCardThumbs(card, item, { bust: stale || force });
+}
+
+function bindVideoRetry(card, item) {
+  card.querySelectorAll('.pool-retry-meta').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      activateVideoCard(card, item, { force: true });
+    });
+  });
+}
 
 // ── Join / Sequence helpers ─────────────────────────────────────────────────
 
@@ -821,8 +889,10 @@ function showClipInfoOverlay(item) {
 function renderPoolGrid() {
   const grid = document.getElementById('poolGrid');
   if (!grid) return;
+  releaseObservedVideoCards();
 
   if (state.pool.items.length === 0) {
+    lazyClearPending();
     grid.innerHTML = `
       <div class="pool-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -863,15 +933,15 @@ function renderPoolGrid() {
     card.draggable = true;
     card.title = 'Drag into sequence to stitch';
 
-    const firstSrc = poolThumbUrl(item, 'first');
-    const lastSrc = poolThumbUrl(item, 'last');
     const meta = item.meta;
     const loadingMeta = !meta && !item.metaError;
     const info = ensureTileInfo();
     const showLabels = info.frame_labels !== false;
-    const metaHtml = loadingMeta
-      ? '<span class="pool-meta-loading">hashing + probing…</span>'
-      : buildPoolMetaHtml(item);
+    const metaHtml = item.metaError && !meta
+      ? metaRetryHtml(item.metaError)
+      : (loadingMeta
+        ? '<span class="pool-meta-loading">hashing + probing…</span>'
+        : buildPoolMetaHtml(item));
     const hasOverlay = loadingMeta || (metaHtml && metaHtml.trim().length > 0);
 
     card.innerHTML = `
@@ -884,12 +954,12 @@ function renderPoolGrid() {
       ${seqPos.length > 0 ? `<span class="pool-seq-indicator">${seqPos.join(' ')}</span>` : ''}
       <div class="pool-frames">
         <div class="pool-frame">
-          <img class="pool-thumb" src="${firstSrc}" alt="First frame" loading="lazy" data-which="first" draggable="false"
+          <img class="pool-thumb" alt="First frame" loading="lazy" data-which="first" draggable="false"
                onerror="this.classList.add('broken'); this.alt='no frame';">
           ${showLabels ? '<span class="pool-frame-label">FIRST</span>' : ''}
         </div>
         <div class="pool-frame">
-          <img class="pool-thumb" src="${lastSrc}" alt="Last frame" loading="lazy" data-which="last" draggable="false"
+          <img class="pool-thumb" alt="Last frame" loading="lazy" data-which="last" draggable="false"
                onerror="this.classList.add('broken'); this.alt='no frame';">
           ${showLabels ? '<span class="pool-frame-label">LAST</span>' : ''}
         </div>
@@ -1039,9 +1109,9 @@ function renderPoolGrid() {
 
     grid.appendChild(card);
 
-    // Metadata is requested only when a card approaches the viewport. The
-    // old restore path started one request per item, which froze large pools.
-    if (!meta && !item.metaError) card.dataset.metaPending = '1';
+    if (item.metaError && !item.meta) bindVideoRetry(card, item);
+    lazyObserve(card, () => activateVideoCard(card, item));
+    _observedVideoCards.add(card);
 
     const variantContainer = card.querySelector(`#poolVariants-${idx}`);
     if (variantContainer) {
@@ -1061,59 +1131,7 @@ function renderPoolGrid() {
       });
     }
   });
-  _observeVisiblePoolMeta(grid);
   _updatePoolFilterCount();
-}
-
-let _poolMetaObserver = null;
-let _poolMetaActive = 0;
-const _poolMetaQueue = [];
-const _poolMetaQueued = new Set();
-const POOL_META_CONCURRENCY = 4;
-
-function _drainPoolMetaQueue() {
-  while (_poolMetaActive < POOL_META_CONCURRENCY && _poolMetaQueue.length) {
-    const job = _poolMetaQueue.shift();
-    _poolMetaQueued.delete(job.item.path);
-    if (job.item.meta || job.item.metaError) continue;
-    _poolMetaActive += 1;
-    Promise.resolve(loadPoolItemMeta(job.item, job.idx))
-      .finally(() => {
-        _poolMetaActive -= 1;
-        _drainPoolMetaQueue();
-      });
-  }
-}
-
-function _queueVisiblePoolMeta(item, idx) {
-  if (!item || item.meta || item.metaError || _poolMetaQueued.has(item.path)) return;
-  _poolMetaQueued.add(item.path);
-  _poolMetaQueue.push({ item, idx });
-  _drainPoolMetaQueue();
-}
-
-function _observeVisiblePoolMeta(grid) {
-  if (_poolMetaObserver) _poolMetaObserver.disconnect();
-  const cards = [...grid.querySelectorAll('.pool-card[data-meta-pending="1"]')];
-  if (!cards.length) return;
-  if (typeof IntersectionObserver === 'undefined') {
-    cards.slice(0, POOL_META_CONCURRENCY * 2).forEach(card => {
-      const idx = Number(card.dataset.idx);
-      const item = state.pool.items[idx];
-      _queueVisiblePoolMeta(item, idx);
-    });
-    return;
-  }
-  _poolMetaObserver = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (!entry.isIntersecting) return;
-      const card = entry.target;
-      const idx = Number(card.dataset.idx);
-      _queueVisiblePoolMeta(state.pool.items[idx], idx);
-      _poolMetaObserver.unobserve(card);
-    });
-  }, { root: grid, rootMargin: '500px 0px' });
-  cards.forEach(card => _poolMetaObserver.observe(card));
 }
 
 // ── Frame match (pHash next-clip finder) ──────────────────────────────────

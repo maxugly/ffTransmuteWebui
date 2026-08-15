@@ -10,6 +10,15 @@ import {
   scheduleSavePoolState, poolThumbUrl, shortHash, projectLabel,
   projectNew, projectOpen, projectSave,
 } from '/js/pool/persistence.js';
+import { observe as lazyObserve, unobserve as lazyUnobserve, clearPending as lazyClearPending } from '/js/lazy-loader.js';
+import { validateItemSignature, assignCardThumbs, metaRetryHtml } from '/js/pool/freshness.js';
+
+const _observedImageCards = new Set();
+
+function releaseObservedImageCards() {
+  for (const el of _observedImageCards) lazyUnobserve(el);
+  _observedImageCards.clear();
+}
 
 // ── helpers ──────────────────────────────────────────────────────────────
 
@@ -93,6 +102,9 @@ async function loadImageItemMeta(item) {
     if (data && data.ok) {
       item.meta = data;
       item.hash = data.hash || item.hash;
+      item.history_count = data.history_count;
+      item.open_count = data.open_count;
+      item.metaError = null;
       if (data.size != null) item.size = data.size;
       if (data.name) item.name = data.name;
       if (item.hash) scheduleSavePoolState();
@@ -110,29 +122,69 @@ async function loadImageItemMeta(item) {
       if (metaEl) metaEl.innerHTML = buildImageMetaHtml(item);
       if (item.hash) {
         const img = card.querySelector('img.pool-thumb');
-        if (img) img.src = imageThumbUrl(item);
+        if (img && img.getAttribute('src')) img.src = imageThumbUrl(item);
       }
     }
   }
 }
 
-const _imageMetaQueue = [];
-const _imageMetaQueued = new Set();
-let _imageMetaActive = 0;
-function queueImageItemMeta(item) {
-  if (item && !item.meta && !item.metaError && !_imageMetaQueued.has(item.path)) {
-    _imageMetaQueued.add(item.path);
-    _imageMetaQueue.push(item);
+async function activateImageCard(card, item, { force = false } = {}) {
+  if (!card || !item) return;
+  const ip = ensureImagePool();
+  if (!(ip.items.includes(item) || ip.items.some((i) => i.path === item.path))) return;
+  let stale = force;
+  try {
+    const result = await validateItemSignature(item, { force });
+    stale = result.stale;
+    if (result.missing) {
+      item.metaError = item.metaError || 'file not found';
+      const el = card.querySelector('.img-pool-meta');
+      if (el) el.innerHTML = metaRetryHtml(item.metaError);
+      bindImageRetry(card, item);
+      return;
+    }
+  } catch (err) {
+    item.metaError = item.metaError || err.message || 'signature failed';
+    const el = card.querySelector('.img-pool-meta');
+    if (el) el.innerHTML = metaRetryHtml(item.metaError);
+    bindImageRetry(card, item);
+    assignCardThumbs(card, item, { bust: true });
+    return;
   }
-  while (_imageMetaActive < 4 && _imageMetaQueue.length) {
-    const next = _imageMetaQueue.shift();
-    _imageMetaQueued.delete(next.path);
-    _imageMetaActive += 1;
-    loadImageItemMeta(next).finally(() => {
-      _imageMetaActive -= 1;
-      queueImageItemMeta(null);
+
+  if (item.meta && !stale) {
+    const el = card.querySelector('.img-pool-meta');
+    if (el) el.innerHTML = buildImageMetaHtml(item);
+    assignCardThumbs(card, item, { bust: false });
+    return;
+  }
+  if (item.metaError && !stale && !force) {
+    const el = card.querySelector('.img-pool-meta');
+    if (el) el.innerHTML = metaRetryHtml(item.metaError);
+    bindImageRetry(card, item);
+    assignCardThumbs(card, item, { bust: false });
+    return;
+  }
+
+  await loadImageItemMeta(item);
+  const el = card.querySelector('.img-pool-meta');
+  if (el) {
+    el.innerHTML = (item.metaError && !item.meta)
+      ? metaRetryHtml(item.metaError)
+      : buildImageMetaHtml(item);
+  }
+  bindImageRetry(card, item);
+  assignCardThumbs(card, item, { bust: stale || force });
+}
+
+function bindImageRetry(card, item) {
+  card.querySelectorAll('.pool-retry-meta').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      activateImageCard(card, item, { force: true });
     });
-  }
+  });
 }
 
 function buildImageMetaHtml(item) {
@@ -233,6 +285,8 @@ function clearImagePool() {
   const ip = ensureImagePool();
   if (ip.items.length === 0) return;
   if (!confirm(`Clear all ${ip.items.length} images from the Image Pool?`)) return;
+  releaseObservedImageCards();
+  lazyClearPending();
   ip.items = [];
   ip.selectedPath = null;
   logConsole('[IMAGE POOL]: Cleared');
@@ -627,8 +681,10 @@ function renderImagePoolGrid() {
   const grid = document.getElementById('imgPoolGrid');
   if (!grid) return;
   const ip = ensureImagePool();
+  releaseObservedImageCards();
 
   if (ip.items.length === 0) {
+    lazyClearPending();
     grid.innerHTML = `
       <div class="pool-empty">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -666,10 +722,11 @@ function renderImagePoolGrid() {
     card.dataset.path = item.path;
     card.dataset.idx = String(idx >= 0 ? idx : 0);
 
-    const src = imageThumbUrl(item);
-    const metaHtml = item.meta
-      ? buildImageMetaHtml(item)
-      : '<span class="pool-meta-loading">probing…</span>';
+    const metaHtml = item.metaError && !item.meta
+      ? metaRetryHtml(item.metaError)
+      : (item.meta
+        ? buildImageMetaHtml(item)
+        : '<span class="pool-meta-loading">probing…</span>');
 
     card.innerHTML = `
       <div class="pool-card-actions">
@@ -680,7 +737,7 @@ function renderImagePoolGrid() {
       </div>
       <div class="pool-frames img-pool-single">
         <div class="pool-frame">
-          <img class="pool-thumb" src="${src}" alt="${escapeHtml(item.name || '')}" loading="lazy" draggable="false"
+          <img class="pool-thumb" alt="${escapeHtml(item.name || '')}" loading="lazy" data-which="first" draggable="false"
                onerror="this.classList.add('broken'); this.alt='no image';">
         </div>
       </div>
@@ -708,7 +765,9 @@ function renderImagePoolGrid() {
     });
 
     grid.appendChild(card);
-    if (!item.meta && !item.metaError) queueImageItemMeta(item);
+    if (item.metaError && !item.meta) bindImageRetry(card, item);
+    lazyObserve(card, () => activateImageCard(card, item));
+    _observedImageCards.add(card);
   });
 
   _updateImageFilterCount();
@@ -775,4 +834,5 @@ export {
   importImageFolder,
   sendImagePathTo,
   imageThumbUrl,
+  loadImageItemMeta,
 };

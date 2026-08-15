@@ -420,6 +420,20 @@
         "summary": "Audio engine dropdown in Sequence tab. Rubberband default with DAW quality flags (transients/formants/pitchq), 48kHz sample-rate normalization (aresample=48000) to prevent chipmunking, and 10ms micro-fade on every clip fragment. atempo/pitch/mute are placeholder stubs raising NotImplementedError."
     },
     {
+        "file": "settings-card-layout-spec.md",
+        "path": "docs/settings-card-layout-spec.md",
+        "category": "UX",
+        "status": "Implemented 000.000.5.13",
+        "summary": "Settings house style: one page of tight max-content cards, kicker+title on one line, packed controls, switches beside labels, two-line blurbs. Layout law for new Settings cards."
+    },
+    {
+        "file": "universal-persistence-spec.md",
+        "path": "docs/universal-persistence-spec.md",
+        "category": "Core Architecture / WebUI",
+        "status": "Implemented 000.000.5.06",
+        "summary": "Full desk snapshot: metadata/signature round-trip for Video+Image pools, /api/media_signature freshness, shared lazy-loader with bounded fallback, settings precedence (named projects never overwrite globals), schema v2 migration, inactive-tab formState."
+    },
+    {
         "file": "video-image-pools-spec.md",
         "path": "docs/video-image-pools-spec.md",
         "category": "Core Architecture / WebUI",

@@ -171,9 +171,11 @@ function renderStyleTransferForm() {
     min: 1, max: 60, step: 1, decimals: 0,
   });
 
-  document.getElementById('stStylePath')?.addEventListener('change', (e) => {
+  const syncStylePath = (e) => {
     state.styleTransfer.stylePath = e.target.value.trim() || null;
-  });
+  };
+  document.getElementById('stStylePath')?.addEventListener('input', syncStylePath);
+  document.getElementById('stStylePath')?.addEventListener('change', syncStylePath);
 
   document.getElementById('btnStAddContent')?.addEventListener('click', async () => {
     await _addPathsFromPicker('files', 'image');

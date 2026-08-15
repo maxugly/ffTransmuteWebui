@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
-> **Updated:** 2026-08-13  \
-> **VERSION:** `000.000.5.05`  \
+> **Updated:** 2026-08-14  \
+> **VERSION:** `000.000.5.13`  \
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -98,6 +98,9 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Single-flight restore** | Soft-cancel must not abort fetch (orphaned server job); server rejects concurrent /ops/* | `job-control.js`, `job_queue.py`, `main.py` · `4.93` |
 | **Instant re-render storm fix** | Queue no-op no longer re-renders; variants cache; failed no tight-retry; dual RIFE killed | `sequence.js`, `grid.js` · `4.92` |
 | **Settings tab (blank)** | Workspace · bare chrome (no global/preview/Run); scaffold for perf prefs | `js/tabs/settings.js`, `css/settings.css` · `4.91` |
+| **Universal persistence** | Full desk snapshot: metadata + signatures round-trip, `/api/media_signature`, shared lazy-loader (100px margin, max-5 fallback), settings precedence (project loads never overwrite globals), schema v2 migration, inactive-tab formState | `universal-persistence-spec.md` · **`5.06`** |
+| **Settings layout polish** | Tight one-page cards hug content width; Neural FX blurb wraps after “Default is off” | `settings.js`, `settings.css` · **`5.12`** |
+| **Settings card layout spec** | House style so new Settings cards ship tight (one-line head, packed controls, max-content width) | `settings-card-layout-spec.md` · **`5.13`** |
 
 **Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale, **qr_art** *(in tree — see §4)*. Root `AGENTS.md`.
 
@@ -111,7 +114,6 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Tool bottom docs** | Several tabs have blocks; not universal | Finish roll-out — `tool-bottom-docs-spec.md` |
 | **UI list / sequence keys** | Sequence L/R + scroll-into-view **shipped `4.64`**; some pool edge cases may remain | `ui-list-nav-timer-spec.md` |
 | **Agent polish** | Phase A+API shipped | Streaming, Image Pool send-to, Ollama, multi-tool loop |
-| **Universal persistence** | **Sacred named-project autosave fixed `4.63`**; full desk snapshot still open | `universal-persistence-spec.md` |
 | Image Sort true TSP | Out of scope | Chain is greedy only |
 
 ---
@@ -126,7 +128,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 |---|------|--------|--------|
 | 1 | Finish §4 partials | Daily UX + verify upscale | High leverage |
 | 2 | [job-queue-spec.md](job-queue-spec.md) | **Implemented v1 `4.64`** — memory FIFO + Jobs tab | Persist pending = later |
-| 3 | [universal-persistence-spec.md](universal-persistence-spec.md) | Stop autosave clobbering named projects | Bug #1 |
+| 3 | [universal-persistence-spec.md](universal-persistence-spec.md) | **Implemented `5.06`** — desk snapshot + metadata + lazy-load | Bug #1 closed |
 | 4 | [tilagup-mtapi-mode-spec.md](tilagup-mtapi-mode-spec.md) | Multi-step agent tiled SD | Sibling `/home/m/snc/cod/tilagup` |
 | 5 | [image-quality-rating-spec.md](image-quality-rating-spec.md) | Pool tech/aesthetic scores | **Fix pool normalize first** |
 | 6 | [fastsam-sam-multimodel-spec.md](fastsam-sam-multimodel-spec.md) | **FastSAM + SAM multimodel selector** — stronger backends (FastSAM-x, SAM ViT-L/H) on OpenVINO/Intel, AUTO device fallback | **`4.82`+ proposed** |
@@ -202,10 +204,10 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 6. Known bugs / product debt
 
-1. ~~**Autosave can overwrite named projects**~~ → **fixed `4.63`** (session-only autosave; named file only on explicit Save). Full desk snapshot still partial (`universal-persistence-spec.md`).  
+1. ~~**Autosave can overwrite named projects**~~ → **fixed `4.63`** (session-only autosave; named file only on explicit Save). Full desk snapshot **`5.06`**.  
 2. **List reorder** jumps scroll to top.  
 3. **Arrows** scroll page outside wired list tabs.  
-4. **Inactive tab knobs** not in project JSON (DOM destroyed on tab switch).  
+4. ~~**Inactive tab knobs** not in project JSON~~ → **fixed `5.06`** (formState + continuous desk bindings).  
 5. **High RIFE M** × large K = huge jobs; no soft warn.  
 6. Pool **normalize strips unknown fields** — blocks quality rating.  
 7. Large **uncommitted** tree risk — `git status` before ship/push.
@@ -214,7 +216,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.5.05` (QR & Illusion Art Generator: dual-mode QR generation from text or custom pattern image + ControlNet QR Monster via OpenVINO img2img, optional IP-Adapter with dual conditioning via PyTorch pipeline with GPU→CPU fallback. Scannability badge via pyzbar for QR mode. IP-Adapter path enforces 512×512 to keep RAM <12GB on 1335U.)
+- **Current:** `000.000.5.13` (Settings card layout spec is the house style for new Settings UI.)
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  
@@ -230,7 +232,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 Agents wait for human assignment.
 
 1. **Close partials:** list/sequence keys, progress polish, tool-docs gaps.  
-2. **Universal persistence** — full desk snapshot / inactive knobs.  
+2. ~~**Universal persistence**~~ — **shipped `5.06`**.  
 3. **Product choice:** quality rating *or* tilagup mode.  
 4. Agent polish (streaming / Ollama) when vision UX needs it.  
 5. Explicit backlog picks only (depth, flow, facerestore, …).

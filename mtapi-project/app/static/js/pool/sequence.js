@@ -591,6 +591,19 @@ async function _kickInstantRifeScan() {
   let changed = 0;
   let reused = 0;
   for (const entry of state.pool.sequence) {
+    // The project/session snapshot already carries the selected densified
+    // path and multiplier.  If that saved variant covers the current need,
+    // trust it and avoid a registry request during project restore.
+    const before = _rifeInfoForEntry(entry);
+    const haveBefore = _bestHaveM(entry);
+    if (entry.variantPath && entry.variantPath !== entry.path
+        && haveBefore > 0
+        && (!before?.needed || haveBefore >= (before.multiplier || 2))) {
+      entry._rifeStatus = 'done';
+      entry._rifeError = null;
+      reused += 1;
+      continue;
+    }
     try {
       await _hydrateEntryFromVariants(entry);
     } catch (_) { /* ignore hydrate errors */ }
@@ -923,6 +936,19 @@ async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
 
     setClientBusy('Instant RIFE: checking existing densify…');
     for (const entry of seq) {
+      // Avoid re-querying the global variant registry when persistence already
+      // recorded a densified file strong enough for this entry's current need.
+      // The registry is only needed for missing variants or when a denser
+      // variant may be required.
+      const before = _rifeInfoForEntry(entry);
+      const haveBefore = _bestHaveM(entry);
+      if (entry.variantPath && entry.variantPath !== entry.path
+          && haveBefore > 0
+          && (!before?.needed || haveBefore >= (before.multiplier || 2))) {
+        entry._rifeStatus = 'done';
+        entry._rifeError = null;
+        continue;
+      }
       try {
         await _hydrateEntryFromVariants(entry);
       } catch (e) {

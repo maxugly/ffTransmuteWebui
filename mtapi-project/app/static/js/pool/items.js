@@ -16,8 +16,10 @@ async function loadPoolItemMeta(item, idx) {
       item.hash = data.hash || item.hash;
       item.history_count = data.history_count;
       item.open_count = data.open_count;
+      item.metaError = null;
       if (data.size != null) item.size = data.size;
       if (data.name) item.name = data.name;
+      if (data.has_audio != null && item.meta) item.meta.has_audio = data.has_audio;
       const tag = data.cached ? 'cache hit' : 'hashed new';
       const elap = data.elapsed_s != null ? ` in ${data.elapsed_s}s` : '';
       logConsole(`[POOL]: ${item.name || item.path} → #${shortHash(data.hash)} (${tag}${elap})`);
@@ -50,11 +52,10 @@ async function loadPoolItemMeta(item, idx) {
     if (card) {
       card.dataset.hash = item.hash;
       card.querySelectorAll('img.pool-thumb').forEach(img => {
+        if (!img.getAttribute('src')) return;
         const which = img.dataset.which || 'first';
         const next = poolThumbUrl(item, which);
-        if (img.getAttribute('src') && img.getAttribute('src').includes('path=')) {
-          img.src = next;
-        }
+        if (img.getAttribute('src').includes('path=')) img.src = next;
       });
     }
   }
@@ -146,6 +147,9 @@ function clearPool() {
   if (state.pool.items.length === 0) return;
   if (!confirm(`Clear all ${state.pool.items.length} clips from the pool?`)) return;
   seqStop();
+  import('/js/lazy-loader.js').then((m) => {
+    try { m.clearPending(); } catch (_) { /* ignore */ }
+  }).catch(() => {});
   state.pool.items = [];
   state.pool.selectedPath = null;
   logConsole('[POOL]: Cleared');

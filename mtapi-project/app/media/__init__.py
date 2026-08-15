@@ -67,7 +67,10 @@ from .open import (  # noqa: F401
     open_media,
 )
 from .pool import (  # noqa: F401
+    DESK_TAB_DEFAULTS,
+    POOL_SCHEMA_VERSION,
     _default_pool_state,
+    _normalize_media_entries,
     _normalize_pool_payload,
     load_pool_state,
     save_pool_state,

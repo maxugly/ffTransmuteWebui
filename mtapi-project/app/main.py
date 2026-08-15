@@ -146,6 +146,7 @@ async def _probe_media_full(path_obj: Path) -> dict:
         astream = next((s for s in streams if s.get("codec_type") == "audio"), None)
         video_codec = vstream.get("codec_name") or "unknown"
         audio_codec = (astream.get("codec_name") if astream else None) or "none"
+        has_audio = astream is not None
         try:
             file_size = path_obj.stat().st_size
         except Exception:
@@ -161,6 +162,7 @@ async def _probe_media_full(path_obj: Path) -> dict:
             "frames": frames,
             "video_codec": video_codec,
             "audio_codec": audio_codec,
+            "has_audio": has_audio,
             "size": file_size,
             "format_name": fmt.get("format_name"),
             "bit_rate": _safe_int(fmt.get("bit_rate")),

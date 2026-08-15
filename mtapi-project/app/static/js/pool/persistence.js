@@ -19,8 +19,130 @@ function nextSeqId() {
 
 let _poolSaveTimer = null;
 let _poolPersistReady = false; // don't save until restore finishes
+let _applyingFormState = false;
 
 const FORM_STATE_SKIP = new Set(['btnRun', 'btnStop', 'btnQueue', 'btnClearConsole']);
+const META_KEYS = ['duration', 'fps', 'width', 'height', 'video_codec', 'audio_codec', 'frames', 'has_audio'];
+
+const DESK_TAB_DEFAULTS = {
+  faceMorph: { images: [], folder: null, selected: 0 },
+  withoutbg: { images: [], folder: null, selected: 0 },
+  styleTransfer: { contents: [], stylePath: null, selected: 0 },
+  quick: { reconcile: 'pad', aspect: 'auto', aspectCustom: '' },
+  watcher: {
+    enabled: false, in_dir: '', out_dir: '',
+    resize_mode: 'letterbox', target_width: 1920, target_height: 1080,
+  },
+  imageSort: {
+    images: [], folder: null, selected: 0,
+    sortMode: 'phash', sortStrategy: 'radial', sortOrder: 'nearest_first', output: '',
+  },
+  cut: {
+    refA: null, refB: null, mode: 'separate', compareMode: 'separate',
+    overlayOpacity: 50, abPosition: 50,
+  },
+  zoompan: {
+    imagePath: null, refPath: null, imageW: 0, imageH: 0,
+    startBox: null, endBox: null, durationSec: 5, fps: 30,
+    aspect: 'auto', viewModeStart: 'full', viewModeEnd: 'full',
+    compareTarget: 'end_ref', mode: 'separate', overlayOpacity: 50, abPosition: 50,
+  },
+  imgCompare: {
+    pathA: null, pathB: null, sortMode: 'phash',
+    lastScore: null, lastScoreMode: null, lastError: null, rating: null,
+    mode: 'separate', compareMode: 'separate', overlayOpacity: 50, abPosition: 50,
+  },
+  imageEdit: { engine: 'ffmpeg', outputFormat: 'png', stack: [] },
+};
+
+function isApplyingFormState() {
+  return _applyingFormState;
+}
+
+function serializeMeta(meta) {
+  if (!meta || typeof meta !== 'object') return null;
+  const out = {};
+  for (const key of META_KEYS) {
+    if (meta[key] !== undefined && meta[key] !== null) out[key] = meta[key];
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+function serializeSignature(sig) {
+  if (!sig || typeof sig !== 'object') return null;
+  const size = Number(sig.size);
+  const mtimeNs = Number(sig.mtime_ns);
+  if (!Number.isFinite(size) || !Number.isFinite(mtimeNs)) return null;
+  return { size: Math.trunc(size), mtime_ns: Math.trunc(mtimeNs) };
+}
+
+function serializeCounter(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function serializePoolItem(item) {
+  const err = typeof item.metaError === 'string'
+    ? item.metaError
+    : (typeof item.meta_error === 'string' ? item.meta_error : null);
+  return {
+    path: item.path,
+    name: item.name || basename(item.path),
+    hash: item.hash || null,
+    size: item.size ?? null,
+    meta: serializeMeta(item.meta),
+    metaError: err,
+    meta_signature: serializeSignature(item.meta_signature),
+    history_count: serializeCounter(item.history_count ?? item.meta?.history_count),
+    open_count: serializeCounter(item.open_count ?? item.meta?.open_count),
+  };
+}
+
+function hydratePoolItem(it) {
+  const err = typeof it.metaError === 'string'
+    ? it.metaError
+    : (typeof it.meta_error === 'string' ? it.meta_error : null);
+  return {
+    path: it.path,
+    name: it.name || basename(it.path),
+    hash: it.hash || null,
+    size: it.size ?? null,
+    meta: serializeMeta(it.meta),
+    metaError: err,
+    meta_signature: serializeSignature(it.meta_signature),
+    history_count: serializeCounter(it.history_count),
+    open_count: serializeCounter(it.open_count),
+  };
+}
+
+function schemaVersionOf(data) {
+  const n = Number(data?.project_version ?? data?.version);
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return n;
+}
+
+function hydrateDeskTabs(stateObj) {
+  const s = (stateObj && typeof stateObj === 'object') ? stateObj : {};
+  for (const [key, def] of Object.entries(DESK_TAB_DEFAULTS)) {
+    if (!s[key] || typeof s[key] !== 'object') s[key] = { ...def };
+    else s[key] = { ...def, ...s[key] };
+  }
+  return s;
+}
+
+/** v1 → v2: assume missing/malformed version is 1; hydrate missing tab keys. */
+function migratePoolPayload(data) {
+  if (!data || typeof data !== 'object') return data || {};
+  const from = schemaVersionOf(data);
+  if (data.desk && typeof data.desk === 'object') {
+    data.desk.state = hydrateDeskTabs(data.desk.state);
+    data.desk.schema_version = 2;
+  }
+  data.version = 2;
+  if (data.project_version != null) data.project_version = 2;
+  data._migratedFrom = from;
+  return data;
+}
 
 /** Capture the currently mounted tab controls before its DOM is destroyed. */
 function captureCurrentFormState() {
@@ -37,17 +159,26 @@ function captureCurrentFormState() {
   state.formState[tab] = controls;
 }
 
-/** Restore controls after a tab renderer mounts them. */
+/**
+ * Restore controls after a tab renderer mounts them.
+ * Change is dispatched so knobs refresh, but `_applyingFormState` suppresses
+ * delegated resave / watcher POSTs (duplicate snapshot side effects).
+ */
 function applySavedFormState(tab) {
   const controls = state.formState?.[tab];
   if (!controls || !elements.actionPanel) return;
-  Object.entries(controls).forEach(([id, saved]) => {
-    const el = document.getElementById(id);
-    if (!el || !saved) return;
-    if (el.type === 'checkbox' || el.type === 'radio') el.checked = !!saved.checked;
-    else if (saved.value != null) el.value = saved.value;
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-  });
+  _applyingFormState = true;
+  try {
+    Object.entries(controls).forEach(([id, saved]) => {
+      const el = document.getElementById(id);
+      if (!el || !saved) return;
+      if (el.type === 'checkbox' || el.type === 'radio') el.checked = !!saved.checked;
+      else if (saved.value != null) el.value = saved.value;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  } finally {
+    _applyingFormState = false;
+  }
 }
 
 function buildDeskSnapshot() {
@@ -87,7 +218,7 @@ function buildDeskSnapshot() {
   };
 }
 
-function applyDeskSnapshot(desk) {
+function applyDeskSnapshot(desk, { restoreSettings = true } = {}) {
   if (!desk || typeof desk !== 'object') return;
   const gi = desk.global_inputs || {};
   window.globalInputs.video = gi.video || '';
@@ -96,22 +227,38 @@ function applyDeskSnapshot(desk) {
   window.globalInputs.pathOut = gi.path_out || '';
   window.globalInputs.frameStart = Number(gi.frame_start || 1);
   window.globalInputs.frameEnd = Number(gi.frame_end || 100);
+  const setVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && val != null) el.value = val;
+  };
+  setVal('giVideo', window.globalInputs.video);
+  setVal('giImage', window.globalInputs.image);
+  setVal('giPathIn', window.globalInputs.pathIn);
+  setVal('giPathOut', window.globalInputs.pathOut);
   if (desk.active_tab) state.activeTab = desk.active_tab;
   if (desk.form_state && typeof desk.form_state === 'object') state.formState = desk.form_state;
-  const s = desk.state || {};
+  const s = hydrateDeskTabs(desk.state || {});
   if (s.project && typeof s.project === 'object') {
     state.project = { ...state.project, ...s.project, dirty: !!s.project.dirty };
   }
   for (const key of ['faceMorph', 'withoutbg', 'styleTransfer', 'quick', 'imageSort', 'cut', 'zoompan', 'imgCompare', 'imageEdit']) {
     if (s[key] && typeof s[key] === 'object') state[key] = { ...(state[key] || {}), ...s[key] };
   }
-  if (s.watcher && typeof s.watcher === 'object') state.watcher = { ...state.watcher, ...s.watcher };
-  if (s.settings && typeof s.settings === 'object') {
+  if (s.watcher && typeof s.watcher === 'object') {
+    state.watcher = { ...state.watcher, ...s.watcher };
+  }
+  // Named project loads MUST drop settings. Session restore MAY apply them.
+  if (restoreSettings && s.settings && typeof s.settings === 'object') {
     state.settings = {
       ...state.settings, ...s.settings,
-      warmModels: { ...state.settings.warmModels, ...(s.settings.warmModels || {}) },
+      warmModels: { ...(state.settings.warmModels || {}), ...(s.settings.warmModels || {}) },
     };
     try { localStorage.setItem('mtapi.settings', JSON.stringify(state.settings)); } catch (_) {}
+    try {
+      window.dispatchEvent(new CustomEvent('mtapi.settingsChanged', {
+        detail: { thumbnailSize: state.settings.thumbnailSize, source: 'session' },
+      }));
+    } catch (_) { /* ignore */ }
   }
 }
 
@@ -137,18 +284,8 @@ function buildPoolStatePayload() {
 
   return {
     version: 2,
-    items: state.pool.items.map(i => ({
-      path: i.path,
-      name: i.name || basename(i.path),
-      hash: i.hash || null,
-      size: i.size ?? null,
-    })),
-    images: (state.imagePool?.items || []).map(i => ({
-      path: i.path,
-      name: i.name || basename(i.path),
-      hash: i.hash || null,
-      size: i.size ?? null,
-    })),
+    items: state.pool.items.map(serializePoolItem),
+    images: (state.imagePool?.items || []).map(serializePoolItem),
     sequence: state.pool.sequence.map(s => {
       const td = s.targetDuration;
       const n = (td != null && td !== '' && Number.isFinite(Number(td)) && Number(td) > 0)
@@ -217,18 +354,14 @@ function updateProjectNameUI() {
 
 /** Apply loaded project/session JSON into live pool state and re-render. */
 function applyPoolData(data, { asProject = false, projectPath = null, projectName = null } = {}) {
-  applyDeskSnapshot(data.desk);
+  data = migratePoolPayload(data);
+  // Named projects must never overwrite global settings.
+  applyDeskSnapshot(data.desk, { restoreSettings: !asProject });
   const items = data.items || [];
   const sequence = data.sequence || [];
   const images = data.images || [];
 
-  state.pool.items = items.map(it => ({
-    path: it.path,
-    name: it.name || basename(it.path),
-    hash: it.hash || null,
-    size: it.size ?? null,
-    meta: null,
-  }));
+  state.pool.items = items.map(hydratePoolItem);
   state.pool.sequence = sequence.map(s => {
     let td = s.target_duration ?? s.targetDuration ?? null;
     if (td != null) {
@@ -272,13 +405,7 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
   if (!state.imagePool) {
     state.imagePool = { items: [], selectedPath: null, filterQuery: '', loading: false };
   }
-  state.imagePool.items = images.map(it => ({
-    path: it.path,
-    name: it.name || basename(it.path),
-    hash: it.hash || null,
-    size: it.size ?? null,
-    meta: null,
-  }));
+  state.imagePool.items = images.map(hydratePoolItem);
   state.imagePool.selectedPath = data.selected_image_path || null;
   if (state.imagePool.selectedPath) {
     const stillThere = state.imagePool.items.some(i => i.path === state.imagePool.selectedPath);
@@ -330,11 +457,15 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
     logConsole(`[PROJECT]: ${missing.length} missing path(s) skipped:\n${missing.slice(0, 8).join('\n')}`);
   }
 
-  // Metadata is now viewport-driven by pool/grid.js. Never probe every restored
-  // item here: an 800-clip folder used to create an immediate request herd.
-  // NOTE: removed post-load auto-RIFE scan. Instant densify now only runs on
-  // explicit user action: changing Time, target FPS, or toggling Instant ON.
-  // This prevents project-load from re-encoding already-rifed clips.
+  // Metadata is viewport-driven. Valid persisted meta skips /api/media_info.
+  // Re-probe global frame count so range sliders match the restored clip.
+  const firstVideo = String(window.globalInputs?.video || '')
+    .split('\n').map((l) => l.trim()).find(Boolean);
+  if (firstVideo) {
+    import('/js/timeline.js').then((m) => {
+      try { m.probeGlobalVideo(firstVideo); } catch (_) { /* ignore */ }
+    }).catch(() => {});
+  }
 }
 
 async function projectNew() {
@@ -345,6 +476,9 @@ async function projectNew() {
     }
   }
   seqStop();
+  import('/js/lazy-loader.js').then((m) => {
+    try { m.clearPending(); m.disconnectAll(); } catch (_) { /* ignore */ }
+  }).catch(() => {});
   state.pool.items = [];
   state.pool.sequence = [];
   state.pool.selectedPath = null;
@@ -814,6 +948,18 @@ function buildPoolMetaHtml(item) {
 }
 
 
+// Avoid import cycles with settings.js: expose a global callback and listen
+// for the fallback CustomEvent the spec requires.
+window.scheduleSavePoolState = scheduleSavePoolState;
+window.addEventListener('mtapi.saveSettings', () => {
+  try { scheduleSavePoolState(); } catch (_) { /* ignore */ }
+});
+window.addEventListener('mtapi.settingsChanged', () => {
+  import('/js/pool/freshness.js')
+    .then((m) => m.refreshAssignedPoolThumbs())
+    .catch(() => {});
+});
+
 export {
   _poolSeqId, _poolSaveTimer, _poolPersistReady,
   nextSeqId,
@@ -825,4 +971,5 @@ export {
   refreshPoolToolbarCounts, ensureVideoOutputPath,
   stitchPoolSequence,
   poolThumbUrl, shortHash, buildPoolMetaHtml,
+  isApplyingFormState, serializePoolItem, hydratePoolItem, migratePoolPayload,
 };
