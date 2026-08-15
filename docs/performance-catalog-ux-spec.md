@@ -47,7 +47,7 @@ We must decouple interaction from validation, batch network traffic, and virtual
 * Missing cache records or genuinely new/changed files may be repaired in a separate, explicitly reported background queue. That repair path must never be confused with ordinary startup restore and must not delay pool display.
 * Existing disk thumbnails must be assigned to the pool for display at startup. Thumbnail generation is only for records whose thumbnails are actually absent or invalid; it is never part of ordinary project switching.
 * The application MUST NOT turn every project switch into a whole-pool signature, hash, probe, or thumbnail-generation scan.
-* The normal pool display mode is eager preload: once the pool is restored, all existing thumbnail URLs are queued for browser loading with a bounded concurrency limit. Scrolling must not be the event that first requests an already-cached thumbnail. Viewport-lazy loading may exist only as an explicit optional mode, not as an implicit default.
+* Thumbnail **generation** is not part of ordinary restore. Browser **display** of already-cached JPEGs is viewport-lazy by default (IntersectionObserver, 100px margin). Eager preload of every card (`settings.preloadAllThumbnails`) is optional — on 1,000+ item pools it saturates the single API worker and freezes the desk. That eager-default was a shipped regression and was reverted.
 
 ### A. Batch Signature Endpoint (`POST /api/media_signatures`)
 

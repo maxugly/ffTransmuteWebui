@@ -93,10 +93,10 @@ export function renderSettingsForm() {
           <div class="settings-switches">
             ${switchHtml('settingsThumbRam', 'Keep thumbnails in RAM', state.settings.thumbnailsToRam)}
             ${switchHtml('settingsPhashRam', 'Keep hashes in RAM', state.settings.phashToRam)}
-            ${switchHtml('settingsLazyThumbs', 'Lazy-load thumbnails', !!state.settings.lazyThumbnails)}
+            ${switchHtml('settingsPreloadThumbs', 'Preload all thumbnails', !!state.settings.preloadAllThumbnails)}
           </div>
         </div>
-        <p class="settings-card-desc">L = 120px, M = 240px, H = 480px. Default is eager thumbnail preload.<br>Lazy-load is optional. RAM caches are byte-bounded.</p>
+        <p class="settings-card-desc">L = 120px, M = 240px, H = 480px. Thumbnails load as cards enter view.<br>Preload-all is optional and slow on large pools.</p>
       </section>
       <section class="settings-card settings-warm" aria-labelledby="settingsWarmTitle">
         <div class="settings-card-head">
@@ -144,7 +144,7 @@ export function renderSettingsForm() {
   const bindSwitch = (id, patch) => document.getElementById(id)?.addEventListener('change', (e) => saveSettings({ [patch]: e.target.checked }));
   bindSwitch('settingsThumbRam', 'thumbnailsToRam');
   bindSwitch('settingsPhashRam', 'phashToRam');
-  bindSwitch('settingsLazyThumbs', 'lazyThumbnails');
+  bindSwitch('settingsPreloadThumbs', 'preloadAllThumbnails');
   document.getElementById('settingsWarmDeepdream')?.addEventListener('change', e => saveSettings({ warmModels: { deepdream: e.target.checked } }));
   document.getElementById('settingsWarmStyle')?.addEventListener('change', e => saveSettings({ warmModels: { styletransfer: e.target.checked } }));
   document.getElementById('settingsWarmFastsam')?.addEventListener('change', e => saveSettings({ warmModels: { fastsam: e.target.checked } }));

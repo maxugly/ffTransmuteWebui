@@ -145,12 +145,9 @@ async function _variantNodeHtml(path) {
   // Local cache / persisted map only — never GET /api/variants per card paint.
   let variants = {};
   try {
-    const { peekVariants, _fetchVariants } = await import('/js/pool/sequence.js');
+    const { peekVariants } = await import('/js/pool/sequence.js');
     const local = typeof peekVariants === 'function' ? peekVariants(path) : null;
     variants = local || {};
-    if (!local && state.settings?.lazyThumbnails) {
-      variants = await _fetchVariants(path);
-    }
   } catch {
     variants = {};
   }

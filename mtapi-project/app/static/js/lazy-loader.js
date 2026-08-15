@@ -1,11 +1,9 @@
 /**
  * Shared card activator + thumbnail preload for Video Pool and Image Pool.
  *
- * Default mode is eager: once a pool is restored, every existing card is
- * queued with bounded concurrency. Scrolling is not the first time an
- * already-cached thumbnail is requested.
- *
- * Viewport-lazy loading exists only when settings.lazyThumbnails is true.
+ * Default is viewport-lazy (IntersectionObserver, 100px margin). Eager
+ * preload of every card was a large-pool regression; it is opt-in via
+ * settings.preloadAllThumbnails.
  *
  * Signature validation (when actually needed) is batched via
  * POST /api/media_signatures — never one request per card.
@@ -43,9 +41,10 @@ const instrument = {
 
 function isLazyMode() {
   try {
-    return !!(window.state?.settings?.lazyThumbnails);
+    // Only preload every card when the user explicitly opts in.
+    return !window.state?.settings?.preloadAllThumbnails;
   } catch (_) {
-    return false;
+    return true;
   }
 }
 
