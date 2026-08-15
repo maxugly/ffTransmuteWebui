@@ -6,7 +6,8 @@
 body.settings-tab-active .global-inputs-panel {
   display: none !important;
 }
-body.settings-tab-active header .header-actions {
+body.settings-tab-active header .header-actions,
+body.settings-tab-active header .global-quick-btns {
   display: none !important;
 }
 body.settings-tab-active .app-content {
@@ -16,8 +17,7 @@ body.settings-tab-active .app-content {
   min-height: 0;
   height: auto;
 }
-body.settings-tab-active .app-content .preview-panel,
-body.settings-tab-active .app-content .preview-collapse-handle {
+body.settings-tab-active .app-content .preview-panel {
   display: none !important;
 }
 body.settings-tab-active .action-panel {

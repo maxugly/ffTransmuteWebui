@@ -2,113 +2,133 @@
 
 > **Status:** **Spec Only**
 > **Audience:** Builder Agents (Implementation & Architecture)
-> **Goal:** Re-architect catalog rendering and interaction to flawlessly support massive datasets (1,000+ items). Eliminate all synchronous and hover-driven network requests, introduce robust DOM virtualization, and decouple display logic from metadata repair.
+> **Goal:** Re-architect catalog rendering and interaction to flawlessly support massive datasets (1,000+ items). Eliminate all synchronous and hover-driven network requests, introduce robust custom vanilla DOM virtualization, and decouple display logic from metadata repair.
+> **Authority:** This document explicitly supersedes the `performance-catalog-ux-spec.md` rules regarding: thumbnail defaults, startup thumbnail behavior, Phase 2 background validation, Phase 3 virtualization, and search behavior. `viewportLazyThumbnails=true` is the authoritative default.
 
 ---
 
-## 1. Central Catalog State Invariants
+## 1. Central Catalog State & The Global Index
 
 **Core Invariant:**
 > Hovering, scrolling, or merely displaying a catalog card must never trigger `/api/media_info`, hashing, probing, signature validation, thumbnail generation, or variant lookup.
 
-To support this invariant, the frontend requires a single, authoritative in-memory index:
-* **The Media Index:** Replace ad-hoc DOM state with a centralized memory dictionary (e.g., `window.globalMediaIndex`) tracking every file.
-* **Fields:** Must consistently represent hash, absolute path, file size, OS `mtime_ns`, decoded metadata, thumbnail paths, and discovered variants.
-* **State Confidence:** Every record must definitively mark its data as either *known*, *missing*, *stale*, or *queued for repair*. Operations must act strictly on these labels rather than checking the disk synchronously.
+**`window.globalMediaIndex` Architecture:**
+The builder MUST redesign the global index to treat the **canonical absolute path** as the primary item identity. 
+* **Hash Mapping:** Maintain a separate `window.hashToPaths` index to resolve content hashes to multiple canonical paths (to support multiple copies of the same file).
+* **Pre-Hash State:** Before a hash exists, the item is tracked exclusively by its canonical path.
+* **Authoritative Record Schema:** Replace single flat states with independent readiness flags for every resource type, utilizing a strict normalized status vocabulary.
+  ```json
+  {
+    "identity": {"canonical_path": "string"},
+    "hash_state": {"hash": "string | null", "status": "known | missing | queued | repairing | failed"},
+    "signature_state": {"size": "integer", "mtime_ns": "integer", "status": "known | missing | stale | queued | repairing | failed"},
+    "metadata_state": {"meta": "dict | null", "status": "known | missing | queued | repairing | failed"},
+    "variants_state": {"variants": "dict | null", "status": "known | missing | queued | repairing | failed"},
+    "thumbnails_state": {
+      "first": {
+        "L": "available | missing | queued | repairing | failed",
+        "M": "available | missing | queued | repairing | failed",
+        "H": "available | missing | queued | repairing | failed"
+      },
+      "last": {
+        "L": "available | missing | queued | repairing | failed",
+        "M": "available | missing | queued | repairing | failed",
+        "H": "available | missing | queued | repairing | failed"
+      }
+    },
+    "repair_errors": ["string list of error messages"]
+  }
+  ```
 
 ---
 
-## 2. Display Versus Repair
+## 2. Display Versus Repair Boundaries
 
 **Separation of Concerns:**
-* **Render Loop:** Card rendering, focus panels, and sequence selection menus MUST consume only the *already-known* state from the central index. They are strictly prohibited from initiating network work.
-* **Missing State:** If an item lacks metadata (e.g., after an import or when loading a legacy project without persisted data), the UI MUST render the card in a clearly marked "unknown" or "pending" visual state (e.g., disabled badges, grayed-out duration text). It must not block display.
-* **Repair Queue:** "Repairing" (fetching missing `/api/media_info`, variant data, or computing hashes) is an entirely separate operation. It occurs exclusively through a bounded, low-priority background/idle queue, or when the user explicitly clicks a "Repair Metadata" button. *Never* trigger a repair because a user hovered over a card.
+* **Render Loop:** Card rendering consumes ONLY the *already-known* state from the index.
+* **Focus Panel Fallback:** When metadata is absent, the focus panel MUST explicitly display "metadata unavailable". It is strictly prohibited from triggering `/api/media_info`.
+
+**Measurable Background Repair Start Condition:**
+Background repair MUST NOT begin immediately. It initiates only after:
+1. Initial pool state hydration is 100% complete.
+2. The first virtualized window of visible cards is fully rendered to the DOM.
+3. There are zero pending render transactions.
+4. A defined idle delay (e.g., `setTimeout(..., 2000)` or `requestIdleCallback`) elapses.
 
 ---
 
-## 3. Thumbnail Behavior & Caching
+## 3. Concurrency Limits & Network Enforcements
 
-**Cache Preservation & Fast-Paths:**
-* **Serve Only:** Render loops request thumbnails directly from the fast server path. 
-* **No Re-requesting:** If a thumbnail is already loaded in the DOM or cached in memory, it must not be needlessly re-requested on scroll or focus.
-* **Size Toggles:** Changing the visual thumbnail size via UI knobs MUST NOT clear or destroy the underlying disk/RAM cache files. It should only alter CSS presentation or request a differently sized variant from the existing cache.
-* **Bounded Fallback:** Missing thumbnails are queued for generation in the background, utilizing a strictly bounded concurrency limit (e.g., max 8 in-flight requests) independent of the display render cycle.
+Every layer of traffic must be independently capped by the application:
 
----
-
-## 4. DOM Virtualization
-
-**Windowed Rendering (The McMaster-Carr DOM):**
-* Rendering 1,000+ static `<div class="pool-item">` nodes crashes the browser layout engine. The catalog MUST implement a recycled DOM virtualization container (windowing).
-* **Overscan:** Define a strict rendered card window (e.g., exactly the number of visible cards in the viewport + an overscan margin of 2 rows above and below).
-* **Acceptance Criteria:** Virtualization cannot break existing catalog UX. Implementation is strictly rejected unless it flawlessly preserves:
-  1. Drag/drop reordering.
-  2. Multi-selection.
-  3. Context menus.
-  4. Pool-to-sequence Stitch linking.
-  5. Keyboard navigation (arrows and shift-select).
-  6. Instant filtering.
-  7. Scroll position restoration.
+1. **Thumbnail Display GET Concurrency:** Enforced implicitly by DOM Virtualization. Because only the visible window plus overscan of `.pool-card` elements exist in the DOM, and each card may request up to two images (first and last), the browser's HTTP GET queue is naturally bounded by the DOM node count limit.
+2. **Thumbnail-Generation Concurrency:** Enforced by `lazy-loader.js`. Max 8 concurrent `POST /api/thumbnails/ensure` generation requests. Ordinary cached thumbnail GETs are measured separately and are not subject to this limit.
+3. **Metadata-Probe Concurrency:** Enforced by Background Repair Queue. Max 4 concurrent `/api/media_info` requests.
+4. **Hashing Concurrency:** Enforced by Background Repair Queue. Max 2 concurrent hashing requests.
+5. **Variant-Batch Payload Limit:** Enforced by sequence compiler. Max 100 paths per `POST /api/variants/batch`.
+6. **Variant-Batch Request Concurrency:** Enforced by sequence compiler. Max 2 concurrent batch POST requests in flight simultaneously.
 
 ---
 
-## 5. Event Architecture & Debouncing
+## 4. DOM Virtualization Identity Rules
 
-**UI-Only Interaction:**
-* DOM events such as `mouseenter`, `mousemove`, and `scroll` MUST NOT execute expensive synchronous work, layout thrashing, or network fetch cascades.
-* Specifically, the hover sequence (`setPoolHover()` → `updatePoolFocusFrame()` → `loadPoolItemMeta()`) must be entirely dismantled. Hovering updates a visual focus frame using *existing* data only.
-* **Selection & State Updates:** Ordinary selection or metadata updates MUST mutate the specific card/element in place. They must avoid triggering a full grid rebuild (`renderPoolGrid()`), which destroys scroll position and forces complete DOM teardown.
-* Intentional user actions that require recalculation must be debounced or batched.
-
----
-
-## 6. Frontend Architecture Evolution
-
-**Framework Assessment:**
-* **Current State:** The application utilizes vanilla JavaScript.
-* **Recommendation:** A complete migration to React, Vue, or Svelte carries an extreme risk of breaking deeply integrated ffmpeg/sequence DOM interactions and requires massive rewrites.
-* **Target Architecture:** Implement a focused vanilla JS refactor. Utilize a lightweight, purpose-built vanilla virtualization library (e.g., `virtual-scroller` or a custom absolute-positioned `translateY` recycling loop) rather than introducing a massive VDOM framework. This provides the exact performance required with minimum migration surface area.
+**Windowed Rendering (Custom Vanilla JS):**
+* Implement a custom vanilla JS absolute-positioned `translateY` recycling loop.
+* **Overscan:** Dynamically calculate overscan (visible viewport + 1.5 screen-heights of offscreen buffer padding).
+* **Stable Identity & Virtualization Behaviors:**
+  * **Identity:** All operations use the canonical path or stable pool item ID, NEVER DOM indices.
+  * **Unknown items:** Still render a blank/placeholder `.pool-card` box with accurate dimensions.
+  * **Filtered items:** Removed entirely from the virtualized array mapping.
+  * **Duplicate hashes:** Handled gracefully via the `hashToPaths` index mapping multiple identical DOM cards if needed.
+  * **Drag/Drop Targets:** Drop coordinates calculate against the virtualized scroll offset, not static DOM elements.
+  * **Selected Items Outside Window:** Selection state is maintained in a global `Set(canonical_paths)`, ensuring items remain selected even when their DOM nodes are recycled out of view.
+  * **Scroll Restoration:** Loading a project explicitly restores the `scrollTop` value of the container.
 
 ---
 
-## 7. Loading / Status UX
+## 5. Search & Filtering Behavior
 
-**Background Transparency:**
-* Users must never guess whether a blank field means "no data exists" or "currently fetching data."
-* **Status Badges:** Implement a persistent, unobtrusive catalog status bar (e.g., in the pool header):
-  > *Restored: 1,024 | Known: 800 | Queued: 200 | Repairing...*
-* The UI MUST remain fully interactive and scrollable while the background repair queue ticks.
+**Final Search Decision:**
+* The builder MUST implement a user-visible "Search Mode: Strict vs Fuzzy" UI toggle. Default to Fuzzy.
+* **Terminology Correction:** When Strict mode is active, the engine utilizes a **precomputed search-string index** (concatenating all text into a single lowercase string property on the object and filtering via `.includes()`), rather than true inverted-index token mapping.
 
 ---
 
-## 8. Persistence and Project Behavior
+## 6. Loading / Status UX
 
-**Zero-Destruction Rule:**
-* Changing projects, reloading the page, or executing Save/Save As/Autosave MUST NOT delete the underlying disk thumbnails, variant caches, `thumbnails_to_ram`, pHashes, or stored metadata signatures.
-* **Load Semantics:** Loading a new project must rapidly hydrate the central catalog state with persisted metadata. It must *not* trigger a whole-catalog repair pass. Signatures are trusted unless explicitly invalidated.
-
----
-
-## 9. Required Verification & Acceptance Tests
-
-Before claiming implementation is complete, the builder MUST execute and pass the following tests:
-
-1. **Stress Test:** Load a browser with a minimum of 1,000 synthetic pool cards.
-2. **Network Silence on Interaction:** Record the Network tab. Scrolling slowly, scrolling rapidly, hovering over 50+ cards, selecting items, filtering the view, and switching projects must produce exactly ZERO `/api/media_info`, hash, or signature requests.
-3. **Cache Silence:** Verify that already-known cards produce zero hash/probe requests upon render.
-4. **Repair Isolation:** Prove that `/api/media_info` requests are ONLY created by a deliberate user action ("Repair") or the bounded background queue, never by mouse hover.
-5. **Bounded Concurrency:** Monitor thumbnail generation to assert a strict max concurrency limit (e.g., no more than 8 active image fetches).
-6. **No Full-Grid Rebuild:** Selecting a card or updating a single item's metadata must update that specific node in the DOM without destroying and rebuilding the entire grid array.
-7. **UX Integrity:** Manually verify that keyboard navigation (arrows), drag/drop, context menus, selection bounds, sequence insertion, and instant filtering remain functional inside the virtualized container.
-8. **Performance Targets:**
-   * **First Paint:** < 200ms for pool hydration.
-   * **Scroll Responsiveness:** Maintain 60fps while dragging the scrollbar from top to bottom.
-   * **Memory:** DOM node count inside the pool container must never exceed the viewport + overscan limit, regardless of dataset size.
+**Precise Status Counters & Thumbnail Readiness:**
+Implement a persistent catalog status bar mapping exactly to the schema states:
+* **Restored:** Total items loaded.
+* **Known metadata:** Items with `metadata_state.status === "known"`.
+* **Known thumbnails:** Items where **both** `first` and `last` positions are `"available"` at the currently requested UI size (e.g., `M`). Partial readiness (e.g., first available, last missing) does NOT increment this counter.
+* **Missing:** Items with any `"missing"` state across required hash, metadata, or currently selected thumbnail size.
+* **Queued:** Items with any `"queued"` state.
+* **Repairing:** Active in-flight requests (items with any `"repairing"` state).
+* **Failed:** Items with `"failed"` states.
 
 ---
 
-**Migration Risks:**
-* `grid.js` and `image-pool.js`: The shift to absolute positioning for virtualization may break existing CSS Flexbox/Grid layouts and drag/drop offset calculations.
-* `sequence.js`: Must ensure timeline references do not break when pool DOM nodes are recycled.
-* `lazy-loader.js`: Intersection Observers may need recalibration to work alongside a virtualized scroll container.
+## 7. Performance Targets & Automated Acceptance Tests
+
+Before claiming completion, the builder MUST execute and pass these explicit tests:
+
+**A. Automated Performance Targets (4x CPU Throttled DevTools):**
+* **First Paint:** `performance.mark('firstVisibleCard')` must fire < 200ms after data hydration.
+* **View Dimensions:** 1920x1080 viewport, medium-sized thumbnail `.pool-card` elements.
+* **Frame Time Measurement:** Recorded via DevTools Performance timeline while continuously scrolling top-to-bottom. 95th-percentile must remain < 16.6ms.
+* **Long-Task Measurement:** Implemented via `new PerformanceObserver({entryTypes: ['longtask']})`. Must report 0 tasks > 50ms.
+* **Exact DOM Count Query:** `document.querySelectorAll('.pool-scroll-canvas > .pool-card').length` must not exceed the calculated visible-window plus overscan limit. Datasets smaller than the window simply render their exact count. The image-element (`<img>`) request count may be up to two per card (first and last images).
+
+**B. Core Invariant Regression Tests:**
+* **Definition of Zero Network Requests:** Means exactly zero hover/scroll/render-triggered metadata, hash, signature, variant, or generation requests. Ordinary cached thumbnail display GETs are measured separately, are implicitly bounded by the `<img>` element count (up to two per rendered card), and are explicitly NOT confused with thumbnail-generation `POST` repair traffic.
+1. **The Hover Bug Regression:** Disable the background repair queue via code flag. Load a project containing 50+ hash-known cards missing metadata. Hovering the mouse across all 50+ `.pool-card` elements MUST produce exactly zero `/api/media_info` requests in the Network tab. The focus panel MUST display “metadata unavailable”. 
+2. **Stress Test Silence:** Load 1,000 synthetic pool cards. Scrolling rapidly, selecting items, and switching projects must produce exactly ZERO synchronous `/api/media_info`, hash, or signature requests.
+3. **Concurrency Proof:** Throttle the network to 3G. Trigger full background repair. Assert via Network tab counting that the exact maximums (8 `POST /api/thumbnails/ensure` generations, 4 probes, 2 hashes) are strictly respected.
+4. **UX Integrity:** Verify shift-selection bounds correctly span across recycled DOM nodes by maintaining the selected path `Set` independent of the DOM.
+
+---
+
+## 8. Implementation Notes
+
+**Default Settings Migration:**
+The current application code may still default `viewportLazyThumbnails` to `false` in the working tree. The builder MUST change the runtime default to `true` and safely migrate any old or conflicting setting names in user `localStorage` to ensure the correct default is universally applied upon launch.

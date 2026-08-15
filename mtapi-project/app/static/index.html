@@ -20,7 +20,7 @@
 <body>
 
   <!-- Sidebar Nav -->
-  <aside>
+  <aside class="app-sidebar">
     <div class="brand">
       <button class="sidebar-collapse-btn" id="btnSidebarCollapse" title="Collapse sidebar" aria-label="Toggle sidebar">◀</button>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -360,7 +360,6 @@
   <!-- Main View -->
   <main>
     <header>
-      <h2 id="tabTitle">Datamosh Smear</h2>
       <div id="globalProbeOverlay" class="global-probe-overlay" style="display: none;"></div>
       <div class="global-quick-btns">
         <button class="btn btn-quick" id="btnQuickVIn" title="Pick video input(s)">V-in</button>
@@ -384,6 +383,7 @@
           </svg>
           Stop
         </button>
+        <button class="preview-collapse-btn" id="btnPreviewCollapse" type="button" title="Hide Media Output Preview" aria-label="Hide Media Output Preview" aria-expanded="true">▲</button>
       </div>
     </header>
 
@@ -455,11 +455,7 @@
         <div class="action-panel-form" id="actionPanelForm">
           <!-- Tab forms render here -->
         </div>
-        <aside class="tool-input-preview" id="toolInputPreview" hidden aria-label="Input media preview"></aside>
-      </div>
-
-      <div class="preview-collapse-handle" id="previewCollapseHandle" title="Toggle preview panel">
-        <button class="preview-collapse-btn" id="btnPreviewCollapse" title="Collapse preview panel" aria-label="Toggle preview">▶</button>
+        <div class="tool-input-preview" id="toolInputPreview" hidden aria-label="Input media preview"></div>
       </div>
 
       <!-- Preview & Console Panel -->

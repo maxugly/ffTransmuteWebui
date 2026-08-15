@@ -7,7 +7,8 @@
 body.notes-tab-active .global-inputs-panel {
   display: none !important;
 }
-body.notes-tab-active header .header-actions {
+body.notes-tab-active header .header-actions,
+body.notes-tab-active header .global-quick-btns {
   display: none !important;
 }
 body.notes-tab-active .app-content {
@@ -17,8 +18,7 @@ body.notes-tab-active .app-content {
   min-height: 0;
   height: auto;
 }
-body.notes-tab-active .app-content .preview-panel,
-body.notes-tab-active .app-content .preview-collapse-handle {
+body.notes-tab-active .app-content .preview-panel {
   display: none !important;
 }
 body.notes-tab-active .action-panel {

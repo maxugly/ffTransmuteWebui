@@ -1,14 +1,14 @@
 # Session stopping state — handoff
 
 > **Date:** 2026-08-15  
-> **VERSION:** `000.000.5.31`  
+> **VERSION:** `000.000.5.35`  
 > **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 5.31)
+## 1. Shipped this stretch (through 5.35)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
@@ -37,19 +37,23 @@
 | **Universal persistence** | Metadata + `meta_signature` round-trip; `/api/media_signature`; shared `lazy-loader.js` (100px margin, max-5 fallback); settings precedence (named projects never overwrite globals); schema v2 migration; inactive-tab formState | `universal-persistence-spec.md` · **`5.06`** |
 | **Settings layout polish** | Tight one-page cards hug content; Neural FX blurb wraps after “Default is off” | `settings.js`, `settings.css` · **`5.12`** |
 | **Settings card layout spec** | House style for new Settings cards — one-line head, packed controls, max-content | `settings-card-layout-spec.md` · **`5.13`** |
-| **Catalog UX Phase 1** | Cache-first eager restore (no signature/hash/probe on existing records); batch `/api/media_signatures` + `/api/variants/batch`; `window.globalMediaIndex`; already-dense Instant RIFE is zero variant requests; moved RIFE recovered by hash; lower-density GC only after promote + unreferenced | `performance-catalog-ux-spec.md` · **`5.14`** |
+| **Catalog UX Phase 1** | Eager memory-restore of saved metadata (no network probe); batch `/api/media_signatures` + `/api/variants/batch`; `window.globalMediaIndex`; already-dense Instant RIFE is zero variant requests; moved RIFE recovered by hash; lower-density GC only after promote + unreferenced | `performance-catalog-ux-spec.md` · **`5.14`** |
 | **Hash-only thumb 500** | Hash-only `/api/thumbnail` uses recorded source / 404s; no recover-on-error loop | `thumbnails.py` · **`5.15`** |
 | **Thumbnail load speed** | Existing JPEG served without record/index scan; 8-wide in-flight img queue | `media.py`, `lazy-loader.js` · **`5.16`** |
-| **Eager-thumb regression** | Viewport-lazy is default again; preload-all is opt-in | `lazy-loader.js` · **`5.17`** |
+| **Viewport-lazy regression** | Default is strictly `viewportLazyThumbnails=true`; `preloadAllThumbnails` is a deprecated legacy alias (`preloadAllThumbnails=true` → `viewportLazyThumbnails=false`). | `lazy-loader.js` · **`5.17`** |
 | **Thumb queue coverage** | Settings size refresh uses the same 8-fetch cap | `freshness.js` · **`5.18`** |
-| **Pay-once thumbs** | Display is cache-only; missing thumbs generate in background; work starts immediately | `5.19` |
+| **Pay-once thumbs** | Display is cache-only; missing thumbnails generate only through the idle repair queue or explicit user repair; ordinary display and scrolling never generate thumbnails. | `5.19` |
 | **No redo** | Same path+size never re-hashes; cache-hit open does not rewrite; failed thumbs not retried | `5.20` |
 | **Reload thumbs** | Hash `src` written on the card at render; 8-queue no longer withholds src; L/M serves H if needed | `5.21` |
-| **No lazy + settings persist** | Eager thumbs; settings from localStorage + `/api/settings` | `5.22` |
+| **Viewport-lazy default enforced** | Default is strictly viewport-lazy per `catalog-interaction-virtualization-spec.md`; settings from localStorage + `/api/settings` | `5.22` |
 | **Instant / project load** | No re-scan of known clips; Instant uses `rifeNeed` | `5.23`–`5.26` |
 | **Scroll keeps thumbs painted** | Ignore hover while the pool grid is scrolling; no hover translate; `src` stays | `layout.js`, `sequence.js`, `pool.css` · **`5.27`** |
 | **Open does not re-scan thumbs** | Session items had hash but almost no meta, so hover fired `media_info?ensure_thumbs=true`. Restore now copies record meta + thumb flags; failed extracts are not 404-retried. | `pool.py`, `sequence.js` · **`5.28`** |
 | **Scrollbar width setting** | UI tweaks 6–30px. `5.30` real px sheet; `5.31` cap 30 | `settings.js`, `base.css` · **`5.29`–`5.31`** |
+| **Preview collapse in header** | ▲/▼ after Stop; no right-edge tab | `index.html`, `layout.css` · **`5.32`** |
+| **Sidebar collapse is icon-wide** | 44px icon rail; title gone; inline resize width cleared | `layout.css`, `app.js` · **`5.33`** |
+| **Header title gone** | Tab title removed; V-in/out flush left | `index.html`, `layout.css` · **`5.34`** |
+| **Input preview not sidebar** | Nav scoped to `.app-sidebar`; preview is a div | `index.html`, `layout.css` · **`5.35`** |
 
 Earlier stable: filter platform, dual pools, Convert, neural ops, Prompt Library, Recohere, Agent, OpenVINO stills.
 

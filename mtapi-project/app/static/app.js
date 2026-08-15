@@ -838,7 +838,7 @@ function switchTab(tab) {
   if (tab === 'settings') title = 'Settings';
   // Library tabs: drop the big header title (sidebar already shows active item)
   if (tab === 'pool' || tab === 'sequence' || tab === 'images') title = '';
-  elements.tabTitle.textContent = title;
+  if (elements.tabTitle) elements.tabTitle.textContent = title;
 
   // Hide Run / Queue on library / settings-only tabs (compare is interactive, not a job)
   const hideRun = (
@@ -990,6 +990,22 @@ import {
 
 // ── Sidebar & preview collapse ────────────────────────────────────────────
 
+function applySidebarExpandedWidth() {
+  const aside = document.querySelector('.app-sidebar');
+  if (!aside) return;
+  if (document.body.classList.contains('sidebar-collapsed')) {
+    aside.style.width = '';
+    return;
+  }
+  try {
+    const saved = parseInt(localStorage.getItem('mtapi_sidebar_w') || '', 10);
+    if (saved >= 120 && saved <= 600) {
+      aside.style.width = saved + 'px';
+      document.documentElement.style.setProperty('--sidebar-w', saved + 'px');
+    }
+  } catch (_) { /* ignore */ }
+}
+
 function toggleSidebarCollapse() {
   const collapsed = document.body.classList.toggle('sidebar-collapsed');
   const btn = document.getElementById('btnSidebarCollapse');
@@ -997,18 +1013,30 @@ function toggleSidebarCollapse() {
     btn.textContent = collapsed ? '▶' : '◀';
     btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
   }
+  applySidebarExpandedWidth();
   try { localStorage.setItem('mtapi_sidebar_collapsed', collapsed ? '1' : '0'); } catch (_) {}
   fitPreviewViewer();
 }
 
-function togglePreviewCollapse() {
-  const collapsed = document.body.classList.toggle('preview-collapsed');
+function syncPreviewCollapseBtn() {
+  const collapsed = document.body.classList.contains('preview-collapsed');
   const btn = document.getElementById('btnPreviewCollapse');
-  if (btn) {
-    btn.textContent = collapsed ? '◀' : '▶';
-    btn.title = collapsed ? 'Expand preview' : 'Collapse preview';
-  }
-  try { localStorage.setItem('mtapi_preview_collapsed', collapsed ? '1' : '0'); } catch (_) {}
+  if (!btn) return;
+  btn.textContent = collapsed ? '▼' : '▲';
+  btn.title = collapsed ? 'Show Media Output Preview' : 'Hide Media Output Preview';
+  btn.setAttribute('aria-label', btn.title);
+  btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+}
+
+function togglePreviewCollapse() {
+  document.body.classList.toggle('preview-collapsed');
+  syncPreviewCollapseBtn();
+  try {
+    localStorage.setItem(
+      'mtapi_preview_collapsed',
+      document.body.classList.contains('preview-collapsed') ? '1' : '0',
+    );
+  } catch (_) { /* ignore */ }
   setTimeout(() => fitPreviewViewer(), 100);
 }
 
@@ -1019,11 +1047,11 @@ function loadSavedCollapseState() {
       const sb = document.getElementById('btnSidebarCollapse');
       if (sb) { sb.textContent = '▶'; sb.title = 'Expand sidebar'; }
     }
+    applySidebarExpandedWidth();
     if (localStorage.getItem('mtapi_preview_collapsed') === '1') {
       document.body.classList.add('preview-collapsed');
-      const pb = document.getElementById('btnPreviewCollapse');
-      if (pb) { pb.textContent = '◀'; pb.title = 'Expand preview'; }
     }
+    syncPreviewCollapseBtn();
   } catch (_) {}
 }
 
@@ -1058,21 +1086,15 @@ function _setupDragResize(el, { axis, onDrag, startVals, onEnd }) {
 
 function setupSidebarResize() {
   const handle = document.getElementById('sidebarResize');
-  const aside = document.querySelector('aside');
+  const aside = document.querySelector('.app-sidebar');
   if (!handle || !aside) return;
 
-  // Restore saved width (apply as inline style so it beats collapsed CSS)
-  try {
-    const saved = parseInt(localStorage.getItem('mtapi_sidebar_w') || '', 10);
-    if (saved >= 56 && saved <= 600) {
-      aside.style.width = saved + 'px';
-      document.documentElement.style.setProperty('--sidebar-w', saved + 'px');
-    }
-  } catch (_) {}
+  applySidebarExpandedWidth();
 
   _setupDragResize(handle, {
     axis: 'x',
     onDrag: (deltaX, start) => {
+      if (document.body.classList.contains('sidebar-collapsed')) return;
       const newW = Math.max(120, Math.min(600, start.startWidth + deltaX));
       aside.style.width = newW + 'px';
       document.documentElement.style.setProperty('--sidebar-w', newW + 'px');

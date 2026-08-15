@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-15  \
-> **VERSION:** `000.000.5.31`  \
+> **VERSION:** `000.000.5.35`  \
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -101,15 +101,15 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Universal persistence** | Full desk snapshot: metadata + signatures round-trip, `/api/media_signature`, shared lazy-loader (100px margin, max-5 fallback), settings precedence (project loads never overwrite globals), schema v2 migration, inactive-tab formState | `universal-persistence-spec.md` · **`5.06`** |
 | **Settings layout polish** | Tight one-page cards hug content width; Neural FX blurb wraps after “Default is off” | `settings.js`, `settings.css` · **`5.12`** |
 | **Settings card layout spec** | House style so new Settings cards ship tight (one-line head, packed controls, max-content width) | `settings-card-layout-spec.md` · **`5.13`** |
-| **Catalog UX Phase 1** | Cache-first eager restore; `POST /api/media_signatures` + `POST /api/variants/batch` (max 100); `window.globalMediaIndex`; persisted-variant fast path (zero variant requests when dense enough); Instant RIFE COW + hash recovery + unreferenced lower-density GC | `performance-catalog-ux-spec.md` · **`5.14`** |
+| **Catalog UX Phase 1** | Eager memory-restore of saved metadata (no network probe); `POST /api/media_signatures` + `POST /api/variants/batch` (max 100); `window.globalMediaIndex`; persisted-variant fast path (zero variant requests when dense enough); Instant RIFE COW + hash recovery + unreferenced lower-density GC | `performance-catalog-ux-spec.md` · **`5.14`** |
 | **Hash-only thumbnail 500** | Hash URLs resolve a recorded source path, skip `thumb_failed` extracts, return 404 not 500; thumb `onerror` no longer POSTs `/api/media/recover` | `thumbnails.py`, `freshness.js` · **`5.15`** |
 | **Thumbnail load speed** | Hash-only serve of an existing JPEG does not parse `record.json` or scan `index.json`; browser assigns at most 8 in-flight thumb `src`s | `media.py`, `lazy-loader.js` · **`5.16`** |
-| **Eager-thumb regression** | Default is viewport-lazy again. `preloadAllThumbnails` is opt-in. Restored meta still paints without re-probe. | `lazy-loader.js` · **`5.17`** |
+| **Viewport-lazy regression** | Default is strictly `viewportLazyThumbnails=true`. `preloadAllThumbnails` is a deprecated legacy alias (`preloadAllThumbnails=true` → `viewportLazyThumbnails=false`). | `lazy-loader.js` · **`5.17`** |
 | **Thumb queue coverage** | Size/settings refresh and hash-upgrade src writes go through `assignThumbSrc` (max 8). | `freshness.js` · **`5.18`** |
-| **Pay-once thumbs** | `GET ?hash=` is cache-only (404, no ffmpeg). `POST /api/thumbnails/ensure` fills misses in the background. Default starts immediately, not on scroll. | `media.py`, `lazy-loader.js` · **`5.19`** |
+| **Pay-once thumbs** | `GET ?hash=` is cache-only (404, no ffmpeg). `POST /api/thumbnails/ensure` fills misses in the background ONLY via idle-queue or explicit repair. | `media.py`, `lazy-loader.js` · **`5.19`** |
 | **No redo** | Index lookup is path+size (not mtime). Cache-hit media open does not probe/extract/rewrite. Failed extracts stay failed until Retry. | `cache.py`, `open.py` · **`5.20`** |
 | **Reload thumbs** | Hash `src` written on the card at render; 8-queue no longer withholds src; L/M serves H if needed | `grid.js`, `lazy-loader.js` · **`5.21`** |
-| **No lazy + settings persist** | Default is eager thumbs; settings from localStorage + `/api/settings` only | `lazy-loader.js`, `settings.js` · **`5.22`** |
+| **Viewport-lazy default enforced** | Default is strictly viewport-lazy per `catalog-interaction-virtualization-spec.md`; settings from localStorage + `/api/settings` only | `lazy-loader.js`, `settings.js` · **`5.22`** |
 | **No Instant scan on project load** | Opening a project does not re-probe / re-scan already-known clips | `sequence.js`, `persistence.js` · **`5.23`** |
 | **Instant only needs density** | Instant encodes only clips that still need a higher M | `sequence.js` · **`5.24`** |
 | **rifeNeed** | `rifed \| needsRife \| noRifeNeeded` on sequence entries | `sequence.js` · **`5.25`** |
@@ -117,6 +117,10 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Scroll keeps thumbs painted** | Hover/transform locked while the pool grid is scrolling; no full-grid restyle; `src` stays on the card | `layout.js`, `sequence.js`, `pool.css` · **`5.27`** |
 | **Open does not re-scan thumbs** | Restore copies record meta + thumb flags; hover never calls `media_info`; failed extracts are not GET/ensured again | `pool.py`, `sequence.js`, `freshness.js` · **`5.28`** |
 | **Scrollbar width setting** | Settings → UI tweaks. 6–30px. `5.30` actually changes the bar; `5.31` raises the cap to 30px | `settings.js`, `base.css` · **`5.29`–`5.31`** |
+| **Preview collapse in header** | Media Output Preview toggles from ▲/▼ in the top bar after Stop. Side tab handle removed | `index.html`, `layout.css`, `app.js` · **`5.32`** |
+| **Sidebar collapse is icon-wide** | Collapsed aside is 44px (icons only). Title + logo hide. Saved drag-width no longer keeps it fat | `layout.css`, `app.js` · **`5.33`** |
+| **Header title gone** | No redundant tab title in the top bar. V-in/out buttons hug the left | `index.html`, `layout.css` · **`5.34`** |
+| **Input preview not sidebar** | Nav `aside` is `.app-sidebar`; input preview is a `div` so collapse/resize no longer shrink it | `index.html`, `layout.css` · **`5.35`** |
 
 **Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale, **qr_art** *(in tree — see §4)*. Root `AGENTS.md`.
 
@@ -232,7 +236,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.5.31` (Scrollbar width 6–30px.)
+- **Current:** `000.000.5.35` (Image Edit input preview no longer follows sidebar width.)
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  
