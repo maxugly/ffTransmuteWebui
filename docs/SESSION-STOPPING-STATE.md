@@ -1,14 +1,14 @@
 # Session stopping state — handoff
 
 > **Date:** 2026-08-15  
-> **VERSION:** `000.000.5.37`  
+> **VERSION:** `000.000.5.38`  
 > **Branch:** `wip`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 5.37)
+## 1. Shipped this stretch (through 5.38)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
@@ -55,6 +55,7 @@
 | **Header title gone** | Tab title removed; V-in/out flush left | `index.html`, `layout.css` · **`5.34`** |
 | **Input preview not sidebar** | Nav scoped to `.app-sidebar`; preview is a div | `index.html`, `layout.css` · **`5.35`** |
 | **Catalog virtualization** | Hover invariant, queue caps proven (8/4/2/2), Video+Image `.pool-scroll-canvas`, JS scroll work p95 ~1ms. **Partial** — do not claim 16.6ms compositor p95 from headless rAF | `catalog-interaction-virtualization-spec.md` · **`5.37` Partial** |
+| **Server-resident catalog** | CatalogIndex hydrates all records before serve; RAM display paths; exclusive lock; 64 MiB JPEG warmer; `/api/catalog/status`. **Partial / still Proposed** — do not mark Implemented until spec §11–12 pass | `server-memory-catalog-spec.md` · **`5.38` Partial** |
 
 Earlier stable: filter platform, dual pools, Convert, neural ops, Prompt Library, Recohere, Agent, OpenVINO stills.
 
@@ -74,6 +75,7 @@ Next strip→video ops: inherit params, import JS helper, call `build_evolve_vid
 
 | Area | Next |
 |------|------|
+| **Server-resident catalog** | **In tree `5.38` Partial** — still **Proposed**. Finish browser §11–12 against the saved pool; do not mark Implemented from the Python index alone. |
 | Catalog virtualization | Headed vsync 16.6ms compositor p95 — `catalog-interaction-virtualization-spec.md` |
 | Workspace progress | Multi-phase ETA polish — `workspace-progress-spec.md` |
 | Tool bottom docs | Roll out remaining tabs |
@@ -170,9 +172,9 @@ cd mtapi-project && .venv/bin/python run.py   # :24590
 | Role | First read | Then |
 |------|------------|------|
 | Spec writer | STATUS §5 | Docs only |
+| **Builder (assigned)** | `docs/server-memory-catalog-spec.md` | Server-resident catalog; stay Proposed until §11–12 pass |
 | Builder (evolve UX DRY) | `evolve_video.py` + dream/style tabs | Shared RIFE knob fragment |
 | Builder (progress) | `workspace-progress-spec.md` | ETA polish |
-| Builder (persistence) | `universal-persistence-spec.md` | When prioritized |
 
 **WebUI smoke:** DeepDream Evolve on still (Inception, Preview W 512, Max loss off); Style Evolve one still (Frames 16, Str 0→main, RIFE off).
 

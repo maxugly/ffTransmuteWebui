@@ -431,7 +431,14 @@
         "path": "docs/catalog-interaction-virtualization-spec.md",
         "category": "Core Architecture / WebUI",
         "status": "Partial 000.000.5.37",
-        "summary": "Path-keyed index, hover never media_info, bounded queues (ensure 8, probe 4, hash 2, variant 2×100), Video+Image .pool-scroll-canvas virtualizer, Strict/Fuzzy search. 5.37: JS scroll work p95 ~1ms; form re-entry <10ms; queue caps exercised. Not Implemented: vsync-locked 16.6ms compositor p95 (headless rAF interval is not that measurement)."})
+        "summary": "Path-keyed index, hover never media_info, bounded queues (ensure 8, probe 4, hash 2, variant 2×100), Video+Image .pool-scroll-canvas virtualizer, Strict/Fuzzy search. 5.37: JS scroll work p95 ~1ms; form re-entry <10ms; queue caps exercised. Not Implemented: vsync-locked 16.6ms compositor p95 (headless rAF interval is not that measurement)."
+    },
+    {
+        "file": "server-memory-catalog-spec.md",
+        "path": "docs/server-memory-catalog-spec.md",
+        "category": "Core Architecture / WebUI",
+        "status": "Proposed / Partial 000.000.5.38",
+        "summary": "One server-resident CatalogIndex: hydrate before serve, RAM display paths, exclusive process lock, 64 MiB JPEG warmer. Stay Proposed until I/O counters, restart, lock, warmer, and browser §11–12 pass."
     },
     {
         "file": "settings-card-layout-spec.md",
