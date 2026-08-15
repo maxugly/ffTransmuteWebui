@@ -1229,7 +1229,10 @@ function _elsForPath(path) {
 
 function _applyHighlight(el, sel, hov) {
   const p = el.dataset.path;
-  const isSel = !!sel && p === sel;
+  const multi = (typeof window !== 'undefined' && window.state?.pool?.selectedPaths instanceof Set)
+    ? window.state.pool.selectedPaths
+    : null;
+  const isSel = multi ? multi.has(p) : (!!sel && p === sel);
   const isHov = !!hov && p === hov;
   el.classList.toggle('selected', isSel);
   el.classList.toggle('hovered', isHov);
@@ -1243,7 +1246,9 @@ function _applyHighlight(el, sel, hov) {
 function updateSelectionHighlights() {
   const sel = state.pool.selectedPath;
   const hov = state.pool.hoverPath;
-  if (sel === _hlSel && hov === _hlHov) return;
+  const multi = state.pool.selectedPaths instanceof Set ? state.pool.selectedPaths : null;
+  const sig = multi ? `${[...multi].join('\0')}|${hov}` : `${sel}|${hov}`;
+  if (sig === _hlSel && hov === _hlHov && !multi) return;
   const changed = new Set();
   if (sel !== _hlSel) {
     if (_hlSel) changed.add(_hlSel);
@@ -1253,7 +1258,13 @@ function updateSelectionHighlights() {
     if (_hlHov) changed.add(_hlHov);
     if (hov) changed.add(hov);
   }
-  _hlSel = sel;
+  if (multi) {
+    for (const p of multi) changed.add(p);
+    document.querySelectorAll('.pool-card.selected, .seq-token.selected').forEach((el) => {
+      if (el.dataset.path) changed.add(el.dataset.path);
+    });
+  }
+  _hlSel = multi ? sig : sel;
   _hlHov = hov;
   for (const p of changed) {
     for (const el of _elsForPath(p)) _applyHighlight(el, sel, hov);
@@ -1279,7 +1290,8 @@ function updatePoolFocusFrame(path) {
   const lastSrc = itemShowsThumb(item, 'last') ? poolThumbUrl(item, 'last') : '';
   const name = item.name || basename(path);
   const m = item.meta || {};
-  const dur = m.duration != null ? formatDurationExact(m.duration) : '';
+  const hasMeta = !!(item.meta);
+  const dur = hasMeta && m.duration != null ? formatDurationExact(m.duration) : '';
   const hash = item.hash || m.hash || '';
   const seqPos = sequencePositions(path);
 
@@ -1309,12 +1321,12 @@ function updatePoolFocusFrame(path) {
     <div class="pool-focus-meta pool-overlay-text">
       <div class="pool-meta-name" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
       <div class="pool-meta-path" title="${escapeHtml(path)}">${escapeHtml(path)}</div>
-      <div class="pool-meta-row">
+      ${hasMeta ? `<div class="pool-meta-row">
         ${hash ? `<span class="pool-hash">#${escapeHtml(shortHash(hash))}</span>` : ''}
         ${dur ? `<span>${dur}</span>` : ''}
         ${m.fps ? `<span>${m.fps} fps</span>` : ''}
         ${m.frames != null ? `<span>${m.frames} fr</span>` : ''}
-      </div>
+      </div>` : `<div class="pool-meta-unavailable">metadata unavailable</div>`}
       ${seqTimingHtml}
     </div>
   `;
@@ -2334,46 +2346,12 @@ function _putVariantsCache(path, variants) {
 }
 
 async function _fetchVariantsBatch(paths) {
-  const unique = [];
-  const seen = new Set();
-  for (const raw of paths || []) {
-    const key = _normVariantKey(raw);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    unique.push(key);
-  }
+  const { fetchVariantsBatch } = await import('/js/repair-queue.js');
+  const map = await fetchVariantsBatch(paths);
   const result = new Map();
-  if (!unique.length) return result;
-
-  for (let i = 0; i < unique.length; i += VARIANT_BATCH_LIMIT) {
-    const chunk = unique.slice(i, i + VARIANT_BATCH_LIMIT);
-    let failed = false;
-    try {
-      const res = await fetch('/api/variants/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paths: chunk }),
-      });
-      if (!res.ok) {
-        failed = true;
-        recordVariantBatch(chunk.length, true);
-        for (const p of chunk) result.set(p, peekVariants(p) || {});
-        continue;
-      }
-      const data = await res.json();
-      recordVariantBatch(chunk.length, false);
-      for (const p of chunk) {
-        const variants = data && data[p] != null ? data[p] : {};
-        _putVariantsCache(p, variants);
-        result.set(p, variants);
-      }
-    } catch (err) {
-      failed = true;
-      recordVariantBatch(chunk.length, true);
-      console.warn('[SEQ] variants batch failed', err);
-      for (const p of chunk) result.set(p, peekVariants(p) || {});
-    }
-    if (failed) { /* already recorded */ }
+  for (const [p, variants] of map) {
+    if (variants && typeof variants === 'object') _putVariantsCache(p, variants);
+    result.set(p, variants || peekVariants(p) || {});
   }
   return result;
 }

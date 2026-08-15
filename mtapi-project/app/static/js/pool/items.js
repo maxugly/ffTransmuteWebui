@@ -42,6 +42,7 @@ async function loadPoolItemMeta(item, idx) {
     try { scheduleSavePoolState(); } catch (_) { /* ignore */ }
     try { window.globalMediaIndex?.put(item); } catch (_) { /* ignore */ }
   }
+  try { window.dispatchEvent(new CustomEvent('mtapi.catalogRepair')); } catch (_) { /* ignore */ }
 
   if (state.activeTab !== 'pool' && state.activeTab !== 'sequence') return;
   const liveIdx = state.pool.items.findIndex(i => i.path === item.path);
@@ -66,12 +67,49 @@ async function loadPoolItemMeta(item, idx) {
 function scrollToSelected() {
   const path = state.pool.selectedPath;
   if (!path) return;
+  const virt = window.__mtapiVirtualGrid;
+  if (virt && typeof virt.scrollToPath === 'function') {
+    virt.scrollToPath(path, { behavior: 'smooth', block: 'center' });
+    return;
+  }
   const card = Array.from(document.querySelectorAll('.pool-card')).find(c => c.dataset.path === path);
   if (card?.scrollIntoView) card.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
-function selectPoolItem(path) {
+function selectPoolItem(path, ev = null) {
   if (!path) return;
+  const selected = state.pool.selectedPaths instanceof Set
+    ? state.pool.selectedPaths
+    : new Set(state.pool.selectedPath ? [state.pool.selectedPath] : []);
+  state.pool.selectedPaths = selected;
+
+  const shift = !!(ev && ev.shiftKey);
+  const toggle = !!(ev && (ev.metaKey || ev.ctrlKey));
+  if (shift) {
+    const items = (typeof window !== 'undefined' && window.__mtapiVirtualGrid?.items)
+      ? window.__mtapiVirtualGrid.items
+      : (state.pool.items || []);
+    const anchor = state.pool.selectionAnchor || state.pool.selectedPath || path;
+    const a = items.findIndex((it) => it.path === anchor);
+    const b = items.findIndex((it) => it.path === path);
+    if (a >= 0 && b >= 0) {
+      const lo = Math.min(a, b);
+      const hi = Math.max(a, b);
+      selected.clear();
+      for (let i = lo; i <= hi; i++) selected.add(items[i].path);
+    } else {
+      selected.add(path);
+    }
+  } else if (toggle) {
+    if (selected.has(path)) selected.delete(path);
+    else selected.add(path);
+    state.pool.selectionAnchor = path;
+  } else {
+    selected.clear();
+    selected.add(path);
+    state.pool.selectionAnchor = path;
+  }
+
   state.pool.selectedPath = path;
   state.pool.hoverPath = null;
   state.pool.focusPath = path;
@@ -106,6 +144,8 @@ function selectPoolItem(path) {
   if (toolbarMeta) {
     toolbarMeta.innerHTML = `
       <span class="pool-count">${state.pool.items.length} in video pool · ${state.pool.sequence.length} in sequence</span>
+      <div class="catalog-status" id="catalogStatus" aria-live="polite"></div>
+      <button type="button" class="btn pool-info-mini" id="btnRepairMetadata" title="Queue missing hash, metadata, and thumbnails">Repair Metadata</button>
       <div class="pool-use-wrap">
         <label for="poolUseTarget" class="pool-use-label">Use as input</label>
         <select id="poolUseTarget" class="pool-use-select">
@@ -121,6 +161,12 @@ function selectPoolItem(path) {
       </div>
       <button class="btn pool-jump-btn" id="btnJumpSelected" type="button" title="Jump to selected clip in grid">!</button>
     `;
+    document.getElementById('btnRepairMetadata')?.addEventListener('click', () => {
+      import('/js/repair-queue.js').then((m) => {
+        for (const it of state.pool.items || []) m.repairItem(it, { force: false });
+      }).catch(() => {});
+    });
+    import('/js/pool/grid.js').then((m) => { try { m.updateCatalogStatus(); } catch (_) { /* ignore */ } }).catch(() => {});
     document.getElementById('btnPoolUse')?.addEventListener('click', applyPoolAsInput);
     document.getElementById('btnJumpSelected')?.addEventListener('click', scrollToSelected);
   }
@@ -134,6 +180,7 @@ function removePoolItem(idx) {
     state.pool.selectedPath = null;
     state.pool.focusPath = null;
   }
+  try { state.pool.selectedPaths?.delete?.(removed.path); } catch (_) { /* ignore */ }
   if (state.pool.hoverPath === removed.path) {
     state.pool.hoverPath = null;
   }
@@ -181,13 +228,15 @@ function addPathsToPool(paths) {
       continue;
     }
     existingPaths.add(path);
-    state.pool.items.push({
+    const addedItem = {
       path,
       name: basename(path),
       size: null,
       meta: null,
       hash: null,
-    });
+    };
+    state.pool.items.push(addedItem);
+    try { window.globalMediaIndex?.put(addedItem); } catch (_) { /* ignore */ }
     if (!firstNew) firstNew = path;
     added++;
   }

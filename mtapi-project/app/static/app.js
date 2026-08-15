@@ -52,6 +52,7 @@ import { renderImageEditForm, collectImageEditBody } from '/js/tabs/imageedit.js
 import { refreshInputPreview, bindInputPreviewListeners } from '/js/ui/input-preview.js';
 import { setupNavSectionCollapse, ensureNavSectionForTab } from '/js/ui/nav-sections.js';
 import { globalMediaIndex } from '/js/media-index.js';
+import '/js/repair-queue.js';
 import {
   findPoolItem, displayFocusPath, setPoolHover, clearPoolHover,
   setPoolFocus, updateSelectionHighlights, updatePoolFocusFrame,
@@ -130,8 +131,12 @@ let state = {
   pool: {
     items: [], // { path, name, size?, meta?, hash? }  — Video Pool
     selectedPath: null, // sticky selection (click) — syncs library ↔ sequence
+    selectedPaths: new Set(), // multi-select (shift / ctrl) by canonical path
+    selectionAnchor: null,
     selectedSeqId: null, // precise sequence entry id when a token is selected
-    filterQuery: '', // live fuzzy filter for pool grid (pool + sequence tabs)
+    filterQuery: '', // live filter for pool grid (pool + sequence tabs)
+    searchMode: 'fuzzy', // 'fuzzy' | 'strict'
+    gridScrollTop: 0,
     hoverPath: null,    // temporary hover only (does not change selection)
     loading: false,
     // Sequence composer: ordered clips to stitch
@@ -240,7 +245,7 @@ let state = {
     thumbnailsToRam: false,
     phashToRam: false,
     autosaveInterval: 30,
-    viewportLazyThumbnails: false,
+    viewportLazyThumbnails: true,
     scrollbarWidth: 6,
     warmModels: { deepdream: false, styletransfer: false, fastsam: false },
   },
@@ -258,7 +263,7 @@ const SETTINGS_DEFAULTS = {
   thumbnailsToRam: false,
   phashToRam: false,
   autosaveInterval: 30,
-  viewportLazyThumbnails: false,
+  viewportLazyThumbnails: true,
   scrollbarWidth: 6,
   warmModels: { deepdream: false, styletransfer: false, fastsam: false },
 };
@@ -291,6 +296,12 @@ async function applySettingsPrecedence() {
     const raw = JSON.parse(localStorage.getItem('mtapi.settings') || 'null');
     if (raw && typeof raw === 'object') local = raw;
   } catch (_) { /* ignore */ }
+  if (local && local.viewportLazyThumbnails == null && local.preloadAllThumbnails != null) {
+    local.viewportLazyThumbnails = local.preloadAllThumbnails !== true;
+  }
+  if (server && server.viewportLazyThumbnails == null && server.preloadAllThumbnails != null) {
+    server.viewportLazyThumbnails = server.preloadAllThumbnails !== true;
+  }
   state.settings = {
     ...SETTINGS_DEFAULTS,
     ...server,

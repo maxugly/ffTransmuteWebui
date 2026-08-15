@@ -50,6 +50,22 @@ def register(app: FastAPI, probe_fn) -> None:
             record_open=True,
         )
 
+    @app.get("/api/media_hash", tags=["meta"])
+    async def media_hash(path: str):
+        """Content-hash only. Never probes, extracts thumbs, or records an open."""
+        path_obj = Path(path).expanduser().resolve()
+        if not path_obj.exists() or not path_obj.is_file():
+            raise HTTPException(status_code=404, detail="File not found")
+        content_hash, cached = await media.resolve_hash(path_obj)
+        st = path_obj.stat()
+        return {
+            "ok": True,
+            "path": str(path_obj),
+            "hash": content_hash,
+            "cached": bool(cached),
+            "size": int(st.st_size),
+        }
+
     @app.get("/api/media_signature", tags=["meta"])
     async def media_signature(path: str):
         """Return size + mtime_ns via OS stat. Never invokes ffmpeg."""

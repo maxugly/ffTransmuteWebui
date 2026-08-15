@@ -304,6 +304,11 @@ function buildPoolStatePayload() {
       };
     }),
     selected_path: state.pool.selectedPath,
+    selected_paths: state.pool.selectedPaths instanceof Set
+      ? [...state.pool.selectedPaths]
+      : (state.pool.selectedPath ? [state.pool.selectedPath] : []),
+    search_mode: state.pool.searchMode === 'strict' ? 'strict' : 'fuzzy',
+    grid_scroll_top: Number(state.pool.gridScrollTop) || 0,
     selected_image_path: state.imagePool?.selectedPath || null,
     reconcile: state.pool.reconcile || 'pad',
     aspect: state.pool.aspect || 'auto',
@@ -395,6 +400,14 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
     };
   });
   state.pool.selectedPath = data.selected_path || null;
+  state.pool.selectedPaths = new Set(
+    Array.isArray(data.selected_paths) && data.selected_paths.length
+      ? data.selected_paths
+      : (data.selected_path ? [data.selected_path] : []),
+  );
+  state.pool.selectionAnchor = state.pool.selectedPath;
+  state.pool.searchMode = data.search_mode === 'strict' ? 'strict' : 'fuzzy';
+  state.pool.gridScrollTop = Number(data.grid_scroll_top) || 0;
   state.pool.focusPath = data.selected_path || null;
   state.pool.hoverPath = null;
   state.pool.selectedSeqId = null;
@@ -469,6 +482,7 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
     import('/js/media-index.js').then((m) => {
       m.globalMediaIndex.seed(state.pool.items);
       m.globalMediaIndex.seed(state.imagePool?.items);
+      try { window.__mtapiRepairQueue?.markHydrated?.(); } catch (_) { /* ignore */ }
     }).catch(() => {});
   } catch (_) { /* ignore */ }
 
@@ -497,6 +511,9 @@ async function projectNew() {
   state.pool.items = [];
   state.pool.sequence = [];
   state.pool.selectedPath = null;
+  state.pool.selectedPaths = new Set();
+  state.pool.selectionAnchor = null;
+  state.pool.gridScrollTop = 0;
   state.pool.selectedSeqId = null;
   state.pool.hoverPath = null;
   state.pool.focusPath = null;
@@ -765,6 +782,7 @@ async function restorePoolState() {
     logConsole('[POOL]: No saved state (empty)');
     _poolPersistReady = true;
     setInstantHydrationGate(true);
+    try { window.__mtapiRepairQueue?.markHydrated?.(); } catch (_) { /* ignore */ }
   } catch (err) {
     logConsole(`[POOL RESTORE]: ${err.message}`, 'error');
     _poolPersistReady = true;

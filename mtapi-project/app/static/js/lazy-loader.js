@@ -4,8 +4,8 @@
  * Pay once, reuse always:
  *   Display requests only cached JPEGs (GET ?hash= — 200 or instant 404).
  *   Missing thumbs are generated in the background (POST /api/thumbnails/ensure).
- *   Default is to start that work immediately, not on scroll.
- *   settings.preloadAllThumbnails=false is an escape hatch (viewport-lazy).
+ *   Default is viewport-lazy (viewportLazyThumbnails=true).
+ *   preloadAllThumbnails=true is a deprecated alias that turns lazy off.
  *
  * Signature validation (when actually needed) is batched via
  * POST /api/media_signatures — never one request per card.
@@ -14,7 +14,7 @@
 const PREFETCH_MARGIN = '100px 0px';
 const MAX_CONCURRENT = 5;
 const MAX_THUMB_CONCURRENT = 8;
-const MAX_ENSURE_CONCURRENT = 2;
+const MAX_ENSURE_CONCURRENT = 8;
 const ENSURE_BATCH = 10;
 const SIGNATURE_BATCH_LIMIT = 100;
 const SIGNATURE_FLUSH_MS = 100;
@@ -47,7 +47,14 @@ const instrument = {
 };
 
 function isLazyMode() {
-  return false;
+  try {
+    const s = window.state?.settings || {};
+    if (s.preloadAllThumbnails === true && s.viewportLazyThumbnails == null) return false;
+    if (s.viewportLazyThumbnails === false) return false;
+    return true;
+  } catch (_) {
+    return true;
+  }
 }
 
 function observerAvailable() {

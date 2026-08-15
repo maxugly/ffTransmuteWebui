@@ -7,7 +7,7 @@
  */
 import { state } from '/app.js';
 import { poolThumbUrl, itemShowsThumb } from '/js/pool/persistence.js';
-import { enqueueSignature, assignThumbSrc, enqueueEnsureThumb } from '/js/lazy-loader.js';
+import { enqueueSignature, assignThumbSrc } from '/js/lazy-loader.js';
 import { globalMediaIndex } from '/js/media-index.js';
 
 function signaturesEqual(a, b) {
@@ -103,18 +103,17 @@ function assignCardThumbs(card, item, { bust = false } = {}) {
       img.removeAttribute('src');
       return;
     }
+    // Display is cache-only. Missing thumbs stay blank until the idle
+    // repair queue or an explicit Repair Metadata click.
     if (!itemShowsThumb(item, which)) {
-      enqueueEnsureThumb(item, which);
+      img.removeAttribute('src');
       return;
     }
     const url = thumbUrlWithBust(item, which, m);
+    if (img.getAttribute('src') === url) return;
     assignThumbSrc(img, url).then((ok) => {
-      if (ok) {
-        img.classList.remove('broken');
-        return;
-      }
-      // Known cache miss: fill in the background. Do not paint a broken icon.
-      enqueueEnsureThumb(item, which);
+      if (ok) img.classList.remove('broken');
+      else img.removeAttribute('src');
     });
   });
 }

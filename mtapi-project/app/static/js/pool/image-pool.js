@@ -203,7 +203,7 @@ function bindImageRetry(card, item) {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      activateImageCard(card, item, { force: true });
+      import('/js/repair-queue.js').then((m) => m.repairItem(item, { force: true })).catch(() => {});
     });
   });
 }
@@ -749,7 +749,7 @@ function renderImagePoolGrid() {
       ? metaRetryHtml(item.metaError)
       : (item.meta
         ? buildImageMetaHtml(item)
-        : '<span class="pool-meta-loading">probing…</span>');
+        : '<span class="pool-meta-unavailable">metadata unavailable</span>');
 
     card.innerHTML = `
       <div class="pool-card-actions">
@@ -788,7 +788,10 @@ function renderImagePoolGrid() {
 
     grid.appendChild(card);
     if (item.metaError && !item.meta) bindImageRetry(card, item);
-    lazyObserve(card, () => activateImageCard(card, item));
+    if (item.meta || item.hash) {
+      try { globalMediaIndex.put(item); } catch (_) { /* ignore */ }
+      assignCardThumbs(card, item, { bust: false });
+    }
     _observedImageCards.add(card);
   });
 
