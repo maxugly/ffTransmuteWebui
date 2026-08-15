@@ -8,7 +8,7 @@
 import { state } from '/app.js';
 import { poolThumbUrl } from '/js/pool/persistence.js';
 import { enqueueSignature } from '/js/lazy-loader.js';
-import { commitItemThumbs } from '/js/thumb-decode-cache.js';
+import { commitReadyThumbs, itemDisplayReady } from '/js/thumb-decode-cache.js';
 import { globalMediaIndex } from '/js/media-index.js';
 
 function signaturesEqual(a, b) {
@@ -96,9 +96,8 @@ function thumbUrlWithBust(item, which, mtimeNs) {
 }
 
 function assignCardThumbs(card, item, { bust = false } = {}) {
-  if (!card) return;
-  if (bust && item) item._thumbBust = item.meta_signature?.mtime_ns;
-  commitItemThumbs(card, item);
+  if (!card || !item) return;
+  if (itemDisplayReady(item)) commitReadyThumbs(card, item);
 }
 
 function refreshAssignedPoolThumbs() {
@@ -108,7 +107,7 @@ function refreshAssignedPoolThumbs() {
     const item = (state.pool?.items || []).find((i) => i.path === path)
       || (state.imagePool?.items || []).find((i) => i.path === path);
     if (!item) return;
-    commitItemThumbs(card, item);
+    if (itemDisplayReady(item)) commitReadyThumbs(card, item);
   });
 }
 

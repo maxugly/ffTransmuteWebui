@@ -25,6 +25,8 @@ function createVirtualGrid({
   getItems,
   renderCard,
   recycleCard,
+  placeholderCard,
+  itemReady,
   bindCard,
   onWindow,
   minColWidth = 200,
@@ -46,6 +48,8 @@ function createVirtualGrid({
   const workSamples = [];
   let lastWorkMs = 0;
   let scrolling = false;
+  let lastRange = null;
+  let decodedUnsub = null;
 
   function measure() {
     if (!wrap || !canvas) return layout;
@@ -186,35 +190,93 @@ function createVirtualGrid({
       if (i < win.visStart || i >= win.visEnd) order.push(i);
     }
 
-    const paint = (lite && typeof recycleCard === 'function') ? recycleCard : renderCard;
-    // Lite recycle is cheap (placeholder / cached decode). Do not leave
-    // visible-window holes during fast scroll or scrollbar jumps.
+    const readyPaint = (lite && typeof recycleCard === 'function') ? recycleCard : renderCard;
+    const jump = !lastRange
+      || win.visStart >= lastRange.end
+      || win.visEnd <= lastRange.start;
+    lastRange = { start: win.start, end: win.end, visStart: win.visStart, visEnd: win.visEnd };
     const createCap = lite ? Number.POSITIVE_INFINITY : CREATE_BUDGET;
+
+    function thumbsLive(el) {
+      const imgs = el.querySelectorAll('img.pool-thumb');
+      if (!imgs.length) return false;
+      for (const img of imgs) {
+        const frame = img.closest('.pool-frame');
+        if (frame?.classList.contains('is-missing')) continue;
+        if (frame?.classList.contains('is-pending')) return false;
+        if (img.style.opacity === '0') return false;
+        if (!img.getAttribute('src') || !img.complete || img.naturalWidth <= 0) return false;
+      }
+      return true;
+    }
+
+    function placeReady(el, item, i) {
+      // Bind while still parked / offscreen, then move.
+      el.style.pointerEvents = 'none';
+      el.style.transform = 'translate3d(-10000px, 0, 0)';
+      if (typeof readyPaint === 'function') readyPaint(el, item, i);
+      el.dataset.idx = String(i);
+      if (!thumbsLive(el)) return false;
+      if (el.parentNode !== canvas) canvas.appendChild(el);
+      el.style.pointerEvents = '';
+      positionCard(el, i);
+      return true;
+    }
+
+    function placePlaceholder(el, item, i) {
+      el.style.pointerEvents = 'none';
+      el.style.transform = 'translate3d(-10000px, 0, 0)';
+      if (typeof placeholderCard === 'function') placeholderCard(el, item, i);
+      else if (typeof readyPaint === 'function') readyPaint(el, item, i);
+      el.dataset.idx = String(i);
+      if (el.parentNode !== canvas) canvas.appendChild(el);
+      el.style.pointerEvents = '';
+      positionCard(el, i);
+    }
 
     for (const i of order) {
       const item = items[i];
       if (!item || !item.path) continue;
-      keep.add(item.path);
+      const visible = i >= win.visStart && i < win.visEnd;
+      const ready = typeof itemReady === 'function' ? !!itemReady(item) : true;
       let el = cards.get(item.path);
-      if (!el) {
-        if (created >= createCap && !force) {
-          deferred = true;
-          keep.delete(item.path);
-          continue;
-        }
-        el = acquireCard();
-        el.style.pointerEvents = '';
-        if (el.parentNode !== canvas) canvas.appendChild(el);
-        cards.set(item.path, el);
-        if (typeof paint === 'function') paint(el, item, i);
-        created += 1;
-      } else if (force && typeof renderCard === 'function') {
-        renderCard(el, item, i);
-      } else if (lite && typeof recycleCard === 'function' && el.dataset.path !== item.path) {
-        recycleCard(el, item, i);
+      if (el) {
+        keep.add(item.path);
+        if (force && ready && typeof renderCard === 'function') renderCard(el, item, i);
+        el.dataset.idx = String(i);
+        positionCard(el, i);
+        continue;
       }
-      el.dataset.idx = String(i);
-      positionCard(el, i);
+      if (!ready) {
+        if (visible && jump && typeof placeholderCard === 'function') {
+          if (created >= createCap && !force) {
+            deferred = true;
+            continue;
+          }
+          el = acquireCard();
+          cards.set(item.path, el);
+          keep.add(item.path);
+          placePlaceholder(el, item, i);
+          created += 1;
+        } else {
+          deferred = true;
+        }
+        continue;
+      }
+      if (created >= createCap && !force) {
+        deferred = true;
+        continue;
+      }
+      el = acquireCard();
+      cards.set(item.path, el);
+      if (!placeReady(el, item, i)) {
+        cards.delete(item.path);
+        parkCard(el);
+        deferred = true;
+        continue;
+      }
+      keep.add(item.path);
+      created += 1;
     }
 
     for (const [p, el] of cards) {
@@ -376,6 +438,10 @@ function createVirtualGrid({
       try { ro.disconnect(); } catch (_) { /* ignore */ }
       ro = null;
     }
+    if (typeof decodedUnsub === 'function') {
+      try { decodedUnsub(); } catch (_) { /* ignore */ }
+      decodedUnsub = null;
+    }
     wrap?.removeEventListener('scroll', onScroll);
     for (const el of cards.values()) {
       if (el.parentNode) el.parentNode.removeChild(el);
@@ -388,6 +454,18 @@ function createVirtualGrid({
   }
 
   wrap?.addEventListener('scroll', onScroll, { passive: true });
+  import('/js/thumb-decode-cache.js').then((m) => {
+    let upgradeRaf = 0;
+    decodedUnsub = m.onThumbDecoded(() => {
+      if (destroyed) return;
+      lastWinKey = '';
+      if (upgradeRaf) return;
+      upgradeRaf = requestAnimationFrame(() => {
+        upgradeRaf = 0;
+        if (!destroyed) sync({ force: true, lite: false });
+      });
+    });
+  }).catch(() => {});
   if (typeof ResizeObserver !== 'undefined' && wrap) {
     ro = new ResizeObserver(() => onResize());
     ro.observe(wrap);

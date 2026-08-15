@@ -34,8 +34,11 @@ import {
   setupTileInfoMenu, showPoolContextMenu,
 } from '/app.js';
 import { clearPending as lazyClearPending } from '/js/lazy-loader.js';
-import { assignCardThumbs, metaRetryHtml } from '/js/pool/freshness.js';
-import { commitItemThumbs, preloadItems, noteVisibleHoles } from '/js/thumb-decode-cache.js';
+import { metaRetryHtml } from '/js/pool/freshness.js';
+import {
+  commitReadyThumbs, commitPlaceholderThumbs, preloadItems,
+  noteVisibleHoles, itemDisplayReady, sampleVisibleThumbs,
+} from '/js/thumb-decode-cache.js';
 import { globalMediaIndex, normalizeAbsPath } from '/js/media-index.js';
 import { createVirtualGrid } from '/js/pool/virtual-grid.js';
 import {
@@ -72,7 +75,7 @@ function paintVideoCard(card, item) {
     else if (item.metaError) el.innerHTML = metaRetryHtml(item.metaError);
     else el.innerHTML = metadataUnavailableHtml();
   }
-  assignCardThumbs(card, item, { bust: false });
+  if (itemDisplayReady(item)) commitReadyThumbs(card, item);
 }
 
 function bindVideoRetry(card, item) {
@@ -969,7 +972,19 @@ function fillPoolCardLite(card, item, index) {
   if (item.hash) card.dataset.hash = item.hash;
   else delete card.dataset.hash;
   card.dataset.idx = String(index);
-  commitItemThumbs(card, item);
+  commitReadyThumbs(card, item);
+}
+
+function fillPoolCardPlaceholder(card, item, index) {
+  ensurePoolCardSkeleton(card);
+  const path = item.path;
+  const selected = ensureSelectedPaths();
+  card.classList.toggle('selected', selected.has(path) || state.pool.selectedPath === path);
+  card.dataset.path = path;
+  if (item.hash) card.dataset.hash = item.hash;
+  else delete card.dataset.hash;
+  card.dataset.idx = String(index);
+  commitPlaceholderThumbs(card, item);
 }
 
 function fillPoolCard(card, item, index) {
@@ -1008,7 +1023,7 @@ function fillPoolCard(card, item, index) {
     else if (item.meta) metaEl.innerHTML = buildPoolMetaHtml(item);
     else metaEl.innerHTML = metadataUnavailableHtml();
   }
-  assignCardThumbs(card, item, { bust: false });
+  if (itemDisplayReady(item)) commitReadyThumbs(card, item);
   const variantContainer = card.querySelector('.pool-variants');
   if (variantContainer && variantContainer.dataset.for !== path) {
     variantContainer.dataset.for = path;
@@ -1289,11 +1304,14 @@ function renderPoolGrid() {
         getItems: () => filteredPoolItems(),
         renderCard: fillPoolCard,
         recycleCard: fillPoolCardLite,
+        placeholderCard: fillPoolCardPlaceholder,
+        itemReady: itemDisplayReady,
         bindCard: bindVirtualCard,
         minColWidth: minCol,
         onWindow: (items, info) => {
           noteVisibleHoles(info?.holes || 0);
           preloadItems(items);
+          sampleVisibleThumbs(wrap);
         },
       });
       _videoVirt._canvas = canvas;

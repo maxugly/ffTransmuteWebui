@@ -1,12 +1,12 @@
 /**
  * Browser decode-ready thumbnail cache for Video and Image Pool.
  *
- * Separate from the server 64 MiB JPEG ByteLRU. Holds decoded bitmaps
- * (estimated RGBA bytes) under a 128 MiB LRU. Viewport + overscan only.
+ * Holds fetched JPEG blobs as object URLs after an offscreen Image.decode().
+ * Visible <img> elements are assigned that object URL only after decode.
+ * 128 MiB estimated-RGBA LRU; not the server 64 MiB JPEG cache.
  *
- * Recycle protocol: never assign a new visible identity until that
- * position's image is decoded, or show a labeled pending placeholder.
- * Never leave a previous clip's pixels on a new identity.
+ * Placeholder chrome is for jump-to-unseen only. Ordinary scroll must not
+ * hide a known thumb or reassign a card before the replacement is ready.
  */
 import { state } from '/app.js';
 import { poolThumbUrl, itemShowsThumb } from '/js/pool/persistence.js';
@@ -14,8 +14,10 @@ import { poolThumbUrl, itemShowsThumb } from '/js/pool/persistence.js';
 export const DECODE_BUDGET_BYTES = 128 * 1024 * 1024;
 const PRELOAD_CONCURRENT = 8;
 
-const cache = new Map(); // key -> { bytes, lastUsed, ready }
-const inflight = new Map(); // key -> Promise<boolean>
+/** @type {Map<string, { objectUrl: string, bytes: number, lastUsed: number, w: number, h: number }>} */
+const cache = new Map();
+const inflight = new Map();
+const decodedListeners = new Set();
 let residentBytes = 0;
 let evicted = 0;
 let preloadActive = 0;
@@ -26,8 +28,9 @@ const paint = {
   staleMs: [],
   holes: 0,
   holeSamples: [],
-  blankOpen: new WeakMap(),
-  staleOpen: new WeakMap(),
+  blankOpen: new Map(),
+  staleOpen: new Map(),
+  pendingOrdinary: 0,
 };
 
 function selectedSize() {
@@ -54,11 +57,21 @@ function touch(key) {
   ent.lastUsed = performance.now();
 }
 
+function urlInUse(objectUrl) {
+  if (!objectUrl) return false;
+  const imgs = document.querySelectorAll('img.pool-thumb');
+  for (const img of imgs) {
+    if (img.getAttribute('src') === objectUrl) return true;
+  }
+  return false;
+}
+
 function evictToFit(needed) {
   while (residentBytes + needed > DECODE_BUDGET_BYTES && cache.size) {
     let oldestKey = null;
     let oldestT = Infinity;
     for (const [k, v] of cache) {
+      if (urlInUse(v.objectUrl)) continue;
       if (v.lastUsed < oldestT) {
         oldestT = v.lastUsed;
         oldestKey = k;
@@ -69,21 +82,35 @@ function evictToFit(needed) {
     cache.delete(oldestKey);
     residentBytes -= gone?.bytes || 0;
     evicted += 1;
+    try { if (gone?.objectUrl) URL.revokeObjectURL(gone.objectUrl); } catch (_) { /* ignore */ }
   }
 }
 
-function putReady(key, img) {
-  const bytes = estimateBytes(img);
-  evictToFit(bytes);
-  if (bytes > DECODE_BUDGET_BYTES) return;
-  const prev = cache.get(key);
-  if (prev) residentBytes -= prev.bytes;
-  cache.set(key, { bytes, lastUsed: performance.now(), ready: true });
-  residentBytes += bytes;
+export function hasDecoded(key) {
+  const ent = cache.get(key);
+  return !!(ent && ent.objectUrl);
 }
 
-export function hasDecoded(key) {
-  return !!(key && cache.get(key)?.ready);
+export function decodedObjectUrl(key) {
+  const ent = cache.get(key);
+  if (!ent) return null;
+  touch(key);
+  return ent.objectUrl;
+}
+
+export function neededThumbSlots(item) {
+  const out = [];
+  if (itemShowsThumb(item, 'first')) out.push('first');
+  if (itemShowsThumb(item, 'last')) out.push('last');
+  return out;
+}
+
+/** True when every known-available first/last slot has a decoded blob. */
+export function itemDisplayReady(item) {
+  if (!item) return false;
+  const slots = neededThumbSlots(item);
+  if (!slots.length) return true;
+  return slots.every((w) => hasDecoded(thumbCacheKey(item, w)));
 }
 
 function drainPreload() {
@@ -97,6 +124,18 @@ function drainPreload() {
   }
 }
 
+export function onThumbDecoded(fn) {
+  if (typeof fn !== 'function') return () => {};
+  decodedListeners.add(fn);
+  return () => decodedListeners.delete(fn);
+}
+
+function notifyDecoded(key) {
+  decodedListeners.forEach((fn) => {
+    try { fn(key); } catch (_) { /* ignore */ }
+  });
+}
+
 export function preloadThumb(key, url) {
   if (!key || !url) return Promise.resolve(false);
   if (hasDecoded(key)) {
@@ -107,7 +146,7 @@ export function preloadThumb(key, url) {
   if (existing) return existing;
   const p = new Promise((resolve) => {
     preloadQ.push({
-      run: () => loadOffscreen(key, url).then(resolve),
+      run: () => loadBlobDecoded(key, url).then(resolve),
     });
     drainPreload();
   });
@@ -118,48 +157,83 @@ export function preloadThumb(key, url) {
   return p;
 }
 
-function loadOffscreen(key, url) {
-  return new Promise((resolve) => {
+async function loadBlobDecoded(key, url) {
+  try {
+    const res = await fetch(url, { cache: 'force-cache' });
+    if (!res.ok) return false;
+    const blob = await res.blob();
+    if (!blob || blob.size < 8) return false;
+    const objectUrl = URL.createObjectURL(blob);
     const im = new Image();
-    im.decoding = 'async';
-    const finish = (ok) => {
-      if (ok) putReady(key, im);
-      resolve(!!ok);
-    };
-    im.onload = () => {
-      if (typeof im.decode === 'function') {
-        im.decode().then(() => finish(im.naturalWidth > 0)).catch(() => finish(im.naturalWidth > 0));
-      } else {
-        finish(im.naturalWidth > 0);
+    im.src = objectUrl;
+    try {
+      if (typeof im.decode === 'function') await im.decode();
+      else await new Promise((resolve, reject) => {
+        im.onload = resolve;
+        im.onerror = reject;
+      });
+    } catch (_) {
+      if (!im.naturalWidth) {
+        try { URL.revokeObjectURL(objectUrl); } catch (__) { /* ignore */ }
+        return false;
       }
-    };
-    im.onerror = () => finish(false);
-    im.src = url;
-  });
+    }
+    if (!im.naturalWidth) {
+      try { URL.revokeObjectURL(objectUrl); } catch (_) { /* ignore */ }
+      return false;
+    }
+    const bytes = estimateBytes(im);
+    evictToFit(bytes);
+    const prev = cache.get(key);
+    if (prev) {
+      residentBytes -= prev.bytes;
+      if (prev.objectUrl && prev.objectUrl !== objectUrl) {
+        try { URL.revokeObjectURL(prev.objectUrl); } catch (_) { /* ignore */ }
+      }
+    }
+    cache.set(key, {
+      objectUrl,
+      bytes,
+      lastUsed: performance.now(),
+      w: im.naturalWidth,
+      h: im.naturalHeight,
+    });
+    residentBytes += bytes;
+    notifyDecoded(key);
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
-function noteBlankStart(img) {
-  if (!paint.blankOpen.has(img)) paint.blankOpen.set(img, performance.now());
+export function preloadItem(item) {
+  if (!item) return;
+  for (const w of neededThumbSlots(item)) {
+    preloadThumb(thumbCacheKey(item, w), poolThumbUrl(item, w));
+  }
 }
 
-function noteBlankEnd(img) {
-  const t0 = paint.blankOpen.get(img);
-  if (t0 == null) return;
-  paint.blankMs.push(performance.now() - t0);
-  if (paint.blankMs.length > 400) paint.blankMs.splice(0, paint.blankMs.length - 400);
-  paint.blankOpen.delete(img);
+export function preloadItems(items) {
+  for (const item of items || []) preloadItem(item);
 }
 
-function noteStaleStart(img) {
-  if (!paint.staleOpen.has(img)) paint.staleOpen.set(img, performance.now());
-}
-
-function noteStaleEnd(img) {
-  const t0 = paint.staleOpen.get(img);
-  if (t0 == null) return;
-  paint.staleMs.push(performance.now() - t0);
-  if (paint.staleMs.length > 400) paint.staleMs.splice(0, paint.staleMs.length - 400);
-  paint.staleOpen.delete(img);
+/**
+ * Assign a already-decoded object URL to a visible or parked img.
+ * Returns true only if the img is loaded+decoded after the assignment.
+ */
+export function applyDecodedSrc(img, key) {
+  if (!img || !key) return false;
+  const url = decodedObjectUrl(key);
+  if (!url) return false;
+  if (img.getAttribute('src') !== url) img.src = url;
+  img.dataset.thumbKey = key;
+  img.style.opacity = '';
+  const frame = img.closest('.pool-frame');
+  if (frame) {
+    frame.classList.remove('is-pending', 'is-missing');
+    frame.removeAttribute('data-pending-label');
+  }
+  return !!(img.complete && img.naturalWidth > 0);
 }
 
 function pendingLabel(item, which) {
@@ -168,105 +242,77 @@ function pendingLabel(item, which) {
   return tag ? `${name} · ${tag}` : name;
 }
 
-function setFrameState(img, frame, kind, label) {
-  if (!frame) return;
-  frame.classList.toggle('is-pending', kind === 'pending');
-  frame.classList.toggle('is-missing', kind === 'missing');
-  if (kind === 'pending') frame.setAttribute('data-pending-label', label || 'Loading');
-  else frame.removeAttribute('data-pending-label');
-  if (kind === 'ready') {
-    img.style.opacity = '';
-    noteBlankEnd(img);
-    noteStaleEnd(img);
-  } else if (kind === 'pending') {
-    img.style.opacity = '0';
-    noteBlankStart(img);
-  } else if (kind === 'missing') {
-    img.style.opacity = '';
-    noteBlankEnd(img);
-    noteStaleEnd(img);
-  }
-}
-
-/**
- * Commit one first/last image. First and last are independent.
- * Same identity keeps pixels. New identity + decoded → atomic src.
- * New identity + not decoded → labeled pending, never old face.
- */
-export function commitFrame(img, item, which) {
+/** Offscreen / jump-only: strip any previous clip pixels, show labeled pending. */
+export function applyPlaceholderFrame(img, item, which) {
   if (!img) return;
   const frame = img.closest('.pool-frame');
-  const w = which || img.dataset.which || 'first';
-
-  if (!itemShowsThumb(item, w)) {
-    img.removeAttribute('src');
-    img.dataset.thumbKey = '';
-    img.dataset.pendingKey = '';
-    setFrameState(img, frame, 'missing');
-    return;
+  img.removeAttribute('src');
+  img.dataset.thumbKey = '';
+  img.dataset.pendingKey = '';
+  img.style.opacity = '';
+  if (frame) {
+    frame.classList.add('is-pending');
+    frame.classList.remove('is-missing');
+    frame.setAttribute('data-pending-label', pendingLabel(item, which));
   }
+}
 
-  const url = poolThumbUrl(item, w);
-  const key = thumbCacheKey(item, which === undefined ? w : which);
-  const prevKey = img.dataset.thumbKey || '';
-
-  if (prevKey === key && img.getAttribute('src') === url && img.complete && img.naturalWidth > 0) {
-    img.dataset.pendingKey = '';
-    setFrameState(img, frame, 'ready');
-    touch(key);
-    return;
+export function applyMissingFrame(img) {
+  if (!img) return;
+  const frame = img.closest('.pool-frame');
+  img.removeAttribute('src');
+  img.dataset.thumbKey = '';
+  img.style.opacity = '';
+  if (frame) {
+    frame.classList.remove('is-pending');
+    frame.classList.add('is-missing');
+    frame.removeAttribute('data-pending-label');
   }
+}
 
-  if (hasDecoded(key)) {
-    if (prevKey && prevKey !== key) img.style.opacity = '0';
-    img.dataset.thumbKey = key;
-    img.dataset.pendingKey = '';
-    if (img.getAttribute('src') !== url) img.src = url;
-    setFrameState(img, frame, 'ready');
-    touch(key);
-    return;
-  }
-
-  if (prevKey && prevKey !== key) {
-    img.style.opacity = '0';
-    noteStaleEnd(img);
-  }
-  img.dataset.pendingKey = key;
-  setFrameState(img, frame, 'pending', pendingLabel(item, w));
-  preloadThumb(key, url).then((ok) => {
-    if (img.dataset.pendingKey !== key) return;
-    if (!ok) {
-      img.removeAttribute('src');
-      img.dataset.thumbKey = '';
-      img.dataset.pendingKey = '';
-      setFrameState(img, frame, 'missing');
+/** Apply decoded blobs to every known slot. Must be called while the card is offscreen if identity is changing. */
+export function commitReadyThumbs(card, item) {
+  if (!card || !item) return false;
+  let ok = true;
+  card.querySelectorAll('img.pool-thumb').forEach((img) => {
+    const w = img.dataset.which || 'first';
+    if (!itemShowsThumb(item, w)) {
+      applyMissingFrame(img);
       return;
     }
-    img.dataset.thumbKey = key;
-    img.dataset.pendingKey = '';
-    if (img.getAttribute('src') !== url) img.src = url;
-    setFrameState(img, frame, 'ready');
+    const key = thumbCacheKey(item, w);
+    if (!applyDecodedSrc(img, key)) ok = false;
   });
+  return ok;
 }
 
-export function commitItemThumbs(card, item) {
+export function commitPlaceholderThumbs(card, item) {
   if (!card || !item) return;
   card.querySelectorAll('img.pool-thumb').forEach((img) => {
-    commitFrame(img, item, img.dataset.which || 'first');
+    const w = img.dataset.which || 'first';
+    if (!itemShowsThumb(item, w)) {
+      applyMissingFrame(img);
+      return;
+    }
+    applyPlaceholderFrame(img, item, w);
   });
 }
 
-export function preloadItem(item) {
-  if (!item) return;
-  const cardHint = item._imageOnly ? ['first'] : ['first', 'last'];
-  for (const w of cardHint) {
+export function thumbsPaintedFor(card, item) {
+  if (!card || !item) return false;
+  const imgs = card.querySelectorAll('img.pool-thumb');
+  if (!imgs.length) return false;
+  for (const img of imgs) {
+    const w = img.dataset.which || 'first';
     if (!itemShowsThumb(item, w)) continue;
-    preloadThumb(thumbCacheKey(item, w), poolThumbUrl(item, w));
+    const frame = img.closest('.pool-frame');
+    if (frame?.classList.contains('is-pending') || frame?.classList.contains('is-missing')) return false;
+    if (img.style.opacity === '0') return false;
+    if (!img.getAttribute('src') || !img.complete || img.naturalWidth <= 0) return false;
+    const key = thumbCacheKey(item, w);
+    if ((img.dataset.thumbKey || '') !== key) return false;
   }
-}
-
-export function preloadItems(items) {
-  for (const item of items || []) preloadItem(item);
+  return true;
 }
 
 export function dropDecodedSizesExcept(keepSize) {
@@ -279,8 +325,66 @@ export function dropDecodedSizesExcept(keepSize) {
       cache.delete(key);
       residentBytes -= ent?.bytes || 0;
       evicted += 1;
+      try { if (ent?.objectUrl) URL.revokeObjectURL(ent.objectUrl); } catch (_) { /* ignore */ }
     }
   }
+}
+
+function pushMs(arr, ms) {
+  arr.push(ms);
+  if (arr.length > 500) arr.splice(0, arr.length - 500);
+}
+
+/**
+ * Sample actually visible cards. Counts blank (known thumb not showing pixels)
+ * and stale (pixels do not match card hash/key).
+ */
+export function sampleVisibleThumbs(wrap) {
+  if (!wrap || !wrap.getBoundingClientRect) return;
+  const wr = wrap.getBoundingClientRect();
+  const now = performance.now();
+  wrap.querySelectorAll('.pool-card, .img-pool-card').forEach((card) => {
+    const tf = card.style.transform || '';
+    if (tf.includes('-10000px')) return;
+    const cr = card.getBoundingClientRect();
+    if (cr.bottom < wr.top || cr.top > wr.bottom || cr.width < 2) return;
+    const hash = card.dataset.hash || '';
+    card.querySelectorAll('img.pool-thumb').forEach((img) => {
+      const frame = img.closest('.pool-frame');
+      const missing = frame?.classList.contains('is-missing');
+      if (missing) {
+        paint.blankOpen.delete(img);
+        paint.staleOpen.delete(img);
+        return;
+      }
+      const pending = frame?.classList.contains('is-pending');
+      const hidden = img.style.opacity === '0';
+      const src = img.getAttribute('src') || '';
+      const shown = !hidden && !pending && src && img.complete && img.naturalWidth > 0;
+      const id = img.dataset.thumbKey || src || 'img';
+      if (!shown) {
+        if (!paint.blankOpen.has(img)) paint.blankOpen.set(img, now);
+        paint.pendingOrdinary += pending ? 1 : 0;
+      } else {
+        const t0 = paint.blankOpen.get(img);
+        if (t0 != null) {
+          pushMs(paint.blankMs, now - t0);
+          paint.blankOpen.delete(img);
+        }
+      }
+      const key = img.dataset.thumbKey || '';
+      const stale = shown && hash && key && !key.startsWith(`${hash}:`);
+      if (stale) {
+        if (!paint.staleOpen.has(img)) paint.staleOpen.set(img, now);
+      } else {
+        const t1 = paint.staleOpen.get(img);
+        if (t1 != null) {
+          pushMs(paint.staleMs, now - t1);
+          paint.staleOpen.delete(img);
+        }
+      }
+    });
+  });
 }
 
 export function noteVisibleHoles(count) {
@@ -298,6 +402,10 @@ function pct(arr, p) {
 }
 
 export function decodeCacheStats() {
+  const openBlank = [];
+  paint.blankOpen.forEach((t0) => openBlank.push(performance.now() - t0));
+  const openStale = [];
+  paint.staleOpen.forEach((t0) => openStale.push(performance.now() - t0));
   return {
     budget_bytes: DECODE_BUDGET_BYTES,
     resident_entries: cache.size,
@@ -308,9 +416,12 @@ export function decodeCacheStats() {
     blank_samples: paint.blankMs.length,
     blank_p95_ms: pct(paint.blankMs, 95),
     blank_max_ms: paint.blankMs.length ? Math.max(...paint.blankMs) : 0,
+    blank_open: paint.blankOpen.size,
+    blank_open_max_ms: openBlank.length ? Math.max(...openBlank) : 0,
     stale_samples: paint.staleMs.length,
     stale_p95_ms: pct(paint.staleMs, 95),
     stale_max_ms: paint.staleMs.length ? Math.max(...paint.staleMs) : 0,
+    stale_open: paint.staleOpen.size,
     holes: paint.holes,
     hole_p95: pct(paint.holeSamples, 95),
   };

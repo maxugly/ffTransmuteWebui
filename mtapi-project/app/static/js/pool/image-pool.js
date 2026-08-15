@@ -12,7 +12,10 @@ import {
 } from '/js/pool/persistence.js';
 import { clearPending as lazyClearPending, assignThumbSrc } from '/js/lazy-loader.js';
 import { validateItemSignature, assignCardThumbs, metaRetryHtml, hasRestoredIdentity } from '/js/pool/freshness.js';
-import { commitItemThumbs, preloadItems, noteVisibleHoles } from '/js/thumb-decode-cache.js';
+import {
+  commitReadyThumbs, commitPlaceholderThumbs, preloadItems,
+  noteVisibleHoles, itemDisplayReady, sampleVisibleThumbs,
+} from '/js/thumb-decode-cache.js';
 import { globalMediaIndex } from '/js/media-index.js';
 import { installPoolScrollPaint } from '/js/pool/layout.js';
 import { createVirtualGrid } from '/js/pool/virtual-grid.js';
@@ -732,7 +735,18 @@ function fillImageCardLite(card, item, index) {
   if (item.hash) card.dataset.hash = item.hash;
   else delete card.dataset.hash;
   card.dataset.idx = String(index);
-  commitItemThumbs(card, item);
+  commitReadyThumbs(card, item);
+}
+
+function fillImageCardPlaceholder(card, item, index) {
+  ensureImageCardSkeleton(card);
+  const ip = ensureImagePool();
+  card.classList.toggle('selected', ip.selectedPath === item.path);
+  card.dataset.path = item.path;
+  if (item.hash) card.dataset.hash = item.hash;
+  else delete card.dataset.hash;
+  card.dataset.idx = String(index);
+  commitPlaceholderThumbs(card, item);
 }
 
 function fillImageCard(card, item, index) {
@@ -838,11 +852,14 @@ function renderImagePoolGrid() {
       getItems: () => filteredImageItems(),
       renderCard: fillImageCard,
       recycleCard: fillImageCardLite,
+      placeholderCard: fillImageCardPlaceholder,
+      itemReady: itemDisplayReady,
       bindCard: bindImageCard,
       minColWidth: 160,
       onWindow: (items, info) => {
         noteVisibleHoles(info?.holes || 0);
         preloadItems(items);
+        sampleVisibleThumbs(wrap);
       },
     });
     _imageVirt._canvas = canvas;
