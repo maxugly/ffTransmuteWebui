@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-15  \
-> **VERSION:** `000.000.6.4`  \
+> **VERSION:** `000.000.6.5`  \
 > **Branch:** `main` (local tree often uncommitted — `git status`)  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -122,7 +122,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Header title gone** | No redundant tab title in the top bar. V-in/out buttons hug the left | `index.html`, `layout.css` · **`5.34`** |
 | **Input preview not sidebar** | Nav `aside` is `.app-sidebar`; input preview is a `div` so collapse/resize no longer shrink it | `index.html`, `layout.css` · **`5.35`** |
 | **Catalog virtualization** | Hover/scroll/select never `/api/media_info`. Path-keyed index + bounded queues. Video **and** Image Pool use `.pool-scroll-canvas`. JS scroll work p95 ~1ms. **Partial:** headless rAF p95 is not the spec’s vsync 16.6ms compositor target | `catalog-interaction-virtualization-spec.md` · **`5.37` Partial** |
-| **Pool display wall** | Stable one-card-per-item CSS grid. Decode cache and virtual recycle removed (`6.3`). Same-tab remount no longer wipes `#poolGrid`; empty canvas rebuilds (`6.4`). Sequence.js untouched | `grid.js`, `image-pool.js`, `app.js` · **`6.4`** |
+| **Responsive virtualized pools** | Video and Image Pool use the bounded vanilla virtualizer: visible window + 1.5-screen overscan, recycled shells, hash-only thumbs, explicit loading placeholders, and stale-pixel clearing. Sequence.js and server catalog/thumbnail generation untouched. Broader catalog-virtualization performance spec remains Partial. | `grid.js`, `image-pool.js`, `virtual-grid.js`, `pool.css` · **`6.5`** |
 | **Server-resident catalog** | CatalogIndex hydrates the full cache before serve; display paths read RAM; exclusive process lock; 64 MiB JPEG warmer; `/api/catalog/status`. §11–12 I/O, lock, warmer, restart, Video+Image+Sequence browser checks accepted | `server-memory-catalog-spec.md` · **`5.38`** |
 
 **Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale, **qr_art** *(in tree — see §4)*. Root `AGENTS.md`.
@@ -241,7 +241,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.6.4` (Stable pool wall; remount no longer drops cards. Catalog virtualization still Partial at `5.37`.)
+- **Current:** `000.000.6.5` (Responsive virtualized Video + Image Pools restored. Broader catalog virtualization remains Partial at `5.37`.)
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  

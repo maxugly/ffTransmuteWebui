@@ -5,13 +5,12 @@
  * Canvas:        .pool-scroll-canvas
  * Cards:         direct-child .pool-card (absolute + translate3d)
  *
- * Scroll path is transform + dataset only. Full card content is filled when
- * the path changes and after scroll idle. Recycled nodes stay in the canvas.
+ * Scroll path is transform + dataset only. Recycled nodes stay in the canvas;
+ * image decode never gates their placement.
  */
 
 const OVERSCAN_SCREENS = 1.5;
 const GAP = 8;
-const CREATE_BUDGET = 8;
 const WORK_SAMPLES = 120;
 
 function _colsFor(width, minCol) {
@@ -24,9 +23,9 @@ function createVirtualGrid({
   canvas,
   getItems,
   renderCard,
+  updateCard,
   recycleCard,
   placeholderCard,
-  itemReady,
   bindCard,
   onWindow,
   minColWidth = 200,
@@ -49,7 +48,6 @@ function createVirtualGrid({
   let lastWorkMs = 0;
   let scrolling = false;
   let lastRange = null;
-  let decodedUnsub = null;
 
   function measure() {
     if (!wrap || !canvas) return layout;
@@ -120,6 +118,7 @@ function createVirtualGrid({
   }
 
   function parkCard(el) {
+    if (typeof recycleCard === 'function') recycleCard(el);
     el.dataset.path = '';
     el.dataset.hash = '';
     el.dataset.idx = '';
@@ -178,56 +177,20 @@ function createVirtualGrid({
     lastWinKey = winKey;
     layout.start = win.start;
     layout.end = win.end;
-    const warm = Math.min(Math.max(win.limit, 1), 96);
-    while (cards.size + free.length < warm) parkCard(createCard());
-
     const keep = new Set();
-    let created = 0;
-    let deferred = false;
     const order = [];
     for (let i = win.visStart; i < win.visEnd; i++) order.push(i);
     for (let i = win.start; i < win.end; i++) {
       if (i < win.visStart || i >= win.visEnd) order.push(i);
     }
 
-    const readyPaint = (lite && typeof recycleCard === 'function') ? recycleCard : renderCard;
-    const jump = !lastRange
-      || win.visStart >= lastRange.end
-      || win.visEnd <= lastRange.start;
     lastRange = { start: win.start, end: win.end, visStart: win.visStart, visEnd: win.visEnd };
-    const createCap = lite ? Number.POSITIVE_INFINITY : CREATE_BUDGET;
-
-    function thumbsLive(el) {
-      const imgs = el.querySelectorAll('img.pool-thumb');
-      if (!imgs.length) return false;
-      for (const img of imgs) {
-        const frame = img.closest('.pool-frame');
-        if (frame?.classList.contains('is-missing')) continue;
-        if (frame?.classList.contains('is-pending')) return false;
-        if (img.style.opacity === '0') return false;
-        if (!img.getAttribute('src') || !img.complete || img.naturalWidth <= 0) return false;
-      }
-      return true;
-    }
-
-    function placeReady(el, item, i) {
-      // Bind while still parked / offscreen, then move.
+    // Mount the destination window directly. Card creation is bounded by the
+    // visible window plus overscan; image decode never gates placement.
+    function place(el, item, i, paint) {
       el.style.pointerEvents = 'none';
       el.style.transform = 'translate3d(-10000px, 0, 0)';
-      if (typeof readyPaint === 'function') readyPaint(el, item, i);
-      el.dataset.idx = String(i);
-      if (!thumbsLive(el)) return false;
-      if (el.parentNode !== canvas) canvas.appendChild(el);
-      el.style.pointerEvents = '';
-      positionCard(el, i);
-      return true;
-    }
-
-    function placePlaceholder(el, item, i) {
-      el.style.pointerEvents = 'none';
-      el.style.transform = 'translate3d(-10000px, 0, 0)';
-      if (typeof placeholderCard === 'function') placeholderCard(el, item, i);
-      else if (typeof readyPaint === 'function') readyPaint(el, item, i);
+      if (typeof paint === 'function') paint(el, item, i);
       el.dataset.idx = String(i);
       if (el.parentNode !== canvas) canvas.appendChild(el);
       el.style.pointerEvents = '';
@@ -237,46 +200,20 @@ function createVirtualGrid({
     for (const i of order) {
       const item = items[i];
       if (!item || !item.path) continue;
-      const visible = i >= win.visStart && i < win.visEnd;
-      const ready = typeof itemReady === 'function' ? !!itemReady(item) : true;
       let el = cards.get(item.path);
       if (el) {
         keep.add(item.path);
-        if (force && ready && typeof renderCard === 'function') renderCard(el, item, i);
+        if (typeof updateCard === 'function') updateCard(el, item, i);
         el.dataset.idx = String(i);
         positionCard(el, i);
         continue;
       }
-      if (!ready) {
-        if (visible && jump && typeof placeholderCard === 'function') {
-          if (created >= createCap && !force) {
-            deferred = true;
-            continue;
-          }
-          el = acquireCard();
-          cards.set(item.path, el);
-          keep.add(item.path);
-          placePlaceholder(el, item, i);
-          created += 1;
-        } else {
-          deferred = true;
-        }
-        continue;
-      }
-      if (created >= createCap && !force) {
-        deferred = true;
-        continue;
-      }
       el = acquireCard();
       cards.set(item.path, el);
-      if (!placeReady(el, item, i)) {
-        cards.delete(item.path);
-        parkCard(el);
-        deferred = true;
-        continue;
-      }
+      // Recycled shells are deliberately painted immediately. The card's
+      // loading state is handled by its thumbnail events, not by this window.
+      place(el, item, i, renderCard || placeholderCard);
       keep.add(item.path);
-      created += 1;
     }
 
     for (const [p, el] of cards) {
@@ -304,7 +241,6 @@ function createVirtualGrid({
       firstPaintMarked = true;
       try { performance.mark('firstVisibleCard'); } catch (_) { /* ignore */ }
     }
-    if (deferred) requestSync();
     return layout;
   }
 
@@ -437,10 +373,6 @@ function createVirtualGrid({
     if (ro) {
       try { ro.disconnect(); } catch (_) { /* ignore */ }
       ro = null;
-    }
-    if (typeof decodedUnsub === 'function') {
-      try { decodedUnsub(); } catch (_) { /* ignore */ }
-      decodedUnsub = null;
     }
     wrap?.removeEventListener('scroll', onScroll);
     for (const el of cards.values()) {

@@ -1,19 +1,19 @@
 # Session stopping state — handoff
 
 > **Date:** 2026-08-15  
-> **VERSION:** `000.000.6.4`  
+> **VERSION:** `000.000.6.5`  
 > **Branch:** `wip`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 6.4)
+## 1. Shipped this stretch (through 6.5)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
-| **Pool display wall (stable card rewrite)** | Deleted `js/thumb-decode-cache.js`; `virtual-grid.js` left unused; flat CSS-grid stable wall with `mountPoolCard`/`refreshPoolCard` (bind once, assign thumbs once via `data-thumbKey`); `assignCardThumbs` assign-once via `assignThumbSrc`; `catalogRepair` keeps `applySeqTokenTimeStyles` | `grid.js`, `image-pool.js`, `items.js`, `freshness.js`, `chrome.js`, `pool.css` · **`6.3`** |
-| **Pool wall remount** | Same-tab `switchTab` no longer wipes `#poolGrid`. Empty canvas rebuilds even if `_poolWallSig` matches. `content-visibility` off; thumbs `loading=eager` | `app.js`, `grid.js`, `image-pool.js`, `pool.css` · **`6.4`** |
+| **Pool display wall (historical 6.3)** | Deleted `js/thumb-decode-cache.js`; the stable wall was later replaced by the responsive virtualizer in 6.5. | `grid.js`, `image-pool.js`, `freshness.js`, `pool.css` · **`6.3`** |
+| **Responsive virtualized pools** | Reconnected Video + Image Pool to the vanilla virtualizer. Visible window + 1.5-screen overscan, bounded recycled shells, immediate labeled loading placeholders, hash-only thumbnail assignment, and stale-pixel clearing on reuse. Broader catalog virtualization remains Partial; `sequence.js`, CatalogIndex, and server thumbnail generation were not changed. | `grid.js`, `image-pool.js`, `virtual-grid.js`, `pool.css` · **`6.5`** |
 | **Sequence Audio Engines** | Rubberband DAW flags + 48kHz sample-rate fix + 10ms micro-fade on every clip; engine dropdown UI (rubberband live; atempo/pitch/mute placeholders) | `sequence-audio-engines-spec.md`, `video_pipeline.py:770`, `grid.js`, `persistence.js` · **`5.01`** |
 | **Join preset = transcode** | No dump→PNG for DNxHR/ProRes stitch; normal ffmpeg re-encode | `transcode_with_preset`, `_join_with_preset` · **`5.00`** |
 | **Job workspace on disk** | Default `~/.cache/mtapi/jobs` | `job_workspace.py` · **`4.99`** |
@@ -57,7 +57,7 @@
 | **Header title gone** | Tab title removed; V-in/out flush left | `index.html`, `layout.css` · **`5.34`** |
 | **Input preview not sidebar** | Nav scoped to `.app-sidebar`; preview is a div | `index.html`, `layout.css` · **`5.35`** |
 | **Catalog virtualization** | Hover invariant, queue caps proven (8/4/2/2), Video+Image `.pool-scroll-canvas`, JS scroll work p95 ~1ms. **Partial** — do not claim 16.6ms compositor p95 from headless rAF | `catalog-interaction-virtualization-spec.md` · **`5.37` Partial** |
-| **Pool thumb continuity** | Recycle only after decoded blob URL; ordinary scroll no pending/blank; jump-only placeholder; no sequence.js | `thumb-decode-cache.js` · **`6.2`** |
+| **Pool thumb continuity (historical 6.2)** | The decoded-blob recycle experiment was superseded; current behavior uses browser/server caching and explicit loading placeholders on recycled shells. | `virtual-grid.js`, `freshness.js` · **`6.5`** |
 | **Server-resident catalog** | CatalogIndex hydrates all records before serve; RAM display paths; exclusive lock; 64 MiB JPEG warmer; `/api/catalog/status`. §11–12 I/O, lock, warmer, restart, Video+Image+Sequence browser checks accepted | `server-memory-catalog-spec.md` · **`5.38`** |
 
 Earlier stable: filter platform, dual pools, Convert, neural ops, Prompt Library, Recohere, Agent, OpenVINO stills.

@@ -15,8 +15,10 @@ import { validateItemSignature, assignCardThumbs, metaRetryHtml, hasRestoredIden
 import { globalMediaIndex } from '/js/media-index.js';
 import { installPoolScrollPaint } from '/js/pool/layout.js';
 import { repairItem } from '/js/repair-queue.js';
+import { createVirtualGrid } from '/js/pool/virtual-grid.js';
 
-let _imageWallSig = null;
+let _imageVirtualGrid = null;
+let _imageVirtualCanvas = null;
 
 // ── helpers ──────────────────────────────────────────────────────────────
 
@@ -302,7 +304,6 @@ function clearImagePool() {
   if (ip.items.length === 0) return;
   if (!confirm(`Clear all ${ip.items.length} images from the Image Pool?`)) return;
   lazyClearPending();
-  _imageWallSig = null;
   ip.items = [];
   ip.selectedPath = null;
   logConsole('[IMAGE POOL]: Cleared');
@@ -647,7 +648,6 @@ function renderImagePoolForm() {
     </div>
   `;
 
-  _imageWallSig = null;
   elements.actionPanel.innerHTML = html;
   (elements.actionPanelRoot || elements.actionPanel).classList.add('pool-active');
   installPoolScrollPaint();
@@ -719,10 +719,19 @@ function ensureImageCardSkeleton(card) {
         <div class="pool-overlay-text img-pool-meta"></div>
       </div>
     `;
+  card.querySelectorAll('img.pool-thumb').forEach((img) => {
+    img.addEventListener('load', () => {
+      if (img.dataset.thumbGeneration === card.dataset.thumbGeneration) img.closest('.pool-frame')?.classList.remove('is-loading');
+    });
+    img.addEventListener('error', () => {
+      if (img.dataset.thumbGeneration === card.dataset.thumbGeneration) img.closest('.pool-frame')?.classList.remove('is-loading');
+    });
+  });
   card.dataset.skel = '1';
 }
 
 function mountImageCard(card, item, index) {
+  resetImageCard(card);
   ensureImageCardSkeleton(card);
   bindImageCard(card);
   const ip = ensureImagePool();
@@ -733,6 +742,12 @@ function mountImageCard(card, item, index) {
   card.dataset.idx = String(index);
   // Assign thumbs once via assign-once semantics (guarded by data-thumbKey).
   assignCardThumbs(card, item, { bust: false });
+  const thumb = card.querySelector('img.pool-thumb');
+  if (thumb) {
+    thumb.dataset.cardPath = item.path;
+    thumb.dataset.thumbGeneration = card.dataset.thumbGeneration;
+    if (thumb.complete && thumb.naturalWidth > 0) thumb.closest('.pool-frame')?.classList.remove('is-loading');
+  }
   const metaEl = card.querySelector('.img-pool-meta');
   if (metaEl) {
     if (item.metaError && !item.meta) metaEl.innerHTML = metaRetryHtml(item.metaError);
@@ -740,6 +755,27 @@ function mountImageCard(card, item, index) {
     else metaEl.innerHTML = '<span class="pool-meta-unavailable">metadata unavailable</span>';
   }
   try { globalMediaIndex.put(item); } catch (_) { /* ignore */ }
+}
+
+function resetImageCard(card) {
+  if (!card) return;
+  card.dataset.thumbGeneration = String((Number(card.dataset.thumbGeneration) || 0) + 1);
+  card.dataset.path = '';
+  card.dataset.hash = '';
+  card.dataset.idx = '';
+  card.classList.remove('selected', 'hovered', 'dragging', 'menu-open');
+  card.querySelectorAll('img.pool-thumb').forEach((img) => {
+    img.removeAttribute('src');
+    img.removeAttribute('srcset');
+    img.dataset.thumbKey = '';
+    img.dataset.cardPath = '';
+    img.dataset.thumbGeneration = '';
+  });
+  card.querySelectorAll('.pool-frame').forEach((frame) => frame.classList.add('is-loading'));
+}
+
+function updateImageCard(card, item, index) {
+  refreshImageCard(card, item, index);
 }
 
 function refreshImageCard(card, item, index) {
@@ -758,6 +794,8 @@ function refreshImageCard(card, item, index) {
 }
 
 function bindImageCard(card) {
+  if (card.dataset.eventsBound === '1') return;
+  card.dataset.eventsBound = '1';
   card.addEventListener('click', (e) => {
     if (e.target.closest('.pool-retry-meta')) {
       e.preventDefault();
@@ -797,8 +835,10 @@ function renderImagePoolGrid() {
   canvas.style.setProperty('--pool-tile-min', '160px');
 
   if (ip.items.length === 0) {
+    _imageVirtualGrid?.destroy();
+    _imageVirtualGrid = null;
+    _imageVirtualCanvas = null;
     lazyClearPending();
-    _imageWallSig = null;
     canvas.style.height = '';
     canvas.innerHTML = `
       <div class="pool-empty">
@@ -817,7 +857,9 @@ function renderImagePoolGrid() {
 
   const items = filteredImageItems();
   if (items.length === 0) {
-    _imageWallSig = null;
+    _imageVirtualGrid?.destroy();
+    _imageVirtualGrid = null;
+    _imageVirtualCanvas = null;
     const q = escapeHtml(ip.filterQuery || '');
     canvas.style.height = '';
     canvas.innerHTML = `
@@ -833,34 +875,23 @@ function renderImagePoolGrid() {
   const empty = canvas.querySelector('.pool-empty');
   if (empty) empty.remove();
 
-  // Stable card wall: one DOM element per item, keyed by path.
-  const sig = items.map((i) => i.path).join('\n');
-  const savedTop = wrap.scrollTop;
-  const existingCards = canvas.querySelectorAll('.img-pool-card').length;
-
-  if (sig !== _imageWallSig || existingCards === 0) {
-    _imageWallSig = sig;
-    canvas.innerHTML = '';
-    const frag = document.createDocumentFragment();
-    items.forEach((item, index) => {
-      const card = document.createElement('article');
-      card.className = 'pool-card img-pool-card';
-      mountImageCard(card, item, index);
-      frag.appendChild(card);
+  if (!_imageVirtualGrid || _imageVirtualCanvas !== canvas) {
+    _imageVirtualGrid?.destroy();
+    _imageVirtualCanvas = canvas;
+    _imageVirtualGrid = createVirtualGrid({
+      wrap,
+      canvas,
+      getItems: () => filteredImageItems(),
+      renderCard: mountImageCard,
+      updateCard: updateImageCard,
+      recycleCard: resetImageCard,
+      bindCard: (card) => { card.classList.add('pool-card', 'img-pool-card'); },
+      placeholderCard: mountImageCard,
+      minColWidth: 160,
     });
-    canvas.appendChild(frag);
-  } else {
-    const cardsByPath = new Map();
-    canvas.querySelectorAll('.img-pool-card').forEach((card) => {
-      cardsByPath.set(card.dataset.path, card);
-    });
-    items.forEach((item, index) => {
-      const card = cardsByPath.get(item.path);
-      if (card) refreshImageCard(card, item, index);
-    });
+    if (typeof window !== 'undefined') window.__mtapiImageVirtualGrid = _imageVirtualGrid;
   }
-
-  wrap.scrollTop = savedTop;
+  _imageVirtualGrid.sync({ force: true });
   _updateImageFilterCount();
 }
 

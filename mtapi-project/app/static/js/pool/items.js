@@ -67,6 +67,10 @@ async function loadPoolItemMeta(item, idx) {
 function scrollToSelected() {
   const path = state.pool.selectedPath;
   if (!path) return;
+  if (typeof window !== 'undefined' && typeof window.__mtapiPoolVirtualScrollTo === 'function') {
+    window.__mtapiPoolVirtualScrollTo(path);
+    return;
+  }
   const card = Array.from(document.querySelectorAll('.pool-card')).find(c => c.dataset.path === path);
   if (card?.scrollIntoView) card.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }

@@ -430,8 +430,8 @@
     "file": "catalog-interaction-virtualization-spec.md",
     "path": "docs/catalog-interaction-virtualization-spec.md",
     "category": "Core Architecture / WebUI",
-    "status": "Implemented 000.000.6.2; virtualizer removed; flat CSS-grid wall with content-visibility",
-    "summary": "Path-keyed index, bounded queues, Strict/Fuzzy search, dual Video/Image pools. Virtualization spec superseded: virtual grid removed in favor of flat CSS-grid with content-visibility:auto + assign-once thumb assignment via assignCardThumbs."
+    "status": "Partial; responsive virtualized pools restored 000.000.6.5",
+    "summary": "Path-keyed index, bounded queues, Strict/Fuzzy search, and dual Video/Image pools. Video and Image Pool now mount only the visible window plus 1.5-screen overscan with recycled shells and hash-only thumbnails; the broader headed compositor-performance target remains open."
   },
   {
     "file": "server-memory-catalog-spec.md",

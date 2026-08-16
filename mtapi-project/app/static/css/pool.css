@@ -596,6 +596,7 @@
   width: 100%;
   min-height: 80px;
   --pool-tile-min: 200px;
+  display: block;
 }
 
 .pool-grid {
@@ -606,9 +607,23 @@
 }
 
 .pool-scroll-canvas > .pool-card {
-  /* cards flow natively in CSS grid; no absolute positioning */
+  /* Virtual-grid positions recycled cards absolutely. */
   margin: 0;
   aspect-ratio: 16 / 9;
+}
+
+.pool-frame.is-loading::after {
+  content: 'Loading thumbnail…';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  color: var(--text-muted);
+  background: linear-gradient(135deg, #1a1f2e 0%, #0d111a 100%);
+  font-size: 0.72rem;
+  text-align: center;
+  pointer-events: none;
 }
 
 .pool-scroll-canvas > .pool-empty {

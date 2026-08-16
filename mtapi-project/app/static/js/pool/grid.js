@@ -41,9 +41,11 @@ import {
   repairItem,
 } from '/js/repair-queue.js';
 import { installPoolScrollPaint } from '/js/pool/layout.js';
+import { createVirtualGrid } from '/js/pool/virtual-grid.js';
 
-let _poolWallSig = null;
 let _statusTimer = null;
+let _poolVirtualGrid = null;
+let _poolVirtualCanvas = null;
 
 function ensureSelectedPaths() {
   if (!(state.pool.selectedPaths instanceof Set)) {
@@ -158,7 +160,6 @@ function renderPoolForm() {
     </div>
   `;
 
-  _poolWallSig = null;
   elements.actionPanel.innerHTML = html;
   (elements.actionPanelRoot || elements.actionPanel).classList.add('pool-active');
 
@@ -835,7 +836,6 @@ function renderSequenceForm() {
     </div>
   `;
 
-  _poolWallSig = null;
   elements.actionPanel.innerHTML = html;
   (elements.actionPanelRoot || elements.actionPanel).classList.add('pool-active');
 
@@ -956,10 +956,20 @@ function ensurePoolCardSkeleton(card) {
       <button class="pool-card-info-btn" type="button" title="Clip info">ⓘ</button>
       <div class="pool-variants"></div>
     `;
+  card.querySelectorAll('img.pool-thumb').forEach((img) => {
+    img.addEventListener('load', () => {
+      if (img.dataset.thumbGeneration === card.dataset.thumbGeneration) img.closest('.pool-frame')?.classList.remove('is-loading');
+    });
+    img.addEventListener('error', () => {
+      if (img.dataset.thumbGeneration === card.dataset.thumbGeneration) img.closest('.pool-frame')?.classList.remove('is-loading');
+    });
+  });
   card.dataset.skel = '1';
 }
 
 function bindPoolCard(card) {
+  if (card.dataset.eventsBound === '1') return;
+  card.dataset.eventsBound = '1';
   card.addEventListener('click', (e) => {
     const retry = e.target.closest('.pool-retry-meta');
     if (retry) {
@@ -1080,12 +1090,18 @@ function _applyCardVisuals(card, item, index) {
 }
 
 function mountPoolCard(card, item, index) {
+  resetPoolCard(card);
   ensurePoolCardSkeleton(card);
   bindPoolCard(card);
   _applyCardVisuals(card, item, index);
   paintVideoCard(card, item);
   // Assign thumbs once via assign-once semantics (guarded by data-thumbKey).
   assignCardThumbs(card, item, { bust: false });
+  card.querySelectorAll('img.pool-thumb').forEach((img) => {
+    img.dataset.cardPath = item.path;
+    img.dataset.thumbGeneration = card.dataset.thumbGeneration;
+    if (img.complete && img.naturalWidth > 0) img.closest('.pool-frame')?.classList.remove('is-loading');
+  });
   const variantContainer = card.querySelector('.pool-variants');
   if (variantContainer && variantContainer.dataset.for !== item.path) {
     variantContainer.dataset.for = item.path;
@@ -1098,6 +1114,29 @@ function mountPoolCard(card, item, index) {
       });
     });
   }
+}
+
+function resetPoolCard(card) {
+  if (!card) return;
+  card.dataset.thumbGeneration = String((Number(card.dataset.thumbGeneration) || 0) + 1);
+  card.dataset.path = '';
+  card.dataset.hash = '';
+  card.dataset.idx = '';
+  card.classList.remove('selected', 'hovered', 'seq-active', 'dragging', 'menu-open');
+  card.querySelectorAll('img.pool-thumb').forEach((img) => {
+    img.removeAttribute('src');
+    img.removeAttribute('srcset');
+    img.dataset.thumbKey = '';
+    img.dataset.cardPath = '';
+    img.dataset.thumbGeneration = '';
+  });
+  card.querySelectorAll('.pool-frame').forEach((frame) => frame.classList.add('is-loading'));
+  const variants = card.querySelector('.pool-variants');
+  if (variants) { variants.dataset.for = ''; variants.innerHTML = ''; }
+}
+
+function updatePoolCard(card, item, index) {
+  refreshPoolCard(card, item, index);
 }
 
 function refreshPoolCard(card, item, index) {
@@ -1236,8 +1275,10 @@ function renderPoolGrid() {
   try {
     // Empty: no items at all
     if (state.pool.items.length === 0) {
+      _poolVirtualGrid?.destroy();
+      _poolVirtualGrid = null;
+      _poolVirtualCanvas = null;
       lazyClearPending();
-      _poolWallSig = null;
       canvas.style.height = '';
       canvas.innerHTML = `
       <div class="pool-empty">
@@ -1256,7 +1297,9 @@ function renderPoolGrid() {
 
     const items = filteredPoolItems();
     if (items.length === 0) {
-      _poolWallSig = null;
+      _poolVirtualGrid?.destroy();
+      _poolVirtualGrid = null;
+      _poolVirtualCanvas = null;
       const q = escapeHtml(state.pool.filterQuery || '');
       canvas.style.height = '';
       canvas.innerHTML = `
@@ -1273,41 +1316,28 @@ function renderPoolGrid() {
     const empty = canvas.querySelector('.pool-empty');
     if (empty) empty.remove();
 
-    // Ensure grid class for CSS grid layout
+    // Virtualized canvas: only the visible window plus overscan is mounted.
     canvas.classList.add('pool-grid');
-
-    // Stable card wall: one DOM element per item, identified by path.
-    // On item-list change (filter/sort/add/remove) rebuild; on state-only
-    // change (selection/zoom/meta) refresh in-place without rebuilding cards.
-    const sig = items.map((i) => i.path).join('\n');
-    const savedTop = wrap.scrollTop;
-    const existingCards = canvas.querySelectorAll('.pool-card').length;
-
-    if (sig !== _poolWallSig || existingCards === 0) {
-      _poolWallSig = sig;
-      canvas.innerHTML = '';
-      const frag = document.createDocumentFragment();
-      items.forEach((item, index) => {
-        const card = document.createElement('article');
-        card.className = 'pool-card';
-        mountPoolCard(card, item, index);
-        frag.appendChild(card);
+    if (!_poolVirtualGrid || _poolVirtualCanvas !== canvas) {
+      _poolVirtualGrid?.destroy();
+      _poolVirtualCanvas = canvas;
+      _poolVirtualGrid = createVirtualGrid({
+        wrap,
+        canvas,
+        getItems: () => filteredPoolItems(),
+        renderCard: mountPoolCard,
+        updateCard: updatePoolCard,
+        recycleCard: resetPoolCard,
+        bindCard: (card) => { card.classList.add('pool-card'); },
+        placeholderCard: mountPoolCard,
+        minColWidth: 200,
       });
-      canvas.appendChild(frag);
-    } else {
-      // Refresh existing cards in-place (selection, meta, seq state)
-      const cardsByPath = new Map();
-      canvas.querySelectorAll('.pool-card').forEach((card) => {
-        cardsByPath.set(card.dataset.path, card);
-      });
-      items.forEach((item, index) => {
-        const card = cardsByPath.get(item.path);
-        if (card) refreshPoolCard(card, item, index);
-      });
+      if (typeof window !== 'undefined') {
+        window.__mtapiPoolVirtualGrid = _poolVirtualGrid;
+        window.__mtapiPoolVirtualScrollTo = (path) => _poolVirtualGrid?.scrollToPath(path, { behavior: 'smooth', block: 'center' });
+      }
     }
-
-    // Restore scroll position (preserved across in-place refreshes, restored after rebuild)
-    wrap.scrollTop = savedTop;
+    _poolVirtualGrid.sync({ force: true });
 
     // Persist scroll
     if (!wrap.dataset.scrollPersist) {
