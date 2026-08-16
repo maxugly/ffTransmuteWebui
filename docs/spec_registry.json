@@ -444,14 +444,14 @@
     "file": "pool-deadcode-cleanup-spec.md",
     "path": "docs/pool-deadcode-cleanup-spec.md",
     "category": "Core Architecture / WebUI",
-    "status": "Spec — execute as 000.000.6.10 before 7.000",
+    "status": "Implemented 000.000.6.10",
     "summary": "Delete 6.2–6.5 recycle/viewport-lazy leftovers only. Sacred: wall-thumbs, virtual-grid chrome, first/last H, pHash, L/M/H, First+last wall setting. rg proof before every delete."
   },
   {
     "file": "coder-pool-deadcode-cleanup-prompt.md",
     "path": "docs/coder-pool-deadcode-cleanup-prompt.md",
     "category": "Meta / Prompt",
-    "status": "Assignment for next builder",
+    "status": "Implemented 000.000.6.10",
     "summary": "One-shot prompt to implement pool-deadcode-cleanup-spec.md as 6.10. No 7.000, no main merge, mandatory browser table."
   },
   {
