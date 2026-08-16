@@ -78,6 +78,10 @@ Next strip→video ops: inherit params, import JS helper, call `build_evolve_vid
 
 ---
 
+## 1b. Next assignment (not started)
+
+Dead-code cleanup **before** 7.000: [pool-deadcode-cleanup-spec.md](pool-deadcode-cleanup-spec.md) + handoff [coder-pool-deadcode-cleanup-prompt.md](coder-pool-deadcode-cleanup-prompt.md). Base `c4b6216` / 6.9. Do **not** delete wall-thumbs, virtual-grid, first/last H, or match/pHash.
+
 ## 2. Partial / open (do not claim done)
 
 | Area | Next |

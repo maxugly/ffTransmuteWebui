@@ -142,6 +142,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **UI list / sequence keys** | Sequence L/R + scroll-into-view **shipped `4.64`**; some pool edge cases may remain | `ui-list-nav-timer-spec.md` |
 | **Agent polish** | Phase A+API shipped | Streaming, Image Pool send-to, Ollama, multi-tool loop |
 | Image Sort true TSP | Out of scope | Chain is greedy only |
+| **Pre-7.000 dead-code cleanup** | Spec + prompt only | `pool-deadcode-cleanup-spec.md` · `coder-pool-deadcode-cleanup-prompt.md` — ship as **6.10**, not 7.000 |
 
 ---
 
