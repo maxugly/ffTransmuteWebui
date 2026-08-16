@@ -242,6 +242,7 @@ let state = {
   // (health, jobs, file-browser cursors, loading flags) stay outside these.
   settings: {
     thumbnailSize: 'H',
+    wallStyle: 'pair',
     thumbnailsToRam: false,
     phashToRam: false,
     autosaveInterval: 30,
@@ -260,6 +261,7 @@ if (typeof window !== 'undefined') {
 const SETTINGS_DEFAULTS = {
   thumbnailSize: 'H',
   thumbnailSizeIndex: 2,
+  wallStyle: 'pair',
   thumbnailsToRam: false,
   phashToRam: false,
   autosaveInterval: 30,

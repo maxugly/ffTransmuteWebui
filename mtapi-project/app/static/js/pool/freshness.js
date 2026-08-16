@@ -109,6 +109,7 @@ function assignCardThumbs(card, item, { bust = false } = {}) {
   card.querySelectorAll('img.pool-thumb').forEach((img) => {
     const which = img.dataset.which || 'first';
     if (!itemShowsThumb(item, which)) {
+      if (which === 'wall') return;
       img.removeAttribute('src');
       img.dataset.thumbKey = '';
       return;

@@ -19,7 +19,7 @@ from .cache import (
     resolve_hash,
     save_record,
 )
-from .thumbnails import ensure_thumbs, load_phash
+from .thumbnails import ensure_thumbs, ensure_wall_previews, load_phash
 
 
 async def open_media(
@@ -81,6 +81,19 @@ async def open_media(
                 # Only dirty if we just created a file (not already current).
                 pass
 
+        prev_wall = bool((record.get("thumbs") or {}).get("wall"))
+        prev_pair = bool((record.get("thumbs") or {}).get("wall_pair"))
+        walls = await ensure_wall_previews(
+            content_hash,
+            path,
+            record=record,
+            generate_from_video=ensure_thumbs_flag,
+        )
+        record.setdefault("thumbs", {})["wall"] = bool(walls.get("wall"))
+        record.setdefault("thumbs", {})["wall_pair"] = bool(walls.get("wall_pair"))
+        if bool(walls.get("wall")) != prev_wall or bool(walls.get("wall_pair")) != prev_pair:
+            dirty = True
+
         if record_open and not was_cached:
             record["open_count"] = int(record.get("open_count") or 0) + 1
             from .catalog import catalog_if_ready
@@ -135,6 +148,8 @@ def _public_payload(
         "thumbs": {
             "first": bool((record.get("thumbs") or {}).get("first")),
             "last": bool((record.get("thumbs") or {}).get("last")),
+            "wall": bool((record.get("thumbs") or {}).get("wall")),
+            "wall_pair": bool((record.get("thumbs") or {}).get("wall_pair")),
         },
         "phashes": {
             "first": load_phash(record["hash"], "first") or (record.get("phashes") or {}).get("first"),

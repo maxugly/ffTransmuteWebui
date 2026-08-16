@@ -13,6 +13,9 @@ from typing import Any
 
 from .config import (
     FRAME_EXTRACT_VERSION,
+    WALL_PAIR_WHICH,
+    WALL_WHICH,
+    WALL_WIDTH,
     _extract_ver_path,
     _hash_dir,
     _invalidate_stale_last_thumb,
@@ -20,6 +23,11 @@ from .config import (
     _phash_path,
     _thumb_is_current,
     _thumb_path,
+    _wall_pair_path,
+    _wall_path,
+    existing_thumb_file,
+    existing_wall_file,
+    existing_wall_pair_file,
     THUMBNAIL_SIZES,
     normalize_thumb_size,
 )
@@ -174,6 +182,227 @@ async def ensure_thumbs(
 
     await ensure_phashes(content_hash, source_path, which=which, record=rec)
     return result
+
+
+# ── pool-wall preview (display only — never a pHash / match source) ────────
+
+_wall_sem = asyncio.Semaphore(8)
+
+
+def _write_wall_from_image(src: Path, dest: Path) -> bool:
+    """Resize an existing still to the 120px wall JPEG. No video decode."""
+    try:
+        from PIL import Image
+    except ImportError as e:
+        log.warning("wall preview needs Pillow: %s", e)
+        return False
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        tmp = dest.with_name(dest.name + ".tmp")
+        with Image.open(src) as im:
+            im = im.convert("RGB")
+            w, h = im.size
+            if w != WALL_WIDTH and w > 0:
+                nh = max(1, int(round(h * (WALL_WIDTH / float(w)))))
+                im = im.resize((WALL_WIDTH, nh), Image.Resampling.BILINEAR)
+            im.save(tmp, "JPEG", quality=70, optimize=True)
+        if not tmp.exists() or tmp.stat().st_size <= 0:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+            return False
+        tmp.replace(dest)
+        return dest.exists() and dest.stat().st_size > 0
+    except Exception as e:
+        log.warning("wall preview resize failed for %s: %s", src, e)
+        try:
+            dest.with_name(dest.name + ".tmp").unlink()
+        except OSError:
+            pass
+        return False
+
+
+async def ensure_wall_preview(
+    content_hash: str,
+    source_path: Path | None = None,
+    record: dict | None = None,
+    *,
+    generate_from_video: bool = False,
+) -> Path | None:
+    """Materialize by_hash/<hash>/wall.jpg.
+
+    Prefer an already-paid first-frame JPEG (any size). Only extract a first
+    frame from the source file when generate_from_video is set (import/open).
+    Never writes first/last match thumbs and never computes pHash.
+    """
+    if not content_hash:
+        return None
+    ready = existing_wall_file(content_hash)
+    if ready is not None:
+        return ready
+
+    rec = record if record is not None else load_record(content_hash)
+    failed = rec.get("thumb_failed", {}) if rec else {}
+    if failed.get(WALL_WHICH) == FRAME_EXTRACT_VERSION and not generate_from_video:
+        return None
+
+    async with _wall_sem:
+        ready = existing_wall_file(content_hash)
+        if ready is not None:
+            return ready
+
+        dest = _wall_path(content_hash)
+        src = existing_thumb_file(content_hash, "first", "L")
+        if src is not None:
+            ok = await asyncio.to_thread(_write_wall_from_image, src, dest)
+            if ok:
+                if rec is not None:
+                    rec.setdefault("thumbs", {})[WALL_WHICH] = True
+                    if "thumb_failed" in rec:
+                        rec["thumb_failed"].pop(WALL_WHICH, None)
+                return dest
+
+        if generate_from_video:
+            if source_path is None or not source_path.is_file():
+                source_path = source_path_for_hash(content_hash)
+            if source_path is not None and source_path.is_file():
+                ok = await extract_frame(source_path, dest, "first", size="L")
+                if ok:
+                    if rec is not None:
+                        rec.setdefault("thumbs", {})[WALL_WHICH] = True
+                        if "thumb_failed" in rec:
+                            rec["thumb_failed"].pop(WALL_WHICH, None)
+                    return dest
+                if rec is not None:
+                    rec.setdefault("thumb_failed", {})[WALL_WHICH] = FRAME_EXTRACT_VERSION
+                    if record is None:
+                        save_record(rec)
+        return existing_wall_file(content_hash)
+
+
+def _write_wall_pair(first_src: Path, last_src: Path, dest: Path) -> bool:
+    """Side-by-side first|last at 120px per half. No video decode."""
+    try:
+        from PIL import Image
+    except ImportError as e:
+        log.warning("wall pair needs Pillow: %s", e)
+        return False
+
+    def _half(im: "Image.Image") -> "Image.Image":
+        im = im.convert("RGB")
+        w, h = im.size
+        if w <= 0:
+            return im
+        nh = max(1, int(round(h * (WALL_WIDTH / float(w)))))
+        return im.resize((WALL_WIDTH, nh), Image.Resampling.BILINEAR)
+
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        tmp = dest.with_name(dest.name + ".tmp")
+        with Image.open(first_src) as a_im, Image.open(last_src) as b_im:
+            a = _half(a_im)
+            b = _half(b_im)
+            h = min(a.size[1], b.size[1])
+            if a.size[1] != h:
+                top = (a.size[1] - h) // 2
+                a = a.crop((0, top, WALL_WIDTH, top + h))
+            if b.size[1] != h:
+                top = (b.size[1] - h) // 2
+                b = b.crop((0, top, WALL_WIDTH, top + h))
+            out = Image.new("RGB", (WALL_WIDTH * 2, h))
+            out.paste(a, (0, 0))
+            out.paste(b, (WALL_WIDTH, 0))
+            out.save(tmp, "JPEG", quality=70, optimize=True)
+        if not tmp.exists() or tmp.stat().st_size <= 0:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+            return False
+        tmp.replace(dest)
+        return dest.exists() and dest.stat().st_size > 0
+    except Exception as e:
+        log.warning("wall pair compose failed for %s + %s: %s", first_src, last_src, e)
+        try:
+            dest.with_name(dest.name + ".tmp").unlink()
+        except OSError:
+            pass
+        return False
+
+
+async def ensure_wall_pair(
+    content_hash: str,
+    source_path: Path | None = None,
+    record: dict | None = None,
+    *,
+    generate_from_video: bool = False,
+) -> Path | None:
+    """Materialize by_hash/<hash>/wall_pair.jpg from first+last frames."""
+    if not content_hash:
+        return None
+    ready = existing_wall_pair_file(content_hash)
+    if ready is not None:
+        return ready
+
+    rec = record if record is not None else load_record(content_hash)
+    failed = rec.get("thumb_failed", {}) if rec else {}
+    if failed.get(WALL_PAIR_WHICH) == FRAME_EXTRACT_VERSION and not generate_from_video:
+        return None
+
+    async with _wall_sem:
+        ready = existing_wall_pair_file(content_hash)
+        if ready is not None:
+            return ready
+
+        if generate_from_video:
+            if source_path is None or not source_path.is_file():
+                source_path = source_path_for_hash(content_hash)
+            if source_path is not None and source_path.is_file():
+                await ensure_thumbs(content_hash, source_path, record=rec)
+
+        first = existing_thumb_file(content_hash, "first", "L")
+        last = existing_thumb_file(content_hash, "last", "L")
+        dest = _wall_pair_path(content_hash)
+        if first is not None and last is not None:
+            ok = await asyncio.to_thread(_write_wall_pair, first, last, dest)
+            if ok:
+                if rec is not None:
+                    rec.setdefault("thumbs", {})[WALL_PAIR_WHICH] = True
+                    if "thumb_failed" in rec:
+                        rec["thumb_failed"].pop(WALL_PAIR_WHICH, None)
+                return dest
+
+        if generate_from_video and first is not None and last is None:
+            # Last extract failed — still offer a wall file so the tile is not blank.
+            ok = await asyncio.to_thread(_write_wall_from_image, first, dest)
+            if ok:
+                if rec is not None:
+                    rec.setdefault("thumbs", {})[WALL_PAIR_WHICH] = True
+                return dest
+
+        if generate_from_video and rec is not None and existing_wall_pair_file(content_hash) is None:
+            rec.setdefault("thumb_failed", {})[WALL_PAIR_WHICH] = FRAME_EXTRACT_VERSION
+            if record is None:
+                save_record(rec)
+        return existing_wall_pair_file(content_hash)
+
+
+async def ensure_wall_previews(
+    content_hash: str,
+    source_path: Path | None = None,
+    record: dict | None = None,
+    *,
+    generate_from_video: bool = False,
+) -> dict[str, Path | None]:
+    """Write both wall.jpg (first only) and wall_pair.jpg (first|last)."""
+    single = await ensure_wall_preview(
+        content_hash, source_path, record, generate_from_video=generate_from_video,
+    )
+    pair = await ensure_wall_pair(
+        content_hash, source_path, record, generate_from_video=generate_from_video,
+    )
+    return {WALL_WHICH: single, WALL_PAIR_WHICH: pair}
 
 
 # ── perceptual hashes (pHash) for frame matching ───────────────────────────

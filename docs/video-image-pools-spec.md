@@ -74,7 +74,7 @@ state.pool = {
 };
 ```
 
-- Cards: dual-frame **absolute** first + last thumbs (`/api/thumbnail?which=first|last`).  
+- Wall: one 120px `wall.jpg` (`/api/thumbnail?which=wall`). First+last stay for Sequence / match. See `pool-wall-preview-spec.md`.  
 - Sequence stitch is video-only.  
 - Fuzzy filter: name/path/codec/hash.  
 - UI module: `js/pool/grid.js`, `items.js`, `sequence.js`, `chrome.js`, `layout.js`.

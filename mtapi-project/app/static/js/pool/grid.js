@@ -34,7 +34,7 @@ import {
   setupTileInfoMenu, showPoolContextMenu,
 } from '/app.js';
 import { clearPending as lazyClearPending } from '/js/lazy-loader.js';
-import { metaRetryHtml, assignCardThumbs } from '/js/pool/freshness.js';
+import { metaRetryHtml } from '/js/pool/freshness.js';
 import { globalMediaIndex } from '/js/media-index.js';
 import {
   beginRender, endRender, markFirstWindowReady, markHydrated,
@@ -42,6 +42,7 @@ import {
 } from '/js/repair-queue.js';
 import { installPoolScrollPaint } from '/js/pool/layout.js';
 import { createVirtualGrid } from '/js/pool/virtual-grid.js';
+import { prepareWallTenants, attachWallTenant, detachWallTenant } from '/js/pool/wall-thumbs.js';
 
 let _statusTimer = null;
 let _poolVirtualGrid = null;
@@ -63,15 +64,23 @@ function metadataUnavailableHtml() {
     + `<button type="button" class="btn pool-info-mini pool-retry-meta">Repair Metadata</button>`;
 }
 
+function videoCardMetaHtml(item) {
+  if (item?.meta) return buildPoolMetaHtml(item);
+  if (item?.metaError) return metaRetryHtml(item.metaError);
+  const st = (() => {
+    try { return globalMediaIndex.get(item)?.metadata_state?.status; } catch (_) { return ''; }
+  })();
+  if (st === 'queued' || st === 'repairing') {
+    return `<span class="pool-meta-loading">reading metadata…</span>`;
+  }
+  return metadataUnavailableHtml();
+}
+
 function paintVideoCard(card, item) {
   if (!card || !item) return;
   try { globalMediaIndex.put(item); } catch (_) { /* ignore */ }
   const el = card.querySelector('.pool-overlay-text');
-  if (el) {
-    if (item.meta) el.innerHTML = buildPoolMetaHtml(item);
-    else if (item.metaError) el.innerHTML = metaRetryHtml(item.metaError);
-    else el.innerHTML = metadataUnavailableHtml();
-  }
+  if (el) el.innerHTML = videoCardMetaHtml(item);
 }
 
 function bindVideoRetry(card, item) {
@@ -940,15 +949,8 @@ function ensurePoolCardSkeleton(card) {
         <button class="pool-card-remove" type="button" title="Remove from pool">✕</button>
       </div>
       <span class="pool-seq-indicator" hidden></span>
-      <div class="pool-frames">
-        <div class="pool-frame">
-           <img class="pool-thumb" alt="First frame" loading="eager" decoding="async" data-which="first" draggable="false">
-           <span class="pool-frame-label">FIRST</span>
-         </div>
-         <div class="pool-frame">
-           <img class="pool-thumb" alt="Last frame" loading="eager" decoding="async" data-which="last" draggable="false">
-          <span class="pool-frame-label">LAST</span>
-        </div>
+      <div class="pool-frames pool-wall">
+        <div class="pool-frame"></div>
       </div>
       <div class="pool-overlay">
         <div class="pool-overlay-text"></div>
@@ -956,14 +958,6 @@ function ensurePoolCardSkeleton(card) {
       <button class="pool-card-info-btn" type="button" title="Clip info">ⓘ</button>
       <div class="pool-variants"></div>
     `;
-  card.querySelectorAll('img.pool-thumb').forEach((img) => {
-    img.addEventListener('load', () => {
-      if (img.dataset.thumbGeneration === card.dataset.thumbGeneration) img.closest('.pool-frame')?.classList.remove('is-loading');
-    });
-    img.addEventListener('error', () => {
-      if (img.dataset.thumbGeneration === card.dataset.thumbGeneration) img.closest('.pool-frame')?.classList.remove('is-loading');
-    });
-  });
   card.dataset.skel = '1';
 }
 
@@ -1074,9 +1068,6 @@ function _applyCardVisuals(card, item, index) {
   card.draggable = true;
   card.title = 'Drag into sequence to stitch';
 
-  const info = ensureTileInfo();
-  const showLabels = info.frame_labels !== false;
-  card.querySelectorAll('.pool-frame-label').forEach((el) => { el.hidden = !showLabels; });
   const badge = card.querySelector('.pool-seq-indicator');
   if (badge) {
     if (seqPos.length) {
@@ -1095,13 +1086,7 @@ function mountPoolCard(card, item, index) {
   bindPoolCard(card);
   _applyCardVisuals(card, item, index);
   paintVideoCard(card, item);
-  // Assign thumbs once via assign-once semantics (guarded by data-thumbKey).
-  assignCardThumbs(card, item, { bust: false });
-  card.querySelectorAll('img.pool-thumb').forEach((img) => {
-    img.dataset.cardPath = item.path;
-    img.dataset.thumbGeneration = card.dataset.thumbGeneration;
-    if (img.complete && img.naturalWidth > 0) img.closest('.pool-frame')?.classList.remove('is-loading');
-  });
+  attachWallTenant(card, item);
   const variantContainer = card.querySelector('.pool-variants');
   if (variantContainer && variantContainer.dataset.for !== item.path) {
     variantContainer.dataset.for = item.path;
@@ -1118,19 +1103,11 @@ function mountPoolCard(card, item, index) {
 
 function resetPoolCard(card) {
   if (!card) return;
-  card.dataset.thumbGeneration = String((Number(card.dataset.thumbGeneration) || 0) + 1);
+  detachWallTenant(card);
   card.dataset.path = '';
   card.dataset.hash = '';
   card.dataset.idx = '';
   card.classList.remove('selected', 'hovered', 'seq-active', 'dragging', 'menu-open');
-  card.querySelectorAll('img.pool-thumb').forEach((img) => {
-    img.removeAttribute('src');
-    img.removeAttribute('srcset');
-    img.dataset.thumbKey = '';
-    img.dataset.cardPath = '';
-    img.dataset.thumbGeneration = '';
-  });
-  card.querySelectorAll('.pool-frame').forEach((frame) => frame.classList.add('is-loading'));
   const variants = card.querySelector('.pool-variants');
   if (variants) { variants.dataset.for = ''; variants.innerHTML = ''; }
 }
@@ -1142,11 +1119,7 @@ function updatePoolCard(card, item, index) {
 function refreshPoolCard(card, item, index) {
   _applyCardVisuals(card, item, index);
   const metaEl = card.querySelector('.pool-overlay-text');
-  if (metaEl) {
-    if (item.metaError && !item.meta) metaEl.innerHTML = metaRetryHtml(item.metaError);
-    else if (item.meta) metaEl.innerHTML = buildPoolMetaHtml(item);
-    else metaEl.innerHTML = metadataUnavailableHtml();
-  }
+  if (metaEl) metaEl.innerHTML = videoCardMetaHtml(item);
   // Thumbs are assigned-once at mount; do NOT touch img.src here.
 }
 
@@ -1316,7 +1289,9 @@ function renderPoolGrid() {
     const empty = canvas.querySelector('.pool-empty');
     if (empty) empty.remove();
 
-    // Virtualized canvas: only the visible window plus overscan is mounted.
+    prepareWallTenants(items);
+
+    // Chrome only: visible window plus overscan. Image nodes are stable tenants.
     canvas.classList.add('pool-grid');
     if (!_poolVirtualGrid || _poolVirtualCanvas !== canvas) {
       _poolVirtualGrid?.destroy();

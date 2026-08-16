@@ -33,12 +33,13 @@
 | [styletransfer-spec.md](styletransfer-spec.md) | Style stills/video + strength Evolve |
 | [architecture.md](architecture.md) | High-level map |
 | [settings-card-layout-spec.md](settings-card-layout-spec.md) | **Settings cards** — tight one-page house style |
+| [pool-wall-preview-spec.md](pool-wall-preview-spec.md) | Pool wall: one 120px preview, stable img |
 
 **Shared code:** `mtapi-project/app/evolve_video.py` — strip → optional dedupe → optional RIFE → encode.
 
 ---
 
-## At a glance — `000.000.6.0` (2026-08-15)
+## At a glance — `000.000.6.8` (2026-08-16)
 
 ### Shipped recently
 | Doc / feature | Ver |

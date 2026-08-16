@@ -31,6 +31,13 @@ HASH_CHUNK = 1024 * 1024
 FRAME_EXTRACT_VERSION = 3
 THUMBNAIL_SIZES = {"H": 480, "M": 240, "L": 120}
 
+# Pool-wall previews: display-only JPEGs. Not a match/pHash source.
+WALL_WHICH = "wall"
+WALL_PAIR_WHICH = "wall_pair"
+WALL_WIDTH = 120
+WALL_FILENAME = "wall.jpg"
+WALL_PAIR_FILENAME = "wall_pair.jpg"
+
 # ── locks (single source — no duplication) ─────────────────────────────────
 
 _index_lock = asyncio.Lock()
@@ -86,6 +93,36 @@ def _thumb_is_current(content_hash: str, which: str, size: str = "H") -> bool:
         return tp.exists() and tp.stat().st_size > 0
     except OSError:
         return False
+
+
+def _wall_path(content_hash: str) -> Path:
+    return _hash_dir(content_hash) / WALL_FILENAME
+
+
+def existing_wall_file(content_hash: str) -> Path | None:
+    """On-disk first-frame wall preview if already written. No record I/O."""
+    return _existing_named(content_hash, WALL_FILENAME)
+
+
+def _wall_pair_path(content_hash: str) -> Path:
+    return _hash_dir(content_hash) / WALL_PAIR_FILENAME
+
+
+def existing_wall_pair_file(content_hash: str) -> Path | None:
+    """On-disk first+last combo wall if already written. No record I/O."""
+    return _existing_named(content_hash, WALL_PAIR_FILENAME)
+
+
+def _existing_named(content_hash: str, filename: str) -> Path | None:
+    if not content_hash:
+        return None
+    tp = _hash_dir(content_hash) / filename
+    try:
+        if tp.exists() and tp.stat().st_size > 0:
+            return tp
+    except OSError:
+        return None
+    return None
 
 
 def existing_thumb_file(content_hash: str, which: str, size: str = "H") -> Path | None:

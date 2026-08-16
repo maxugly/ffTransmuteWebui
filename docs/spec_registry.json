@@ -430,8 +430,15 @@
     "file": "catalog-interaction-virtualization-spec.md",
     "path": "docs/catalog-interaction-virtualization-spec.md",
     "category": "Core Architecture / WebUI",
-    "status": "Partial; responsive virtualized pools restored 000.000.6.5",
-    "summary": "Path-keyed index, bounded queues, Strict/Fuzzy search, and dual Video/Image pools. Video and Image Pool now mount only the visible window plus 1.5-screen overscan with recycled shells and hash-only thumbnails; the broader headed compositor-performance target remains open."
+    "status": "Partial; responsive virtualized pools restored 000.000.6.5; wall preview 000.000.6.6",
+    "summary": "Path-keyed index, bounded queues, Strict/Fuzzy search, and dual Video/Image pools. Chrome is windowed; 6.6 wall previews are one 120px JPEG with a stable <img> per hash (scroll does not evict). Broader headed compositor-performance target remains open."
+  },
+  {
+    "file": "pool-wall-preview-spec.md",
+    "path": "docs/pool-wall-preview-spec.md",
+    "category": "Core Architecture / WebUI",
+    "status": "Implemented 000.000.6.7",
+    "summary": "Default wall is wall_pair.jpg (first|last side by side). Extra wall.jpg is first-only. Settings switch. Prepared on import from extracted first/last. Stable image node; recycled chrome only."
   },
   {
     "file": "server-memory-catalog-spec.md",

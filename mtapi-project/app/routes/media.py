@@ -131,12 +131,15 @@ def register(app: FastAPI, probe_fn) -> None:
         """Serve a thumbnail JPEG.
 
         * ``which=first|last`` — permanent first/last of the whole file (default).
+        * ``which=wall`` — 120px first-frame wall preview.
+        * ``which=wall_pair`` — 120+120 first|last combo. Not a match/pHash source.
         * ``frame=N`` — **1-based** frame index (Cut / range previews). Takes
           precedence over ``which`` when provided.
         """
         size = media.normalize_thumb_size(s)
         content_hash = hash
         source: Path | None = None
+        which_norm = (which or "first").lower()
         if path:
             path_obj = Path(path).resolve()
             if not path_obj.exists() or not path_obj.is_file():
@@ -152,6 +155,18 @@ def register(app: FastAPI, probe_fn) -> None:
                 )
         elif not content_hash:
             raise HTTPException(status_code=400, detail="Provide path or hash")
+        elif frame is None and which_norm in ("wall", "wall_pair"):
+            if which_norm == "wall_pair":
+                wall = await media.ensure_wall_pair(
+                    content_hash, source_path=None, generate_from_video=False,
+                )
+            else:
+                wall = await media.ensure_wall_preview(
+                    content_hash, source_path=None, generate_from_video=False,
+                )
+            if wall is None:
+                raise HTTPException(status_code=404, detail="Wall preview not available")
+            return await _serve_thumbnail(wall, content_hash, which_norm, "L")
         elif frame is None:
             # Hash-only is display-only: serve a cached JPEG or 404.
             # Never hash, probe, or extract here — that belongs on ?path= or
@@ -199,8 +214,24 @@ def register(app: FastAPI, probe_fn) -> None:
             return await _serve_thumbnail(thumb, content_hash, f"frame:{frame_n}", size)
 
         which = (which or "first").lower()
+        if which in ("wall", "wall_pair"):
+            if which == "wall_pair":
+                wall = await media.ensure_wall_pair(
+                    content_hash,
+                    source_path=source,
+                    generate_from_video=source is not None,
+                )
+            else:
+                wall = await media.ensure_wall_preview(
+                    content_hash,
+                    source_path=source,
+                    generate_from_video=source is not None,
+                )
+            if wall is None:
+                raise HTTPException(status_code=404, detail="Wall preview not available")
+            return await _serve_thumbnail(wall, content_hash, which, "L")
         if which not in ("first", "last"):
-            raise HTTPException(status_code=400, detail="which must be 'first' or 'last'")
+            raise HTTPException(status_code=400, detail="which must be 'first', 'last', 'wall', or 'wall_pair'")
         thumb = await media.get_thumb_file(content_hash, which, source_path=source, size=size)
         if not thumb:
             raise HTTPException(status_code=404, detail=f"Thumbnail not available ({which})")
@@ -239,7 +270,7 @@ def register(app: FastAPI, probe_fn) -> None:
             if not isinstance(it, dict):
                 continue
             which = (it.get("which") or "first").lower()
-            if which not in ("first", "last"):
+            if which not in ("first", "last", "wall", "wall_pair"):
                 which = "first"
             content_hash = it.get("hash")
             source = None
@@ -253,8 +284,31 @@ def register(app: FastAPI, probe_fn) -> None:
             if not content_hash:
                 out.append({"ok": False, "error": "hash or existing path required", "which": which})
                 continue
+            if which in ("wall", "wall_pair"):
+                if which == "wall_pair":
+                    wall = await media.ensure_wall_pair(
+                        content_hash,
+                        source_path=source,
+                        generate_from_video=source is not None,
+                    )
+                else:
+                    wall = await media.ensure_wall_preview(
+                        content_hash,
+                        source_path=source,
+                        generate_from_video=source is not None,
+                    )
+                out.append({
+                    "ok": bool(wall),
+                    "cached": bool(wall),
+                    "hash": content_hash,
+                    "which": which,
+                })
+                continue
             ready = media.existing_thumb_file(content_hash, which, size)
             if ready is not None:
+                await media.ensure_wall_previews(
+                    content_hash, source_path=source, generate_from_video=False,
+                )
                 out.append({"ok": True, "cached": True, "hash": content_hash, "which": which})
                 continue
             rec = media.load_record(content_hash)
@@ -270,6 +324,10 @@ def register(app: FastAPI, probe_fn) -> None:
             thumb = await media.get_thumb_file(
                 content_hash, which, source_path=source, size=size,
             )
+            if thumb:
+                await media.ensure_wall_previews(
+                    content_hash, source_path=source, generate_from_video=False,
+                )
             out.append({
                 "ok": bool(thumb),
                 "cached": False,

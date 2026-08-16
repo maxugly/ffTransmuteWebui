@@ -1,19 +1,23 @@
 # Session stopping state — handoff
 
-> **Date:** 2026-08-15  
-> **VERSION:** `000.000.6.5`  
+> **Date:** 2026-08-16  
+> **VERSION:** `000.000.6.9`  
 > **Branch:** `wip`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 6.5)
+## 1. Shipped this stretch (through 6.9)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
+| **Import wall not stuck** | Keep path= wall request until first/last exist so hash-only 404 cannot freeze “Loading thumbnail…”. | `wall-thumbs.js`, `repair-queue.js` · **`6.9`** |
+| **Import probes metadata** | New pool adds immediately queue hash/probe/thumbs. Overlay Repair Metadata button is clickable again. | `items.js`, `image-pool.js`, `pool.css` · **`6.8`** |
+| **Pool wall first+last combo** | Import extracts first+last, then writes `wall_pair.jpg` (side by side, 120px each) plus the 6.6 first-only `wall.jpg`. Settings switch; default is the combo. | `pool-wall-preview-spec.md` · **`6.7`** |
+| **Pool wall preview** | Stable `<img>` per path; chrome-only recycle; scroll never clears `src`. Match/pHash/Sequence/Cut unchanged. | `wall-thumbs.js`, `thumbnails.py` · **`6.6`** |
 | **Pool display wall (historical 6.3)** | Deleted `js/thumb-decode-cache.js`; the stable wall was later replaced by the responsive virtualizer in 6.5. | `grid.js`, `image-pool.js`, `freshness.js`, `pool.css` · **`6.3`** |
-| **Responsive virtualized pools** | Reconnected Video + Image Pool to the vanilla virtualizer. Visible window + 1.5-screen overscan, bounded recycled shells, immediate labeled loading placeholders, hash-only thumbnail assignment, and stale-pixel clearing on reuse. Broader catalog virtualization remains Partial; `sequence.js`, CatalogIndex, and server thumbnail generation were not changed. | `grid.js`, `image-pool.js`, `virtual-grid.js`, `pool.css` · **`6.5`** |
+| **Responsive virtualized pools** | Reconnected Video + Image Pool to the vanilla virtualizer. Visible window + 1.5-screen overscan, bounded recycled shells. 6.6 keeps the chrome pool and stops evicting wall bitmaps. Broader catalog virtualization remains Partial. | `grid.js`, `image-pool.js`, `virtual-grid.js`, `pool.css` · **`6.5`** |
 | **Sequence Audio Engines** | Rubberband DAW flags + 48kHz sample-rate fix + 10ms micro-fade on every clip; engine dropdown UI (rubberband live; atempo/pitch/mute placeholders) | `sequence-audio-engines-spec.md`, `video_pipeline.py:770`, `grid.js`, `persistence.js` · **`5.01`** |
 | **Join preset = transcode** | No dump→PNG for DNxHR/ProRes stitch; normal ffmpeg re-encode | `transcode_with_preset`, `_join_with_preset` · **`5.00`** |
 | **Job workspace on disk** | Default `~/.cache/mtapi/jobs` | `job_workspace.py` · **`4.99`** |

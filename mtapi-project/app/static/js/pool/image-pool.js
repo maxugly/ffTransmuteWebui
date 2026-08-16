@@ -7,15 +7,16 @@
 import { state, elements, logConsole, showPreview, checkHealth, switchTab, formatBytes } from '/app.js';
 import { isImagePath, basename, escapeHtml } from '/js/utils.js';
 import {
-  scheduleSavePoolState, poolThumbUrl, itemShowsThumb, shortHash, projectLabel,
+  scheduleSavePoolState, poolThumbUrl, shortHash, projectLabel,
   projectNew, projectOpen, projectSave,
 } from '/js/pool/persistence.js';
 import { clearPending as lazyClearPending } from '/js/lazy-loader.js';
-import { validateItemSignature, assignCardThumbs, metaRetryHtml, hasRestoredIdentity } from '/js/pool/freshness.js';
+import { validateItemSignature, metaRetryHtml, hasRestoredIdentity } from '/js/pool/freshness.js';
 import { globalMediaIndex } from '/js/media-index.js';
 import { installPoolScrollPaint } from '/js/pool/layout.js';
 import { repairItem } from '/js/repair-queue.js';
 import { createVirtualGrid } from '/js/pool/virtual-grid.js';
+import { prepareWallTenants, attachWallTenant, detachWallTenant } from '/js/pool/wall-thumbs.js';
 
 let _imageVirtualGrid = null;
 let _imageVirtualCanvas = null;
@@ -31,8 +32,7 @@ function ensureImagePool() {
 }
 
 function imageThumbUrl(item) {
-  // Single still — use first-frame thumbnail pipeline (works for images via ffmpeg)
-  return poolThumbUrl(item, 'first');
+  return poolThumbUrl(item, 'wall');
 }
 
 function fuzzyMatch(query, text) {
@@ -123,9 +123,7 @@ async function loadImageItemMeta(item) {
     if (card) {
        const metaEl = card.querySelector('.img-pool-meta');
        if (metaEl) metaEl.innerHTML = buildImageMetaHtml(item);
-       if (item.hash) {
-         assignCardThumbs(card, item, { bust: false });
-       }
+       if (item.hash) attachWallTenant(card, item);
     }
   }
 }
@@ -145,7 +143,7 @@ async function activateImageCard(card, item, { force = false } = {}) {
       if (el) el.innerHTML = metaRetryHtml(item.metaError);
       bindImageRetry(card, item);
     }
-    assignCardThumbs(card, item, { bust: false });
+    attachWallTenant(card, item);
     return;
   }
 
@@ -165,7 +163,7 @@ async function activateImageCard(card, item, { force = false } = {}) {
     const el = card.querySelector('.img-pool-meta');
     if (el) el.innerHTML = metaRetryHtml(item.metaError);
     bindImageRetry(card, item);
-    assignCardThumbs(card, item, { bust: true });
+    attachWallTenant(card, item);
     return;
   }
 
@@ -173,14 +171,14 @@ async function activateImageCard(card, item, { force = false } = {}) {
     try { globalMediaIndex.put(item); } catch (_) { /* ignore */ }
     const el = card.querySelector('.img-pool-meta');
     if (el) el.innerHTML = buildImageMetaHtml(item);
-    assignCardThumbs(card, item, { bust: false });
+    attachWallTenant(card, item);
     return;
   }
   if (item.metaError && !stale && !force) {
     const el = card.querySelector('.img-pool-meta');
     if (el) el.innerHTML = metaRetryHtml(item.metaError);
     bindImageRetry(card, item);
-    assignCardThumbs(card, item, { bust: false });
+    attachWallTenant(card, item);
     return;
   }
 
@@ -192,7 +190,7 @@ async function activateImageCard(card, item, { force = false } = {}) {
       : buildImageMetaHtml(item);
   }
   bindImageRetry(card, item);
-  assignCardThumbs(card, item, { bust: stale || force });
+  attachWallTenant(card, item);
 }
 
 function bindImageRetry(card, item) {
@@ -252,6 +250,8 @@ function addPathsToImagePool(paths) {
       hash: null,
     };
     ip.items.push(item);
+    try { globalMediaIndex.put(item); } catch (_) { /* ignore */ }
+    try { repairItem(item, { force: true }); } catch (_) { /* ignore */ }
     if (!firstNew) firstNew = path;
     added++;
   }
@@ -710,23 +710,13 @@ function ensureImageCardSkeleton(card) {
         </div>
         <button class="pool-card-remove" type="button" title="Remove from image pool">✕</button>
       </div>
-      <div class="pool-frames img-pool-single">
-        <div class="pool-frame">
-           <img class="pool-thumb" alt="" loading="eager" decoding="async" data-which="first" draggable="false">
-        </div>
+      <div class="pool-frames img-pool-single pool-wall">
+        <div class="pool-frame"></div>
       </div>
       <div class="pool-overlay">
         <div class="pool-overlay-text img-pool-meta"></div>
       </div>
     `;
-  card.querySelectorAll('img.pool-thumb').forEach((img) => {
-    img.addEventListener('load', () => {
-      if (img.dataset.thumbGeneration === card.dataset.thumbGeneration) img.closest('.pool-frame')?.classList.remove('is-loading');
-    });
-    img.addEventListener('error', () => {
-      if (img.dataset.thumbGeneration === card.dataset.thumbGeneration) img.closest('.pool-frame')?.classList.remove('is-loading');
-    });
-  });
   card.dataset.skel = '1';
 }
 
@@ -740,14 +730,7 @@ function mountImageCard(card, item, index) {
   if (item.hash) card.dataset.hash = item.hash;
   else delete card.dataset.hash;
   card.dataset.idx = String(index);
-  // Assign thumbs once via assign-once semantics (guarded by data-thumbKey).
-  assignCardThumbs(card, item, { bust: false });
-  const thumb = card.querySelector('img.pool-thumb');
-  if (thumb) {
-    thumb.dataset.cardPath = item.path;
-    thumb.dataset.thumbGeneration = card.dataset.thumbGeneration;
-    if (thumb.complete && thumb.naturalWidth > 0) thumb.closest('.pool-frame')?.classList.remove('is-loading');
-  }
+  attachWallTenant(card, item);
   const metaEl = card.querySelector('.img-pool-meta');
   if (metaEl) {
     if (item.metaError && !item.meta) metaEl.innerHTML = metaRetryHtml(item.metaError);
@@ -759,19 +742,11 @@ function mountImageCard(card, item, index) {
 
 function resetImageCard(card) {
   if (!card) return;
-  card.dataset.thumbGeneration = String((Number(card.dataset.thumbGeneration) || 0) + 1);
+  detachWallTenant(card);
   card.dataset.path = '';
   card.dataset.hash = '';
   card.dataset.idx = '';
   card.classList.remove('selected', 'hovered', 'dragging', 'menu-open');
-  card.querySelectorAll('img.pool-thumb').forEach((img) => {
-    img.removeAttribute('src');
-    img.removeAttribute('srcset');
-    img.dataset.thumbKey = '';
-    img.dataset.cardPath = '';
-    img.dataset.thumbGeneration = '';
-  });
-  card.querySelectorAll('.pool-frame').forEach((frame) => frame.classList.add('is-loading'));
 }
 
 function updateImageCard(card, item, index) {
@@ -874,6 +849,8 @@ function renderImagePoolGrid() {
 
   const empty = canvas.querySelector('.pool-empty');
   if (empty) empty.remove();
+
+  prepareWallTenants(items);
 
   if (!_imageVirtualGrid || _imageVirtualCanvas !== canvas) {
     _imageVirtualGrid?.destroy();

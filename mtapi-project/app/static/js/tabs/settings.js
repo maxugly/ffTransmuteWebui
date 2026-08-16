@@ -59,6 +59,7 @@ function settingsSnapshot() {
     thumbnailsToRam: !!state.settings.thumbnailsToRam,
     phashToRam: !!state.settings.phashToRam,
     viewportLazyThumbnails: state.settings.viewportLazyThumbnails !== false,
+    wallStyle: state.settings.wallStyle === 'first' ? 'first' : 'pair',
     scrollbarWidth: clampScrollbarWidth(state.settings.scrollbarWidth),
     warmModels: { ...(state.settings.warmModels || {}) },
   };
@@ -93,9 +94,14 @@ async function saveSettings(patch = {}) {
   } else {
     window.dispatchEvent(new CustomEvent('mtapi.saveSettings'));
   }
-  if (payload.thumbnailSize !== prevSize || patch.thumbnailSize || patch.thumbnailSizeIndex != null) {
+  if (
+    payload.thumbnailSize !== prevSize
+    || patch.thumbnailSize
+    || patch.thumbnailSizeIndex != null
+    || patch.wallStyle
+  ) {
     window.dispatchEvent(new CustomEvent('mtapi.settingsChanged', {
-      detail: { thumbnailSize: payload.thumbnailSize },
+      detail: { thumbnailSize: payload.thumbnailSize, wallStyle: payload.wallStyle },
     }));
   }
 }
@@ -146,9 +152,10 @@ export function renderSettingsForm() {
             ${switchHtml('settingsThumbRam', 'Keep thumbnails in RAM', state.settings.thumbnailsToRam)}
             ${switchHtml('settingsPhashRam', 'Keep hashes in RAM', state.settings.phashToRam)}
             ${switchHtml('settingsViewportLazy', 'Viewport-lazy thumbnails', state.settings.viewportLazyThumbnails !== false)}
+            ${switchHtml('settingsWallPair', 'First + last wall', state.settings.wallStyle !== 'first')}
           </div>
         </div>
-        <p class="settings-card-desc">L = 120px, M = 240px, H = 480px. Changing size does not delete<br>disk or RAM caches. Viewport-lazy is the default.</p>
+        <p class="settings-card-desc">Wall default is one JPEG: first|last side by side at 120px each.<br>Off shows the single first-frame preview. L/M/H is match-size only.</p>
       </section>
       <section class="settings-card settings-warm" aria-labelledby="settingsWarmTitle">
         <div class="settings-card-head">
@@ -227,6 +234,9 @@ export function renderSettingsForm() {
   bindSwitch('settingsThumbRam', 'thumbnailsToRam');
   bindSwitch('settingsPhashRam', 'phashToRam');
   bindSwitch('settingsViewportLazy', 'viewportLazyThumbnails');
+  document.getElementById('settingsWallPair')?.addEventListener('change', (e) => {
+    saveSettings({ wallStyle: e.target.checked ? 'pair' : 'first' });
+  });
   document.getElementById('settingsWarmDeepdream')?.addEventListener('change', e => saveSettings({ warmModels: { deepdream: e.target.checked } }));
   document.getElementById('settingsWarmStyle')?.addEventListener('change', e => saveSettings({ warmModels: { styletransfer: e.target.checked } }));
   document.getElementById('settingsWarmFastsam')?.addEventListener('change', e => saveSettings({ warmModels: { fastsam: e.target.checked } }));

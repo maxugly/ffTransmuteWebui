@@ -1,7 +1,8 @@
 import { state, elements, logConsole, showPreview, renderPoolForm, renderStyleTransferForm, renderFaceMorphForm, renderWithoutBgForm, checkHealth, switchTab, formatBytes } from '/app.js';
 import { isVideoPath, basename, formatDurationExact } from '/js/utils.js';
-import { shortHash, buildPoolMetaHtml, poolThumbUrl, scheduleSavePoolState } from '/js/pool/persistence.js';
-import { assignThumbSrc } from '/js/lazy-loader.js';
+import { shortHash, buildPoolMetaHtml, scheduleSavePoolState } from '/js/pool/persistence.js';
+import { attachWallTenant, prepareWallTenants } from '/js/pool/wall-thumbs.js';
+import { repairItem } from '/js/repair-queue.js';
 import { applySeqTokenTimeStyles, updateSeqClipSettings, displayFocusPath, updatePoolFocusFrame, setPoolFocus, updateSelectionHighlights, updateSeqTransportUI, seqStop, addPathToSequence } from '/js/pool/sequence.js';
 import { runQuickTransmute } from '/js/tabs/quick.js';
 import { addMultiClipPath } from '/js/tabs/transmute.js';
@@ -51,15 +52,11 @@ async function loadPoolItemMeta(item, idx) {
   if (el) el.innerHTML = buildPoolMetaHtml(item);
 
   if (item.hash) {
+    prepareWallTenants([item]);
     const card = Array.from(document.querySelectorAll('.pool-card')).find(c => c.dataset.path === item.path);
     if (card) {
       card.dataset.hash = item.hash;
-      card.querySelectorAll('img.pool-thumb').forEach(img => {
-        if (!img.getAttribute('src')) return;
-        const which = img.dataset.which || 'first';
-        const next = poolThumbUrl(item, which);
-        if (img.getAttribute('src').includes('path=')) assignThumbSrc(img, next);
-      });
+      attachWallTenant(card, item);
     }
   }
 }
@@ -217,6 +214,7 @@ function addPathsToPool(paths) {
     };
     state.pool.items.push(addedItem);
     try { window.globalMediaIndex?.put(addedItem); } catch (_) { /* ignore */ }
+    try { repairItem(addedItem, { force: true }); } catch (_) { /* ignore */ }
     if (!firstNew) firstNew = path;
     added++;
   }

@@ -344,6 +344,18 @@ async function _runThumb(job, item, rec, size) {
       if (item) {
         item.thumbs = item.thumbs || {};
         item.thumbs[job.which] = true;
+        if (item.thumbs.first) item.thumbs.wall = true;
+        if (item.thumbs.first && item.thumbs.last) item.thumbs.wall_pair = true;
+        const wantPair = window.state?.settings?.wallStyle !== 'first';
+        const wallReady = wantPair
+          ? !!(item.thumbs.first && item.thumbs.last)
+          : !!item.thumbs.first;
+        if (wallReady) {
+          try {
+            const { forceWallSrc } = await import('/js/pool/wall-thumbs.js');
+            forceWallSrc(item);
+          } catch (_) { /* ignore */ }
+        }
       }
       document.querySelectorAll(`img.pool-thumb[data-which="${job.which}"]`).forEach((img) => {
         const card = img.closest('.pool-card, .img-pool-card');
