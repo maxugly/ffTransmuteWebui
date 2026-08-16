@@ -58,7 +58,6 @@ function settingsSnapshot() {
     thumbnailSize: SIZE_LABELS[Math.max(0, Math.min(2, Number(state.settings.thumbnailSizeIndex ?? 2)))],
     thumbnailsToRam: !!state.settings.thumbnailsToRam,
     phashToRam: !!state.settings.phashToRam,
-    viewportLazyThumbnails: state.settings.viewportLazyThumbnails !== false,
     wallStyle: state.settings.wallStyle === 'first' ? 'first' : 'pair',
     scrollbarWidth: clampScrollbarWidth(state.settings.scrollbarWidth),
     warmModels: { ...(state.settings.warmModels || {}) },
@@ -151,7 +150,6 @@ export function renderSettingsForm() {
           <div class="settings-switches">
             ${switchHtml('settingsThumbRam', 'Keep thumbnails in RAM', state.settings.thumbnailsToRam)}
             ${switchHtml('settingsPhashRam', 'Keep hashes in RAM', state.settings.phashToRam)}
-            ${switchHtml('settingsViewportLazy', 'Viewport-lazy thumbnails', state.settings.viewportLazyThumbnails !== false)}
             ${switchHtml('settingsWallPair', 'First + last wall', state.settings.wallStyle !== 'first')}
           </div>
         </div>
@@ -233,7 +231,6 @@ export function renderSettingsForm() {
   const bindSwitch = (id, patch) => document.getElementById(id)?.addEventListener('change', (e) => saveSettings({ [patch]: e.target.checked }));
   bindSwitch('settingsThumbRam', 'thumbnailsToRam');
   bindSwitch('settingsPhashRam', 'phashToRam');
-  bindSwitch('settingsViewportLazy', 'viewportLazyThumbnails');
   document.getElementById('settingsWallPair')?.addEventListener('change', (e) => {
     saveSettings({ wallStyle: e.target.checked ? 'pair' : 'first' });
   });
