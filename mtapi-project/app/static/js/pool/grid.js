@@ -8,7 +8,7 @@ import {
 import {
   projectNew, projectOpen, projectSave, savePoolStateNow,
   scheduleSavePoolState, stitchPoolSequence, refreshPoolToolbarCounts,
-  projectLabel, poolThumbUrl, itemShowsThumb, shortHash, buildPoolMetaHtml,
+  projectLabel, shortHash, buildPoolMetaHtml,
 } from '/js/pool/persistence.js';
 import {
   findPoolItem, displayFocusPath, setPoolHover, clearPoolHover,
@@ -34,17 +34,19 @@ import {
   setupTileInfoMenu, showPoolContextMenu,
 } from '/app.js';
 import { clearPending as lazyClearPending } from '/js/lazy-loader.js';
-import { assignCardThumbs, metaRetryHtml } from '/js/pool/freshness.js';
-import { globalMediaIndex, normalizeAbsPath } from '/js/media-index.js';
-import { createVirtualGrid } from '/js/pool/virtual-grid.js';
+import { metaRetryHtml } from '/js/pool/freshness.js';
+import { globalMediaIndex } from '/js/media-index.js';
 import {
   beginRender, endRender, markFirstWindowReady, markHydrated,
   repairItem,
 } from '/js/repair-queue.js';
 import { installPoolScrollPaint } from '/js/pool/layout.js';
+import { createVirtualGrid } from '/js/pool/virtual-grid.js';
+import { prepareWallTenants, attachWallTenant, detachWallTenant } from '/js/pool/wall-thumbs.js';
 
-let _videoVirt = null;
 let _statusTimer = null;
+let _poolVirtualGrid = null;
+let _poolVirtualCanvas = null;
 
 function ensureSelectedPaths() {
   if (!(state.pool.selectedPaths instanceof Set)) {
@@ -62,34 +64,23 @@ function metadataUnavailableHtml() {
     + `<button type="button" class="btn pool-info-mini pool-retry-meta">Repair Metadata</button>`;
 }
 
+function videoCardMetaHtml(item) {
+  if (item?.meta) return buildPoolMetaHtml(item);
+  if (item?.metaError) return metaRetryHtml(item.metaError);
+  const st = (() => {
+    try { return globalMediaIndex.get(item)?.metadata_state?.status; } catch (_) { return ''; }
+  })();
+  if (st === 'queued' || st === 'repairing') {
+    return `<span class="pool-meta-loading">reading metadata…</span>`;
+  }
+  return metadataUnavailableHtml();
+}
+
 function paintVideoCard(card, item) {
   if (!card || !item) return;
   try { globalMediaIndex.put(item); } catch (_) { /* ignore */ }
   const el = card.querySelector('.pool-overlay-text');
-  if (el) {
-    if (item.meta) el.innerHTML = buildPoolMetaHtml(item);
-    else if (item.metaError) el.innerHTML = metaRetryHtml(item.metaError);
-    else el.innerHTML = metadataUnavailableHtml();
-  }
-  assignCardThumbs(card, item, { bust: false });
-}
-
-function bindVideoRetry(card, item) {
-  card.querySelectorAll('.pool-retry-meta').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const path = card.dataset.path || item?.path;
-      const live = findPoolItem(path) || item;
-      if (live) repairItem(live, { force: true });
-    });
-  });
-}
-
-function activateVideoCard(card, item) {
-  // Display-only. Never probes. Repair is the idle queue or Repair Metadata.
-  paintVideoCard(card, item);
-  bindVideoRetry(card, item);
+  if (el) el.innerHTML = videoCardMetaHtml(item);
 }
 
 // ── Join / Sequence helpers ─────────────────────────────────────────────────
@@ -153,9 +144,9 @@ function renderPoolForm() {
     <div class="pool-workspace-inner">
       <div class="pool-top">
         ${_poolToolbarHtml(count, selected, seqCount, { showSeqTools: false })}
-        <div class="pool-grid-wrap" id="poolGridWrap">
-          <div class="pool-scroll-canvas" id="poolGrid" tabindex="0"></div>
-        </div>
+         <div class="pool-grid-wrap" id="poolGridWrap">
+           <div class="pool-grid pool-scroll-canvas" id="poolGrid" tabindex="0"></div>
+         </div>
       </div>
     </div>
   `;
@@ -825,9 +816,9 @@ function renderSequenceForm() {
     <div class="pool-workspace-inner">
       <div class="pool-top">
         ${_poolToolbarHtml(count, selected, seqCount, { showSeqTools: true })}
-        <div class="pool-grid-wrap${col.pool ? ' is-collapsed' : ''}" id="poolGridWrap">
-          <div class="pool-scroll-canvas" id="poolGrid" tabindex="0"></div>
-        </div>
+         <div class="pool-grid-wrap${col.pool ? ' is-collapsed' : ''}" id="poolGridWrap">
+           <div class="pool-grid pool-scroll-canvas" id="poolGrid" tabindex="0"></div>
+         </div>
       </div>
 
       <div class="pool-v-resize${col.pool ? ' is-collapsed' : ''}" id="poolVResize" title="Drag to resize dock"></div>
@@ -940,15 +931,8 @@ function ensurePoolCardSkeleton(card) {
         <button class="pool-card-remove" type="button" title="Remove from pool">✕</button>
       </div>
       <span class="pool-seq-indicator" hidden></span>
-      <div class="pool-frames">
-        <div class="pool-frame">
-          <img class="pool-thumb" alt="First frame" decoding="async" data-which="first" draggable="false">
-          <span class="pool-frame-label">FIRST</span>
-        </div>
-        <div class="pool-frame">
-          <img class="pool-thumb" alt="Last frame" decoding="async" data-which="last" draggable="false">
-          <span class="pool-frame-label">LAST</span>
-        </div>
+      <div class="pool-frames pool-wall">
+        <div class="pool-frame"></div>
       </div>
       <div class="pool-overlay">
         <div class="pool-overlay-text"></div>
@@ -959,153 +943,9 @@ function ensurePoolCardSkeleton(card) {
   card.dataset.skel = '1';
 }
 
-function fillPoolCardLite(card, item, index) {
-  ensurePoolCardSkeleton(card);
-  const path = item.path;
-  const selected = ensureSelectedPaths();
-  card.classList.toggle('selected', selected.has(path) || state.pool.selectedPath === path);
-  card.dataset.path = path;
-  if (item.hash) card.dataset.hash = item.hash;
-  else delete card.dataset.hash;
-  card.dataset.idx = String(index);
-  const first = card.querySelector('img.pool-thumb[data-which="first"]');
-  const last = card.querySelector('img.pool-thumb[data-which="last"]');
-  if (first) {
-    if (itemShowsThumb(item, 'first')) {
-      const url = poolThumbUrl(item, 'first');
-      if (first.getAttribute('src') !== url) first.setAttribute('src', url);
-    } else if (first.hasAttribute('src')) first.removeAttribute('src');
-  }
-  if (last) {
-    if (itemShowsThumb(item, 'last')) {
-      const url = poolThumbUrl(item, 'last');
-      if (last.getAttribute('src') !== url) last.setAttribute('src', url);
-    } else if (last.hasAttribute('src')) last.removeAttribute('src');
-  }
-}
-
-function fillPoolCard(card, item, index) {
-  ensurePoolCardSkeleton(card);
-  const path = item.path;
-  const selected = ensureSelectedPaths();
-  const isSelected = selected.has(path) || state.pool.selectedPath === path;
-  const isHovered = state.pool.hoverPath === path;
-  const seqPos = sequencePositions(path);
-  card.classList.toggle('selected', isSelected);
-  card.classList.toggle('hovered', isHovered);
-  card.classList.toggle('seq-active', seqPos.length > 0);
-  card.dataset.path = path;
-  if (item.hash) card.dataset.hash = item.hash;
-  else delete card.dataset.hash;
-  card.dataset.idx = String(index);
-  card.draggable = true;
-  card.title = 'Drag into sequence to stitch';
-
-  const info = ensureTileInfo();
-  const showLabels = info.frame_labels !== false;
-  card.querySelectorAll('.pool-frame-label').forEach((el) => { el.hidden = !showLabels; });
-  const badge = card.querySelector('.pool-seq-indicator');
-  if (badge) {
-    if (seqPos.length) {
-      badge.hidden = false;
-      badge.textContent = seqPos.join(' ');
-    } else {
-      badge.hidden = true;
-      badge.textContent = '';
-    }
-  }
-  const metaEl = card.querySelector('.pool-overlay-text');
-  if (metaEl) {
-    if (item.metaError && !item.meta) metaEl.innerHTML = metaRetryHtml(item.metaError);
-    else if (item.meta) metaEl.innerHTML = buildPoolMetaHtml(item);
-    else metaEl.innerHTML = metadataUnavailableHtml();
-  }
-  assignCardThumbs(card, item, { bust: false });
-  const variantContainer = card.querySelector('.pool-variants');
-  if (variantContainer && variantContainer.dataset.for !== path) {
-    variantContainer.dataset.for = path;
-    variantContainer.innerHTML = '';
-    requestAnimationFrame(() => {
-      if (card.dataset.path !== path) return;
-      _variantNodeHtml(path).then((html) => {
-        if (card.dataset.path !== path) return;
-        variantContainer.innerHTML = html;
-      });
-    });
-  }
-}
-
-function _openSendMenu(card, sendBtn, item) {
-  const existing = document.querySelector('.pool-send-menu-portal');
-  if (existing) {
-    if (existing._sourceCard === card) {
-      existing.remove();
-      card.classList.remove('menu-open');
-      return;
-    }
-    existing._sourceCard?.classList.remove('menu-open');
-    existing.remove();
-  }
-
-  card.classList.add('menu-open');
-  const rect = sendBtn.getBoundingClientRect();
-  const menu = document.createElement('div');
-  menu.className = 'pool-send-menu pool-send-menu-portal';
-  menu._sourceCard = card;
-  menu.style.position = 'fixed';
-  menu.style.right = `${window.innerWidth - rect.right}px`;
-  menu.style.zIndex = '99999';
-  menu.innerHTML = `
-        <button type="button" class="pool-send-item pool-send-quick" data-send="quick">${escapeHtml(quickTransmuteLabel())}</button>
-        <div class="pool-send-sep"></div>
-        <button type="button" class="pool-send-item" data-send="mosh">Datamosh</button>
-        <button type="button" class="pool-send-item" data-send="deepdream">DeepDream</button>
-        <button type="button" class="pool-send-item" data-send="rife">RIFE</button>
-        <button type="button" class="pool-send-item" data-send="speedchange">Speed Change</button>
-        <button type="button" class="pool-send-item" data-send="upscale">Upscale</button>
-        <button type="button" class="pool-send-item" data-send="fastsam">FastSAM</button>
-        <button type="button" class="pool-send-item" data-send="img2img">Img2Img</button>
-        <button type="button" class="pool-send-item" data-send="agent">Agent</button>
-        <button type="button" class="pool-send-item" data-send="convert">Convert / Export</button>
-        <button type="button" class="pool-send-item" data-send="transmute">Transmute</button>
-        <button type="button" class="pool-send-item" data-send="multi">Multi (Join/Grid)</button>
-        <button type="button" class="pool-send-item" data-send="advanced">Raw CLI</button>
-        <button type="button" class="pool-send-item" data-send="sequence">Sequence</button>
-        <button type="button" class="pool-send-item" data-send="cut">Cut</button>
-        <button type="button" class="pool-send-item" data-send="preview">Preview only</button>
-        <div class="pool-send-sep"></div>
-        <button type="button" class="pool-send-item" data-send="save_first_png">Save first frame PNG…</button>
-        <button type="button" class="pool-send-item" data-send="save_last_png">Save last frame PNG…</button>
-      `;
-  document.body.appendChild(menu);
-  const pad = 6;
-  const menuRect = menu.getBoundingClientRect();
-  let top = rect.bottom + 3;
-  if (top + menuRect.height > window.innerHeight - pad) top = rect.top - menuRect.height - 3;
-  if (top < pad) top = pad;
-  menu.style.top = `${top}px`;
-
-  menu.querySelectorAll('.pool-send-item').forEach((opt) => {
-    opt.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      ev.preventDefault();
-      const target = opt.dataset.send;
-      menu.remove();
-      card.classList.remove('menu-open');
-      sendPoolPathTo(item.path, target);
-    });
-  });
-  const dismiss = (ev) => {
-    if (!menu.contains(ev.target) && ev.target !== sendBtn) {
-      menu.remove();
-      card.classList.remove('menu-open');
-      document.removeEventListener('click', dismiss, true);
-    }
-  };
-  setTimeout(() => document.addEventListener('click', dismiss, true), 0);
-}
-
-function bindVirtualCard(card) {
+function bindPoolCard(card) {
+  if (card.dataset.eventsBound === '1') return;
+  card.dataset.eventsBound = '1';
   card.addEventListener('click', (e) => {
     const retry = e.target.closest('.pool-retry-meta');
     if (retry) {
@@ -1194,6 +1034,147 @@ function bindVirtualCard(card) {
   });
 }
 
+function _applyCardVisuals(card, item, index) {
+  const path = item.path;
+  const selected = ensureSelectedPaths();
+  const isSelected = selected.has(path) || state.pool.selectedPath === path;
+  const isHovered = state.pool.hoverPath === path;
+  const seqPos = sequencePositions(path);
+  card.classList.toggle('selected', isSelected);
+  card.classList.toggle('hovered', isHovered);
+  card.classList.toggle('seq-active', seqPos.length > 0);
+  card.dataset.path = path;
+  if (item.hash) card.dataset.hash = item.hash;
+  else delete card.dataset.hash;
+  card.dataset.idx = String(index);
+  card.draggable = true;
+  card.title = 'Drag into sequence to stitch';
+
+  const badge = card.querySelector('.pool-seq-indicator');
+  if (badge) {
+    if (seqPos.length) {
+      badge.hidden = false;
+      badge.textContent = seqPos.join(' ');
+    } else {
+      badge.hidden = true;
+      badge.textContent = '';
+    }
+  }
+}
+
+function mountPoolCard(card, item, index) {
+  resetPoolCard(card);
+  ensurePoolCardSkeleton(card);
+  bindPoolCard(card);
+  _applyCardVisuals(card, item, index);
+  paintVideoCard(card, item);
+  attachWallTenant(card, item);
+  const variantContainer = card.querySelector('.pool-variants');
+  if (variantContainer && variantContainer.dataset.for !== item.path) {
+    variantContainer.dataset.for = item.path;
+    variantContainer.innerHTML = '';
+    requestAnimationFrame(() => {
+      if (card.dataset.path !== item.path) return;
+      _variantNodeHtml(item.path).then((html) => {
+        if (card.dataset.path !== item.path) return;
+        variantContainer.innerHTML = html;
+      });
+    });
+  }
+}
+
+function resetPoolCard(card) {
+  if (!card) return;
+  detachWallTenant(card);
+  card.dataset.path = '';
+  card.dataset.hash = '';
+  card.dataset.idx = '';
+  card.classList.remove('selected', 'hovered', 'seq-active', 'dragging', 'menu-open');
+  const variants = card.querySelector('.pool-variants');
+  if (variants) { variants.dataset.for = ''; variants.innerHTML = ''; }
+}
+
+function updatePoolCard(card, item, index) {
+  refreshPoolCard(card, item, index);
+}
+
+function refreshPoolCard(card, item, index) {
+  _applyCardVisuals(card, item, index);
+  const metaEl = card.querySelector('.pool-overlay-text');
+  if (metaEl) metaEl.innerHTML = videoCardMetaHtml(item);
+  // Thumbs are assigned-once at mount; do NOT touch img.src here.
+}
+
+function _openSendMenu(card, sendBtn, item) {
+  const existing = document.querySelector('.pool-send-menu-portal');
+  if (existing) {
+    if (existing._sourceCard === card) {
+      existing.remove();
+      card.classList.remove('menu-open');
+      return;
+    }
+    existing._sourceCard?.classList.remove('menu-open');
+    existing.remove();
+  }
+
+  card.classList.add('menu-open');
+  const rect = sendBtn.getBoundingClientRect();
+  const menu = document.createElement('div');
+  menu.className = 'pool-send-menu pool-send-menu-portal';
+  menu._sourceCard = card;
+  menu.style.position = 'fixed';
+  menu.style.right = `${window.innerWidth - rect.right}px`;
+  menu.style.zIndex = '99999';
+  menu.innerHTML = `
+        <button type="button" class="pool-send-item pool-send-quick" data-send="quick">${escapeHtml(quickTransmuteLabel())}</button>
+        <div class="pool-send-sep"></div>
+        <button type="button" class="pool-send-item" data-send="mosh">Datamosh</button>
+        <button type="button" class="pool-send-item" data-send="deepdream">DeepDream</button>
+        <button type="button" class="pool-send-item" data-send="rife">RIFE</button>
+        <button type="button" class="pool-send-item" data-send="speedchange">Speed Change</button>
+        <button type="button" class="pool-send-item" data-send="upscale">Upscale</button>
+        <button type="button" class="pool-send-item" data-send="fastsam">FastSAM</button>
+        <button type="button" class="pool-send-item" data-send="img2img">Img2Img</button>
+        <button type="button" class="pool-send-item" data-send="agent">Agent</button>
+        <button type="button" class="pool-send-item" data-send="convert">Convert / Export</button>
+        <button type="button" class="pool-send-item" data-send="transmute">Transmute</button>
+        <button type="button" class="pool-send-item" data-send="multi">Multi (Join/Grid)</button>
+        <button type="button" class="pool-send-item" data-send="advanced">Raw CLI</button>
+        <button type="button" class="pool-send-item" data-send="sequence">Sequence</button>
+        <button type="button" class="pool-send-item" data-send="cut">Cut</button>
+        <button type="button" class="pool-send-item" data-send="preview">Preview only</button>
+        <div class="pool-send-sep"></div>
+        <button type="button" class="pool-send-item" data-send="save_first_png">Save first frame PNG…</button>
+        <button type="button" class="pool-send-item" data-send="save_last_png">Save last frame PNG…</button>
+      `;
+  document.body.appendChild(menu);
+  const pad = 6;
+  const menuRect = menu.getBoundingClientRect();
+  let top = rect.bottom + 3;
+  if (top + menuRect.height > window.innerHeight - pad) top = rect.top - menuRect.height - 3;
+  if (top < pad) top = pad;
+  menu.style.top = `${top}px`;
+
+  menu.querySelectorAll('.pool-send-item').forEach((opt) => {
+    opt.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      ev.preventDefault();
+      const target = opt.dataset.send;
+      menu.remove();
+      card.classList.remove('menu-open');
+      sendPoolPathTo(item.path, target);
+    });
+  });
+  const dismiss = (ev) => {
+    if (!menu.contains(ev.target) && ev.target !== sendBtn) {
+      menu.remove();
+      card.classList.remove('menu-open');
+      document.removeEventListener('click', dismiss, true);
+    }
+  };
+  setTimeout(() => document.addEventListener('click', dismiss, true), 0);
+}
+
 function _bindGridKeyboard(wrap) {
   if (!wrap || wrap.dataset.keysBound) return;
   wrap.dataset.keysBound = '1';
@@ -1201,8 +1182,11 @@ function _bindGridKeyboard(wrap) {
     if (!e.key || !e.key.startsWith('Arrow')) return;
     if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT')) return;
     const items = filteredPoolItems();
-    if (!items.length || !_videoVirt) return;
-    const cols = Math.max(1, _videoVirt.layout.cols || 1);
+    if (!items.length) return;
+    const grid = wrap.querySelector('.pool-grid');
+    const rect = grid?.getBoundingClientRect();
+    const colWidth = rect ? rect.width / Math.max(1, Math.floor(rect.width / (state.pool.tileZoom || 200))) : 200;
+    const cols = Math.max(1, Math.floor((rect ? rect.width : 9999) / (state.pool.tileZoom || 200)));
     let idx = items.findIndex((it) => it.path === state.pool.selectedPath);
     if (idx < 0) idx = 0;
     let next = idx;
@@ -1214,7 +1198,8 @@ function _bindGridKeyboard(wrap) {
     e.preventDefault();
     e.stopPropagation();
     selectPoolItem(items[next].path, { shiftKey: e.shiftKey });
-    _videoVirt.scrollToPath(items[next].path, { block: 'nearest' });
+    const card = Array.from(wrap.querySelectorAll('.pool-card')).find(c => c.dataset.path === items[next].path);
+    if (card?.scrollIntoView) card.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   });
 }
 
@@ -1243,12 +1228,12 @@ function renderPoolGrid() {
 
   beginRender();
   try {
+    // Empty: no items at all
     if (state.pool.items.length === 0) {
+      _poolVirtualGrid?.destroy();
+      _poolVirtualGrid = null;
+      _poolVirtualCanvas = null;
       lazyClearPending();
-      if (_videoVirt) {
-        try { _videoVirt.destroy(); } catch (_) { /* ignore */ }
-        _videoVirt = null;
-      }
       canvas.style.height = '';
       canvas.innerHTML = `
       <div class="pool-empty">
@@ -1259,7 +1244,7 @@ function renderPoolGrid() {
         <p>No videos in the pool.</p>
         <p class="pool-empty-hint">Import files/folder, then drag cards into the sequence strip.</p>
       </div>
-    `;
+      `;
       _updatePoolFilterCount();
       updateCatalogStatus();
       return;
@@ -1267,10 +1252,9 @@ function renderPoolGrid() {
 
     const items = filteredPoolItems();
     if (items.length === 0) {
-      if (_videoVirt) {
-        try { _videoVirt.destroy(); } catch (_) { /* ignore */ }
-        _videoVirt = null;
-      }
+      _poolVirtualGrid?.destroy();
+      _poolVirtualGrid = null;
+      _poolVirtualCanvas = null;
       const q = escapeHtml(state.pool.filterQuery || '');
       canvas.style.height = '';
       canvas.innerHTML = `
@@ -1278,7 +1262,7 @@ function renderPoolGrid() {
         <p>No clips match <strong>${q}</strong>.</p>
         <p class="pool-empty-hint">Clear the filter (Esc) or try a shorter query.</p>
       </div>
-    `;
+      `;
       _updatePoolFilterCount();
       updateCatalogStatus();
       return;
@@ -1287,44 +1271,40 @@ function renderPoolGrid() {
     const empty = canvas.querySelector('.pool-empty');
     if (empty) empty.remove();
 
-    const minCol = state.pool.tileZoom || 200;
-    if (_videoVirt && _videoVirt._canvas !== canvas) {
-      try { _videoVirt.destroy(); } catch (_) { /* ignore */ }
-      _videoVirt = null;
-    }
-    if (!_videoVirt) {
-      canvas.innerHTML = '';
-      canvas.style.height = '';
-      _videoVirt = createVirtualGrid({
+    prepareWallTenants(items);
+
+    // Chrome only: visible window plus overscan. Image nodes are stable tenants.
+    canvas.classList.add('pool-grid');
+    if (!_poolVirtualGrid || _poolVirtualCanvas !== canvas) {
+      _poolVirtualGrid?.destroy();
+      _poolVirtualCanvas = canvas;
+      _poolVirtualGrid = createVirtualGrid({
         wrap,
         canvas,
         getItems: () => filteredPoolItems(),
-        renderCard: fillPoolCard,
-        recycleCard: fillPoolCardLite,
-        bindCard: bindVirtualCard,
-        minColWidth: minCol,
+        renderCard: mountPoolCard,
+        updateCard: updatePoolCard,
+        recycleCard: resetPoolCard,
+        bindCard: (card) => { card.classList.add('pool-card'); },
+        placeholderCard: mountPoolCard,
+        minColWidth: 200,
       });
-      _videoVirt._canvas = canvas;
-      window.__mtapiVirtualGrid = _videoVirt;
-      _bindGridKeyboard(wrap);
+      if (typeof window !== 'undefined') {
+        window.__mtapiPoolVirtualGrid = _poolVirtualGrid;
+        window.__mtapiPoolVirtualScrollTo = (path) => _poolVirtualGrid?.scrollToPath(path, { behavior: 'smooth', block: 'center' });
+      }
     }
-    const sig = `${state.pool.filterQuery || ''}|${state.pool.searchMode || 'fuzzy'}|${state.pool.items.length}|${state.pool.tileZoom}`;
-    if (_videoVirt._sig !== sig) {
-      _videoVirt.invalidate();
-      _videoVirt._sig = sig;
-    }
+    _poolVirtualGrid.sync({ force: true });
 
-    const savedTop = state.pool.gridScrollTop;
-    _videoVirt.sync();
-    if (savedTop != null && Number.isFinite(Number(savedTop)) && wrap.scrollTop === 0 && savedTop > 0) {
-      _videoVirt.setScrollTop(savedTop);
-    }
+    // Persist scroll
     if (!wrap.dataset.scrollPersist) {
       wrap.dataset.scrollPersist = '1';
       wrap.addEventListener('scroll', () => {
         state.pool.gridScrollTop = wrap.scrollTop;
       }, { passive: true });
     }
+
+    _bindGridKeyboard(wrap);
     markFirstWindowReady();
     try { performance.mark('firstVisibleCard'); } catch (_) { /* ignore */ }
     _updatePoolFilterCount();
@@ -1340,9 +1320,9 @@ if (typeof window !== 'undefined') {
     _statusTimer = setTimeout(() => {
       _statusTimer = null;
       try {
-        updateCatalogStatus();
-        _videoVirt?.refreshAllVisible?.();
-        applySeqTokenTimeStyles();
+         updateCatalogStatus();
+         renderPoolGrid();
+         applySeqTokenTimeStyles();
         const path = displayFocusPath();
         const frame = document.getElementById('poolFocusFrame');
         if (frame) frame.dataset.focusPath = '';

@@ -242,6 +242,7 @@ let state = {
   // (health, jobs, file-browser cursors, loading flags) stay outside these.
   settings: {
     thumbnailSize: 'H',
+    wallStyle: 'pair',
     thumbnailsToRam: false,
     phashToRam: false,
     autosaveInterval: 30,
@@ -260,6 +261,7 @@ if (typeof window !== 'undefined') {
 const SETTINGS_DEFAULTS = {
   thumbnailSize: 'H',
   thumbnailSizeIndex: 2,
+  wallStyle: 'pair',
   thumbnailsToRam: false,
   phashToRam: false,
   autosaveInterval: 30,
@@ -817,6 +819,25 @@ async function fetchOperations() {
 
 // Tab Switching
 function switchTab(tab) {
+  // Same-tab remount must not wipe a stable pool wall. Init calls switchTab
+  // after restore; a prior click can already have built #poolGrid.
+  if (tab === state.activeTab && elements.actionPanel) {
+    const keep = tab === 'pool' ? document.getElementById('poolGrid')
+      : tab === 'images' ? document.getElementById('imgPoolGrid')
+      : tab === 'sequence' ? document.getElementById('poolCompose')
+      : null;
+    if (keep && elements.actionPanel.contains(keep)) {
+      document.querySelectorAll('.nav-item').forEach((item) => {
+        item.classList.toggle('active', item.getAttribute('data-tab') === tab);
+      });
+      if (tab === 'pool') {
+        import('/js/pool/grid.js').then((m) => m.renderPoolGrid()).catch(() => {});
+      } else if (tab === 'images') {
+        import('/js/pool/image-pool.js').then((m) => m.renderImagePoolGrid()).catch(() => {});
+      }
+      return;
+    }
+  }
   // DOM forms are destroyed on tab changes. Capture their controls before the
   // next renderer replaces the panel so inactive tabs remain serializable.
   try { captureCurrentFormState(); } catch (_) { /* best effort */ }

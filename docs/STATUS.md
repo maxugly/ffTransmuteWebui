@@ -1,8 +1,8 @@
 # Project status — agent & human source of truth
 
-> **Updated:** 2026-08-15  \
-> **VERSION:** `000.000.6.0`  \
-> **Branch:** `main` (local tree often uncommitted — `git status`)  
+> **Updated:** 2026-08-16  \
+> **VERSION:** `000.000.7.000`  \
+> **Branch:** `main`  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
 **Also read:** `AGENTS.md` (root) · `mtapi-project/AGENTS.md` · [README.md](README.md) · [SESSION-STOPPING-STATE.md](SESSION-STOPPING-STATE.md)
@@ -122,6 +122,12 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Header title gone** | No redundant tab title in the top bar. V-in/out buttons hug the left | `index.html`, `layout.css` · **`5.34`** |
 | **Input preview not sidebar** | Nav `aside` is `.app-sidebar`; input preview is a `div` so collapse/resize no longer shrink it | `index.html`, `layout.css` · **`5.35`** |
 | **Catalog virtualization** | Hover/scroll/select never `/api/media_info`. Path-keyed index + bounded queues. Video **and** Image Pool use `.pool-scroll-canvas`. JS scroll work p95 ~1ms. **Partial:** headless rAF p95 is not the spec’s vsync 16.6ms compositor target | `catalog-interaction-virtualization-spec.md` · **`5.37` Partial** |
+| **Responsive virtualized pools** | Video and Image Pool use the bounded vanilla virtualizer: visible window + 1.5-screen overscan, recycled shells, hash-only thumbs, and explicit loading placeholders. Sequence.js and server catalog/thumbnail generation untouched. Broader catalog-virtualization performance spec remains Partial. | `grid.js`, `image-pool.js`, `virtual-grid.js`, `pool.css` · **`6.5`** |
+| **Pool wall preview** | Default wall is one JPEG: first\|last side by side (120px each). Extra `wall.jpg` is first-only. Settings switch. Prepared on import from extracted first/last. Stable `<img>`; chrome-only recycle. | `pool-wall-preview-spec.md`, `wall-thumbs.js`, `thumbnails.py` · **`6.7`** |
+| **Import probes metadata** | New Video/Image Pool adds queue hash+probe+thumbs immediately. Card Repair Metadata is clickable (`pointer-events`). | `items.js`, `image-pool.js`, `pool.css` · **`6.8`** |
+| **Import wall not stuck** | New clips keep `path=` wall GET until first/last exist; hash URL is assigned after the combo JPEG is written. | `wall-thumbs.js`, `repair-queue.js` · **`6.9`** |
+| **Pool dead-code cleanup** | Removed unused card helpers; `assignCardThumbs` skips wall tenants; viewport-lazy Settings switch gone; no FIRST/LAST labels on `.pool-wall`. | `pool-deadcode-cleanup-spec.md` · **`6.10`** |
+| **7.000 release** | Wall that stays painted: one prepared JPEG (first\|last combo default), stable `<img>` tenants, chrome virtualizer, import probe + generate. | `pool-wall-preview-spec.md` · **`7.000`** |
 | **Server-resident catalog** | CatalogIndex hydrates the full cache before serve; display paths read RAM; exclusive process lock; 64 MiB JPEG warmer; `/api/catalog/status`. §11–12 I/O, lock, warmer, restart, Video+Image+Sequence browser checks accepted | `server-memory-catalog-spec.md` · **`5.38`** |
 
 **Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale, **qr_art** *(in tree — see §4)*. Root `AGENTS.md`.
@@ -138,6 +144,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **UI list / sequence keys** | Sequence L/R + scroll-into-view **shipped `4.64`**; some pool edge cases may remain | `ui-list-nav-timer-spec.md` |
 | **Agent polish** | Phase A+API shipped | Streaming, Image Pool send-to, Ollama, multi-tool loop |
 | Image Sort true TSP | Out of scope | Chain is greedy only |
+| **Pre-7.000 dead-code cleanup** | **Shipped `6.10`** — unused helpers gone; wall tenants skipped; viewport-lazy switch removed | `pool-deadcode-cleanup-spec.md` |
 
 ---
 
@@ -240,7 +247,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.6.0` (Release includes the implemented server-resident catalog and the Partial catalog virtualization checkpoint.)
+- **Current:** `000.000.7.000` (Stable pool wall: one prepared first\|last JPEG, assign-once tenants, chrome virtualizer. Catalog compositor p95 remains Partial at `5.37`.)
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  

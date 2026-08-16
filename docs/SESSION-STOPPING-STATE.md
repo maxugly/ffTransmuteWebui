@@ -1,17 +1,25 @@
 # Session stopping state — handoff
 
-> **Date:** 2026-08-15  
-> **VERSION:** `000.000.6.0`  
+> **Date:** 2026-08-16  
+> **VERSION:** `000.000.7.000`  
 > **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 6.0)
+## 1. Shipped this stretch (through 7.000)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
+| **7.000 release** | Pool wall that stays painted. Merge `wip` → `main`. | `pool-wall-preview-spec.md` · **`7.000`** |
+| **Pool dead-code cleanup** | Removed activateVideoCard/bindVideoRetry/imageThumbUrl; assignCardThumbs skips wall/wall_pair; removed viewport-lazy Settings switch; FIRST/LAST labels no longer injected on .pool-wall. | `pool-deadcode-cleanup-spec.md` · **`6.10`** |
+| **Import wall not stuck** | Keep path= wall request until first/last exist so hash-only 404 cannot freeze “Loading thumbnail…”. | `wall-thumbs.js`, `repair-queue.js` · **`6.9`** |
+| **Import probes metadata** | New pool adds immediately queue hash/probe/thumbs. Overlay Repair Metadata button is clickable again. | `items.js`, `image-pool.js`, `pool.css` · **`6.8`** |
+| **Pool wall first+last combo** | Import extracts first+last, then writes `wall_pair.jpg` (side by side, 120px each) plus the 6.6 first-only `wall.jpg`. Settings switch; default is the combo. | `pool-wall-preview-spec.md` · **`6.7`** |
+| **Pool wall preview** | Stable `<img>` per path; chrome-only recycle; scroll never clears `src`. Match/pHash/Sequence/Cut unchanged. | `wall-thumbs.js`, `thumbnails.py` · **`6.6`** |
+| **Pool display wall (historical 6.3)** | Deleted `js/thumb-decode-cache.js`; the stable wall was later replaced by the responsive virtualizer in 6.5. | `grid.js`, `image-pool.js`, `freshness.js`, `pool.css` · **`6.3`** |
+| **Responsive virtualized pools** | Reconnected Video + Image Pool to the vanilla virtualizer. Visible window + 1.5-screen overscan, bounded recycled shells. 6.6 keeps the chrome pool and stops evicting wall bitmaps. Broader catalog virtualization remains Partial. | `grid.js`, `image-pool.js`, `virtual-grid.js`, `pool.css` · **`6.5`** |
 | **Sequence Audio Engines** | Rubberband DAW flags + 48kHz sample-rate fix + 10ms micro-fade on every clip; engine dropdown UI (rubberband live; atempo/pitch/mute placeholders) | `sequence-audio-engines-spec.md`, `video_pipeline.py:770`, `grid.js`, `persistence.js` · **`5.01`** |
 | **Join preset = transcode** | No dump→PNG for DNxHR/ProRes stitch; normal ffmpeg re-encode | `transcode_with_preset`, `_join_with_preset` · **`5.00`** |
 | **Job workspace on disk** | Default `~/.cache/mtapi/jobs` | `job_workspace.py` · **`4.99`** |
@@ -55,6 +63,7 @@
 | **Header title gone** | Tab title removed; V-in/out flush left | `index.html`, `layout.css` · **`5.34`** |
 | **Input preview not sidebar** | Nav scoped to `.app-sidebar`; preview is a div | `index.html`, `layout.css` · **`5.35`** |
 | **Catalog virtualization** | Hover invariant, queue caps proven (8/4/2/2), Video+Image `.pool-scroll-canvas`, JS scroll work p95 ~1ms. **Partial** — do not claim 16.6ms compositor p95 from headless rAF | `catalog-interaction-virtualization-spec.md` · **`5.37` Partial** |
+| **Pool thumb continuity (historical 6.2)** | The decoded-blob recycle experiment was superseded; current behavior uses browser/server caching and explicit loading placeholders on recycled shells. | `virtual-grid.js`, `freshness.js` · **`6.5`** |
 | **Server-resident catalog** | CatalogIndex hydrates all records before serve; RAM display paths; exclusive lock; 64 MiB JPEG warmer; `/api/catalog/status`. §11–12 I/O, lock, warmer, restart, Video+Image+Sequence browser checks accepted | `server-memory-catalog-spec.md` · **`5.38`** |
 
 Earlier stable: filter platform, dual pools, Convert, neural ops, Prompt Library, Recohere, Agent, OpenVINO stills.
@@ -70,6 +79,10 @@ Earlier stable: filter platform, dual pools, Convert, neural ops, Prompt Library
 Next strip→video ops: inherit params, import JS helper, call `build_evolve_video`.
 
 ---
+
+## 1b. Next
+
+`000.000.7.000` is the release cut. No cleanup assignment open.
 
 ## 2. Partial / open (do not claim done)
 

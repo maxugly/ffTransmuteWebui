@@ -5,13 +5,12 @@
  * Canvas:        .pool-scroll-canvas
  * Cards:         direct-child .pool-card (absolute + translate3d)
  *
- * Scroll path is transform + dataset only. Full card content is filled when
- * the path changes and after scroll idle. Recycled nodes stay in the canvas.
+ * Scroll path is transform + dataset only. Recycled nodes stay in the canvas;
+ * image decode never gates their placement.
  */
 
 const OVERSCAN_SCREENS = 1.5;
 const GAP = 8;
-const CREATE_BUDGET = 8;
 const WORK_SAMPLES = 120;
 
 function _colsFor(width, minCol) {
@@ -24,8 +23,11 @@ function createVirtualGrid({
   canvas,
   getItems,
   renderCard,
+  updateCard,
   recycleCard,
+  placeholderCard,
   bindCard,
+  onWindow,
   minColWidth = 200,
   overscanScreens = OVERSCAN_SCREENS,
 } = {}) {
@@ -45,6 +47,7 @@ function createVirtualGrid({
   const workSamples = [];
   let lastWorkMs = 0;
   let scrolling = false;
+  let lastRange = null;
 
   function measure() {
     if (!wrap || !canvas) return layout;
@@ -115,6 +118,7 @@ function createVirtualGrid({
   }
 
   function parkCard(el) {
+    if (typeof recycleCard === 'function') recycleCard(el);
     el.dataset.path = '';
     el.dataset.hash = '';
     el.dataset.idx = '';
@@ -173,42 +177,43 @@ function createVirtualGrid({
     lastWinKey = winKey;
     layout.start = win.start;
     layout.end = win.end;
-    const warm = Math.min(Math.max(win.limit, 1), 96);
-    while (cards.size + free.length < warm) parkCard(createCard());
-
     const keep = new Set();
-    let created = 0;
-    let deferred = false;
     const order = [];
     for (let i = win.visStart; i < win.visEnd; i++) order.push(i);
     for (let i = win.start; i < win.end; i++) {
       if (i < win.visStart || i >= win.visEnd) order.push(i);
     }
 
-    const paint = (lite && typeof recycleCard === 'function') ? recycleCard : renderCard;
+    lastRange = { start: win.start, end: win.end, visStart: win.visStart, visEnd: win.visEnd };
+    // Mount the destination window directly. Card creation is bounded by the
+    // visible window plus overscan; image decode never gates placement.
+    function place(el, item, i, paint) {
+      el.style.pointerEvents = 'none';
+      el.style.transform = 'translate3d(-10000px, 0, 0)';
+      if (typeof paint === 'function') paint(el, item, i);
+      el.dataset.idx = String(i);
+      if (el.parentNode !== canvas) canvas.appendChild(el);
+      el.style.pointerEvents = '';
+      positionCard(el, i);
+    }
 
     for (const i of order) {
       const item = items[i];
       if (!item || !item.path) continue;
-      keep.add(item.path);
       let el = cards.get(item.path);
-      if (!el) {
-        if (created >= CREATE_BUDGET && !force) {
-          deferred = true;
-          keep.delete(item.path);
-          continue;
-        }
-        el = acquireCard();
-        el.style.pointerEvents = '';
-        if (el.parentNode !== canvas) canvas.appendChild(el);
-        cards.set(item.path, el);
-        if (typeof paint === 'function') paint(el, item, i);
-        created += 1;
-      } else if (force && typeof renderCard === 'function') {
-        renderCard(el, item, i);
+      if (el) {
+        keep.add(item.path);
+        if (typeof updateCard === 'function') updateCard(el, item, i);
+        el.dataset.idx = String(i);
+        positionCard(el, i);
+        continue;
       }
-      el.dataset.idx = String(i);
-      positionCard(el, i);
+      el = acquireCard();
+      cards.set(item.path, el);
+      // Recycled shells are deliberately painted immediately. The card's
+      // loading state is handled by its thumbnail events, not by this window.
+      place(el, item, i, renderCard || placeholderCard);
+      keep.add(item.path);
     }
 
     for (const [p, el] of cards) {
@@ -218,11 +223,24 @@ function createVirtualGrid({
       }
     }
 
+    let holes = 0;
+    for (let i = win.visStart; i < win.visEnd; i++) {
+      const it = items[i];
+      if (it && it.path && !cards.has(it.path)) holes += 1;
+    }
+
+    if (typeof onWindow === 'function') {
+      const windowItems = [];
+      for (let i = win.start; i < win.end; i++) {
+        if (items[i]) windowItems.push(items[i]);
+      }
+      try { onWindow(windowItems, { holes }); } catch (_) { /* ignore */ }
+    }
+
     if (!firstPaintMarked && cards.size > 0) {
       firstPaintMarked = true;
       try { performance.mark('firstVisibleCard'); } catch (_) { /* ignore */ }
     }
-    if (deferred) requestSync();
     return layout;
   }
 
@@ -361,14 +379,14 @@ function createVirtualGrid({
       if (el.parentNode) el.parentNode.removeChild(el);
     }
     for (const el of free) {
-      if (el.parentNode) el.parentNode.removeChild(el);
-    }
-    cards.clear();
-    free.length = 0;
-  }
+       if (el.parentNode) el.parentNode.removeChild(el);
+     }
+     cards.clear();
+     free.length = 0;
+   }
 
-  wrap?.addEventListener('scroll', onScroll, { passive: true });
-  if (typeof ResizeObserver !== 'undefined' && wrap) {
+   wrap?.addEventListener('scroll', onScroll, { passive: true });
+   if (typeof ResizeObserver !== 'undefined' && wrap) {
     ro = new ResizeObserver(() => onResize());
     ro.observe(wrap);
   }

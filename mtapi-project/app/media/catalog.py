@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
-from .config import THUMBNAIL_SIZES, normalize_thumb_size
+from .config import THUMBNAIL_SIZES, existing_wall_file, existing_wall_pair_file, normalize_thumb_size
 from .performance import load_settings, thumbnail_cache
 
 log = logging.getLogger("mtapi.catalog")
@@ -387,6 +387,19 @@ class CatalogIndex:
         await asyncio.to_thread(self.hydrate)
         if self.thumbnails_to_ram:
             self._start_warmer()
+        if self._loop is not None:
+            self._loop.create_task(self._prepare_wall_previews())
+
+    async def _prepare_wall_previews(self) -> None:
+        """Write missing wall.jpg from already-paid first-frame JPEGs. No video decode."""
+        from .thumbnails import ensure_wall_previews
+        hashes = list(self.hash_to_record.keys())
+        for i in range(0, len(hashes), 16):
+            batch = hashes[i:i + 16]
+            await asyncio.gather(
+                *(ensure_wall_previews(h, generate_from_video=False) for h in batch),
+                return_exceptions=True,
+            )
 
     async def shutdown(self) -> None:
         await self._cancel_warmer()
@@ -903,7 +916,7 @@ class CatalogIndex:
         if rec is None:
             rec = self.record_for_path(item.get("path"))
         if rec is None:
-            out.setdefault("thumbs", {"first": False, "last": False})
+            out.setdefault("thumbs", {"first": False, "last": False, "wall": False, "wall_pair": False})
             return out
         size = self.selected_size
         out["hash"] = rec.hash
@@ -914,13 +927,19 @@ class CatalogIndex:
             out["meta_signature"] = rec.meta_signature
         out["history_count"] = rec.history_count
         out["open_count"] = rec.open_count
+        wall_ok = existing_wall_file(rec.hash) is not None
+        pair_ok = existing_wall_pair_file(rec.hash) is not None
         out["thumbs"] = {
             "first": rec.thumbs["first"][size].state == "available",
             "last": rec.thumbs["last"][size].state == "available",
+            "wall": wall_ok,
+            "wall_pair": pair_ok,
         }
         out["thumbsFailed"] = {
             "first": rec.thumbs["first"][size].state == "failed",
             "last": rec.thumbs["last"][size].state == "failed",
+            "wall": bool((rec.thumb_failed or {}).get("wall")) and not wall_ok,
+            "wall_pair": bool((rec.thumb_failed or {}).get("wall_pair")) and not pair_ok,
         }
         first_slot = rec.thumbs["first"][size]
         last_slot = rec.thumbs["last"][size]

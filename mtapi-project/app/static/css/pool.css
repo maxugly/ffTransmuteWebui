@@ -175,7 +175,8 @@
   aspect-ratio: 16 / 9;
   min-height: 120px;
   z-index: 1;
-  contain: layout style;
+   contain: layout style;
+   contain-intrinsic-size: 220px 124px;
 }
 
 .pool-card:hover {
@@ -338,6 +339,20 @@
   overflow: hidden;
   border-radius: var(--radius-md);
   z-index: 0;
+}
+
+.pool-frames.pool-wall {
+  grid-template-columns: 1fr;
+}
+
+#wall-thumb-park {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 120px;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0;
 }
 
 .pool-frame {
@@ -514,6 +529,7 @@
 
 .pool-retry-meta {
   margin-top: 4px;
+  pointer-events: auto;
 }
 
 /* On pool tab, give the grid more room when viewport is wide */
@@ -595,15 +611,34 @@
   width: 100%;
   min-height: 80px;
   --pool-tile-min: 200px;
+  display: block;
+}
+
+.pool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--pool-tile-min, 200px), 1fr));
+  gap: 8px;
+  padding-bottom: 4px;
 }
 
 .pool-scroll-canvas > .pool-card {
-  position: absolute;
-  left: 0;
-  top: 0;
+  /* Virtual-grid positions recycled cards absolutely. */
   margin: 0;
-  aspect-ratio: auto;
-  will-change: transform;
+  aspect-ratio: 16 / 9;
+}
+
+.pool-frame.is-loading::after {
+  content: 'Loading thumbnail…';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  color: var(--text-muted);
+  background: linear-gradient(135deg, #1a1f2e 0%, #0d111a 100%);
+  font-size: 0.72rem;
+  text-align: center;
+  pointer-events: none;
 }
 
 .pool-scroll-canvas > .pool-empty {
@@ -668,7 +703,7 @@
 
 .action-panel.pool-active .pool-grid {
   /* slightly tighter for denser wall of cards */
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--pool-tile-min, 200px), 1fr));
   gap: 8px;
   padding-bottom: 4px;
 }
@@ -1464,6 +1499,10 @@
 
 .pool-grid {
   --pool-tile-min: 200px;
+}
+
+.img-pool-grid {
+  --pool-tile-min: 160px;
 }
 
 .action-panel.pool-active .pool-grid {

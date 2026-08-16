@@ -495,6 +495,14 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
       try { m.probeGlobalVideo(firstVideo); } catch (_) { /* ignore */ }
     }).catch(() => {});
   }
+
+  // Restore can finish after the pool wall already mounted (empty). Refresh
+  // cards without remounting the form.
+  if (state.activeTab === 'pool' && document.getElementById('poolGrid')) {
+    import('/js/pool/grid.js').then((m) => m.renderPoolGrid()).catch(() => {});
+  } else if (state.activeTab === 'images' && document.getElementById('imgPoolGrid')) {
+    import('/js/pool/image-pool.js').then((m) => m.renderImagePoolGrid()).catch(() => {});
+  }
 }
 
 async function projectNew() {
@@ -926,15 +934,32 @@ async function stitchPoolSequence() {
 /** False when the record already paid for a failed extract — do not GET 404. */
 function itemShowsThumb(item, which) {
   const w = which || 'first';
-  if (!item || !item.hash) return false;
+  if (!item) return false;
   if (item.thumbsFailed && item.thumbsFailed[w]) return false;
+  if (w === 'wall') {
+    return !!(item.hash || item.path);
+  }
+  if (!item.hash) return false;
   if (item.thumbs && item.thumbs[w] === false) return false;
   return true;
 }
 
+function wallPreviewWhich() {
+  return (state.settings && state.settings.wallStyle === 'first') ? 'wall' : 'wall_pair';
+}
+
 function poolThumbUrl(item, which) {
-  const size = String(state.settings?.thumbnailSize || 'H').toUpperCase();
   const w = which || 'first';
+  if (w === 'wall' || w === 'wall_pair') {
+    const kind = w === 'wall_pair' ? 'wall_pair' : wallPreviewWhich();
+    const rev = item && item.thumb_rev && (item.thumb_rev[kind] || item.thumb_rev.wall);
+    const version = rev != null ? rev : 1;
+    if (item.hash) {
+      return `/api/thumbnail?hash=${encodeURIComponent(item.hash)}&which=${kind}&v=${version}`;
+    }
+    return `/api/thumbnail?path=${encodeURIComponent(item.path)}&which=${kind}&v=${version}`;
+  }
+  const size = String(state.settings?.thumbnailSize || 'H').toUpperCase();
   const rev = item && item.thumb_rev && item.thumb_rev[w];
   const version = rev != null ? rev : 3;
   // Prefer content-hash once known — permanent cache key independent of path
@@ -1024,6 +1049,6 @@ export {
   savePoolStateNow, restorePoolState,
   refreshPoolToolbarCounts, ensureVideoOutputPath,
   stitchPoolSequence,
-  poolThumbUrl, itemShowsThumb, shortHash, buildPoolMetaHtml,
+  poolThumbUrl, wallPreviewWhich, itemShowsThumb, shortHash, buildPoolMetaHtml,
   isApplyingFormState, serializePoolItem, hydratePoolItem, migratePoolPayload,
 };

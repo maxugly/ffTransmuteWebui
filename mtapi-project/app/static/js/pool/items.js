@@ -1,7 +1,8 @@
 import { state, elements, logConsole, showPreview, renderPoolForm, renderStyleTransferForm, renderFaceMorphForm, renderWithoutBgForm, checkHealth, switchTab, formatBytes } from '/app.js';
 import { isVideoPath, basename, formatDurationExact } from '/js/utils.js';
-import { shortHash, buildPoolMetaHtml, poolThumbUrl, scheduleSavePoolState } from '/js/pool/persistence.js';
-import { assignThumbSrc } from '/js/lazy-loader.js';
+import { shortHash, buildPoolMetaHtml, scheduleSavePoolState } from '/js/pool/persistence.js';
+import { attachWallTenant, prepareWallTenants } from '/js/pool/wall-thumbs.js';
+import { repairItem } from '/js/repair-queue.js';
 import { applySeqTokenTimeStyles, updateSeqClipSettings, displayFocusPath, updatePoolFocusFrame, setPoolFocus, updateSelectionHighlights, updateSeqTransportUI, seqStop, addPathToSequence } from '/js/pool/sequence.js';
 import { runQuickTransmute } from '/js/tabs/quick.js';
 import { addMultiClipPath } from '/js/tabs/transmute.js';
@@ -51,15 +52,11 @@ async function loadPoolItemMeta(item, idx) {
   if (el) el.innerHTML = buildPoolMetaHtml(item);
 
   if (item.hash) {
+    prepareWallTenants([item]);
     const card = Array.from(document.querySelectorAll('.pool-card')).find(c => c.dataset.path === item.path);
     if (card) {
       card.dataset.hash = item.hash;
-      card.querySelectorAll('img.pool-thumb').forEach(img => {
-        if (!img.getAttribute('src')) return;
-        const which = img.dataset.which || 'first';
-        const next = poolThumbUrl(item, which);
-        if (img.getAttribute('src').includes('path=')) assignThumbSrc(img, next);
-      });
+      attachWallTenant(card, item);
     }
   }
 }
@@ -67,9 +64,8 @@ async function loadPoolItemMeta(item, idx) {
 function scrollToSelected() {
   const path = state.pool.selectedPath;
   if (!path) return;
-  const virt = window.__mtapiVirtualGrid;
-  if (virt && typeof virt.scrollToPath === 'function') {
-    virt.scrollToPath(path, { behavior: 'smooth', block: 'center' });
+  if (typeof window !== 'undefined' && typeof window.__mtapiPoolVirtualScrollTo === 'function') {
+    window.__mtapiPoolVirtualScrollTo(path);
     return;
   }
   const card = Array.from(document.querySelectorAll('.pool-card')).find(c => c.dataset.path === path);
@@ -86,9 +82,7 @@ function selectPoolItem(path, ev = null) {
   const shift = !!(ev && ev.shiftKey);
   const toggle = !!(ev && (ev.metaKey || ev.ctrlKey));
   if (shift) {
-    const items = (typeof window !== 'undefined' && window.__mtapiVirtualGrid?.items)
-      ? window.__mtapiVirtualGrid.items
-      : (state.pool.items || []);
+    const items = state.pool.items || [];
     const anchor = state.pool.selectionAnchor || state.pool.selectedPath || path;
     const a = items.findIndex((it) => it.path === anchor);
     const b = items.findIndex((it) => it.path === path);
@@ -143,7 +137,8 @@ function selectPoolItem(path, ev = null) {
   const countEl = document.querySelector('.pool-count');
   if (countEl) {
     const q = (state.pool.filterQuery || '').trim();
-    const shown = q ? (window.__mtapiVirtualGrid?.items?.length ?? state.pool.items.length) : state.pool.items.length;
+    const visibleCards = document.querySelectorAll('.pool-card').length;
+    const shown = q ? visibleCards : state.pool.items.length;
     countEl.textContent = q
       ? `${shown} shown · ${state.pool.items.length} in video pool · ${state.pool.sequence.length} in sequence`
       : `${state.pool.items.length} in video pool · ${state.pool.sequence.length} in sequence`;
@@ -219,6 +214,7 @@ function addPathsToPool(paths) {
     };
     state.pool.items.push(addedItem);
     try { window.globalMediaIndex?.put(addedItem); } catch (_) { /* ignore */ }
+    try { repairItem(addedItem, { force: true }); } catch (_) { /* ignore */ }
     if (!firstNew) firstNew = path;
     added++;
   }

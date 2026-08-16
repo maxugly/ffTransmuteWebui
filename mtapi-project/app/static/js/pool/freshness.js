@@ -4,6 +4,10 @@
  * Restore is cache-first: existing records reuse path + filename + filesize
  * and never hit /api/media_signature. Validation is targeted (retry, missing
  * identity, optional lazy mode) and goes through the batch queue.
+ *
+ * Thumb assignment is assign-once: each <img> gets its URL at mount time via
+ * assignThumbSrc (native loading=lazy) guarded by data-thumbKey so a card
+ * never reassigns or clears its src on scroll.
  */
 import { state } from '/app.js';
 import { poolThumbUrl, itemShowsThumb } from '/js/pool/persistence.js';
@@ -94,44 +98,43 @@ function thumbUrlWithBust(item, which, mtimeNs) {
   return url;
 }
 
+/**
+ * Assign thumb URLs to a card's <img> elements using assign-once semantics.
+ * Each img is assigned at most once per card lifetime (guarded by data-thumbKey).
+ * When the item hash is discovered later (path→hash URL upgrade), reloadImageCardThumbs
+ * handles the transition via the standard assignThumbSrc path.
+ */
 function assignCardThumbs(card, item, { bust = false } = {}) {
-  if (!card) return;
-  const m = bust ? item.meta_signature?.mtime_ns : null;
+  if (!card || !item) return;
   card.querySelectorAll('img.pool-thumb').forEach((img) => {
     const which = img.dataset.which || 'first';
-    if (item.thumbsFailed && item.thumbsFailed[which]) {
-      img.removeAttribute('src');
-      return;
-    }
-    // Display is cache-only. Missing thumbs stay blank until the idle
-    // repair queue or an explicit Repair Metadata click.
+    if (which === 'wall' || which === 'wall_pair') return;
     if (!itemShowsThumb(item, which)) {
       img.removeAttribute('src');
+      img.dataset.thumbKey = '';
       return;
     }
-    const url = thumbUrlWithBust(item, which, m);
-    if (img.getAttribute('src') === url) return;
-    assignThumbSrc(img, url).then((ok) => {
-      if (ok) img.classList.remove('broken');
-      else img.removeAttribute('src');
-    });
+    let url = poolThumbUrl(item, which);
+    if (bust) url = thumbUrlWithBust(item, which);
+    // Assign-once guard: never reassign or clear src already pointing at this URL.
+    if (img.dataset.thumbKey === url) return;
+    if (img.getAttribute('src') === url) {
+      img.dataset.thumbKey = url;
+      return;
+    }
+    assignThumbSrc(img, url);
+    img.dataset.thumbKey = url;
   });
 }
 
 function refreshAssignedPoolThumbs() {
-  document.querySelectorAll('img.pool-thumb[src]').forEach((img) => {
-    const card = img.closest('.pool-card, .img-pool-card');
-    if (!card) return;
+  document.querySelectorAll('.pool-card, .img-pool-card').forEach((card) => {
     const path = card.dataset.path;
+    if (!path) return;
     const item = (state.pool?.items || []).find((i) => i.path === path)
       || (state.imagePool?.items || []).find((i) => i.path === path);
     if (!item) return;
-    const which = img.dataset.which || 'first';
-    const m = item.meta_signature?.mtime_ns;
-    assignThumbSrc(img, thumbUrlWithBust(item, which, m)).then((ok) => {
-      if (!ok) img.classList.add('broken');
-      else img.classList.remove('broken');
-    });
+    assignCardThumbs(card, item, { bust: false });
   });
 }
 

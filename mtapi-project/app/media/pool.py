@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .config import POOL_STATE_PATH, existing_thumb_file
+from .config import POOL_STATE_PATH, existing_thumb_file, existing_wall_file, existing_wall_pair_file
 from .cache import load_record
 
 log = logging.getLogger("mtapi.media_store")
@@ -477,10 +477,14 @@ def _record_thumb_flags(content_hash: str, rec: dict[str, Any] | None) -> tuple[
     failed = {
         "first": bool(failed_raw.get("first")),
         "last": bool(failed_raw.get("last")),
+        "wall": bool(failed_raw.get("wall")),
+        "wall_pair": bool(failed_raw.get("wall_pair")),
     }
     thumbs = {
         "first": (not failed["first"]) and existing_thumb_file(content_hash, "first") is not None,
         "last": (not failed["last"]) and existing_thumb_file(content_hash, "last") is not None,
+        "wall": (not failed["wall"]) and existing_wall_file(content_hash) is not None,
+        "wall_pair": (not failed["wall_pair"]) and existing_wall_pair_file(content_hash) is not None,
     }
     return thumbs, failed
 
