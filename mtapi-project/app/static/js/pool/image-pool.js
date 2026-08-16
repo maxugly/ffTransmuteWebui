@@ -31,10 +31,6 @@ function ensureImagePool() {
   return state.imagePool;
 }
 
-function imageThumbUrl(item) {
-  return poolThumbUrl(item, 'wall');
-}
-
 function fuzzyMatch(query, text) {
   if (!query) return true;
   const q = String(query).toLowerCase().trim();
@@ -932,6 +928,5 @@ export {
   importImageFiles,
   importImageFolder,
   sendImagePathTo,
-  imageThumbUrl,
   loadImageItemMeta,
 };

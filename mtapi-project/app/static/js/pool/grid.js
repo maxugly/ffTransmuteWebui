@@ -83,24 +83,6 @@ function paintVideoCard(card, item) {
   if (el) el.innerHTML = videoCardMetaHtml(item);
 }
 
-function bindVideoRetry(card, item) {
-  card.querySelectorAll('.pool-retry-meta').forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const path = card.dataset.path || item?.path;
-      const live = findPoolItem(path) || item;
-      if (live) repairItem(live, { force: true });
-    });
-  });
-}
-
-function activateVideoCard(card, item) {
-  // Display-only. Never probes. Repair is the idle queue or Repair Metadata.
-  paintVideoCard(card, item);
-  bindVideoRetry(card, item);
-}
-
 // ── Join / Sequence helpers ─────────────────────────────────────────────────
 
 let JOIN_PRESETS = null;
