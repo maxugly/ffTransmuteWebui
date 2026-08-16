@@ -40,7 +40,7 @@
 
 ---
 
-## At a glance — `000.000.6.8` (2026-08-16)
+## At a glance — `000.000.7.000` (2026-08-16)
 
 ### Shipped recently
 | Doc / feature | Ver |

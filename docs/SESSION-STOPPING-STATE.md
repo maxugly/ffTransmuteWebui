@@ -1,17 +1,18 @@
 # Session stopping state — handoff
 
 > **Date:** 2026-08-16  
-> **VERSION:** `000.000.6.10`  
-> **Branch:** `wip`  
+> **VERSION:** `000.000.7.000`  
+> **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 6.9)
+## 1. Shipped this stretch (through 7.000)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
+| **7.000 release** | Pool wall that stays painted. Merge `wip` → `main`. | `pool-wall-preview-spec.md` · **`7.000`** |
 | **Pool dead-code cleanup** | Removed activateVideoCard/bindVideoRetry/imageThumbUrl; assignCardThumbs skips wall/wall_pair; removed viewport-lazy Settings switch; FIRST/LAST labels no longer injected on .pool-wall. | `pool-deadcode-cleanup-spec.md` · **`6.10`** |
 | **Import wall not stuck** | Keep path= wall request until first/last exist so hash-only 404 cannot freeze “Loading thumbnail…”. | `wall-thumbs.js`, `repair-queue.js` · **`6.9`** |
 | **Import probes metadata** | New pool adds immediately queue hash/probe/thumbs. Overlay Repair Metadata button is clickable again. | `items.js`, `image-pool.js`, `pool.css` · **`6.8`** |
@@ -79,9 +80,9 @@ Next strip→video ops: inherit params, import JS helper, call `build_evolve_vid
 
 ---
 
-## 1b. Next assignment (not started)
+## 1b. Next
 
-Dead-code cleanup **before** 7.000: [pool-deadcode-cleanup-spec.md](pool-deadcode-cleanup-spec.md) + handoff [coder-pool-deadcode-cleanup-prompt.md](coder-pool-deadcode-cleanup-prompt.md). Base `c4b6216` / 6.9 → **shipped `6.10`**. Do **not** delete wall-thumbs, virtual-grid, first/last H, or match/pHash.
+`000.000.7.000` is the release cut. No cleanup assignment open.
 
 ## 2. Partial / open (do not claim done)
 

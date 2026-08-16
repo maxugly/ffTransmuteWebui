@@ -3,7 +3,7 @@
     "file": "SESSION-STOPPING-STATE.md",
     "path": "docs/SESSION-STOPPING-STATE.md",
     "category": "Meta",
-    "status": "Handoff 2026-08-15 / 000.000.6.3",
+    "status": "Handoff 2026-08-16 / 000.000.7.000",
     "summary": "Session stop handoff; prefer STATUS.md for live truth."
   },
   {
@@ -437,22 +437,22 @@
     "file": "pool-wall-preview-spec.md",
     "path": "docs/pool-wall-preview-spec.md",
     "category": "Core Architecture / WebUI",
-    "status": "Implemented 000.000.6.7",
+    "status": "Implemented 000.000.6.7; released 000.000.7.000",
     "summary": "Default wall is wall_pair.jpg (first|last side by side). Extra wall.jpg is first-only. Settings switch. Prepared on import from extracted first/last. Stable image node; recycled chrome only."
   },
   {
     "file": "pool-deadcode-cleanup-spec.md",
     "path": "docs/pool-deadcode-cleanup-spec.md",
     "category": "Core Architecture / WebUI",
-    "status": "Implemented 000.000.6.10",
+    "status": "Implemented 000.000.6.10; released 000.000.7.000",
     "summary": "Delete 6.2–6.5 recycle/viewport-lazy leftovers only. Sacred: wall-thumbs, virtual-grid chrome, first/last H, pHash, L/M/H, First+last wall setting. rg proof before every delete."
   },
   {
     "file": "coder-pool-deadcode-cleanup-prompt.md",
     "path": "docs/coder-pool-deadcode-cleanup-prompt.md",
     "category": "Meta / Prompt",
-    "status": "Implemented 000.000.6.10",
-    "summary": "One-shot prompt to implement pool-deadcode-cleanup-spec.md as 6.10. No 7.000, no main merge, mandatory browser table."
+    "status": "Completed 000.000.6.10; released 000.000.7.000",
+    "summary": "One-shot prompt implemented as 6.10. Released in 7.000."
   },
   {
     "file": "server-memory-catalog-spec.md",
