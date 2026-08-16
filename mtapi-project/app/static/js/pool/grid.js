@@ -158,6 +158,7 @@ function renderPoolForm() {
     </div>
   `;
 
+  _poolWallSig = null;
   elements.actionPanel.innerHTML = html;
   (elements.actionPanelRoot || elements.actionPanel).classList.add('pool-active');
 
@@ -834,6 +835,7 @@ function renderSequenceForm() {
     </div>
   `;
 
+  _poolWallSig = null;
   elements.actionPanel.innerHTML = html;
   (elements.actionPanelRoot || elements.actionPanel).classList.add('pool-active');
 
@@ -940,11 +942,11 @@ function ensurePoolCardSkeleton(card) {
       <span class="pool-seq-indicator" hidden></span>
       <div class="pool-frames">
         <div class="pool-frame">
-           <img class="pool-thumb" alt="First frame" loading="lazy" decoding="async" data-which="first" draggable="false">
+           <img class="pool-thumb" alt="First frame" loading="eager" decoding="async" data-which="first" draggable="false">
            <span class="pool-frame-label">FIRST</span>
          </div>
          <div class="pool-frame">
-           <img class="pool-thumb" alt="Last frame" loading="lazy" decoding="async" data-which="last" draggable="false">
+           <img class="pool-thumb" alt="Last frame" loading="eager" decoding="async" data-which="last" draggable="false">
           <span class="pool-frame-label">LAST</span>
         </div>
       </div>
@@ -1279,8 +1281,9 @@ function renderPoolGrid() {
     // change (selection/zoom/meta) refresh in-place without rebuilding cards.
     const sig = items.map((i) => i.path).join('\n');
     const savedTop = wrap.scrollTop;
+    const existingCards = canvas.querySelectorAll('.pool-card').length;
 
-    if (sig !== _poolWallSig) {
+    if (sig !== _poolWallSig || existingCards === 0) {
       _poolWallSig = sig;
       canvas.innerHTML = '';
       const frag = document.createDocumentFragment();

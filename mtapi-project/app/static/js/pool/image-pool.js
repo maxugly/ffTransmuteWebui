@@ -647,6 +647,7 @@ function renderImagePoolForm() {
     </div>
   `;
 
+  _imageWallSig = null;
   elements.actionPanel.innerHTML = html;
   (elements.actionPanelRoot || elements.actionPanel).classList.add('pool-active');
   installPoolScrollPaint();
@@ -711,7 +712,7 @@ function ensureImageCardSkeleton(card) {
       </div>
       <div class="pool-frames img-pool-single">
         <div class="pool-frame">
-           <img class="pool-thumb" alt="" loading="lazy" decoding="async" data-which="first" draggable="false">
+           <img class="pool-thumb" alt="" loading="eager" decoding="async" data-which="first" draggable="false">
         </div>
       </div>
       <div class="pool-overlay">
@@ -835,8 +836,9 @@ function renderImagePoolGrid() {
   // Stable card wall: one DOM element per item, keyed by path.
   const sig = items.map((i) => i.path).join('\n');
   const savedTop = wrap.scrollTop;
+  const existingCards = canvas.querySelectorAll('.img-pool-card').length;
 
-  if (sig !== _imageWallSig) {
+  if (sig !== _imageWallSig || existingCards === 0) {
     _imageWallSig = sig;
     canvas.innerHTML = '';
     const frag = document.createDocumentFragment();

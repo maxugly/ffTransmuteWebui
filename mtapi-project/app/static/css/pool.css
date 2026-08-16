@@ -175,9 +175,8 @@
   aspect-ratio: 16 / 9;
   min-height: 120px;
   z-index: 1;
-  contain: layout style;
-  content-visibility: auto;
-  contain-intrinsic-size: 220px 124px;
+   contain: layout style;
+   contain-intrinsic-size: 220px 124px;
 }
 
 .pool-card:hover {

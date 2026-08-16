@@ -495,6 +495,14 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
       try { m.probeGlobalVideo(firstVideo); } catch (_) { /* ignore */ }
     }).catch(() => {});
   }
+
+  // Restore can finish after the pool wall already mounted (empty). Refresh
+  // cards without remounting the form.
+  if (state.activeTab === 'pool' && document.getElementById('poolGrid')) {
+    import('/js/pool/grid.js').then((m) => m.renderPoolGrid()).catch(() => {});
+  } else if (state.activeTab === 'images' && document.getElementById('imgPoolGrid')) {
+    import('/js/pool/image-pool.js').then((m) => m.renderImagePoolGrid()).catch(() => {});
+  }
 }
 
 async function projectNew() {
