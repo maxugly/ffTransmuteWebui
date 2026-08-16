@@ -176,6 +176,8 @@
   min-height: 120px;
   z-index: 1;
   contain: layout style;
+  content-visibility: auto;
+  contain-intrinsic-size: 220px 124px;
 }
 
 .pool-card:hover {
@@ -361,37 +363,6 @@
 .pool-thumb.broken {
   opacity: 0.25;
   object-fit: none;
-}
-
-.pool-frame.is-pending .pool-thumb {
-  opacity: 0;
-}
-
-.pool-frame.is-pending::before,
-.pool-frame.is-missing::before {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px;
-  text-align: center;
-  font-size: 0.68rem;
-  line-height: 1.25;
-  pointer-events: none;
-}
-
-.pool-frame.is-pending::before {
-  content: attr(data-pending-label);
-  color: #e2e8f0;
-  background: #1e293b;
-}
-
-.pool-frame.is-missing::before {
-  content: 'No thumbnail';
-  color: #64748b;
-  background: #111827;
 }
 
 .pool-frame-label {
@@ -628,13 +599,17 @@
   --pool-tile-min: 200px;
 }
 
+.pool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--pool-tile-min, 200px), 1fr));
+  gap: 8px;
+  padding-bottom: 4px;
+}
+
 .pool-scroll-canvas > .pool-card {
-  position: absolute;
-  left: 0;
-  top: 0;
+  /* cards flow natively in CSS grid; no absolute positioning */
   margin: 0;
-  aspect-ratio: auto;
-  will-change: transform;
+  aspect-ratio: 16 / 9;
 }
 
 .pool-scroll-canvas > .pool-empty {
@@ -699,7 +674,7 @@
 
 .action-panel.pool-active .pool-grid {
   /* slightly tighter for denser wall of cards */
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(var(--pool-tile-min, 200px), 1fr));
   gap: 8px;
   padding-bottom: 4px;
 }
@@ -1495,6 +1470,10 @@
 
 .pool-grid {
   --pool-tile-min: 200px;
+}
+
+.img-pool-grid {
+  --pool-tile-min: 160px;
 }
 
 .action-panel.pool-active .pool-grid {

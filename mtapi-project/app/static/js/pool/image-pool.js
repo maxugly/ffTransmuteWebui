@@ -10,18 +10,13 @@ import {
   scheduleSavePoolState, poolThumbUrl, itemShowsThumb, shortHash, projectLabel,
   projectNew, projectOpen, projectSave,
 } from '/js/pool/persistence.js';
-import { clearPending as lazyClearPending, assignThumbSrc } from '/js/lazy-loader.js';
+import { clearPending as lazyClearPending } from '/js/lazy-loader.js';
 import { validateItemSignature, assignCardThumbs, metaRetryHtml, hasRestoredIdentity } from '/js/pool/freshness.js';
-import {
-  commitReadyThumbs, commitPlaceholderThumbs, preloadItems,
-  noteVisibleHoles, itemDisplayReady, sampleVisibleThumbs,
-} from '/js/thumb-decode-cache.js';
 import { globalMediaIndex } from '/js/media-index.js';
 import { installPoolScrollPaint } from '/js/pool/layout.js';
-import { createVirtualGrid } from '/js/pool/virtual-grid.js';
 import { repairItem } from '/js/repair-queue.js';
 
-let _imageVirt = null;
+let _imageWallSig = null;
 
 // ── helpers ──────────────────────────────────────────────────────────────
 
@@ -124,12 +119,11 @@ async function loadImageItemMeta(item) {
     const card = Array.from(document.querySelectorAll('.img-pool-card'))
       .find(c => c.dataset.path === item.path);
     if (card) {
-      const metaEl = card.querySelector('.img-pool-meta');
-      if (metaEl) metaEl.innerHTML = buildImageMetaHtml(item);
-      if (item.hash) {
-        const img = card.querySelector('img.pool-thumb');
-        if (img && img.getAttribute('src')) assignThumbSrc(img, imageThumbUrl(item));
-      }
+       const metaEl = card.querySelector('.img-pool-meta');
+       if (metaEl) metaEl.innerHTML = buildImageMetaHtml(item);
+       if (item.hash) {
+         assignCardThumbs(card, item, { bust: false });
+       }
     }
   }
 }
@@ -307,8 +301,8 @@ function clearImagePool() {
   const ip = ensureImagePool();
   if (ip.items.length === 0) return;
   if (!confirm(`Clear all ${ip.items.length} images from the Image Pool?`)) return;
-  releaseObservedImageCards();
   lazyClearPending();
+  _imageWallSig = null;
   ip.items = [];
   ip.selectedPath = null;
   logConsole('[IMAGE POOL]: Cleared');
@@ -647,7 +641,7 @@ function renderImagePoolForm() {
           </div>
         </div>
         <div class="pool-grid-wrap" id="imgPoolGridWrap">
-          <div class="pool-scroll-canvas img-pool-grid" id="imgPoolGrid" tabindex="0"></div>
+           <div class="pool-grid pool-scroll-canvas img-pool-grid" id="imgPoolGrid" tabindex="0"></div>
         </div>
       </div>
     </div>
@@ -717,7 +711,7 @@ function ensureImageCardSkeleton(card) {
       </div>
       <div class="pool-frames img-pool-single">
         <div class="pool-frame">
-          <img class="pool-thumb" alt="" decoding="async" data-which="first" draggable="false">
+           <img class="pool-thumb" alt="" loading="lazy" decoding="async" data-which="first" draggable="false">
         </div>
       </div>
       <div class="pool-overlay">
@@ -727,30 +721,17 @@ function ensureImageCardSkeleton(card) {
   card.dataset.skel = '1';
 }
 
-function fillImageCardLite(card, item, index) {
+function mountImageCard(card, item, index) {
   ensureImageCardSkeleton(card);
+  bindImageCard(card);
   const ip = ensureImagePool();
   card.classList.toggle('selected', ip.selectedPath === item.path);
   card.dataset.path = item.path;
   if (item.hash) card.dataset.hash = item.hash;
   else delete card.dataset.hash;
   card.dataset.idx = String(index);
-  commitReadyThumbs(card, item);
-}
-
-function fillImageCardPlaceholder(card, item, index) {
-  ensureImageCardSkeleton(card);
-  const ip = ensureImagePool();
-  card.classList.toggle('selected', ip.selectedPath === item.path);
-  card.dataset.path = item.path;
-  if (item.hash) card.dataset.hash = item.hash;
-  else delete card.dataset.hash;
-  card.dataset.idx = String(index);
-  commitPlaceholderThumbs(card, item);
-}
-
-function fillImageCard(card, item, index) {
-  fillImageCardLite(card, item, index);
+  // Assign thumbs once via assign-once semantics (guarded by data-thumbKey).
+  assignCardThumbs(card, item, { bust: false });
   const metaEl = card.querySelector('.img-pool-meta');
   if (metaEl) {
     if (item.metaError && !item.meta) metaEl.innerHTML = metaRetryHtml(item.metaError);
@@ -758,7 +739,21 @@ function fillImageCard(card, item, index) {
     else metaEl.innerHTML = '<span class="pool-meta-unavailable">metadata unavailable</span>';
   }
   try { globalMediaIndex.put(item); } catch (_) { /* ignore */ }
-  assignCardThumbs(card, item, { bust: false });
+}
+
+function refreshImageCard(card, item, index) {
+  const ip = ensureImagePool();
+  card.classList.toggle('selected', ip.selectedPath === item.path);
+  card.dataset.idx = String(index);
+  if (item.hash) card.dataset.hash = item.hash;
+  else delete card.dataset.hash;
+  const metaEl = card.querySelector('.img-pool-meta');
+  if (metaEl) {
+    if (item.metaError && !item.meta) metaEl.innerHTML = metaRetryHtml(item.metaError);
+    else if (item.meta) metaEl.innerHTML = buildImageMetaHtml(item);
+    else metaEl.innerHTML = '<span class="pool-meta-unavailable">metadata unavailable</span>';
+  }
+  // Thumbs assigned once at mount; do not touch img.src on refresh.
 }
 
 function bindImageCard(card) {
@@ -796,12 +791,13 @@ function renderImagePoolGrid() {
   if (!canvas || !wrap) return;
   const ip = ensureImagePool();
 
+  // Ensure grid class + default tile size for CSS grid
+  canvas.classList.add('pool-grid');
+  canvas.style.setProperty('--pool-tile-min', '160px');
+
   if (ip.items.length === 0) {
     lazyClearPending();
-    if (_imageVirt) {
-      try { _imageVirt.destroy(); } catch (_) { /* ignore */ }
-      _imageVirt = null;
-    }
+    _imageWallSig = null;
     canvas.style.height = '';
     canvas.innerHTML = `
       <div class="pool-empty">
@@ -820,10 +816,7 @@ function renderImagePoolGrid() {
 
   const items = filteredImageItems();
   if (items.length === 0) {
-    if (_imageVirt) {
-      try { _imageVirt.destroy(); } catch (_) { /* ignore */ }
-      _imageVirt = null;
-    }
+    _imageWallSig = null;
     const q = escapeHtml(ip.filterQuery || '');
     canvas.style.height = '';
     canvas.innerHTML = `
@@ -839,35 +832,33 @@ function renderImagePoolGrid() {
   const empty = canvas.querySelector('.pool-empty');
   if (empty) empty.remove();
 
-  if (_imageVirt && _imageVirt._canvas !== canvas) {
-    try { _imageVirt.destroy(); } catch (_) { /* ignore */ }
-    _imageVirt = null;
-  }
-  if (!_imageVirt) {
+  // Stable card wall: one DOM element per item, keyed by path.
+  const sig = items.map((i) => i.path).join('\n');
+  const savedTop = wrap.scrollTop;
+
+  if (sig !== _imageWallSig) {
+    _imageWallSig = sig;
     canvas.innerHTML = '';
-    canvas.style.height = '';
-    _imageVirt = createVirtualGrid({
-      wrap,
-      canvas,
-      getItems: () => filteredImageItems(),
-      renderCard: fillImageCard,
-      recycleCard: fillImageCardLite,
-      placeholderCard: fillImageCardPlaceholder,
-      itemReady: itemDisplayReady,
-      bindCard: bindImageCard,
-      minColWidth: 160,
-      onWindow: (items, info) => {
-        noteVisibleHoles(info?.holes || 0);
-        preloadItems(items);
-        sampleVisibleThumbs(wrap);
-      },
+    const frag = document.createDocumentFragment();
+    items.forEach((item, index) => {
+      const card = document.createElement('article');
+      card.className = 'pool-card img-pool-card';
+      mountImageCard(card, item, index);
+      frag.appendChild(card);
     });
-    _imageVirt._canvas = canvas;
-    window.__mtapiImageVirtualGrid = _imageVirt;
+    canvas.appendChild(frag);
   } else {
-    _imageVirt.invalidate();
+    const cardsByPath = new Map();
+    canvas.querySelectorAll('.img-pool-card').forEach((card) => {
+      cardsByPath.set(card.dataset.path, card);
+    });
+    items.forEach((item, index) => {
+      const card = cardsByPath.get(item.path);
+      if (card) refreshImageCard(card, item, index);
+    });
   }
-  _imageVirt.sync({ force: true });
+
+  wrap.scrollTop = savedTop;
   _updateImageFilterCount();
 }
 

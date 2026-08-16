@@ -1,17 +1,18 @@
 # Session stopping state — handoff
 
 > **Date:** 2026-08-15  
-> **VERSION:** `000.000.6.2`  
-> **Branch:** `main`  
+> **VERSION:** `000.000.6.3`  
+> **Branch:** `wip`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
 
 ---
 
-## 1. Shipped this stretch (through 6.2)
+## 1. Shipped this stretch (through 6.3)
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
+| **Pool display wall (stable card rewrite)** | Deleted `js/thumb-decode-cache.js`; `virtual-grid.js` left unused; flat CSS-grid stable wall with `mountPoolCard`/`refreshPoolCard` (bind once, assign thumbs once via `data-thumbKey`); `assignCardThumbs` assign-once via `assignThumbSrc`; `catalogRepair` keeps `applySeqTokenTimeStyles` | `grid.js`, `image-pool.js`, `items.js`, `freshness.js`, `chrome.js`, `pool.css` · **`6.2`** |
 | **Sequence Audio Engines** | Rubberband DAW flags + 48kHz sample-rate fix + 10ms micro-fade on every clip; engine dropdown UI (rubberband live; atempo/pitch/mute placeholders) | `sequence-audio-engines-spec.md`, `video_pipeline.py:770`, `grid.js`, `persistence.js` · **`5.01`** |
 | **Join preset = transcode** | No dump→PNG for DNxHR/ProRes stitch; normal ffmpeg re-encode | `transcode_with_preset`, `_join_with_preset` · **`5.00`** |
 | **Job workspace on disk** | Default `~/.cache/mtapi/jobs` | `job_workspace.py` · **`4.99`** |

@@ -4,11 +4,14 @@
  * Restore is cache-first: existing records reuse path + filename + filesize
  * and never hit /api/media_signature. Validation is targeted (retry, missing
  * identity, optional lazy mode) and goes through the batch queue.
+ *
+ * Thumb assignment is assign-once: each <img> gets its URL at mount time via
+ * assignThumbSrc (native loading=lazy) guarded by data-thumbKey so a card
+ * never reassigns or clears its src on scroll.
  */
 import { state } from '/app.js';
-import { poolThumbUrl } from '/js/pool/persistence.js';
-import { enqueueSignature } from '/js/lazy-loader.js';
-import { commitReadyThumbs, itemDisplayReady } from '/js/thumb-decode-cache.js';
+import { poolThumbUrl, itemShowsThumb } from '/js/pool/persistence.js';
+import { enqueueSignature, assignThumbSrc } from '/js/lazy-loader.js';
 import { globalMediaIndex } from '/js/media-index.js';
 
 function signaturesEqual(a, b) {
@@ -95,9 +98,32 @@ function thumbUrlWithBust(item, which, mtimeNs) {
   return url;
 }
 
+/**
+ * Assign thumb URLs to a card's <img> elements using assign-once semantics.
+ * Each img is assigned at most once per card lifetime (guarded by data-thumbKey).
+ * When the item hash is discovered later (path→hash URL upgrade), reloadImageCardThumbs
+ * handles the transition via the standard assignThumbSrc path.
+ */
 function assignCardThumbs(card, item, { bust = false } = {}) {
   if (!card || !item) return;
-  if (itemDisplayReady(item)) commitReadyThumbs(card, item);
+  card.querySelectorAll('img.pool-thumb').forEach((img) => {
+    const which = img.dataset.which || 'first';
+    if (!itemShowsThumb(item, which)) {
+      img.removeAttribute('src');
+      img.dataset.thumbKey = '';
+      return;
+    }
+    let url = poolThumbUrl(item, which);
+    if (bust) url = thumbUrlWithBust(item, which);
+    // Assign-once guard: never reassign or clear src already pointing at this URL.
+    if (img.dataset.thumbKey === url) return;
+    if (img.getAttribute('src') === url) {
+      img.dataset.thumbKey = url;
+      return;
+    }
+    assignThumbSrc(img, url);
+    img.dataset.thumbKey = url;
+  });
 }
 
 function refreshAssignedPoolThumbs() {
@@ -107,7 +133,7 @@ function refreshAssignedPoolThumbs() {
     const item = (state.pool?.items || []).find((i) => i.path === path)
       || (state.imagePool?.items || []).find((i) => i.path === path);
     if (!item) return;
-    if (itemDisplayReady(item)) commitReadyThumbs(card, item);
+    assignCardThumbs(card, item, { bust: false });
   });
 }
 

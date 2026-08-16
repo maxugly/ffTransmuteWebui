@@ -447,26 +447,14 @@ function createVirtualGrid({
       if (el.parentNode) el.parentNode.removeChild(el);
     }
     for (const el of free) {
-      if (el.parentNode) el.parentNode.removeChild(el);
-    }
-    cards.clear();
-    free.length = 0;
-  }
+       if (el.parentNode) el.parentNode.removeChild(el);
+     }
+     cards.clear();
+     free.length = 0;
+   }
 
-  wrap?.addEventListener('scroll', onScroll, { passive: true });
-  import('/js/thumb-decode-cache.js').then((m) => {
-    let upgradeRaf = 0;
-    decodedUnsub = m.onThumbDecoded(() => {
-      if (destroyed) return;
-      lastWinKey = '';
-      if (upgradeRaf) return;
-      upgradeRaf = requestAnimationFrame(() => {
-        upgradeRaf = 0;
-        if (!destroyed) sync({ force: true, lite: false });
-      });
-    });
-  }).catch(() => {});
-  if (typeof ResizeObserver !== 'undefined' && wrap) {
+   wrap?.addEventListener('scroll', onScroll, { passive: true });
+   if (typeof ResizeObserver !== 'undefined' && wrap) {
     ro = new ResizeObserver(() => onResize());
     ro.observe(wrap);
   }

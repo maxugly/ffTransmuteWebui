@@ -67,11 +67,6 @@ async function loadPoolItemMeta(item, idx) {
 function scrollToSelected() {
   const path = state.pool.selectedPath;
   if (!path) return;
-  const virt = window.__mtapiVirtualGrid;
-  if (virt && typeof virt.scrollToPath === 'function') {
-    virt.scrollToPath(path, { behavior: 'smooth', block: 'center' });
-    return;
-  }
   const card = Array.from(document.querySelectorAll('.pool-card')).find(c => c.dataset.path === path);
   if (card?.scrollIntoView) card.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
@@ -86,9 +81,7 @@ function selectPoolItem(path, ev = null) {
   const shift = !!(ev && ev.shiftKey);
   const toggle = !!(ev && (ev.metaKey || ev.ctrlKey));
   if (shift) {
-    const items = (typeof window !== 'undefined' && window.__mtapiVirtualGrid?.items)
-      ? window.__mtapiVirtualGrid.items
-      : (state.pool.items || []);
+    const items = state.pool.items || [];
     const anchor = state.pool.selectionAnchor || state.pool.selectedPath || path;
     const a = items.findIndex((it) => it.path === anchor);
     const b = items.findIndex((it) => it.path === path);
@@ -143,7 +136,8 @@ function selectPoolItem(path, ev = null) {
   const countEl = document.querySelector('.pool-count');
   if (countEl) {
     const q = (state.pool.filterQuery || '').trim();
-    const shown = q ? (window.__mtapiVirtualGrid?.items?.length ?? state.pool.items.length) : state.pool.items.length;
+    const visibleCards = document.querySelectorAll('.pool-card').length;
+    const shown = q ? visibleCards : state.pool.items.length;
     countEl.textContent = q
       ? `${shown} shown · ${state.pool.items.length} in video pool · ${state.pool.sequence.length} in sequence`
       : `${state.pool.items.length} in video pool · ${state.pool.sequence.length} in sequence`;

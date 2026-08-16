@@ -1,506 +1,506 @@
 [
-    {
-        "file": "SESSION-STOPPING-STATE.md",
-        "path": "docs/SESSION-STOPPING-STATE.md",
-        "category": "Meta",
-        "status": "Handoff 2026-08-03 / 000.000.4.54",
-        "summary": "Session stop handoff; prefer STATUS.md for live truth."
-    },
-    {
-        "file": "STATUS.md",
-        "path": "docs/STATUS.md",
-        "category": "Meta",
-        "status": "Canonical",
-        "summary": "Authoritative shipped/partial/spec-only map for agents and humans."
-    },
-    {
-        "file": "audio-analysis-spec.md",
-        "path": "docs/audio-analysis-spec.md",
-        "category": "Core Architecture",
-        "status": "Proposed",
-        "summary": "Advanced audio analysis pipeline extracting Transients, BPM, Key, and generating MIDI using Spotify Basic Pitch, Aubio, Essentia, and Madmom."
-    },
-    {
-        "file": "automation-spec.md",
-        "path": "docs/automation-spec.md",
-        "category": "Core Architecture",
-        "status": "UI brainstorm (see parameter-automation-spec.md)",
-        "summary": "Original freehand automation envelope vision. Implement via parameter-automation-spec.md."
-    },
-    {
-        "file": "analyzetag-spec.md",
-        "path": "docs/backlog/analyzetag-spec.md",
-        "category": "Backlog - Operation",
-        "status": "DRAFT",
-        "summary": "**Author:** m (Max) via Sprinter"
-    },
-    {
-        "file": "ascii-spec.md",
-        "path": "docs/backlog/ascii-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "N/A"
-    },
-    {
-        "file": "audio-reactive-spec.md",
-        "path": "docs/backlog/audio-reactive-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Spec Drafted (Not Implemented)",
-        "summary": "A suite of effects that manipulate video playback and visuals based on the underlying audio track's musical characteristics (beats, transients, pitch, and loudness). This turns static or linear video into a reactive, music-video-style edit automatically."
-    },
-    {
-        "file": "audioproc-spec.md",
-        "path": "docs/backlog/audioproc-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "N/A"
-    },
-    {
-        "file": "audiowave-spec.md",
-        "path": "docs/backlog/audiowave-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "Overlays a live audio visualizer directly onto a video stream, syncing automatically to the audio track. Perfect for synthwave music videos or podcast clips."
-    },
-    {
-        "file": "civitai-spec.md",
-        "path": "docs/backlog/civitai-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "N/A"
-    },
-    {
-        "file": "codecview-spec.md",
-        "path": "docs/backlog/codecview-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "N/A"
-    },
-    {
-        "file": "colorize-spec.md",
-        "path": "docs/backlog/colorize-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "Use the DDColor-Tiny Dual Decoder model to semantically colorize black and white images or videos. DDColor understands context (sky=blue, grass=green) significantly better than older GAN-based colorizers."
-    },
-    {
-        "file": "depthmap-spec.md",
-        "path": "docs/backlog/depthmap-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "Extract a grayscale depth map from a video using the MiDaS monocular depth estimation network. The result is a video where white is near and black is far, useful for generating masks, 3D parallax effects, or displacement maps."
-    },
-    {
-        "file": "facerestore-spec.md",
-        "path": "docs/backlog/facerestore-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "Uses CodeFormer to reconstruct and enhance facial details from blurry, low-resolution, or damaged images. To preserve system memory (16GB RAM constraint on Intel Xe), the pipeline detects faces first, crops them, restores the crop, and seamlessly pastes them back into the original image."
-    },
-    {
-        "file": "ffglitch-spec.md",
-        "path": "docs/backlog/ffglitch-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "N/A"
-    },
-    {
-        "file": "glitch-spec.md",
-        "path": "docs/backlog/glitch-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "These are pure Algorithmic Glitch operations. They manipulate raw pixel data using mathematics, with zero AI or neural networks. Fast, volatile, and highly aesthetic."
-    },
-    {
-        "file": "global-inputs-spec.md",
-        "path": "docs/backlog/global-inputs-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "N/A"
-    },
-    {
-        "file": "global-media-ui-spec.md",
-        "path": "docs/backlog/global-media-ui-spec.md",
-        "category": "Backlog - Frontend",
-        "status": "Unknown",
-        "summary": "A persistent, global input bar in the WebUI that holds the \"Active Media\" (file path). As the user navigates between different operation tabs (Datamosh, RIFE, Upscale, etc.), the active media travels with them. This eliminates the friction of re-selecting the same file on every tab."
-    },
-    {
-        "file": "inpaint-spec.md",
-        "path": "docs/backlog/inpaint-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "Uses the Large Mask Inpainting (LaMa) model to seamlessly remove objects, text, or scratches from images. For old photo restoration, it combines a lightweight Scratch Detection UNet to automatically generate a damage mask, which is then fed into LaMa."
-    },
-    {
-        "file": "latentmorph-spec.md",
-        "path": "docs/backlog/latentmorph-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "Morphs between two face/portrait images by encoding them both into the StyleGAN2 latent space, performing Spherical Linear Interpolation (Slerp) between their latent vectors, and decoding the intermediate vectors into a smooth video transition."
-    },
-    {
-        "file": "lineart-spec.md",
-        "path": "docs/backlog/lineart-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Spec Drafted (Not Implemented)",
-        "summary": "A lightweight AI operation that pulls clean linework from photos or videos. Unlike simple Canny edge detection, neural edge detectors (like HED or DexiNed) understand context and produce clean, continuous lines suitable for coloring, anime-style filtering, or stylized glitch overlays."
-    },
-    {
-        "file": "lut-spec.md",
-        "path": "docs/backlog/lut-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "N/A"
-    },
-    {
-        "file": "mediaexport-spec.md",
-        "path": "docs/backlog/mediaexport-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "N/A"
-    },
-    {
-        "file": "opticalflow-spec.md",
-        "path": "docs/backlog/opticalflow-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "Generate an RGB-encoded optical flow map from a video, where color (Hue) represents the direction of motion, and intensity/saturation (Value) represents the speed. Useful as a mask source or for datamosh guidance."
-    },
-    {
-        "file": "sd-tiled-upscale-spec.md",
-        "path": "docs/backlog/sd-tiled-upscale-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Legacy \u2014 see tilagup-mtapi-mode-spec",
-        "summary": "Leverages Stable Diffusion (via OpenVINO `optimum-intel`) to not just upsample an image, but to *hallucinate* new fractal-like, complex details into specific regions. Instead of a dumb grid upscale, it uses semantic \"zones\" and local \"tile\" prompts to inject unique, prompt-driven details (e.g., \"micro-clockworks\" or \"petrified crustaceans\") into the image as it scales up."
-    },
-    {
-        "file": "slitscan-spec.md",
-        "path": "docs/backlog/slitscan-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "A pure FFmpeg filter chain that creates eerie time-displacement, motion trails, and temporal ghosting by blending multiple frames across time. Rather than doing heavy optical flow, it relies on temporal mixing (`tmix`) and frame blending (`tblend`) to smear motion non-destructively."
-    },
-    {
-        "file": "swinir-spec.md",
-        "path": "docs/backlog/swinir-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "Use the lightweight SwinIR transformer model to denoise and deblur images without hallucinating details (unlike ESRGAN or Diffusion). It is designed to preserve original content while cleaning up heavy compression artifacts or motion blur."
-    },
-    {
-        "file": "telemetry-spec.md",
-        "path": "docs/backlog/telemetry-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "A real-time hardware monitoring HUD for the WebUI. Because the system runs heavily optimized AI models on an integrated Intel iGPU with shared 16GB RAM, OOM (Out of Memory) crashes or aggressive swap-thrashing are the biggest risks."
-    },
-    {
-        "file": "timelapse-spec.md",
-        "path": "docs/backlog/timelapse-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "N/A"
-    },
-    {
-        "file": "upscale-spec.md",
-        "path": "docs/backlog/upscale-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "Upscale images or video frames using AI. We offer two modes:"
-    },
-    {
-        "file": "videoecho-spec.md",
-        "path": "docs/backlog/videoecho-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "Uses the FFmpeg `lagfun` filter to create phosphorescent light trails, retro CRT ghosting, and \"liquid motion\" by decaying pixel values exponentially over time."
-    },
-    {
-        "file": "vqgan-spec.md",
-        "path": "docs/backlog/vqgan-spec.md",
-        "category": "Backlog - Operation",
-        "status": "Unknown",
-        "summary": "Text-to-Surreal-Image generation using VQGAN (decoder) and CLIP. Because it relies on iterative backpropagation to optimize the latent vector, it produces organic, dream-like hallucinations as it morphs over hundreds of steps."
-    },
-    {
-        "file": "deepdream-spec.md",
-        "path": "docs/deepdream-spec.md",
-        "category": "Operation",
-        "status": "Implemented (video per_frame filter in app/filters/deepdream.py)",
-        "summary": "DeepDream video path uses shared per_frame stage; image and ouroboros remain special bookends. Pipeline filter name deepdream."
-    },
-    {
-        "file": "dynamic-mixing-spec.md",
-        "path": "docs/dynamic-mixing-spec.md",
-        "category": "Core Architecture",
-        "status": "Backend implemented; Multi-Pass UI open",
-        "summary": "POST /ops/pipeline disk cascade via PipelineChain + filter registry. Multi-Pass WebUI still open."
-    },
-    {
-        "file": "facemorph-spec.md",
-        "path": "docs/facemorph-spec.md",
-        "category": "Operation",
-        "status": "Implemented (`facemorph_ops.py` / `facemorph_engine.py`)",
-        "summary": "Chains a series of face images into a smooth transition video using dlib's 68-point facial landmarks. Optionally applies DeepDream to the resulting video, or dreams the faces *before* morphing."
-    },
-    {
-        "file": "fastsdcpu-upscalers-spec.md",
-        "path": "docs/fastsdcpu-upscalers-spec.md",
-        "category": "Research",
-        "status": "Research",
-        "summary": "FastSD CPU upscale techniques catalog and mtapi adopt/skip."
-    },
-    {
-        "file": "filter-platform-spec.md",
-        "path": "docs/filter-platform-spec.md",
-        "category": "Core Architecture",
-        "status": "Active (PngFramePipeline removed)",
-        "summary": "Bookends vs stages; per_frame and directory kinds; thin ops; Convert bookends; migration complete for main neural video paths."
-    },
-    {
-        "file": "frame-range-spec.md",
-        "path": "docs/frame-range-spec.md",
-        "category": "Core Architecture",
-        "status": "Implemented (includes Cut tab)",
-        "summary": "Global frame range on video-pipeline tabs; dump() trims via select=between; start_frame/end_frame on neural/convert/pipeline/speed_ramp params. 1-based inclusive like datamosh. Cut uses global range + per-frame thumbs (frame=N)."
-    },
-    {
-        "file": "frame-scrubber-spec.md",
-        "path": "docs/frame-scrubber-spec.md",
-        "category": "Frontend",
-        "status": "Implemented",
-        "summary": "The global frame range picker currently displays numbers (e.g., 1-90), but the user cannot visually confirm what frame they are selecting. This specification introduces a thumbnail preview mechanism (a \"Frame Scrubber\") tailored for short clips. A new purple `[+]` button next to the picker will generate a sequence of low-res thumbnails. When hovering or dragging the start/end bounds, a stationary popup appears below the picker, showing the exact frame at the cursor position."
-    },
-    {
-        "file": "image-quality-rating-spec.md",
-        "path": "docs/image-quality-rating-spec.md",
-        "category": "Spec - Future Feature",
-        "status": "Spec only",
-        "summary": "Pool technical/aesthetic quality scores; fix normalize first."
-    },
-    {
-        "file": "img2img-openvino-spec.md",
-        "path": "docs/img2img-openvino-spec.md",
-        "category": "Operation",
-        "status": "Implemented 000.000.4.55",
-        "summary": "OpenVINO img2img pipeline stage + /ops/img2img; mark frame_indices; FastSD GPU worker."
-    },
-    {
-        "file": "job-queue-spec.md",
-        "path": "docs/job-queue-spec.md",
-        "category": "Spec - Infrastructure",
-        "status": "Spec only",
-        "summary": "Serial FIFO queue of op payloads; Jobs tab; reuse REGISTRY/run_registered_op; one runner with job_control."
-    },
-    {
-        "file": "media-persistence-spec.md",
-        "path": "docs/media-persistence-spec.md",
-        "category": "Core Architecture",
-        "status": "Implemented",
-        "summary": "The backend app/media system manages a content-addressable cache designed to prevent redundant work. When a video or image is loaded, it is hashed (blake2b). All metadata, history, first/last frame screenshots, and full-video frame thumbnail strips generated by the user are bundled directly with this hash."
-    },
-    {
-        "file": "model-manager-spec.md",
-        "path": "docs/model-manager-spec.md",
-        "category": "Core Architecture",
-        "status": "Specification Phase",
-        "summary": "Currently, every neural operation loads its own model instance independently. `deepdream_engine` loads Inception, `styletransfer` loads Magenta, and `withoutbg` loads its own weights. If two operations run back-to-back, their respective models unload and reload, which is extremely wasteful in terms of compute, I/O, and time. Furthermore, concurrent operations risk OOM (Out Of Memory) errors because there is no unified GPU memory accounting. The Model Manager centralizes model loading, pooling, and eviction to solve these issues."
-    },
-    {
-        "file": "parameter-automation-spec.md",
-        "path": "docs/parameter-automation-spec.md",
-        "category": "Core Architecture",
-        "status": "Spec ready for phased implementation",
-        "summary": "Render-time freehand parameter envelopes for per_frame filters. Normalized t/v; styletransfer strength first; filter-platform factory sampling; no directory-stage or setpts automation. Supersedes automation-spec.md for builders."
-    },
-    {
-        "file": "nav-collapse-spec.md",
-        "path": "docs/nav-collapse-spec.md",
-        "category": "Frontend",
-        "status": "Implemented",
-        "summary": "Collapsible sidebar sections + `mtapi_nav_sections`."
-    },
-    {
-        "file": "pipeline-spec.md",
-        "path": "docs/pipeline-spec.md",
-        "category": "Core Architecture",
-        "status": "Implemented (video_pipeline + JobWorkspace; PngFramePipeline removed)",
-        "summary": "Unified probe/dump/process/encode bookends. Stages live in app/filters. See filter-platform-spec.md."
-    },
-    {
-        "file": "pool-toggle-spec.md",
-        "path": "docs/pool-toggle-spec.md",
-        "category": "Frontend",
-        "status": "Implemented",
-        "summary": "This specification introduces a toggle button to collapse/hide the pool grid, allowing the sequencer and preview modules to expand and fill the available height."
-    },
-    {
-        "file": "resolve-transcode-spec.md",
-        "path": "docs/resolve-transcode-spec.md",
-        "category": "Operation",
-        "status": "Implemented",
-        "summary": "Convert / Export tab as user-facing bookends of shared video_pipeline (dump/encode) used by filters and PipelineChain. Encode presets (ProRes, DNxHR, H.264/AVC, HEVC, VP9, AV1, FFV1); durable frame dump/import (PNG pipeline-native + WebP/JPG/TIFF); GIF in. Engine-first in Python; optional transmute -C. Not a second ffmpeg stack."
-    },
-    {
-        "file": "rife-filter-cleanup-spec.md",
-        "path": "docs/rife-filter-cleanup-spec.md",
-        "category": "Core Architecture",
-        "status": "Implemented",
-        "summary": "RIFE directory stage; legacy pairwise path removed."
-    },
-    {
-        "file": "rife-migration-spec.md",
-        "path": "docs/rife-migration-spec.md",
-        "category": "Core Architecture",
-        "status": "Implemented",
-        "summary": "Currently, `rife_ops.py` uses the deprecated `PngFramePipeline`. It performs a custom video dump, runs `rife-ncnn-vulkan` as a single subprocess over an entire directory (`-i frames_in -o frames_out`), and then manually encodes the output while dropping audio (`-an`)."
-    },
-    {
-        "file": "rife-spec.md",
-        "path": "docs/rife-spec.md",
-        "category": "Operation",
-        "status": "Implemented (directory stage, app/filters/rife.py)",
-        "summary": "RIFE frame interpolation via ncnn-vulkan directory mode. Thin op + pipeline filter share one factory."
-    },
-    {
-        "file": "seq-proportional-spec.md",
-        "path": "docs/seq-proportional-spec.md",
-        "category": "Frontend",
-        "status": "Implemented",
-        "summary": "This specification introduces proportional sequence tokens where longer clips are allocated wider tokens, giving the user a true sense of the final sequence timing."
-    },
-    {
-        "file": "sequencer-mvp-spec.md",
-        "path": "docs/sequencer-mvp-spec.md",
-        "category": "Frontend / Core Architecture",
-        "status": "Proposed",
-        "summary": "Grid-synced block-based video playlist sequencer. Syncs video clips to a Master Audio track based on Global BPM with auto time-stretching."
-    },
-    {
-        "file": "speed-ramp-spec.md",
-        "path": "docs/speed-ramp-spec.md",
-        "category": "Operation",
-        "status": "Implemented (PNG remap filters.speedramp)",
-        "summary": "Exponential spin-up/down via dump\u2192frame remap\u2192encode. Not setpts. Audio dropped v1. CLI speedramp_png shares curve."
-    },
-    {
-        "file": "speedchange-spec.md",
-        "path": "docs/speedchange-spec.md",
-        "category": "Operation",
-        "status": "Unknown",
-        "summary": "N/A"
-    },
-    {
-        "file": "styletransfer-spec.md",
-        "path": "docs/styletransfer-spec.md",
-        "category": "Operation",
-        "status": "Implemented (video per_frame in app/filters/styletransfer.py)",
-        "summary": "Magenta style transfer image batch + video via shared per_frame stage. Pipeline name styletransfer."
-    },
-    {
-        "file": "tilagup-mtapi-mode-spec.md",
-        "path": "docs/tilagup-mtapi-mode-spec.md",
-        "category": "Spec - Future Mode",
-        "status": "Spec only",
-        "summary": "Multi-step agent tiled SD mode ported from /home/m/snc/cod/tilagup."
-    },
-    {
-        "file": "tool-bottom-docs-spec.md",
-        "path": "docs/tool-bottom-docs-spec.md",
-        "category": "UX",
-        "status": "Partial (Image Sort pilot shipped)",
-        "summary": "Long tool docs at bottom of panel (.tool-docs). Image Sort pilot done."
-    },
-    {
-        "file": "sequence-audio-engines-spec.md",
-        "path": "docs/sequence-audio-engines-spec.md",
-        "category": "Operation",
-        "status": "Implemented 000.000.5.01",
-        "summary": "Audio engine dropdown in Sequence tab. Rubberband default with DAW quality flags (transients/formants/pitchq), 48kHz sample-rate normalization (aresample=48000) to prevent chipmunking, and 10ms micro-fade on every clip fragment. atempo/pitch/mute are placeholder stubs raising NotImplementedError."
-    },
-    {
-        "file": "performance-catalog-ux-spec.md",
-        "path": "docs/performance-catalog-ux-spec.md",
-        "category": "Core Architecture / WebUI",
-        "status": "Implemented Phase 1 000.000.5.14; virtualization superseded by catalog-interaction-virtualization-spec.md 5.36",
-        "summary": "McMaster-Carr catalog UX Phase 1: cache-first eager restore, POST /api/media_signatures, POST /api/variants/batch, window.globalMediaIndex, persisted-variant fast path, Instant RIFE copy-on-write + hash recovery + unreferenced lower-density GC. 5.27: pool scroll ignores hover/transform. 5.28: restore copies record meta/thumb flags so open does not media_info/ensure already-scanned clips. Phase 2/3 virtualization shipped in catalog-interaction-virtualization-spec.md 5.36."
-    },
-    {
-        "file": "catalog-interaction-virtualization-spec.md",
-        "path": "docs/catalog-interaction-virtualization-spec.md",
-        "category": "Core Architecture / WebUI",
-        "status": "Partial 000.000.5.37",
-        "summary": "Path-keyed index, hover never media_info, bounded queues (ensure 8, probe 4, hash 2, variant 2×100), Video+Image .pool-scroll-canvas virtualizer, Strict/Fuzzy search. 5.37: JS scroll work p95 ~1ms; form re-entry <10ms; queue caps exercised. Not Implemented: vsync-locked 16.6ms compositor p95 (headless rAF interval is not that measurement)."
-    },
-    {
-        "file": "server-memory-catalog-spec.md",
-        "path": "docs/server-memory-catalog-spec.md",
-        "category": "Core Architecture / WebUI",
-        "status": "Implemented 000.000.5.38",
-        "summary": "One server-resident CatalogIndex: hydrate before serve, RAM display paths, exclusive process lock, 64 MiB JPEG warmer. §11–12 I/O, restart, lock, warmer, and browser checks accepted."
-    },
-    {
-        "file": "settings-card-layout-spec.md",
-        "path": "docs/settings-card-layout-spec.md",
-        "category": "UX",
-        "status": "Implemented 000.000.5.13 (UI tweaks 5.29)",
-        "summary": "Settings house style: one page of tight max-content cards, kicker+title on one line, packed controls, switches beside labels, two-line blurbs. 5.29–5.31: Display / UI tweaks scrollbar knob, 6–30px."
-    },
-    {
-        "file": "universal-persistence-spec.md",
-        "path": "docs/universal-persistence-spec.md",
-        "category": "Core Architecture / WebUI",
-        "status": "Implemented 000.000.5.06",
-        "summary": "Full desk snapshot: metadata/signature round-trip for Video+Image pools, /api/media_signature freshness, shared lazy-loader with bounded fallback, settings precedence (named projects never overwrite globals), schema v2 migration, inactive-tab formState."
-    },
-    {
-        "file": "video-image-pools-spec.md",
-        "path": "docs/video-image-pools-spec.md",
-        "category": "Core Architecture / WebUI",
-        "status": "Implemented (as-built handoff 000.000.4.25)",
-        "summary": "Dual libraries: Video Pool (items[]) + Image Pool (images[]), project/session persistence v2, Cut tab uses global video+frame range with /api/thumbnail?frame=N for In/Out. No private Cut path picker. Future: pause\u2192image pool, cut encode."
-    },
-    {
-        "file": "withoutbg-spec.md",
-        "path": "docs/withoutbg-spec.md",
-        "category": "Operation",
-        "status": "Implemented (video per_frame in app/filters/withoutbg.py)",
-        "summary": "withoutBG image batch + video via shared per_frame stage. Pipeline name withoutbg."
-    },
-    {
-        "file": "workspace-progress-spec.md",
-        "path": "docs/workspace-progress-spec.md",
-        "category": "Core Architecture",
-        "status": "Partial (rate/ETA + RIFE dir watch)",
-        "summary": "Directory-backed progress and phase-local ETA for long jobs."
-    },
-    {
-        "file": "fastsam-sam-multimodel-spec.md",
-        "path": "docs/fastsam-sam-multimodel-spec.md",
-        "category": "Operation",
-        "status": "Proposed",
-        "summary": "Extend FastSAM tab with model selector (FastSAM-s/x, SAM ViT-L/H) and AUTO device fallback for Intel OpenVINO paths."
-    },
-    {
-        "file": "fastsam-openvino-spec.md",
-        "path": "docs/fastsam-openvino-spec.md",
-        "category": "Operation",
-        "status": "Implemented",
-        "summary": "FastSAM OpenVINO asset extraction filter. Polygon-contour mask extraction with target/everything modes and no-mask fallback."
-    },
-     {
-        "file": "zoompan-spec.md",
-        "path": "docs/zoompan-spec.md",
-        "category": "Operation",
-        "status": "Proposed",
-        "summary": "Create a video from a single fixed image by panning and zooming between two defined viewports (Start Frame and Last Frame)."
-    },
-    {
-        "file": "qr-illusion-art-spec.md",
-        "path": "docs/qr-illusion-art-spec.md",
-        "category": "Operation",
-        "status": "Implemented 000.000.5.05",
-        "summary": "QR & Illusion Art Generator: scannable QR code OR custom pattern image + ControlNet QR Monster (OpenVINO img2img) + optional IP-Adapter (PyTorch ControlNet+IP-Adapter dual conditioning). Text-only path uses OVStableDiffusionImg2ImgPipeline for iGPU speed; IP-Adapter path enforces 512x512 to keep RAM under 12GB. Scannability validated via pyzbar with green/red badge in UI for QR mode."
-    }
+  {
+    "file": "SESSION-STOPPING-STATE.md",
+    "path": "docs/SESSION-STOPPING-STATE.md",
+    "category": "Meta",
+    "status": "Handoff 2026-08-15 / 000.000.6.3",
+    "summary": "Session stop handoff; prefer STATUS.md for live truth."
+  },
+  {
+    "file": "STATUS.md",
+    "path": "docs/STATUS.md",
+    "category": "Meta",
+    "status": "Canonical",
+    "summary": "Authoritative shipped/partial/spec-only map for agents and humans."
+  },
+  {
+    "file": "audio-analysis-spec.md",
+    "path": "docs/audio-analysis-spec.md",
+    "category": "Core Architecture",
+    "status": "Proposed",
+    "summary": "Advanced audio analysis pipeline extracting Transients, BPM, Key, and generating MIDI using Spotify Basic Pitch, Aubio, Essentia, and Madmom."
+  },
+  {
+    "file": "automation-spec.md",
+    "path": "docs/automation-spec.md",
+    "category": "Core Architecture",
+    "status": "UI brainstorm (see parameter-automation-spec.md)",
+    "summary": "Original freehand automation envelope vision. Implement via parameter-automation-spec.md."
+  },
+  {
+    "file": "analyzetag-spec.md",
+    "path": "docs/backlog/analyzetag-spec.md",
+    "category": "Backlog - Operation",
+    "status": "DRAFT",
+    "summary": "**Author:** m (Max) via Sprinter"
+  },
+  {
+    "file": "ascii-spec.md",
+    "path": "docs/backlog/ascii-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "N/A"
+  },
+  {
+    "file": "audio-reactive-spec.md",
+    "path": "docs/backlog/audio-reactive-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Spec Drafted (Not Implemented)",
+    "summary": "A suite of effects that manipulate video playback and visuals based on the underlying audio track's musical characteristics (beats, transients, pitch, and loudness). This turns static or linear video into a reactive, music-video-style edit automatically."
+  },
+  {
+    "file": "audioproc-spec.md",
+    "path": "docs/backlog/audioproc-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "N/A"
+  },
+  {
+    "file": "audiowave-spec.md",
+    "path": "docs/backlog/audiowave-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "Overlays a live audio visualizer directly onto a video stream, syncing automatically to the audio track. Perfect for synthwave music videos or podcast clips."
+  },
+  {
+    "file": "civitai-spec.md",
+    "path": "docs/backlog/civitai-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "N/A"
+  },
+  {
+    "file": "codecview-spec.md",
+    "path": "docs/backlog/codecview-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "N/A"
+  },
+  {
+    "file": "colorize-spec.md",
+    "path": "docs/backlog/colorize-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "Use the DDColor-Tiny Dual Decoder model to semantically colorize black and white images or videos. DDColor understands context (sky=blue, grass=green) significantly better than older GAN-based colorizers."
+  },
+  {
+    "file": "depthmap-spec.md",
+    "path": "docs/backlog/depthmap-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "Extract a grayscale depth map from a video using the MiDaS monocular depth estimation network. The result is a video where white is near and black is far, useful for generating masks, 3D parallax effects, or displacement maps."
+  },
+  {
+    "file": "facerestore-spec.md",
+    "path": "docs/backlog/facerestore-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "Uses CodeFormer to reconstruct and enhance facial details from blurry, low-resolution, or damaged images. To preserve system memory (16GB RAM constraint on Intel Xe), the pipeline detects faces first, crops them, restores the crop, and seamlessly pastes them back into the original image."
+  },
+  {
+    "file": "ffglitch-spec.md",
+    "path": "docs/backlog/ffglitch-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "N/A"
+  },
+  {
+    "file": "glitch-spec.md",
+    "path": "docs/backlog/glitch-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "These are pure Algorithmic Glitch operations. They manipulate raw pixel data using mathematics, with zero AI or neural networks. Fast, volatile, and highly aesthetic."
+  },
+  {
+    "file": "global-inputs-spec.md",
+    "path": "docs/backlog/global-inputs-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "N/A"
+  },
+  {
+    "file": "global-media-ui-spec.md",
+    "path": "docs/backlog/global-media-ui-spec.md",
+    "category": "Backlog - Frontend",
+    "status": "Unknown",
+    "summary": "A persistent, global input bar in the WebUI that holds the \"Active Media\" (file path). As the user navigates between different operation tabs (Datamosh, RIFE, Upscale, etc.), the active media travels with them. This eliminates the friction of re-selecting the same file on every tab."
+  },
+  {
+    "file": "inpaint-spec.md",
+    "path": "docs/backlog/inpaint-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "Uses the Large Mask Inpainting (LaMa) model to seamlessly remove objects, text, or scratches from images. For old photo restoration, it combines a lightweight Scratch Detection UNet to automatically generate a damage mask, which is then fed into LaMa."
+  },
+  {
+    "file": "latentmorph-spec.md",
+    "path": "docs/backlog/latentmorph-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "Morphs between two face/portrait images by encoding them both into the StyleGAN2 latent space, performing Spherical Linear Interpolation (Slerp) between their latent vectors, and decoding the intermediate vectors into a smooth video transition."
+  },
+  {
+    "file": "lineart-spec.md",
+    "path": "docs/backlog/lineart-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Spec Drafted (Not Implemented)",
+    "summary": "A lightweight AI operation that pulls clean linework from photos or videos. Unlike simple Canny edge detection, neural edge detectors (like HED or DexiNed) understand context and produce clean, continuous lines suitable for coloring, anime-style filtering, or stylized glitch overlays."
+  },
+  {
+    "file": "lut-spec.md",
+    "path": "docs/backlog/lut-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "N/A"
+  },
+  {
+    "file": "mediaexport-spec.md",
+    "path": "docs/backlog/mediaexport-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "N/A"
+  },
+  {
+    "file": "opticalflow-spec.md",
+    "path": "docs/backlog/opticalflow-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "Generate an RGB-encoded optical flow map from a video, where color (Hue) represents the direction of motion, and intensity/saturation (Value) represents the speed. Useful as a mask source or for datamosh guidance."
+  },
+  {
+    "file": "sd-tiled-upscale-spec.md",
+    "path": "docs/backlog/sd-tiled-upscale-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Legacy \u2014 see tilagup-mtapi-mode-spec",
+    "summary": "Leverages Stable Diffusion (via OpenVINO `optimum-intel`) to not just upsample an image, but to *hallucinate* new fractal-like, complex details into specific regions. Instead of a dumb grid upscale, it uses semantic \"zones\" and local \"tile\" prompts to inject unique, prompt-driven details (e.g., \"micro-clockworks\" or \"petrified crustaceans\") into the image as it scales up."
+  },
+  {
+    "file": "slitscan-spec.md",
+    "path": "docs/backlog/slitscan-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "A pure FFmpeg filter chain that creates eerie time-displacement, motion trails, and temporal ghosting by blending multiple frames across time. Rather than doing heavy optical flow, it relies on temporal mixing (`tmix`) and frame blending (`tblend`) to smear motion non-destructively."
+  },
+  {
+    "file": "swinir-spec.md",
+    "path": "docs/backlog/swinir-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "Use the lightweight SwinIR transformer model to denoise and deblur images without hallucinating details (unlike ESRGAN or Diffusion). It is designed to preserve original content while cleaning up heavy compression artifacts or motion blur."
+  },
+  {
+    "file": "telemetry-spec.md",
+    "path": "docs/backlog/telemetry-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "A real-time hardware monitoring HUD for the WebUI. Because the system runs heavily optimized AI models on an integrated Intel iGPU with shared 16GB RAM, OOM (Out of Memory) crashes or aggressive swap-thrashing are the biggest risks."
+  },
+  {
+    "file": "timelapse-spec.md",
+    "path": "docs/backlog/timelapse-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "N/A"
+  },
+  {
+    "file": "upscale-spec.md",
+    "path": "docs/backlog/upscale-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "Upscale images or video frames using AI. We offer two modes:"
+  },
+  {
+    "file": "videoecho-spec.md",
+    "path": "docs/backlog/videoecho-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "Uses the FFmpeg `lagfun` filter to create phosphorescent light trails, retro CRT ghosting, and \"liquid motion\" by decaying pixel values exponentially over time."
+  },
+  {
+    "file": "vqgan-spec.md",
+    "path": "docs/backlog/vqgan-spec.md",
+    "category": "Backlog - Operation",
+    "status": "Unknown",
+    "summary": "Text-to-Surreal-Image generation using VQGAN (decoder) and CLIP. Because it relies on iterative backpropagation to optimize the latent vector, it produces organic, dream-like hallucinations as it morphs over hundreds of steps."
+  },
+  {
+    "file": "deepdream-spec.md",
+    "path": "docs/deepdream-spec.md",
+    "category": "Operation",
+    "status": "Implemented (video per_frame filter in app/filters/deepdream.py)",
+    "summary": "DeepDream video path uses shared per_frame stage; image and ouroboros remain special bookends. Pipeline filter name deepdream."
+  },
+  {
+    "file": "dynamic-mixing-spec.md",
+    "path": "docs/dynamic-mixing-spec.md",
+    "category": "Core Architecture",
+    "status": "Backend implemented; Multi-Pass UI open",
+    "summary": "POST /ops/pipeline disk cascade via PipelineChain + filter registry. Multi-Pass WebUI still open."
+  },
+  {
+    "file": "facemorph-spec.md",
+    "path": "docs/facemorph-spec.md",
+    "category": "Operation",
+    "status": "Implemented (`facemorph_ops.py` / `facemorph_engine.py`)",
+    "summary": "Chains a series of face images into a smooth transition video using dlib's 68-point facial landmarks. Optionally applies DeepDream to the resulting video, or dreams the faces *before* morphing."
+  },
+  {
+    "file": "fastsdcpu-upscalers-spec.md",
+    "path": "docs/fastsdcpu-upscalers-spec.md",
+    "category": "Research",
+    "status": "Research",
+    "summary": "FastSD CPU upscale techniques catalog and mtapi adopt/skip."
+  },
+  {
+    "file": "filter-platform-spec.md",
+    "path": "docs/filter-platform-spec.md",
+    "category": "Core Architecture",
+    "status": "Active (PngFramePipeline removed)",
+    "summary": "Bookends vs stages; per_frame and directory kinds; thin ops; Convert bookends; migration complete for main neural video paths."
+  },
+  {
+    "file": "frame-range-spec.md",
+    "path": "docs/frame-range-spec.md",
+    "category": "Core Architecture",
+    "status": "Implemented (includes Cut tab)",
+    "summary": "Global frame range on video-pipeline tabs; dump() trims via select=between; start_frame/end_frame on neural/convert/pipeline/speed_ramp params. 1-based inclusive like datamosh. Cut uses global range + per-frame thumbs (frame=N)."
+  },
+  {
+    "file": "frame-scrubber-spec.md",
+    "path": "docs/frame-scrubber-spec.md",
+    "category": "Frontend",
+    "status": "Implemented",
+    "summary": "The global frame range picker currently displays numbers (e.g., 1-90), but the user cannot visually confirm what frame they are selecting. This specification introduces a thumbnail preview mechanism (a \"Frame Scrubber\") tailored for short clips. A new purple `[+]` button next to the picker will generate a sequence of low-res thumbnails. When hovering or dragging the start/end bounds, a stationary popup appears below the picker, showing the exact frame at the cursor position."
+  },
+  {
+    "file": "image-quality-rating-spec.md",
+    "path": "docs/image-quality-rating-spec.md",
+    "category": "Spec - Future Feature",
+    "status": "Spec only",
+    "summary": "Pool technical/aesthetic quality scores; fix normalize first."
+  },
+  {
+    "file": "img2img-openvino-spec.md",
+    "path": "docs/img2img-openvino-spec.md",
+    "category": "Operation",
+    "status": "Implemented 000.000.4.55",
+    "summary": "OpenVINO img2img pipeline stage + /ops/img2img; mark frame_indices; FastSD GPU worker."
+  },
+  {
+    "file": "job-queue-spec.md",
+    "path": "docs/job-queue-spec.md",
+    "category": "Spec - Infrastructure",
+    "status": "Spec only",
+    "summary": "Serial FIFO queue of op payloads; Jobs tab; reuse REGISTRY/run_registered_op; one runner with job_control."
+  },
+  {
+    "file": "media-persistence-spec.md",
+    "path": "docs/media-persistence-spec.md",
+    "category": "Core Architecture",
+    "status": "Implemented",
+    "summary": "The backend app/media system manages a content-addressable cache designed to prevent redundant work. When a video or image is loaded, it is hashed (blake2b). All metadata, history, first/last frame screenshots, and full-video frame thumbnail strips generated by the user are bundled directly with this hash."
+  },
+  {
+    "file": "model-manager-spec.md",
+    "path": "docs/model-manager-spec.md",
+    "category": "Core Architecture",
+    "status": "Specification Phase",
+    "summary": "Currently, every neural operation loads its own model instance independently. `deepdream_engine` loads Inception, `styletransfer` loads Magenta, and `withoutbg` loads its own weights. If two operations run back-to-back, their respective models unload and reload, which is extremely wasteful in terms of compute, I/O, and time. Furthermore, concurrent operations risk OOM (Out Of Memory) errors because there is no unified GPU memory accounting. The Model Manager centralizes model loading, pooling, and eviction to solve these issues."
+  },
+  {
+    "file": "parameter-automation-spec.md",
+    "path": "docs/parameter-automation-spec.md",
+    "category": "Core Architecture",
+    "status": "Spec ready for phased implementation",
+    "summary": "Render-time freehand parameter envelopes for per_frame filters. Normalized t/v; styletransfer strength first; filter-platform factory sampling; no directory-stage or setpts automation. Supersedes automation-spec.md for builders."
+  },
+  {
+    "file": "nav-collapse-spec.md",
+    "path": "docs/nav-collapse-spec.md",
+    "category": "Frontend",
+    "status": "Implemented",
+    "summary": "Collapsible sidebar sections + `mtapi_nav_sections`."
+  },
+  {
+    "file": "pipeline-spec.md",
+    "path": "docs/pipeline-spec.md",
+    "category": "Core Architecture",
+    "status": "Implemented (video_pipeline + JobWorkspace; PngFramePipeline removed)",
+    "summary": "Unified probe/dump/process/encode bookends. Stages live in app/filters. See filter-platform-spec.md."
+  },
+  {
+    "file": "pool-toggle-spec.md",
+    "path": "docs/pool-toggle-spec.md",
+    "category": "Frontend",
+    "status": "Implemented",
+    "summary": "This specification introduces a toggle button to collapse/hide the pool grid, allowing the sequencer and preview modules to expand and fill the available height."
+  },
+  {
+    "file": "resolve-transcode-spec.md",
+    "path": "docs/resolve-transcode-spec.md",
+    "category": "Operation",
+    "status": "Implemented",
+    "summary": "Convert / Export tab as user-facing bookends of shared video_pipeline (dump/encode) used by filters and PipelineChain. Encode presets (ProRes, DNxHR, H.264/AVC, HEVC, VP9, AV1, FFV1); durable frame dump/import (PNG pipeline-native + WebP/JPG/TIFF); GIF in. Engine-first in Python; optional transmute -C. Not a second ffmpeg stack."
+  },
+  {
+    "file": "rife-filter-cleanup-spec.md",
+    "path": "docs/rife-filter-cleanup-spec.md",
+    "category": "Core Architecture",
+    "status": "Implemented",
+    "summary": "RIFE directory stage; legacy pairwise path removed."
+  },
+  {
+    "file": "rife-migration-spec.md",
+    "path": "docs/rife-migration-spec.md",
+    "category": "Core Architecture",
+    "status": "Implemented",
+    "summary": "Currently, `rife_ops.py` uses the deprecated `PngFramePipeline`. It performs a custom video dump, runs `rife-ncnn-vulkan` as a single subprocess over an entire directory (`-i frames_in -o frames_out`), and then manually encodes the output while dropping audio (`-an`)."
+  },
+  {
+    "file": "rife-spec.md",
+    "path": "docs/rife-spec.md",
+    "category": "Operation",
+    "status": "Implemented (directory stage, app/filters/rife.py)",
+    "summary": "RIFE frame interpolation via ncnn-vulkan directory mode. Thin op + pipeline filter share one factory."
+  },
+  {
+    "file": "seq-proportional-spec.md",
+    "path": "docs/seq-proportional-spec.md",
+    "category": "Frontend",
+    "status": "Implemented",
+    "summary": "This specification introduces proportional sequence tokens where longer clips are allocated wider tokens, giving the user a true sense of the final sequence timing."
+  },
+  {
+    "file": "sequencer-mvp-spec.md",
+    "path": "docs/sequencer-mvp-spec.md",
+    "category": "Frontend / Core Architecture",
+    "status": "Proposed",
+    "summary": "Grid-synced block-based video playlist sequencer. Syncs video clips to a Master Audio track based on Global BPM with auto time-stretching."
+  },
+  {
+    "file": "speed-ramp-spec.md",
+    "path": "docs/speed-ramp-spec.md",
+    "category": "Operation",
+    "status": "Implemented (PNG remap filters.speedramp)",
+    "summary": "Exponential spin-up/down via dump\u2192frame remap\u2192encode. Not setpts. Audio dropped v1. CLI speedramp_png shares curve."
+  },
+  {
+    "file": "speedchange-spec.md",
+    "path": "docs/speedchange-spec.md",
+    "category": "Operation",
+    "status": "Unknown",
+    "summary": "N/A"
+  },
+  {
+    "file": "styletransfer-spec.md",
+    "path": "docs/styletransfer-spec.md",
+    "category": "Operation",
+    "status": "Implemented (video per_frame in app/filters/styletransfer.py)",
+    "summary": "Magenta style transfer image batch + video via shared per_frame stage. Pipeline name styletransfer."
+  },
+  {
+    "file": "tilagup-mtapi-mode-spec.md",
+    "path": "docs/tilagup-mtapi-mode-spec.md",
+    "category": "Spec - Future Mode",
+    "status": "Spec only",
+    "summary": "Multi-step agent tiled SD mode ported from /home/m/snc/cod/tilagup."
+  },
+  {
+    "file": "tool-bottom-docs-spec.md",
+    "path": "docs/tool-bottom-docs-spec.md",
+    "category": "UX",
+    "status": "Partial (Image Sort pilot shipped)",
+    "summary": "Long tool docs at bottom of panel (.tool-docs). Image Sort pilot done."
+  },
+  {
+    "file": "sequence-audio-engines-spec.md",
+    "path": "docs/sequence-audio-engines-spec.md",
+    "category": "Operation",
+    "status": "Implemented 000.000.5.01",
+    "summary": "Audio engine dropdown in Sequence tab. Rubberband default with DAW quality flags (transients/formants/pitchq), 48kHz sample-rate normalization (aresample=48000) to prevent chipmunking, and 10ms micro-fade on every clip fragment. atempo/pitch/mute are placeholder stubs raising NotImplementedError."
+  },
+  {
+    "file": "performance-catalog-ux-spec.md",
+    "path": "docs/performance-catalog-ux-spec.md",
+    "category": "Core Architecture / WebUI",
+    "status": "Implemented Phase 1 000.000.5.14; virtualization superseded by catalog-interaction-virtualization-spec.md 5.36",
+    "summary": "McMaster-Carr catalog UX Phase 1: cache-first eager restore, POST /api/media_signatures, POST /api/variants/batch, window.globalMediaIndex, persisted-variant fast path, Instant RIFE copy-on-write + hash recovery + unreferenced lower-density GC. 5.27: pool scroll ignores hover/transform. 5.28: restore copies record meta/thumb flags so open does not media_info/ensure already-scanned clips. Phase 2/3 virtualization shipped in catalog-interaction-virtualization-spec.md 5.36."
+  },
+  {
+    "file": "catalog-interaction-virtualization-spec.md",
+    "path": "docs/catalog-interaction-virtualization-spec.md",
+    "category": "Core Architecture / WebUI",
+    "status": "Implemented 000.000.6.2; virtualizer removed; flat CSS-grid wall with content-visibility",
+    "summary": "Path-keyed index, bounded queues, Strict/Fuzzy search, dual Video/Image pools. Virtualization spec superseded: virtual grid removed in favor of flat CSS-grid with content-visibility:auto + assign-once thumb assignment via assignCardThumbs."
+  },
+  {
+    "file": "server-memory-catalog-spec.md",
+    "path": "docs/server-memory-catalog-spec.md",
+    "category": "Core Architecture / WebUI",
+    "status": "Implemented 000.000.5.38",
+    "summary": "One server-resident CatalogIndex: hydrate before serve, RAM display paths, exclusive process lock, 64 MiB JPEG warmer. \u00a711\u201312 I/O, restart, lock, warmer, and browser checks accepted."
+  },
+  {
+    "file": "settings-card-layout-spec.md",
+    "path": "docs/settings-card-layout-spec.md",
+    "category": "UX",
+    "status": "Implemented 000.000.5.13 (UI tweaks 5.29)",
+    "summary": "Settings house style: one page of tight max-content cards, kicker+title on one line, packed controls, switches beside labels, two-line blurbs. 5.29\u20135.31: Display / UI tweaks scrollbar knob, 6\u201330px."
+  },
+  {
+    "file": "universal-persistence-spec.md",
+    "path": "docs/universal-persistence-spec.md",
+    "category": "Core Architecture / WebUI",
+    "status": "Implemented 000.000.5.06",
+    "summary": "Full desk snapshot: metadata/signature round-trip for Video+Image pools, /api/media_signature freshness, shared lazy-loader with bounded fallback, settings precedence (named projects never overwrite globals), schema v2 migration, inactive-tab formState."
+  },
+  {
+    "file": "video-image-pools-spec.md",
+    "path": "docs/video-image-pools-spec.md",
+    "category": "Core Architecture / WebUI",
+    "status": "Implemented (as-built handoff 000.000.4.25)",
+    "summary": "Dual libraries: Video Pool (items[]) + Image Pool (images[]), project/session persistence v2, Cut tab uses global video+frame range with /api/thumbnail?frame=N for In/Out. No private Cut path picker. Future: pause\u2192image pool, cut encode."
+  },
+  {
+    "file": "withoutbg-spec.md",
+    "path": "docs/withoutbg-spec.md",
+    "category": "Operation",
+    "status": "Implemented (video per_frame in app/filters/withoutbg.py)",
+    "summary": "withoutBG image batch + video via shared per_frame stage. Pipeline name withoutbg."
+  },
+  {
+    "file": "workspace-progress-spec.md",
+    "path": "docs/workspace-progress-spec.md",
+    "category": "Core Architecture",
+    "status": "Partial (rate/ETA + RIFE dir watch)",
+    "summary": "Directory-backed progress and phase-local ETA for long jobs."
+  },
+  {
+    "file": "fastsam-sam-multimodel-spec.md",
+    "path": "docs/fastsam-sam-multimodel-spec.md",
+    "category": "Operation",
+    "status": "Proposed",
+    "summary": "Extend FastSAM tab with model selector (FastSAM-s/x, SAM ViT-L/H) and AUTO device fallback for Intel OpenVINO paths."
+  },
+  {
+    "file": "fastsam-openvino-spec.md",
+    "path": "docs/fastsam-openvino-spec.md",
+    "category": "Operation",
+    "status": "Implemented",
+    "summary": "FastSAM OpenVINO asset extraction filter. Polygon-contour mask extraction with target/everything modes and no-mask fallback."
+  },
+  {
+    "file": "zoompan-spec.md",
+    "path": "docs/zoompan-spec.md",
+    "category": "Operation",
+    "status": "Proposed",
+    "summary": "Create a video from a single fixed image by panning and zooming between two defined viewports (Start Frame and Last Frame)."
+  },
+  {
+    "file": "qr-illusion-art-spec.md",
+    "path": "docs/qr-illusion-art-spec.md",
+    "category": "Operation",
+    "status": "Implemented 000.000.5.05",
+    "summary": "QR & Illusion Art Generator: scannable QR code OR custom pattern image + ControlNet QR Monster (OpenVINO img2img) + optional IP-Adapter (PyTorch ControlNet+IP-Adapter dual conditioning). Text-only path uses OVStableDiffusionImg2ImgPipeline for iGPU speed; IP-Adapter path enforces 512x512 to keep RAM under 12GB. Scannability validated via pyzbar with green/red badge in UI for QR mode."
+  }
 ]
