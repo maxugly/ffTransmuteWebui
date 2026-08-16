@@ -1909,6 +1909,15 @@ body.pool-resizing video {
   color: var(--text-main);
 }
 
+.seq-total-time {
+  font-family: 'Fira Code', ui-monospace, monospace;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-muted, #9aa4b2);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .pool-collapse-btn {
   display: inline-flex;
   align-items: center;
