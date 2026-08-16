@@ -109,7 +109,7 @@ function refreshPoolTileOverlays() {
   const info = ensureTileInfo();
   state.pool.items.forEach((item, idx) => {
     const card = Array.from(document.querySelectorAll('.pool-card')).find(c => c.dataset.path === item.path);
-    if (!card) return;
+    if (!card || card.classList.contains('pool-wall')) return;
 
     // Frame labels
     card.querySelectorAll('.pool-frame').forEach((frameEl, fi) => {
