@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-17  \
-> **VERSION:** `000.000.7.006`  \
+> **VERSION:** root `VERSION` file (do not copy the digits here)  \
 > **Branch:** `wip`  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -15,6 +15,7 @@
 |------|--------|-------------|
 | **Docs slim pass 3** | Prompts, legacy renaming, and sequence spec cleanup. | **`7.004`** |
 | **Docs STATUS diet** | STATUS is now a map; diary moved to changelog. | **`7.006`** |
+| **Live VERSION** | One file (`VERSION`). WebUI brand reads `/health`. STATUS does not restate the digits. | **`7.007`** |
 | **FastSAM multimodel** | Phase 1 (FastSAM-s/x) shipped in `ac25a60`. Phase 2 (SAM ViT-L/H) still deferred. | `fastsam-sam-multimodel-spec.md` · **`7.002` Partial** |
 
 **Next:** human names the next job.
@@ -161,7 +162,7 @@ Version diary: [archive/changelog.md](archive/changelog.md).
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.7.006` (STATUS is a map; diary is `docs/archive/changelog.md`.)
+- **Current:** root `VERSION` (FastAPI `/health` and the WebUI brand read it). Diary: `docs/archive/changelog.md`.
 - Secrets: `~/.secrets` at startup.
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`
 - Jobs: `~/.cache/mtapi/jobs` (override `MTAPI_JOBS_ROOT`)
@@ -184,6 +185,6 @@ Version diary: [archive/changelog.md](archive/changelog.md).
 
 ## 9. Doc maintenance
 
-On ship: bump VERSION → update **this file** (top box + status lists) → update spec banner.
+On ship: bump root `VERSION` → update **this file** (top box + §3/§4 if the map changed) → update spec banner. Do not paste the version digits into this file.
 
 **STATUS wins** when it disagrees with a stale backlog draft.

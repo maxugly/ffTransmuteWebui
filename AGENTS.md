@@ -31,5 +31,5 @@ Fast, non-destructive video manipulation: bash CLI + FastAPI (`mtapi-project`) +
 
 ## 3. Versioning & Handoff
 
-- **Ship**: bump `VERSION` (far-right DD) and `docs/STATUS.md` (header, top box, §3/§4/§7). Diary detail goes in `docs/archive/changelog.md`, not STATUS.
+- **Ship**: bump root `VERSION` (far-right DD) and the STATUS **top box** (what shipped / next). Do not copy the version digits into STATUS. Diary goes in `docs/archive/changelog.md`.
 - **Session end**: update the **Shipped this stretch / Next** box at the top of `docs/STATUS.md`.

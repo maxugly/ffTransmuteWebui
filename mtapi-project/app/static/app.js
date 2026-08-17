@@ -792,6 +792,11 @@ async function checkHealth() {
     const response = await fetch('/health');
     const data = await response.json();
     state.health = data;
+    const verEl = document.getElementById('appVersion');
+    if (verEl && data.version) {
+      verEl.textContent = data.version;
+      verEl.title = data.version;
+    }
     if (data.warnings && data.warnings.length > 0) {
       elements.statusDot.className = 'status-dot loading';
       elements.statusText.textContent = `${data.warnings.length} Warnings`;
