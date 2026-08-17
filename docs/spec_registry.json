@@ -472,7 +472,7 @@
     "file": "video-image-pools-spec.md",
     "path": "docs/video-image-pools-spec.md",
     "category": "Core Architecture / WebUI",
-    "status": "Implemented (as-built handoff 000.000.4.25)",
+    "status": "Implemented (as-built 000.000.4.25)",
     "summary": "Dual libraries: Video Pool (items[]) + Image Pool (images[]), project/session persistence v2, Cut tab uses global video+frame range with /api/thumbnail?frame=N for In/Out. No private Cut path picker. Future: pause\u2192image pool, cut encode."
   },
   {

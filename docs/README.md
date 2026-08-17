@@ -1,8 +1,7 @@
 # docs/ — index
 
-> **Start here:** [STATUS.md](STATUS.md) — **shipped / partial / full roadmap + handoff**  
+> **Start here:** [STATUS.md](STATUS.md) — **shipped / partial / full roadmap**  
 > **Law:** `../AGENTS.md`  
-> **Slim plan:** [docs-slim-plan.md](docs-slim-plan.md) · **Archive (not law):** [archive/](archive/)
 
 | Banner | Meaning |
 |--------|---------|
@@ -34,63 +33,9 @@
 | [architecture.md](architecture.md) | High-level map |
 | [settings-card-layout-spec.md](settings-card-layout-spec.md) | **Settings cards** — tight one-page house style |
 | [pool-wall-preview-spec.md](pool-wall-preview-spec.md) | Pool wall: one 120px preview, stable img |
-| [pool-deadcode-cleanup-spec.md](pool-deadcode-cleanup-spec.md) | Pre-7.000: delete recycle/lazy leftovers only |
-| [coder-fastsam-multimodel-prompt.md](coder-fastsam-multimodel-prompt.md) | Builder one-shot: FastSAM-s/x + optional SAM ViT |
-| [docs-slim-plan.md](docs-slim-plan.md) | Pass-around: what we archived vs what stays |
-| [coder-docs-slim-prompt.md](coder-docs-slim-prompt.md) | Locked end-state for docs constitution slim |
+| [archive/changelog.md](archive/changelog.md) | **Version diary (historical STATUS)** |
 
 **Shared code:** `mtapi-project/app/evolve_video.py` — strip → optional dedupe → optional RIFE → encode.
-
----
-
-## At a glance — `000.000.7.002` (2026-08-17)
-
-### Shipped recently
-| Doc / feature | Ver |
-|---------------|-----|
-| Join preset transcode, Job workspace on disk, Jobs tab live desk | **4.98–5.00** |
-| Instant RIFE densest-wins, Single-flight restore, Instant re-render fixes | **4.90–4.97** |
-| Join codec export, RIFE in Join, Unified Join Frontend, Clip variants | **4.81–4.89** |
-| FastSAM OpenVINO, Dead-code passes, Evolve DRY cleanup | **4.75–4.80** |
-| Style/DeepDream Evolve, max_loss, live mid-ascent preview | **4.70–4.74** |
-| Nav collapse, Image Compare, bottom input preview | **4.66–4.69** |
-
-### Partial / in progress
-| Doc | Status |
-|-----|--------|
-| [workspace-progress-spec.md](workspace-progress-spec.md) | RIFE/dump watch; multi-phase ETA polish |
-| [tool-bottom-docs-spec.md](tool-bottom-docs-spec.md) | Several tabs; not all |
-| [ui-list-nav-timer-spec.md](ui-list-nav-timer-spec.md) | Timer/pre-run; some list edges |
-| Evolve multi/video/ouro | Spec phases C–E only |
-| RIFE evolve **UI** DRY | Backend shared; JS still per-tab |
-
-### Roadmap (priority cleaned specs)
-| Doc | Intent |
-|-----|--------|
-| [universal-persistence-spec.md](universal-persistence-spec.md) | **Implemented `5.06`** — desk snapshot / metadata / lazy-load |
-| [performance-catalog-ux-spec.md](performance-catalog-ux-spec.md) | **Implemented Phase 1 `5.14`** — cache-first restore + batch APIs |
-| [catalog-interaction-virtualization-spec.md](catalog-interaction-virtualization-spec.md) | **Partial `5.37`** — hover/queues/virt in tree; 16.6ms compositor p95 not claimed |
-| [server-memory-catalog-spec.md](server-memory-catalog-spec.md) | **Implemented `5.38`** — one server-resident catalog index + 64 MiB JPEG warmer |
-| [tilagup-mtapi-mode-spec.md](tilagup-mtapi-mode-spec.md) | Agent tiled SD |
-| [image-quality-rating-spec.md](image-quality-rating-spec.md) | Pool quality scores |
-| [fastsam-sam-multimodel-spec.md](fastsam-sam-multimodel-spec.md) | **FastSAM + SAM multimodel selector** — stronger backends on Intel OpenVINO |
-| [performance-settings-spec.md](performance-settings-spec.md) | Pool performance, thumbnail resolution, and RAM cache prefs |
-
-Full backlog: **[STATUS.md §5](STATUS.md)**. Build order: **[STATUS.md §8](STATUS.md)**.
-
-### Research
-| Doc | Note |
-|-----|------|
-| [fastsdcpu-upscalers-spec.md](fastsdcpu-upscalers-spec.md) | FastSD upscale catalog |
-| [amused-openvino-spec.md](amused-openvino-spec.md) | aMUSEd OpenVINO proposed |
-
-### Kickoffs (historical / builder)
-| Doc | Role |
-|-----|------|
-| [coder-nav-collapse-prompt.md](archive/coder-nav-collapse-prompt.md) | Nav collapse (shipped `4.69`) |
-| [coder-prompt-library-prompt.md](archive/coder-prompt-library-prompt.md) | Prompt library (shipped) |
-| [coder-rife-recoherence-prompt.md](archive/coder-rife-recoherence-prompt.md) | Recohere (shipped) |
-| [coder-dry-platform-prompt.md](archive/coder-dry-platform-prompt.md) | staged_job + Run/Queue DRY |
 
 ---
 
