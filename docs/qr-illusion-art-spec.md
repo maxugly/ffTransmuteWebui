@@ -1,9 +1,108 @@
-# QR Art Generator - Technical Specification
+# QR Art + Illusion
 
-**Target:** `ffTransmuteWebui` Integration
-**Hardware:** Intel Core i5-1335U / Iris Xe 80EU / 16GB RAM / OpenVINO
+> **Status:** **QR Implemented** (`5.04`–`5.05`). **Illusion = Spec** — not in the tree.  
+> **Audience:** Builder assigned this job.  
+> **Code (QR, shipped):** `qr_ops.py`, `qr_art_ov_worker.py`, `js/tabs/qr.js`  
+> **Related:** `filter-platform-spec.md` (bookends only — this is a generate op, not a video stage)
 
-## 1. Product Overview
+The filename promised “QR **or** custom pattern.” The body below (from §1) is **QR only** and matches shipped code. Illusion is **§0**. §0 wins if they disagree.
+
+---
+
+## 0. Illusion mode — locked for the builder
+
+HF **Illusion Diffusion** cousin: your **monochrome / high-contrast pattern** is structure; a **second still** is appearance. No QR payload. No generated barcode. No scan badge.
+
+Same ControlNet (`monster-labs/control_v1p_sd15_qrcode_monster`) + optional IP-Adapter already in the worker. Do **not** add a second op or a second worker file.
+
+### 0.1 Product
+
+| Slot | What | Required |
+|------|------|----------|
+| **Pattern** | User still. ControlNet + img2img init for structure (the “mono” map) | Yes |
+| **Appearance** | User still. IP-Adapter look (the image that modulates onto the pattern) | Yes for v1 |
+| **Prompt** | Optional. Empty → worker uses a fixed fallback `"high quality, detailed"` so SD has text tokens. Appearance still comes from the photo. | No |
+| **QR Data** | Hidden / ignored in this mode | No |
+
+Mode is one field: `mode: "qr" | "illusion"`. Default `"qr"` — existing clients unchanged.
+
+### 0.2 Device (honest — do not oversell)
+
+This box is a 1335U / Iris Xe / 16GB machine. What is **true in code today**:
+
+| Path | Engine | Device |
+|------|--------|--------|
+| QR, no IP-Adapter | `OVStableDiffusionImg2ImgPipeline` (FastSD env) | OpenVINO **GPU** (iGPU) |
+| QR + IP-Adapter | PyTorch `StableDiffusionControlNetImg2ImgPipeline` | `cuda` if `torch.cuda.is_available()`, else **CPU** |
+
+Iris Xe is **not** CUDA. Dual-conditioning (ControlNet + IP-Adapter) is therefore **CPU** on this desk unless the FastSD env already has Intel **XPU / IPEX**. The worker does **not** currently try XPU.
+
+**Vulkan:** NCNN Vulkan in this repo is RIFE / Real-ESRGAN only. There is no SD ControlNet on Vulkan. **Out of scope.** Do not add `stable-diffusion.cpp` or a second stack.
+
+**Locked device policy for Illusion v1**
+
+1. **Reuse the shipped IP-Adapter worker path.** Same FastSD python, same models, same 512×512 cap, same VAE slicing, same GPU→CPU OOM fallback strings. Illusion is `control_image = pattern` instead of a generated QR.
+2. **Try Intel XPU before CPU** when `torch.cuda` is false: `hasattr(torch, "xpu") and torch.xpu.is_available()` → `pipe.to("xpu")`. If that import/move fails, CPU + one log line. Do not invent a third backend.
+3. **Do not** claim OpenVINO iGPU for ControlNet+IP-Adapter in v1. The original QR spec asked for it; the ship punted to PyTorch because OV + IP-Adapter would not load. Do not reopen that in this pass.
+4. **Phase 2 (only if v1 is clean, separate commit):** OpenVINO ControlNet img2img — `OVStableDiffusionControlNetPipeline` if FastSD/optimum has it — **pattern = control**, **appearance = init image**, **no IP-Adapter**. That can use `DEVICE=GPU`. If `from_pretrained` fails: leave Phase 2 Partial, keep v1. Do not spend a week on OV IP-Adapter.
+
+### 0.3 API (`QrArtParams` — extend, do not fork)
+
+| Field | Illusion | QR (unchanged) |
+|-------|----------|----------------|
+| `mode` | `"illusion"` | `"qr"` (default) |
+| `qr_text` | optional / ignored | required |
+| `pattern_image` | required absolute path | unused |
+| `ip_adapter_image` | required (appearance) | optional if `use_ip_adapter` |
+| `use_ip_adapter` | **forced true** in v1 | user checkbox |
+| `prompt` | optional (fallback string in worker) | required |
+| knobs | same steps / guidance / strength / ctrl / ip scale | same |
+
+`collectQrBody`: if mode is illusion, do **not** alert on empty QR Data. Alert if pattern or appearance path missing. Prefer Image Pool / global `#giImage` lines (first = pattern, second = appearance) when the dedicated fields are blank.
+
+### 0.4 Worker
+
+- Do not generate a QR. Copy/resize pattern to 512×512 (`NEAREST` or `LANCZOS`). Optional: convert to L then RGB so Monster sees contrast; do not dither or invent a QR.
+- Existing job key `qr_image_path` may stay as the control/init path (less churn) **or** rename to `control_image_path` with a fallback read of `qr_image_path`. One name in the worker is enough.
+- Skip `pyzbar` in illusion mode. No scannability badge.
+- Progress / `latest_frame` / `OperationResult` same as QR.
+
+### 0.5 UI (same QR tab)
+
+- Mode control: **QR** | **Illusion** (binary knob or two radio buttons — vanilla, no new framework).
+- Illusion: show Pattern + Appearance path rows (Browse). Hide QR Data. Hide scan badge.
+- Hint one line: “Pattern = structure (mono works best). Appearance = the photo woven through it.”
+- No page essay. Bottom `.tool-docs` may add a short Illusion paragraph.
+
+### 0.6 Files
+
+| File | Change |
+|------|--------|
+| `qr_ops.py` | `mode`, `pattern_image`; `qr_text` not required when illusion; skip `qrcode` generate |
+| `qr_art_ov_worker.py` | Accept empty prompt fallback; XPU try; control image from pattern |
+| `js/tabs/qr.js` | Mode UI; collect body; no QR Data alert in illusion |
+| This spec | Banner → Partial until Illusion ships |
+| `docs/STATUS.md` | §4 or shipped row on ship |
+| `VERSION` | Far-right DD on ship |
+
+Do **not** touch FastSAM, filter-platform dump/encode, or add `illusion_ops.py`.
+
+### 0.7 Verify
+
+1. QR mode still requires QR Data and still writes a scannable-or-badge PNG.  
+2. Illusion: two stills (`/tmp/teste.png` + a second PNG), empty QR Data, empty prompt → `ok`, output PNG exists, no `qrcode` in the log.  
+3. Playwright: switch to Illusion, Run, no “QR Data is required” alert.  
+4. Log one line for device: `xpu` / `cuda` / `cpu`.  
+5. Weights stay under `mtapi-project/junk/models/` or HF cache. Never commit `.safetensors`.
+
+### 0.8 Out of scope
+
+Vulkan SD. Second worker. Multi-IP-Adapter (3+ refs). Making prompt-less mean “no CLIP text encoder.” OV+IP-Adapter in v1.
+
+---
+
+## 1. Product Overview (QR — shipped)
+
 The QR Art Generator blends a standard scannable QR code with a user-provided prompt using Stable Diffusion 1.5 and ControlNet (QR Monster) optimized for OpenVINO iGPU inference. It also supports IP-Adapter image prompting (h94/IP-Adapter base model) to let the user drop ANY reference image (photo of rust, wood, concrete, product, texture) and have the QR art take on the look of that image while remaining scannable.
 
 Unlike the previous standalone Gradio draft, this implementation must be fully integrated into the existing `ffTransmuteWebui` architecture (Vanilla JS/HTML frontend, FastAPI backend, Job Queue, and the `junk/` directory rule).
