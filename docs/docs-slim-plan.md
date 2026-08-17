@@ -1,8 +1,9 @@
 # Docs slim — pass-around plan
 
 > **Date:** 2026-08-17  
-> **Pass 1 (this commit):** archive only what is *competing or junk*.  
-> **Not this pass:** rewrite AGENTS.md, merge SESSION into STATUS, delete backlog specs, delete shipped as-built specs.
+> **Authoritative prompt:** [coder-docs-slim-prompt.md](coder-docs-slim-prompt.md)  
+> **Pass 1 (committed `7.002`):** archive only what is *competing or junk*.  
+> **Later passes:** only after human assigns them. Do not rewrite AGENTS or merge SESSION until then.
 
 Reviewers: object to a restore by name. Do not put archived files back “just in case.”
 

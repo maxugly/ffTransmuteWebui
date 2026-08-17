@@ -504,6 +504,13 @@
     "summary": "Extend FastSAM tab with model selector (FastSAM-s/x, SAM ViT-L/H). Phase 1 = s+x same FastSAM class. Phase 2 = ultralytics SAM or stop. Reuse device field; default still GPU + FastSAM-s."
   },
   {
+    "file": "coder-docs-slim-prompt.md",
+    "path": "docs/coder-docs-slim-prompt.md",
+    "category": "Meta / Prompt",
+    "status": "Assignment — pass around; Pass 1 done 7.002",
+    "summary": "End-state: short AGENTS + STATUS as only default context. Archive competing TODO/ideas. Later passes need human OK."
+  },
+  {
     "file": "coder-fastsam-multimodel-prompt.md",
     "path": "docs/coder-fastsam-multimodel-prompt.md",
     "category": "Meta / Prompt",

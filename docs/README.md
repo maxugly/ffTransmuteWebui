@@ -38,6 +38,7 @@
 | [pool-deadcode-cleanup-spec.md](pool-deadcode-cleanup-spec.md) | Pre-7.000: delete recycle/lazy leftovers only |
 | [coder-fastsam-multimodel-prompt.md](coder-fastsam-multimodel-prompt.md) | Builder one-shot: FastSAM-s/x + optional SAM ViT |
 | [docs-slim-plan.md](docs-slim-plan.md) | Pass-around: what we archived vs what stays |
+| [coder-docs-slim-prompt.md](coder-docs-slim-prompt.md) | Locked end-state for docs constitution slim |
 
 **Shared code:** `mtapi-project/app/evolve_video.py` — strip → optional dedupe → optional RIFE → encode.
 
