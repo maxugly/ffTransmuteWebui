@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-17  \
-> **VERSION:** `000.000.7.005`  \
+> **VERSION:** `000.000.7.006`  \
 > **Branch:** `wip`  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -54,7 +54,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | Sequence / Join | stitch; codec export (file→file for DNxHR/ProRes); Instant RIFE; variants; total time | `sequence_*.md` under `docs/` |
 | Catalog | server-resident index + virtualizer (chrome recycle; wall tenants stay) | `server-memory-catalog-spec.md` |
 | Jobs / progress | in-memory FIFO; live preview; dir watch on frame writers | `job_queue.py`, `workspace-progress-spec.md` |
-| Persistence | desk snapshot; open project quiet-saves with session | `universal-persistence-spec.md` |
+| Persistence | desk snapshot; if a named project is open, pool saves write that file too. Session autosave never overwrites a named file on its own | `universal-persistence-spec.md` |
 | Agent + Prompt Library | CLI/HTTP vision; ± pairs in `localStorage` | `agent-vision-tab-spec.md`, `prompt-library-spec.md` |
 
 **Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale, **qr_art** *(in tree — see §4)*.
@@ -161,7 +161,14 @@ Version diary: [archive/changelog.md](archive/changelog.md).
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.7.006` (STATUS is now a map; diary is `docs/archive/changelog.md`.)
+- **Current:** `000.000.7.006` (STATUS is a map; diary is `docs/archive/changelog.md`.)
+- Secrets: `~/.secrets` at startup.
+- Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`
+- Jobs: `~/.cache/mtapi/jobs` (override `MTAPI_JOBS_ROOT`)
+- FastSD: `MTAPI_FASTSD_ROOT` (img2img / txt2img / recohere)
+- RIFE: `rife-ncnn-vulkan` on PATH
+- Prompt library: browser `localStorage` key `mtapi_prompt_library`
+- NCNN bins: may live under `mtapi-project/bin/`
 
 ---
 
