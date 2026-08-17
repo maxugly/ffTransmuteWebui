@@ -120,11 +120,6 @@ export function renderSettingsForm() {
   const warm = state.settings.warmModels || {};
   elements.actionPanel.innerHTML = `
     <div class="settings-workspace" id="settingsWorkspace">
-      <div class="settings-hero">
-        <div class="settings-icon" aria-hidden="true">⚙</div>
-        <h3 class="settings-title">Settings</h3>
-        <p class="settings-lede">Performance controls are stored locally and mirrored to the media server. Drag knobs vertically or use the mouse wheel.</p>
-      </div>
       <section class="settings-card settings-performance" aria-labelledby="settingsPerformanceTitle">
         <div class="settings-card-head">
           <span class="settings-card-kicker">Performance</span>
@@ -133,7 +128,7 @@ export function renderSettingsForm() {
         <div class="settings-knob-row">
           <div class="settings-discrete-knob">
             <span class="knob-unit-label">Thumbnail size</span>
-            <div class="daw-knob" id="settingsThumbKnob" title="Drag up/down · scroll wheel">
+            <div class="daw-knob" id="settingsThumbKnob">
               <div class="daw-knob-dial"></div><div class="daw-knob-indicator" id="settingsThumbKnobInd"></div>
             </div>
             <input class="daw-knob-value-input" id="settingsThumbValue" value="${SIZE_LABELS[sizeIndex]}" readonly>
@@ -141,7 +136,7 @@ export function renderSettingsForm() {
           </div>
           <div class="settings-autosave-knob">
             <span class="knob-unit-label">Autosave</span>
-            <div class="daw-knob" id="settingsAutosaveKnob" title="Drag up/down · scroll wheel">
+            <div class="daw-knob" id="settingsAutosaveKnob">
               <div class="daw-knob-dial"></div><div class="daw-knob-indicator" id="settingsAutosaveKnobInd"></div>
             </div>
             <input class="daw-knob-value-input" id="settingsAutosaveValue" value="30s" readonly>
@@ -175,7 +170,7 @@ export function renderSettingsForm() {
         <div class="settings-knob-row">
           <div class="settings-discrete-knob">
             <span class="knob-unit-label">Scrollbar</span>
-            <div class="daw-knob" id="settingsScrollbarKnob" title="Drag up/down · scroll wheel">
+            <div class="daw-knob" id="settingsScrollbarKnob">
               <div class="daw-knob-dial"></div><div class="daw-knob-indicator" id="settingsScrollbarKnobInd"></div>
             </div>
             <input class="daw-knob-value-input" id="settingsScrollbarValue" value="${clampScrollbarWidth(state.settings.scrollbarWidth)}px" readonly>

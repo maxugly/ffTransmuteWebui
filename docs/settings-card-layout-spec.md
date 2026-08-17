@@ -88,8 +88,7 @@ Switch helper (already in `settings.js`):
 
 | Class | Role |
 |-------|------|
-| `.settings-workspace` | Page column. max-width 520px. `align-items: flex-start`. |
-| `.settings-hero` | Page title + one lede. Not a card. |
+| `.settings-workspace` | Page column. max-width 520px. `align-items: flex-start`. No page title; sidebar already says Settings. |
 | `.settings-card` | One group. `width: max-content`. |
 | `.settings-card-head` | Flex baseline row for kicker + title. |
 | `.settings-card-kicker` | Uppercase section word (`PERFORMANCE`, `NEURAL FX`). |

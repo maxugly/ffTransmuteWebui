@@ -116,9 +116,6 @@ function setupContinuousKnob(opts) {
   valueDisplay.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { valueDisplay.blur(); e.preventDefault(); }
   });
-  if (!knob.getAttribute('title') || knob.getAttribute('title') === 'Drag up/down') {
-    knob.title = 'Drag up/down · scroll wheel · Shift+scroll for fine';
-  }
   updateUI(currentVal);
 }
 

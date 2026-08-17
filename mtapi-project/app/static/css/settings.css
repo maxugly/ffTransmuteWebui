@@ -52,48 +52,8 @@ body.settings-tab-active .tool-input-preview {
   flex-direction: column;
   align-items: flex-start;
   gap: 16px;
-  padding: 24px 8px 32px;
+  padding: 8px 8px 32px;
   box-sizing: border-box;
-}
-
-.settings-hero {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.settings-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(145deg, rgba(59, 130, 246, 0.22), rgba(99, 102, 241, 0.12));
-  border: 1px solid rgba(99, 102, 241, 0.35);
-  color: #93c5fd;
-  box-shadow: 0 0 24px rgba(59, 130, 246, 0.12);
-}
-.settings-icon svg {
-  width: 24px;
-  height: 24px;
-}
-
-.settings-title {
-  margin: 4px 0 0;
-  font-size: 1.35rem;
-  font-weight: 650;
-  letter-spacing: -0.02em;
-  color: var(--text, #e8eef8);
-}
-
-.settings-lede {
-  margin: 0;
-  max-width: 52ch;
-  font-size: 0.92rem;
-  line-height: 1.55;
-  color: var(--text-muted, #94a3b8);
 }
 
 .settings-grid {

@@ -16,6 +16,7 @@
 | **Docs slim pass 3** | Prompts, legacy renaming, and sequence spec cleanup. | **`7.004`** |
 | **Docs STATUS diet** | STATUS is now a map; diary moved to changelog. | **`7.006`** |
 | **Live VERSION** | One file (`VERSION`). WebUI brand reads `/health`. STATUS does not restate the digits. | **`7.007`** |
+| **Settings chrome** | No page title / knob how-to. Cards start immediately. | **`7.008`** |
 | **FastSAM multimodel** | Phase 1 (FastSAM-s/x) shipped in `ac25a60`. Phase 2 (SAM ViT-L/H) still deferred. | `fastsam-sam-multimodel-spec.md` · **`7.002` Partial** |
 
 **Next:** human names the next job.
