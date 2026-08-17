@@ -35,6 +35,7 @@
 | [settings-card-layout-spec.md](settings-card-layout-spec.md) | **Settings cards** — tight one-page house style |
 | [pool-wall-preview-spec.md](pool-wall-preview-spec.md) | Pool wall: one 120px preview, stable img |
 | [pool-deadcode-cleanup-spec.md](pool-deadcode-cleanup-spec.md) | Pre-7.000: delete recycle/lazy leftovers only |
+| [coder-fastsam-multimodel-prompt.md](coder-fastsam-multimodel-prompt.md) | Builder one-shot: FastSAM-s/x + optional SAM ViT |
 
 **Shared code:** `mtapi-project/app/evolve_video.py` — strip → optional dedupe → optional RIFE → encode.
 

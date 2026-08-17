@@ -1,8 +1,29 @@
 # FastSAM + SAM Multimodel Spec
 
-> **Status:** Proposed
-> **Audience:** Builders extending FastSAM with alternative SAM-family backends
-> **Related:** `fastsam-openvino-spec.md`, `filter-platform-spec.md`, `withoutbg-spec.md`
+> **Status:** Ready for builder — execute via [coder-fastsam-multimodel-prompt.md](coder-fastsam-multimodel-prompt.md)  
+> **Audience:** Builders extending FastSAM with alternative SAM-family backends  
+> **Related:** `fastsam-openvino-spec.md`, `filter-platform-spec.md`, `withoutbg-spec.md`  
+> **As-built today (7.001):** FastSAM-s only. No Model dropdown. `device` is already `GPU|CPU|AUTO` (default GPU).
+
+---
+
+## 0. Locked for the builder (do not re-open)
+
+The sections below this box are research. **This box wins** if they disagree.
+
+| # | Lock |
+|---|------|
+| 1 | **Reuse `device`.** Do **not** add `device_preference`. UI already has GPU / CPU / AUTO. Keep default **GPU**. |
+| 2 | **API field:** `model_id`: `FastSAM-s` \| `FastSAM-x` \| `SAM ViT-L` \| `SAM ViT-H`. Default `FastSAM-s`. |
+| 3 | **Phase 1 (must ship):** FastSAM-s unchanged + FastSAM-x. Same `ultralytics.FastSAM` class. Pass `model_id` through params → image path → `make_fastsam_directory`. |
+| 4 | **Phase 2 (only if clean):** SAM ViT-L then ViT-H via **ultralytics `SAM`** (already on the FastSAM install). Normalize output to `.masks.xy` so `get_target_mask` stays untouched. |
+| 5 | **Do not** add `segment-anything` / `sam2` unless ultralytics export **fails**. If it fails: ship Phase 1, mark ViT Partial, stop. Do not invent a second mask stack. |
+| 6 | **Weights:** ultralytics cache or `~/.cache/mtapi/models/`. Never commit `*.pt`. Scratch downloads → `mtapi-project/junk/models/`. |
+| 7 | **`keep_model_warm` stays.** Cache key = `model_id + device`. Spec §7.3 “no caching” is **void**. |
+| 8 | **AUTO heuristic** only when user picked AUTO (already on the Device dropdown). GPU requested stays GPU unless OpenVINO says unavailable — then CPU + one log line. |
+| 9 | FastSAM-s remains default. First heavy-model run may download + export (slow). Log `[fastsam] using …`. |
+| 10 | VERSION far-right DD (`7.002` if still on 7.001). STATUS / SESSION / spec_registry. No 7.000 rewrite. |
+| 11 | Video “everything” stays today’s fallback (target per frame). Do not redesign that. |
 
 ---
 

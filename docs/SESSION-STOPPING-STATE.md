@@ -97,7 +97,7 @@ Next strip→video ops: inherit params, import JS helper, call `build_evolve_vid
 | Evolve multi/video/ouro | Spec phases C–E — stills only shipped |
 | Job queue persist | Memory FIFO only |
 | Tilagup / quality rating | Specs; human priority |
-| **FastSAM multimodel** | **Proposed** — `fastsam-sam-multimodel-spec.md` adds SAM ViT-L/H + AUTO device fallback |
+| **FastSAM multimodel** | **Ready for builder** — spec §0 locked; prompt `coder-fastsam-multimodel-prompt.md`. Phase 1 = FastSAM-x. Phase 2 = ViT only if ultralytics SAM export is clean. |
 | Full backlog | STATUS §5.5 |
 
 ---
