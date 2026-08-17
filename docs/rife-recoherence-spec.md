@@ -2,7 +2,7 @@
 
 > **Status:** **Implemented** (`000.000.4.62`) — keep all RIFE mids; img2img every mid
 > **Date:** 2026-08-03  
-> **Builder prompt:** [coder-rife-recoherence-prompt.md](coder-rife-recoherence-prompt.md)  
+> **Builder prompt:** [coder-rife-recoherence-prompt.md](archive/coder-rife-recoherence-prompt.md)  
 > **Audience:** Builders & reviewers  
 > **Depends on (shipped):** `filters/rife.py`, `filters/img2img.py` (`frame_indices`), `image_sort.conform_image`, `video_pipeline.encode`  
 > **Related:** `filter-platform-spec.md`, `img2img-openvino-spec.md`, `image-sort-rife-spec.md`, `STATUS.md`  

@@ -23,7 +23,10 @@ def ensure_openvino_model(model_id: str = "FastSAM-s", device: str = "GPU") -> s
     filename = _resolve_model_id(model_id)
     cache_key = f"{model_id}:{device}"
     if cache_key in _openvino_model_cache:
-        return _openvino_model_cache[cache_key]
+        cached = _openvino_model_cache[cache_key]
+        if Path(cached).is_dir():
+            return cached
+        del _openvino_model_cache[cache_key]
 
     print(f"[fastsam] exporting {filename} for device={device}")
     model = FastSAM(filename)
@@ -34,6 +37,8 @@ def ensure_openvino_model(model_id: str = "FastSAM-s", device: str = "GPU") -> s
         print(f"OpenVINO export note: {e}")
 
     result = f"{filename.replace('.pt', '')}_openvino_model"
+    if not Path(result).is_dir():
+        raise FileNotFoundError(f"OpenVINO export did not produce {result}")
     _openvino_model_cache[cache_key] = result
     return result
 

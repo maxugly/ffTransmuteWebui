@@ -4,7 +4,7 @@
 > **Date:** 2026-08-16  
 > **Base:** `wip` @ `c4b6216` (`000.000.6.9`)  
 > **Goal:** Delete leftovers from the 6.2–6.5 recycle / viewport-lazy path **without** touching the 6.6–6.9 wall.  
-> **Executor prompt:** [coder-pool-deadcode-cleanup-prompt.md](coder-pool-deadcode-cleanup-prompt.md)
+> **Executor prompt:** [coder-pool-deadcode-cleanup-prompt.md](archive/coder-pool-deadcode-cleanup-prompt.md)
 
 This is **not** the 7.000 bump. Ship cleanup as **`000.000.6.10`**. Human reviews, then a later pass bumps third segment to 7.000.
 

@@ -87,10 +87,10 @@ Full backlog: **[STATUS.md §5](STATUS.md)**. Build order: **[STATUS.md §8](STA
 ### Kickoffs (historical / builder)
 | Doc | Role |
 |-----|------|
-| [coder-nav-collapse-prompt.md](coder-nav-collapse-prompt.md) | Nav collapse (shipped `4.69`) |
-| [coder-prompt-library-prompt.md](coder-prompt-library-prompt.md) | Prompt library (shipped) |
-| [coder-rife-recoherence-prompt.md](coder-rife-recoherence-prompt.md) | Recohere (shipped) |
-| [coder-dry-platform-prompt.md](coder-dry-platform-prompt.md) | staged_job + Run/Queue DRY |
+| [coder-nav-collapse-prompt.md](archive/coder-nav-collapse-prompt.md) | Nav collapse (shipped `4.69`) |
+| [coder-prompt-library-prompt.md](archive/coder-prompt-library-prompt.md) | Prompt library (shipped) |
+| [coder-rife-recoherence-prompt.md](archive/coder-rife-recoherence-prompt.md) | Recohere (shipped) |
+| [coder-dry-platform-prompt.md](archive/coder-dry-platform-prompt.md) | staged_job + Run/Queue DRY |
 
 ---
 

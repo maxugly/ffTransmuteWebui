@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-17  \
-> **VERSION:** `000.000.7.004`  \
+> **VERSION:** `000.000.7.005`  \
 > **Branch:** `wip`  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -16,7 +16,7 @@
 | **Docs slim pass 2** | Constitution + handoff block folded into STATUS. | **`7.003`** |
 | **FastSAM multimodel** | Phase 1 (FastSAM-s/x) shipped in `ac25a60`. Phase 2 (SAM ViT-L/H) still deferred. | `fastsam-sam-multimodel-spec.md` · **`7.002` Partial** |
 
-**Next:** Docs slim pass 3.
+**Next:** human names the next job.
 
 ---
 
@@ -70,7 +70,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | Run-button elapsed | sticky `● m:ss` | `job-control.js` |
 | list-keys (partial ship) | several list tabs | `ui/list-keys.js` |
 | Bottom docs (partial ship) | Image Sort pilot + img2img / txt2img / agent / upscale / recohere / **deepdream** | `tool-bottom-docs-spec.md` |
-| **DRY staged job** | `run_staged_job` shared bookend runner; rife / cut / upscale-video / speedramp migrated | `app/staged_job.py`, `coder-dry-platform-prompt.md` · `4.65` |
+| **DRY staged job** | `run_staged_job` shared bookend runner; rife / cut / upscale-video / speedramp migrated | `app/staged_job.py` · `4.65` |
 | **Run/Queue collect unified** | Single `resolveActiveOpAndBody()` shared by Run + Add to Queue | `js/job-control.js` · `4.65` |
 | **Bottom input preview** | Every op tab shows input thumb(s) at panel bottom (after docs); dual for style/recohere/guide | `js/ui/input-preview.js` · `4.66` |
 | **DeepDream bottom docs** | Full noob-friendly story + every knob + recipes | `js/tabs/deepdream.js` · `4.67` |
@@ -175,7 +175,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 | 3 | [universal-persistence-spec.md](universal-persistence-spec.md) | **Implemented `5.06`** — desk snapshot + metadata + lazy-load | Bug #1 closed |
 | 4 | [tilagup-mtapi-mode-spec.md](tilagup-mtapi-mode-spec.md) | Multi-step agent tiled SD | Sibling `/home/m/snc/cod/tilagup` |
 | 5 | [image-quality-rating-spec.md](image-quality-rating-spec.md) | Pool tech/aesthetic scores | **Fix pool normalize first** |
-| 6 | [fastsam-sam-multimodel-spec.md](fastsam-sam-multimodel-spec.md) | **FastSAM + SAM multimodel selector** — stronger backends (FastSAM-x, SAM ViT-L/H) | **Ready for builder** — `coder-fastsam-multimodel-prompt.md` · spec §0 locked |
+| 6 | [fastsam-sam-multimodel-spec.md](fastsam-sam-multimodel-spec.md) | **FastSAM + SAM multimodel selector** — stronger backends (FastSAM-x, SAM ViT-L/H) | Phase 1 shipped, Phase 2 deferred (not ready for builder). |
 | 7 | [performance-settings-spec.md](performance-settings-spec.md) | Performance settings tab, thumbnail resolution, and RAM cache prefs | **Proposed** — budget setting later |
 
 ### 5.2 Recently shipped (orientation)
@@ -261,7 +261,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.7.004` (Docs slim pass 3: Prompts, legacy renaming, and sequence spec cleanup.)
+- **Current:** `000.000.7.005` (Docs slim closeout: top box, spec_registry fix, §5.1 update.)
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  

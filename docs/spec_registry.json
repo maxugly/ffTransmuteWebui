@@ -442,7 +442,7 @@
   },
   {
     "file": "coder-pool-deadcode-cleanup-prompt.md",
-    "path": "docs/coder-pool-deadcode-cleanup-prompt.md",
+    "path": "docs/archive/coder-pool-deadcode-cleanup-prompt.md",
     "category": "Meta / Prompt",
     "status": "Completed 000.000.6.10; released 000.000.7.000",
     "summary": "One-shot prompt implemented as 6.10. Released in 7.000."
