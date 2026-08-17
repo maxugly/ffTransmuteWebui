@@ -120,6 +120,7 @@ export function renderSettingsForm() {
   const warm = state.settings.warmModels || {};
   elements.actionPanel.innerHTML = `
     <div class="settings-workspace" id="settingsWorkspace">
+      <p class="settings-lede">Performance controls are stored locally and mirrored to the media server.</p>
       <section class="settings-card settings-performance" aria-labelledby="settingsPerformanceTitle">
         <div class="settings-card-head">
           <span class="settings-card-kicker">Performance</span>
