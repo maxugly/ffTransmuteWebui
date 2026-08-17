@@ -8,6 +8,8 @@
 
 Fast, non-destructive video manipulation: bash CLI + FastAPI (`mtapi-project`) + vanilla SPA.
 
+Hats for a turn. The human names who wears which hat in the prompt.
+
 - **Spec writer**: `docs/` only. Do not write app code. Do not re-spec shipped work.
 - **Builder**: implement open assignments. Browser-click before claiming DONE.
 - **Reviewer**: report vs spec. Do not fix.

@@ -31,10 +31,12 @@
 
 ## 2. Agent roles (short)
 
+Hats for a turn. The human names the owner in the prompt — not a permanent roster.
+
 | Role | Edits | Deliverable |
 |------|-------|-------------|
-| Spec writer (agy, grok, bones) | `docs/**` only | Specs / STATUS — **no** app code |
-| Builder (codewhale, codex, opencode) | code + docs | Working feature; WebUI smoke |
+| Spec writer | `docs/**` only | Specs / STATUS — **no** app code |
+| Builder | code + docs | Working feature; WebUI smoke |
 | Reviewer | reports | Diff vs spec |
 
 Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for frame effects. VERSION: far-right `DD` per feature.
