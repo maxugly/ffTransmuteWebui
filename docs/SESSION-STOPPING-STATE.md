@@ -1,7 +1,7 @@
 # Session stopping state — handoff
 
-> **Date:** 2026-08-16  
-> **VERSION:** `000.000.7.001`  
+> **Date:** 2026-08-17  
+> **VERSION:** `000.000.7.002`  
 > **Branch:** `main`  
 > **Authoritative live status / roadmap:** [STATUS.md](STATUS.md)  
 > **Purpose:** Human + next-agent handoff — what shipped, what is open, how to resume.
@@ -12,6 +12,7 @@
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
+| **Docs slim pass 1** | Archived TODO/ideas piles + July root STATUS/TODO/ROADMAP. Plan: `docs-slim-plan.md`. | **`7.002`** |
 | **Sequence total time** | Sequence header sums clip times (Time override or native). | `sequence.js` · **`7.001`** |
 | **7.000 release** | Pool wall that stays painted. Merge `wip` → `main`. | `pool-wall-preview-spec.md` · **`7.000`** |
 | **Pool dead-code cleanup** | Removed activateVideoCard/bindVideoRetry/imageThumbUrl; assignCardThumbs skips wall/wall_pair; removed viewport-lazy Settings switch; FIRST/LAST labels no longer injected on .pool-wall. | `pool-deadcode-cleanup-spec.md` · **`6.10`** |

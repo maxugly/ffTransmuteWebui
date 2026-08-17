@@ -1,7 +1,7 @@
 # Project status — agent & human source of truth
 
-> **Updated:** 2026-08-16  \
-> **VERSION:** `000.000.7.001`  \
+> **Updated:** 2026-08-17  \
+> **VERSION:** `000.000.7.002`  \
 > **Branch:** `main`  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
@@ -129,6 +129,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **Pool dead-code cleanup** | Removed unused card helpers; `assignCardThumbs` skips wall tenants; viewport-lazy Settings switch gone; no FIRST/LAST labels on `.pool-wall`. | `pool-deadcode-cleanup-spec.md` · **`6.10`** |
 | **7.000 release** | Wall that stays painted: one prepared JPEG (first\|last combo default), stable `<img>` tenants, chrome virtualizer, import probe + generate. | `pool-wall-preview-spec.md` · **`7.000`** |
 | **Sequence total time** | Header shows sum of clip play lengths (Time override or native). | `sequence.js` · **`7.001`** |
+| **Docs slim pass 1** | Archived competing TODO/ideas piles + July root STATUS/TODO/ROADMAP. Live truth is this file. | `docs-slim-plan.md` · **`7.002`** |
 | **Server-resident catalog** | CatalogIndex hydrates the full cache before serve; display paths read RAM; exclusive process lock; 64 MiB JPEG warmer; `/api/catalog/status`. §11–12 I/O, lock, warmer, restart, Video+Image+Sequence browser checks accepted | `server-memory-catalog-spec.md` · **`5.38`** |
 
 **Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale, **qr_art** *(in tree — see §4)*. Root `AGENTS.md`.
@@ -248,7 +249,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.7.001` (Sequence header shows total clip time. Catalog compositor p95 remains Partial at `5.37`.)
+- **Current:** `000.000.7.002` (Docs slim pass 1: competing TODO/ideas archived. Catalog compositor p95 remains Partial at `5.37`.)
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  

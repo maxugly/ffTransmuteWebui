@@ -2,7 +2,8 @@
 
 > **Start here:** [STATUS.md](STATUS.md) — **shipped / partial / full roadmap**  
 > **Handoff:** [SESSION-STOPPING-STATE.md](SESSION-STOPPING-STATE.md)  
-> **Law:** `../AGENTS.md` · `../mtapi-project/AGENTS.md`
+> **Law:** `../AGENTS.md` · `../mtapi-project/AGENTS.md`  
+> **Slim plan:** [docs-slim-plan.md](docs-slim-plan.md) · **Archive (not law):** [archive/](archive/)
 
 | Banner | Meaning |
 |--------|---------|
@@ -36,12 +37,13 @@
 | [pool-wall-preview-spec.md](pool-wall-preview-spec.md) | Pool wall: one 120px preview, stable img |
 | [pool-deadcode-cleanup-spec.md](pool-deadcode-cleanup-spec.md) | Pre-7.000: delete recycle/lazy leftovers only |
 | [coder-fastsam-multimodel-prompt.md](coder-fastsam-multimodel-prompt.md) | Builder one-shot: FastSAM-s/x + optional SAM ViT |
+| [docs-slim-plan.md](docs-slim-plan.md) | Pass-around: what we archived vs what stays |
 
 **Shared code:** `mtapi-project/app/evolve_video.py` — strip → optional dedupe → optional RIFE → encode.
 
 ---
 
-## At a glance — `000.000.7.001` (2026-08-16)
+## At a glance — `000.000.7.002` (2026-08-17)
 
 ### Shipped recently
 | Doc / feature | Ver |

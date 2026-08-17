@@ -24,10 +24,10 @@ Agents operating at this level are responsible for top-level repository integrit
 ├── datamosh.sh                  # Pure Bash CLI script (wraps ffgac/ffedit/ffmpeg for datamoshing)
 ├── melt.js / no_keyframe.js     # ffglitch ECMAScript modules for vector & frame destruction
 ├── speedramp_png.py             # PNG frame-remap speed ramp (bypasses ffmpeg setpts)
-├── docs-transmute-README.md     # Reference doc for standalone transmute CLI flags
-├── docs/                        # Specs, STATUS, handoffs (start: docs/STATUS.md)
+├── docs/                        # Specs, STATUS (start: docs/STATUS.md)
 │   ├── STATUS.md                # Canonical shipped / partial / spec-only
 │   ├── README.md                # Doc index
+│   ├── archive/                 # Lost TODO/ideas/old root status — not law
 │   └── video-image-pools-spec.md
 ├── mtapi-project/               # FastAPI backend package and WebUI client
 └── AGENTS.md                    # Root agent operational directives (this file)
