@@ -1,6 +1,6 @@
 # FastSAM + SAM Multimodel Spec
 
-> **Status:** Ready for builder — execute via [coder-fastsam-multimodel-prompt.md](coder-fastsam-multimodel-prompt.md)  
+> **Status:** Partial (000.000.7.002) — Phase 1 shipped (FastSAM-s + FastSAM-x). Phase 2 SAM ViT-L/H deferred: ultralytics `SAM.export()` crashes with `SAMModel` has no `args`.  
 > **Audience:** Builders extending FastSAM with alternative SAM-family backends  
 > **Related:** `fastsam-openvino-spec.md`, `filter-platform-spec.md`, `withoutbg-spec.md`  
 > **As-built today (7.001):** FastSAM-s only. No Model dropdown. `device` is already `GPU|CPU|AUTO` (default GPU).

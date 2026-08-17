@@ -47,6 +47,15 @@ export function renderFastSAMForm() {
     </div>
 
     <div class="form-row">
+      <label for="fastsamModel">Model</label>
+      <select id="fastsamModel">
+        <option value="FastSAM-s" selected>FastSAM-s (default)</option>
+        <option value="FastSAM-x">FastSAM-x (slow, accurate)</option>
+      </select>
+      <p class="form-row-hint">Heavier models use more RAM and run slower. First run downloads + exports the model.</p>
+    </div>
+
+    <div class="form-row">
       <label for="fastsamDevice">Device</label>
       <select id="fastsamDevice">
         <option value="GPU" selected>GPU (Iris Xe)</option>
@@ -189,6 +198,7 @@ export function collectFastSAMBody() {
     input_path: (document.getElementById('fastsamInput') || {}).value || bestInput(''),
     output_dir: (document.getElementById('fastsamOutput') || {}).value || '',
     mode: (document.getElementById('fastsamMode') || {}).value || 'target',
+    model_id: (document.getElementById('fastsamModel') || {}).value || 'FastSAM-s',
     target_x: parseFloat((document.getElementById('fastsamTargetX') || {}).value || '0.5'),
     target_y: parseFloat((document.getElementById('fastsamTargetY') || {}).value || '0.5'),
     conf: parseFloat((document.getElementById('fastsamConf') || {}).value || '0.4'),

@@ -1,6 +1,6 @@
 # FastSAM OpenVINO Asset Extraction Spec
 
-> **Status:** Implemented
+> **Status:** Implemented (000.000.7.002)
 > **Audience:** Builders integrating FastSAM via OpenVINO for Intel iGPU
 > **Related:** `filter-platform-spec.md`, `withoutbg-spec.md`
 

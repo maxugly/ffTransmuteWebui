@@ -23,6 +23,7 @@ class FastSAMParams(BaseModel):
     iou: float = Field(0.9, description="Intersection over union threshold")
     device: Literal["GPU", "CPU", "AUTO"] = Field("GPU", description="OpenVINO execution device")
     mode: Literal["everything", "target"] = Field("target", description="Extraction mode")
+    model_id: Literal["FastSAM-s", "FastSAM-x"] = Field("FastSAM-s", description="Segmentation backend")
     target_x: float = Field(0.5, description="Target X coordinate (0.0 - 1.0)")
     target_y: float = Field(0.5, description="Target Y coordinate (0.0 - 1.0)")
     start_frame: int = start_frame_field()
@@ -69,7 +70,7 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
             + (f"  direct image inference\n" if is_image else
                f"  ffmpeg -i {input_path} → frames_in/frame_%06d.png\n")
             + f"# fastsam stage\n"
-            + f"  conf={p.conf} iou={p.iou} device={p.device} mode={p.mode}\n"
+            + f"  model={p.model_id} conf={p.conf} iou={p.iou} device={p.device} mode={p.mode}\n"
             + (f"\n# output\n  {out}" if is_image else
                f"\n# encode\n  ffmpeg -framerate <fps> -i frames_out/frame_%06d.png {out}")
         )
@@ -84,8 +85,9 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
         from app.filters.fastsam import ensure_openvino_model, get_runtime_model, get_target_mask
         from ultralytics import FastSAM
 
-        ov_model_path = ensure_openvino_model(device=p.device)
-        model = get_runtime_model(ov_model_path, keep_warm=p.keep_model_warm)
+        ov_model_path = ensure_openvino_model(model_id=p.model_id, device=p.device)
+        model = get_runtime_model(ov_model_path, keep_warm=p.keep_model_warm, model_id=p.model_id)
+        print(f"[fastsam] using {p.model_id} on {p.device}")
 
         ov_device = p.device
         if ov_device and not ov_device.lower().startswith("intel:") and ov_device.upper() != "CPU":
@@ -155,8 +157,8 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
     from app.filters.fastsam import make_fastsam_directory
     stage_fn = await make_fastsam_directory(
         conf=p.conf, iou=p.iou, device=p.device,
-        mode=p.mode, target_x=p.target_x, target_y=p.target_y
-        , keep_model_warm=p.keep_model_warm
+        mode=p.mode, target_x=p.target_x, target_y=p.target_y,
+        model_id=p.model_id, keep_model_warm=p.keep_model_warm,
     )
 
     return await run_staged_job(
