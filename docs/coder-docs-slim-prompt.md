@@ -57,18 +57,21 @@ Archived (git history intact):
 
 ## Remaining work (execute only what the human assigns)
 
-### Pass 2 — constitution (needs human OK)
+### Pass 2 — constitution (human OK — **locked reviewer tweaks**)
 
-- Slim root `AGENTS.md` to ~80–120 lines: mission, tree, **invariants**, roles, “read STATUS,” VERSION bump list. Drop duplicated op registry tables (STATUS has them).  
-- Keep `mtapi-project/AGENTS.md` as **package-local** (filters/ops/static) or fold one paragraph into root and delete if redundant — reviewer call, don’t guess.  
-- Fold `SESSION-STOPPING-STATE.md` into a **short** “Shipped this stretch / next assignment” box at the top of STATUS. Then delete SESSION **only if** every AGENTS / README pointer is updated.  
-- Pick **one** `docs-automation-lanes.md` (root vs `docs/` differ). Archive the loser.
+- Slim root `AGENTS.md` to ~80–120 lines: mission, tree, **invariants**, roles, “read STATUS first,” VERSION bump list.  
+- **Invariants keep their bite.** Do not soften: no `shell=True`, junk/ only, unified dump→filters→encode, dual pools, wall = don’t clear `src`, absolute paths, VERSION ritual. Drop **tables** (op registry), not the rules.  
+- **`mtapi-project/AGENTS.md`:** fold any unique rules into root (OperationResult `200` + `ok:false`, no subprocess in `main.py`, `bin/transmute` parity, progress every item, RIFE M 2–128). Then **delete** `mtapi-project/AGENTS.md`. Nested `filters/AGENTS.md` and `static/AGENTS.md` may stay as *short* local notes **only if** root has a one-line pointer: “Root AGENTS is law; if you edit filters/ or static/, also read that folder’s AGENTS.md.”  
+- Fold `SESSION-STOPPING-STATE.md` into a short **Shipped this stretch / Next** box at the **top** of `docs/STATUS.md`. Delete SESSION only after `rg` shows no live pointers (AGENTS, README, spec_registry, prompts). STATUS box is what you update at session end.  
+- Pick **one** `docs-automation-lanes.md` (root vs `docs/` differ). Archive the loser.  
+- After every move/delete: `rg` for the old path. Fix dead links before commit.
 
-### Pass 3 — prompts and leftover specs (needs human OK)
+### Pass 3 — prompts and leftover specs (human OK — **locked reviewer tweaks**)
 
-- Archive `coder-*-prompt.md` for **already shipped** work (nav, recohere, dry-platform, …). Keep **open** prompts: FastSAM multimodel, this slim prompt.  
-- Mark **Legacy** (do not delete yet) on superseded catalog/virt writeups if STATUS already has a newer as-built. List names in the commit.  
-- `mtapi-project/sequence_*_spec.md` at package root: move under `docs/` **or** leave if still the Join as-built. Do not delete without reading.
+- Archive `coder-*-prompt.md` for **already shipped** work. Keep **open** prompts: FastSAM multimodel, this slim prompt.  
+- Superseded writeups: **do not delete.** Add a first-line banner: `> **LEGACY — do not build from this file. STATUS.md is law.**` Optional rename `*-legacy.md` **only after** `rg` shows no remaining links (or you update them all).  
+- `mtapi-project/sequence_*_spec.md`: `rg` first; move under `docs/` if they are the Join as-built, else archive. No silent deletes.  
+- `rg` again for broken links in README, STATUS, AGENTS, spec_registry.
 
 ### Pass 4 — optional later
 
@@ -93,7 +96,7 @@ Archived (git history intact):
 ## How to pass this around
 
 1. Reviewer reads this file + `docs-slim-plan.md`. Objects **by filename**.  
-2. Human says which pass (2 / 3 / 4).  
+2. Human says which pass (2 / 3 / 4). **Pass 2 is approved to execute** once they say go.  
 3. Builder executes **only that pass**. Commit on `wip`. VERSION DD if STATUS header changes.  
 4. Next reviewer diffs the commit against this prompt’s end-state table.
 

@@ -24,16 +24,15 @@ Moved to `docs/archive/` (still in git history):
 
 ---
 
-## Pass 2 — propose (do not do until human says)
+## Pass 2+ — reviewer tweaks **accepted** (locked in the prompt)
 
-| Action | Why wait |
-|--------|----------|
-| Merge SESSION into a short STATUS “handoff” box | AGENTS.md still names SESSION |
-| Slim root `AGENTS.md` to ~80 lines | Needs a dedicated review pass |
-| Archive *shipped* `coder-*-prompt.md` (nav, recohere, …) | Historical; as-built spec is enough |
-| `docs/docs-automation-lanes.md` vs root copy | They **differ** — pick one |
-| Mark Legacy on superseded catalog/virt specs | Easy to delete the wrong “as-built” |
-| `mtapi-project/sequence_*_spec.md` at package root | May still be as-built for Join |
+- Invariants keep bite (shell=True, junk/, pipeline). Tables go, rules stay.
+- Fold unique `mtapi-project/AGENTS.md` into root, then delete that file. Nested filters/static AGENTS only with a root pointer.
+- SESSION → short box at top of STATUS; delete SESSION after `rg` is clean.
+- Every move: `rg` for dead links.
+- Legacy specs: WARNING banner first; `-legacy` rename only after grep.
+
+Human still names which pass to run.
 
 ---
 
