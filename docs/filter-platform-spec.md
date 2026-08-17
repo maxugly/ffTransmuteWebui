@@ -2,7 +2,7 @@
 
 > **Status:** Active — source of truth for filter separation  
 > **Audience:** Builders migrating ops; PipelineChain; Convert bookends  
-> **Related:** `pipeline-spec.md`, `dynamic-mixing-spec.md`, `resolve-transcode-spec.md`, `rife-filter-cleanup-spec.md`
+> **Related:** `pipeline-spec-legacy.md`, `dynamic-mixing-spec.md`, `resolve-transcode-spec.md`, `rife-filter-cleanup-spec.md`
 
 ---
 

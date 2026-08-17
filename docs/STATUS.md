@@ -1,8 +1,8 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-17  \
-> **VERSION:** `000.000.7.003`  \
-> **Branch:** `main`  
+> **VERSION:** `000.000.7.004`  \
+> **Branch:** `wip`  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
 **Also read:** `AGENTS.md` (root) · [README.md](README.md)
@@ -13,10 +13,10 @@
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
-| **Docs slim pass 1** | Archived TODO/ideas piles + July root STATUS/TODO/ROADMAP. Plan: `docs-slim-plan.md`. | **`7.002`** |
-| **FastSAM multimodel** | Model selector on FastSAM tab: FastSAM-s (default) + FastSAM-x. Same OpenVINO export path. Phase 2 (SAM ViT-L/H) deferred: ultralytics SAM export crashes (`SAMModel` has no `args`). | `fastsam-sam-multimodel-spec.md` · **`7.002` Partial** |
+| **Docs slim pass 2** | Constitution + handoff block folded into STATUS. | **`7.003`** |
+| **FastSAM multimodel** | Phase 1 (FastSAM-s/x) shipped in `ac25a60`. Phase 2 (SAM ViT-L/H) still deferred. | `fastsam-sam-multimodel-spec.md` · **`7.002` Partial** |
 
-**Next:** Docs slim pass 2–4. Wait for human priority.
+**Next:** Docs slim pass 3.
 
 ---
 
@@ -202,7 +202,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 | Spec | Intent |
 |------|--------|
 | [audio-analysis-spec.md](audio-analysis-spec.md) | BPM / key / analysis |
-| [automation-spec.md](automation-spec.md) / [parameter-automation-spec.md](parameter-automation-spec.md) | Parameter envelopes |
+| [automation-spec-legacy.md](automation-spec-legacy.md) / [parameter-automation-spec.md](parameter-automation-spec.md) | Parameter envelopes |
 | [dynamic-mixing-spec.md](dynamic-mixing-spec.md) | Dynamic mix |
 | [model-manager-spec.md](model-manager-spec.md) | Model manager UI |
 | [image-compare-spec.md](image-compare-spec.md) | Shared module + **Compare tab `4.68`** |
@@ -220,7 +220,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 |------|--------|
 | [upscale-spec.md](backlog/upscale-spec.md) | NCNN Real-ESRGAN / SRMD — **code may be partial in tree** |
 | [swinir-spec.md](backlog/swinir-spec.md) | Denoise/deblur |
-| [sd-tiled-upscale-spec.md](backlog/sd-tiled-upscale-spec.md) | **Legacy** → tilagup-mtapi |
+| [sd-tiled-upscale-spec-legacy.md](backlog/sd-tiled-upscale-spec-legacy.md) | **Legacy** → tilagup-mtapi |
 | [depthmap-spec.md](backlog/depthmap-spec.md) | MiDaS depth |
 | [opticalflow-spec.md](backlog/opticalflow-spec.md) | Flow maps |
 | [facerestore-spec.md](backlog/facerestore-spec.md) | CodeFormer |
@@ -241,7 +241,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 | [mediaexport-spec.md](backlog/mediaexport-spec.md) | Palette / export |
 | [civitai-spec.md](backlog/civitai-spec.md) | CivitAI cloud |
 | [telemetry-spec.md](backlog/telemetry-spec.md) | Telemetry / WS |
-| [global-inputs-spec.md](backlog/global-inputs-spec.md) / [global-media-ui-spec.md](backlog/global-media-ui-spec.md) | Mostly superseded by dual pools |
+| [global-inputs-spec-legacy.md](backlog/global-inputs-spec-legacy.md) / [global-media-ui-spec-legacy.md](backlog/global-media-ui-spec-legacy.md) | Mostly superseded by dual pools |
 
 `coder-*-prompt.md` files = kickoff text only.
 
@@ -261,7 +261,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.7.003` (Docs slim pass 2: Constitution & handoff block.)
+- **Current:** `000.000.7.004` (Docs slim pass 3: Prompts, legacy renaming, and sequence spec cleanup.)
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  
@@ -284,6 +284,6 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 9. Doc maintenance
 
-On ship: bump VERSION → update **this file** → spec banner → handoff on stops → root `AGENTS.md` registry for new ops.
+On ship: bump VERSION → update **this file** (top handoff box + status lists) → update spec banner.
 
 **STATUS wins** when it disagrees with a stale backlog draft.

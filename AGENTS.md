@@ -22,7 +22,9 @@ Fast, non-destructive video manipulation combining CLI tools, a typed Python bac
 8. **HTTP Ops**: Op failures return HTTP 200 + `{"ok": false}`.
 9. **Wall & Previews**: Wall is one prepared JPEG (`first|last` combo). Open project quiet-saves with session.
 10. **WebUI Testing**: You MUST use a real browser (Playwright) and click the controls to verify changes. Curl does not prove UI works.
-
+11. **Wall DOM**: Never clear `img.src` before setting a new one; it causes flashes. Use the two-img swap pattern if needed.
+12. **Transmute Pixel Integrity**: Default to `crop` (`-c`) or `letterbox` (`-b`). Do not scale unless `stretch` (`-x`) or composite modes are requested.
+13. **FastAPI Future Import**: Do not use `from __future__ import annotations` in `main.py` (breaks dynamic route params).
 ## 3. Versioning & Handoff
 
 - **Ship → update STATUS**: When landing a feature, you MUST bump the `VERSION` file (far-right DD) AND update `docs/STATUS.md` (top header and footer).

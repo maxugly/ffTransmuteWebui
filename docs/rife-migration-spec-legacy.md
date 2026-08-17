@@ -1,3 +1,5 @@
+> **LEGACY — do not build from this file. STATUS.md is law.**
+
 # Phase 4.1 Spec: RIFE Migration
 
 > **Status:** Superseded by `rife-filter-cleanup-spec.md` + `filter-platform-spec.md`  

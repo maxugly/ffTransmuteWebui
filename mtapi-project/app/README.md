@@ -23,7 +23,7 @@ app/
 └── static/              # WebUI
 ```
 
-**Architecture doc for agents:** `AGENTS.md` here and `docs/filter-platform-spec.md` at repo root.
+**Architecture doc for agents:** `docs/filter-platform-spec.md` at repo root.
 
 ---
 
@@ -55,6 +55,5 @@ app/
 
 ## Subpackages
 
-- [operations README](operations/README.md) · [operations AGENTS](operations/AGENTS.md)  
-- [filters AGENTS](filters/AGENTS.md)  
-- [static README](static/README.md) · [static AGENTS](static/AGENTS.md)  
+- [operations README](operations/README.md)  
+- [static README](static/README.md)  

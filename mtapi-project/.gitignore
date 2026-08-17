@@ -1,7 +1,7 @@
 # ── junk / scratch drawer ────────────────────────────────────────────────
 # All throwaway scripts, model weights, screenshots, browser captures,
 # test scaffolds, and scratch output live in junk/ and are NEVER committed.
-# See root AGENTS.md rule 11 and this package's AGENTS.md §3.10.
+# See root AGENTS.md rule 6.
 junk/*
 !junk/.gitkeep
 

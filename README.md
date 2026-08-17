@@ -104,8 +104,8 @@ Outputs auto-sequence (`file.png`, `file_0001.png`, …) so repeated runs do not
 ## 📜 Subdirectory Documentation
 
 Detailed documentation and agent guidance are available in each directory:
-- [mtapi-project README](mtapi-project/README.md) & [mtapi-project AGENTS.md](mtapi-project/AGENTS.md)
-- [app README](mtapi-project/app/README.md) & [app AGENTS.md](mtapi-project/app/AGENTS.md)
-- [operations README](mtapi-project/app/operations/README.md) & [operations AGENTS.md](mtapi-project/app/operations/AGENTS.md)
-- [static README](mtapi-project/app/static/README.md) & [static AGENTS.md](mtapi-project/app/static/AGENTS.md)
-- [bin README](mtapi-project/bin/README.md) & [bin AGENTS.md](mtapi-project/bin/AGENTS.md)
+- [mtapi-project README](mtapi-project/README.md)
+- [app README](mtapi-project/app/README.md)
+- [operations README](mtapi-project/app/operations/README.md)
+- [static README](mtapi-project/app/static/README.md)
+- [bin README](mtapi-project/bin/README.md)

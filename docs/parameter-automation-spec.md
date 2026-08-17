@@ -3,7 +3,7 @@
 > **Status:** Spec ready for phased implementation  
 > **Author:** grok (audit + rewrite of Max/tom automation-spec)  
 > **Date:** 2026-07-31  
-> **Supersedes for implementation:** `docs/automation-spec.md` (keep as UI brainstorm)  
+> **Supersedes for implementation:** `docs/automation-spec-legacy.md` (keep as UI brainstorm)  
 > **Also replaces intent of:** `docs/docs-automation-lanes.md` (older lanes scratchpad)  
 > **Depends on:** `docs/filter-platform-spec.md`, `app/filters/*`, `video_pipeline.process`
 
@@ -11,7 +11,7 @@
 
 ## 0. Verdict on the prior spec
 
-The original `automation-spec.md` is a **strong product vision** (freehand envelope, full-screen canvas, destructive-per-render not live playback). It is **not** implementation-ready as written against the current stack.
+The original `automation-spec-legacy.md` is a **strong product vision** (freehand envelope, full-screen canvas, destructive-per-render not live playback). It is **not** implementation-ready as written against the current stack.
 
 | Strength | Problem for builders |
 |----------|----------------------|
@@ -389,7 +389,7 @@ Out of scope until later: `contract.py` OperationSpec surgery, new OpenAPI param
 
 | Doc | Role |
 |-----|------|
-| `automation-spec.md` | Original freehand UX brainstorm (keep) |
+| `automation-spec-legacy.md` | Original freehand UX brainstorm (keep) |
 | **This file** | Implementation source of truth |
 | `docs-automation-lanes.md` | Older scratch; obsolete for builders |
 | `filter-platform-spec.md` | Stage kinds / dump-encode rules |

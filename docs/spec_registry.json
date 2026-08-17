@@ -14,8 +14,8 @@
     "summary": "Advanced audio analysis pipeline extracting Transients, BPM, Key, and generating MIDI using Spotify Basic Pitch, Aubio, Essentia, and Madmom."
   },
   {
-    "file": "automation-spec.md",
-    "path": "docs/automation-spec.md",
+    "file": "automation-spec-legacy.md",
+    "path": "docs/automation-spec-legacy.md",
     "category": "Core Architecture",
     "status": "UI brainstorm (see parameter-automation-spec.md)",
     "summary": "Original freehand automation envelope vision. Implement via parameter-automation-spec.md."
@@ -105,15 +105,15 @@
     "summary": "These are pure Algorithmic Glitch operations. They manipulate raw pixel data using mathematics, with zero AI or neural networks. Fast, volatile, and highly aesthetic."
   },
   {
-    "file": "global-inputs-spec.md",
-    "path": "docs/backlog/global-inputs-spec.md",
+    "file": "global-inputs-spec-legacy.md",
+    "path": "docs/backlog/global-inputs-spec-legacy.md",
     "category": "Backlog - Operation",
     "status": "Unknown",
     "summary": "N/A"
   },
   {
-    "file": "global-media-ui-spec.md",
-    "path": "docs/backlog/global-media-ui-spec.md",
+    "file": "global-media-ui-spec-legacy.md",
+    "path": "docs/backlog/global-media-ui-spec-legacy.md",
     "category": "Backlog - Frontend",
     "status": "Unknown",
     "summary": "A persistent, global input bar in the WebUI that holds the \"Active Media\" (file path). As the user navigates between different operation tabs (Datamosh, RIFE, Upscale, etc.), the active media travels with them. This eliminates the friction of re-selecting the same file on every tab."
@@ -161,8 +161,8 @@
     "summary": "Generate an RGB-encoded optical flow map from a video, where color (Hue) represents the direction of motion, and intensity/saturation (Value) represents the speed. Useful as a mask source or for datamosh guidance."
   },
   {
-    "file": "sd-tiled-upscale-spec.md",
-    "path": "docs/backlog/sd-tiled-upscale-spec.md",
+    "file": "sd-tiled-upscale-spec-legacy.md",
+    "path": "docs/backlog/sd-tiled-upscale-spec-legacy.md",
     "category": "Backlog - Operation",
     "status": "Legacy \u2014 see tilagup-mtapi-mode-spec",
     "summary": "Leverages Stable Diffusion (via OpenVINO `optimum-intel`) to not just upsample an image, but to *hallucinate* new fractal-like, complex details into specific regions. Instead of a dumb grid upscale, it uses semantic \"zones\" and local \"tile\" prompts to inject unique, prompt-driven details (e.g., \"micro-clockworks\" or \"petrified crustaceans\") into the image as it scales up."
@@ -315,8 +315,8 @@
     "summary": "Collapsible sidebar sections + `mtapi_nav_sections`."
   },
   {
-    "file": "pipeline-spec.md",
-    "path": "docs/pipeline-spec.md",
+    "file": "pipeline-spec-legacy.md",
+    "path": "docs/pipeline-spec-legacy.md",
     "category": "Core Architecture",
     "status": "Implemented (video_pipeline + JobWorkspace; PngFramePipeline removed)",
     "summary": "Unified probe/dump/process/encode bookends. Stages live in app/filters. See filter-platform-spec.md."
@@ -343,8 +343,8 @@
     "summary": "RIFE directory stage; legacy pairwise path removed."
   },
   {
-    "file": "rife-migration-spec.md",
-    "path": "docs/rife-migration-spec.md",
+    "file": "rife-migration-spec-legacy.md",
+    "path": "docs/rife-migration-spec-legacy.md",
     "category": "Core Architecture",
     "status": "Implemented",
     "summary": "Currently, `rife_ops.py` uses the deprecated `PngFramePipeline`. It performs a custom video dump, runs `rife-ncnn-vulkan` as a single subprocess over an entire directory (`-i frames_in -o frames_out`), and then manually encodes the output while dropping audio (`-an`)."

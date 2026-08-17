@@ -3,7 +3,7 @@
 > **Status:** **Spec only** — not in mtapi tree; do not build without priority (`STATUS.md` §5)  
 > **Source of truth (working code):** `/home/m/snc/cod/tilagup`  
 > **Audience:** Spec writers & builders  
-> **Related:** `STATUS.md`, `fastsdcpu-upscalers-spec.md`, `backlog/sd-tiled-upscale-spec.md` (legacy), `filter-platform-spec.md`, `tool-bottom-docs-spec.md`  
+> **Related:** `STATUS.md`, `fastsdcpu-upscalers-spec.md`, `backlog/sd-tiled-upscale-spec-legacy.md` (legacy), `filter-platform-spec.md`, `tool-bottom-docs-spec.md`  
 > **Not this:** A full rewrite of FastSD. Not a single fire-and-forget button with no mid-game.
 
 ---
@@ -300,7 +300,7 @@ Bottom docs: base vs tile prompts, strength vs variation, photo_soft tip, zones 
 | Doc | Relationship |
 |-----|----------------|
 | `fastsdcpu-upscalers-spec.md` | Engine catalog; tiled SD = tilagup’s **upscale** stage only |
-| `backlog/sd-tiled-upscale-spec.md` | **Superseded in spirit** by this + tilagup code; rewrite or mark “see tilagup-mtapi-mode-spec” (strip FLUX digression) |
+| `backlog/sd-tiled-upscale-spec-legacy.md` | **Superseded in spirit** by this + tilagup code; rewrite or mark “see tilagup-mtapi-mode-spec” (strip FLUX digression) |
 | `backlog/upscale-spec.md` | SISR post-pass after tilagup, not a replacement |
 | `filter-platform-spec.md` | Tilagup is **multi-source / multi-stage job**, not a single `per_frame` filter — but upscale worker should still emit one final still; video = later |
 | Image Pool | Source pick + output land |

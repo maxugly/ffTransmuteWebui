@@ -1,3 +1,5 @@
+> **LEGACY — do not build from this file. STATUS.md is law.**
+
 # Stable Diffusion Tiled Agent Upscale (`sd_tiled_upscale`)
 
 > **Status:** Legacy one-shot draft (Gemini-era). **Do not build from this alone.**  
