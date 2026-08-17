@@ -1,11 +1,22 @@
 # Project status — agent & human source of truth
 
 > **Updated:** 2026-08-17  \
-> **VERSION:** `000.000.7.002`  \
+> **VERSION:** `000.000.7.003`  \
 > **Branch:** `main`  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
 
-**Also read:** `AGENTS.md` (root) · `mtapi-project/AGENTS.md` · [README.md](README.md) · [SESSION-STOPPING-STATE.md](SESSION-STOPPING-STATE.md)
+**Also read:** `AGENTS.md` (root) · [README.md](README.md)
+
+---
+
+## Shipped this stretch / Next assignment
+
+| Area | Notes | Spec / code |
+|------|--------|-------------|
+| **Docs slim pass 1** | Archived TODO/ideas piles + July root STATUS/TODO/ROADMAP. Plan: `docs-slim-plan.md`. | **`7.002`** |
+| **FastSAM multimodel** | Model selector on FastSAM tab: FastSAM-s (default) + FastSAM-x. Same OpenVINO export path. Phase 2 (SAM ViT-L/H) deferred: ultralytics SAM export crashes (`SAMModel` has no `args`). | `fastsam-sam-multimodel-spec.md` · **`7.002` Partial** |
+
+**Next:** Docs slim pass 2–4. Wait for human priority.
 
 ---
 
@@ -130,6 +141,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | **7.000 release** | Wall that stays painted: one prepared JPEG (first\|last combo default), stable `<img>` tenants, chrome virtualizer, import probe + generate. | `pool-wall-preview-spec.md` · **`7.000`** |
 | **Sequence total time** | Header shows sum of clip play lengths (Time override or native). | `sequence.js` · **`7.001`** |
 | **Docs slim pass 1** | Archived competing TODO/ideas piles + July root STATUS/TODO/ROADMAP. Live truth is this file. | `docs-slim-plan.md` · **`7.002`** |
+| **FastSAM multimodel** | Model selector on FastSAM tab: FastSAM-s (default) + FastSAM-x. Same OpenVINO export path. Phase 2 (SAM ViT-L/H) deferred: ultralytics SAM export crashes (`SAMModel` has no `args`). | `fastsam-sam-multimodel-spec.md` · **`7.002` Partial** |
 | **Server-resident catalog** | CatalogIndex hydrates the full cache before serve; display paths read RAM; exclusive process lock; 64 MiB JPEG warmer; `/api/catalog/status`. §11–12 I/O, lock, warmer, restart, Video+Image+Sequence browser checks accepted | `server-memory-catalog-spec.md` · **`5.38`** |
 
 **Active ops (registry):** transmute, convert, pipeline, datamosh, deepdream, facemorph, withoutbg, fastsam, style, rife, **rife_recohere**, speedchange, speedramp, zoompan, imagesort, img2img, txt2img, agent, upscale, **qr_art** *(in tree — see §4)*. Root `AGENTS.md`.
@@ -249,7 +261,7 @@ Build **only when human prioritizes.** Suggested order in §8.
 
 ## 7. VERSION & runtime
 
-- **Current:** `000.000.7.002` (Docs slim pass 1: competing TODO/ideas archived. Catalog compositor p95 remains Partial at `5.37`.)
+- **Current:** `000.000.7.003` (Docs slim pass 2: Constitution & handoff block.)
 - Secrets: `~/.secrets` at startup.  
 - Server: `cd mtapi-project && .venv/bin/python run.py` → `http://localhost:24590/`  
 - Jobs: `/tmp/mtapi_jobs/`  

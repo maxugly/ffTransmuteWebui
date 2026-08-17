@@ -1,12 +1,5 @@
 [
   {
-    "file": "SESSION-STOPPING-STATE.md",
-    "path": "docs/SESSION-STOPPING-STATE.md",
-    "category": "Meta",
-    "status": "Handoff 2026-08-17 / 000.000.7.002",
-    "summary": "Session stop handoff; prefer STATUS.md for live truth."
-  },
-  {
     "file": "STATUS.md",
     "path": "docs/STATUS.md",
     "category": "Meta",
@@ -500,7 +493,7 @@
     "file": "fastsam-sam-multimodel-spec.md",
     "path": "docs/fastsam-sam-multimodel-spec.md",
     "category": "Operation",
-    "status": "Ready for builder (locked §0); execute coder-fastsam-multimodel-prompt.md",
+    "status": "Partial 000.000.7.002 — Phase 1 shipped (FastSAM-s + FastSAM-x); Phase 2 SAM ViT-L/H deferred (ultralytics SAM export crashes)",
     "summary": "Extend FastSAM tab with model selector (FastSAM-s/x, SAM ViT-L/H). Phase 1 = s+x same FastSAM class. Phase 2 = ultralytics SAM or stop. Reuse device field; default still GPU + FastSAM-s."
   },
   {

@@ -1,8 +1,7 @@
 # docs/ — index
 
-> **Start here:** [STATUS.md](STATUS.md) — **shipped / partial / full roadmap**  
-> **Handoff:** [SESSION-STOPPING-STATE.md](SESSION-STOPPING-STATE.md)  
-> **Law:** `../AGENTS.md` · `../mtapi-project/AGENTS.md`  
+> **Start here:** [STATUS.md](STATUS.md) — **shipped / partial / full roadmap + handoff**  
+> **Law:** `../AGENTS.md`  
 > **Slim plan:** [docs-slim-plan.md](docs-slim-plan.md) · **Archive (not law):** [archive/](archive/)
 
 | Banner | Meaning |
