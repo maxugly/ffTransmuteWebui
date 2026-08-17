@@ -115,7 +115,7 @@ Version diary: [archive/changelog.md](archive/changelog.md).
 | [frame-scrubber-spec.md](frame-scrubber-spec.md) / [frame-range-spec.md](frame-range-spec.md) | Scrubber / range (partial surface exists) |
 | [sequencer-mvp-spec.md](sequencer-mvp-spec.md) / [seq-proportional-spec.md](seq-proportional-spec.md) | Sequencer |
 | [pool-toggle-spec.md](pool-toggle-spec.md) | Pool toggles |
-| [qr-illusion-art-spec.md](qr-illusion-art-spec.md) §0 | **Illusion mode** — pattern still + appearance still; no QR Data. Spec locked. QR half already shipped. |
+| [qr-illusion-art-spec.md](qr-illusion-art-spec.md) §0 | **Illusion mode** — pattern still + appearance still; no QR Data. Spec locked. Builder: [coder-qr-illusion-prompt.md](coder-qr-illusion-prompt.md). |
 
 
 ### 5.5 Backlog ops (`docs/backlog/*`) — not implemented
