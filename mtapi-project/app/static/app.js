@@ -46,6 +46,7 @@ import { renderZoompanForm, collectZoompanBody } from '/js/tabs/zoompan.js';
 import { renderImageSortForm, collectImageSortBody } from '/js/tabs/imagesort.js';
 import { renderImgCompareForm } from '/js/tabs/imgcompare.js';
 import { renderNotesForm } from '/js/tabs/notes.js';
+import { renderStableFluidsForm } from '/js/tabs/stablefluids.js';
 import { renderSettingsForm, applyUiTweaks, readStoredScrollbarWidth } from '/js/tabs/settings.js';
 import { renderJobsForm, stopJobsPoll } from '/js/tabs/jobs.js';
 import { renderImageEditForm, collectImageEditBody } from '/js/tabs/imageedit.js';
@@ -202,6 +203,11 @@ let state = {
     sortStrategy: 'radial',
     sortOrder: 'nearest_first',
     output: '',
+  },
+  // Stable Fluids
+  stableFluids: {
+    recording: false,
+    buildPresent: false,
   },
   // Cut workspace: clip endpoints + two reference stills + shared image-compare state
   // Compare fields: mode / overlayOpacity / abPosition — see js/ui/image-compare.js
@@ -424,6 +430,7 @@ const TAB_ACCEPTS = {
   zoompan:     'image',
   notes:       'none',
   settings:    'none',
+  stablefluids:'none',
 };
 
 /** Tabs that show the global frame-range row (video pipeline / mosh / convert). */
@@ -890,6 +897,7 @@ function switchTab(tab) {
   if (tab === 'jobs') title = 'Jobs · Queue';
   if (tab === 'notes') title = 'Notes';
   if (tab === 'settings') title = 'Settings';
+  if (tab === 'stablefluids') title = 'Stable Fluids · WebGL Sim';
   // Library tabs: drop the big header title (sidebar already shows active item)
   if (tab === 'pool' || tab === 'sequence' || tab === 'images') title = '';
   if (elements.tabTitle) elements.tabTitle.textContent = title;
@@ -900,6 +908,7 @@ function switchTab(tab) {
     || tab === 'quick' || tab === 'watcher' || tab === 'notes' || tab === 'settings'
     || tab === 'agent' || tab === 'jobs'
     || tab === 'imgcompare'
+    || tab === 'stablefluids'
   );
   if (elements.btnRun) {
     elements.btnRun.style.display = hideRun ? 'none' : '';
@@ -1016,6 +1025,8 @@ function renderTabForm(tab) {
     renderJobsForm();
   } else if (tab === 'notes') {
     renderNotesForm();
+  } else if (tab === 'stablefluids') {
+    renderStableFluidsForm();
   } else if (tab === 'settings') {
     renderSettingsForm();
   }
@@ -1280,6 +1291,7 @@ export {
   renderImageSortForm,
   renderQuickTransmuteForm,
   renderWatcherForm, renderPoolForm, renderPoolGrid,
+  renderStableFluidsForm,
   checkHealth, addPathsToPool,
   sendPoolPathTo, applyPoolAsInput, formatBytes,
   ensureTileInfo, defaultTileInfo,

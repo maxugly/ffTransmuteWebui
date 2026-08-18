@@ -67,5 +67,9 @@ mtapi-project/bin/realesrgan-ncnn-vulkan
 mtapi-project/bin/realesr-ncnn-vulkan
 mtapi-project/bin/srmd-ncnn-vulkan
 
+# Self-hosted keijiro Stable Fluids WebGL build (~8 MB).
+# Fetch commands are in the tab's placeholder / docs/stablefluids-sim-spec.md §2.1.
+mtapi-project/app/static/stablefluids/
+
 # Node modules
 /node_modules/
