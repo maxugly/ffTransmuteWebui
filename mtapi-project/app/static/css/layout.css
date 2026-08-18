@@ -627,8 +627,7 @@ header {
 }
 
 .global-probe-overlay {
-  position: absolute;
-  left: 4px;
+  position: relative;
   background: var(--bg-panel);
   padding: 6px 12px;
   border-radius: 6px;

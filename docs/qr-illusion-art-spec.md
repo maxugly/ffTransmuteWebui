@@ -1,8 +1,8 @@
 # QR Art + Illusion
 
-> **Status:** **QR Implemented** (`5.04`–`5.05`). **Illusion = Spec** — not in the tree.  
+> **Status:** **QR Implemented** (`5.04`–`5.05`). **Illusion Implemented (v1)** (`7.009`).  
 > **Audience:** Builder assigned this job.  
-> **Code (QR, shipped):** `qr_ops.py`, `qr_art_ov_worker.py`, `js/tabs/qr.js`  
+> **Code (QR + Illusion, shipped):** `qr_ops.py`, `qr_art_ov_worker.py`, `js/tabs/qr.js`  
 > **Related:** `filter-platform-spec.md` (bookends only — this is a generate op, not a video stage)
 
 The filename promised “QR **or** custom pattern.” The body below (from §1) is **QR only** and matches shipped code. Illusion is **§0**. §0 wins if they disagree.

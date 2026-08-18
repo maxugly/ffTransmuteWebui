@@ -17,6 +17,7 @@
 | **Docs STATUS diet** | STATUS is now a map; diary moved to changelog. | **`7.006`** |
 | **Live VERSION** | One file (`VERSION`). WebUI brand reads `/health`. STATUS does not restate the digits. | **`7.007`** |
 | **Settings chrome** | No page title / knob how-to. Cards start immediately. | **`7.008`** |
+| **QR Art Illusion** | Two stills, no QR Data. Same worker. Mode switch on QR tab. | `qr-illusion-art-spec.md` · **`7.009`** |
 | **FastSAM multimodel** | Phase 1 (FastSAM-s/x) shipped in `ac25a60`. Phase 2 (SAM ViT-L/H) still deferred. | `fastsam-sam-multimodel-spec.md` · **`7.002` Partial** |
 
 **Next:** human names the next job.
@@ -50,7 +51,7 @@ Prefer **STATUS + as-built specs** over backlog drafts. Filter platform only for
 | Filter platform | dump → `app/filters/*` → encode. No second dump/encode stack. | `filter-platform-spec.md` |
 | Convert / Export | codecs, `frames_*`, GIF | `convert_ops.py`, `convert_presets.py` |
 | Transmute / datamosh | geometry CLI + file-level glitch | `transmute_ops.py`, `operations/datamosh/` |
-| Neural / frame ops | deepdream, withoutbg, style, facemorph, img2img, txt2img, upscale, qr_art, FastSAM-s/x (Phase 1) | `*_ops` + `filters/` |
+| Neural / frame ops | deepdream, withoutbg, style, facemorph, img2img, txt2img, upscale, qr_art (QR + Illusion), FastSAM-s/x (Phase 1) | `*_ops` + `filters/` |
 | RIFE | directory stage; multiplier **2–128**; recohere (2 stills → M=2 → img2img every mid, keep all) | `filters/rife.py`, `rife-recoherence-spec.md` |
 | Speed | uniform + PNG ramp; optional RIFE | `speedchange_ops.py`, `speedramp_ops.py` |
 | Dual pools + Cut | Video `items[]` vs Image `images[]`. Cut = global Video + frame range + encode. | `video-image-pools-spec.md` |
