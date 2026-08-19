@@ -208,6 +208,8 @@ let state = {
   stableFluids: {
     recording: false,
     buildPresent: false,
+    mode: 'webgpu',        // 'webgpu' (native) | 'iframe' (Unity WebGL)
+    seedPath: '',          // dedicated seed image path (Phase 3); blank = first Image Pool still
   },
   // Cut workspace: clip endpoints + two reference stills + shared image-compare state
   // Compare fields: mode / overlayOpacity / abPosition — see js/ui/image-compare.js
@@ -897,7 +899,7 @@ function switchTab(tab) {
   if (tab === 'jobs') title = 'Jobs · Queue';
   if (tab === 'notes') title = 'Notes';
   if (tab === 'settings') title = 'Settings';
-  if (tab === 'stablefluids') title = 'Stable Fluids · WebGL Sim';
+  if (tab === 'stablefluids') title = 'Stable Fluids · Sim';
   // Library tabs: drop the big header title (sidebar already shows active item)
   if (tab === 'pool' || tab === 'sequence' || tab === 'images') title = '';
   if (elements.tabTitle) elements.tabTitle.textContent = title;
@@ -955,6 +957,9 @@ function renderTabForm(tab) {
       window.__mtapiLazyLoader?.unobserve(el);
     });
   } catch (_) { /* ignore */ }
+  // Tear down interactive tab resources (e.g. native WebGPU sim) before the
+  // panel DOM is destroyed, so no rAF loop / MediaRecorder keeps running.
+  try { window.__sfTeardown?.(); } catch (_) { /* ignore */ } finally { window.__sfTeardown = null; }
   elements.actionPanel.innerHTML = '';
   const root = elements.actionPanelRoot || elements.actionPanel;
   if (root) {

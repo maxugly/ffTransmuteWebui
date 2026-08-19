@@ -4,6 +4,7 @@
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
+| **Stable Fluids Phase 2/3** | Pure WebGPU compute port (~3 passes: spray/advect, divergence+Jacobi×20, gradient-subtract) replacing the Unity iframe when native mode is on; **seed-image injection** (dedicated path → first Image Pool still → black) as the initial dye field; mode radio toggle; Record shared across both modes; tab teardown stops the sim/rAF on leave | `stablefluids-sim-spec.md` · `7.011` |
 | Filter platform | dump / stages / encode | `filter-platform-spec.md` |
 | Convert / Export | codecs, frames_*, GIF | `convert_ops.py`, `convert_presets.py` |
 | Transmute geometry | CLI wrapper | `transmute_ops.py` |

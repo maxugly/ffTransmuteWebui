@@ -18,7 +18,7 @@
 | **Live VERSION** | One file (`VERSION`). WebUI brand reads `/health`. STATUS does not restate the digits. | **`7.007`** |
 | **Settings chrome** | No page title / knob how-to. Cards start immediately. | **`7.008`** |
 | **QR Art Illusion** | Two stills, no QR Data. Same worker. Mode switch on QR tab. | `qr-illusion-art-spec.md` · **`7.009`** |
-| **Stable Fluids sim** | Phase 1 (self-host + iframe + Record). Phase 2/3 deferred. | `stablefluids-sim-spec.md` · **`7.010`** |
+| **Stable Fluids sim** | Phase 1 (self-host + iframe + Record) **+ Phase 2 pure WebGPU port** (advect / pressure / project) **+ Phase 3 seed-image injection** (dedicated path or first Image Pool still). Mode toggle in the tab; Record shared across modes. | `stablefluids-sim-spec.md` · **`7.011`** |
 | **FastSAM multimodel** | Phase 1 (FastSAM-s/x) shipped in `ac25a60`. Phase 2 (SAM ViT-L/H) still deferred. | `fastsam-sam-multimodel-spec.md` · **`7.002` Partial** |
 
 **Next:** human names the next job.
