@@ -145,6 +145,48 @@ function renderQrArtForm() {
         to keep peak RAM under 12GB on Intel 1335U. IP-Adapter auto-falls back to CPU if
         the iGPU hits a bad allocation.
       </p>
+
+      <h5 class="tool-docs-h">Quick Reference · Parameter Cheatsheet</h5>
+      <table class="qr-quick-ref">
+        <thead><tr><th>Param</th><th>Range</th><th>QR Mode (scannable)</th><th>Illusion Mode (artistic)</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td>Steps</td><td>20–40</td><td>30</td><td>30–40</td><td>More steps = more detail, slower</td></tr>
+          <tr><td>Guidance</td><td>5–15</td><td>7–9</td><td>5–8</td><td>Lower = follow prompt less, keep structure more</td></tr>
+          <tr><td>Strength</td><td>0.05–0.95</td><td><strong>0.15–0.25</strong></td><td>0.3–0.6</td><td><strong>KEY: lower = more QR preserved</strong>. Your 0.35 was too high for scanning</td></tr>
+          <tr><td>Ctrl Scale</td><td>0.6–1.6</td><td><strong>1.3–1.8</strong></td><td>1.0–1.3</td><td>ControlNet QR Monster weight. Higher = stricter pattern</td></tr>
+          <tr><td>IP Scale</td><td>0–1</td><td>0.3–0.6</td><td>0.4–0.7</td><td>How much reference image bleeds in</td></tr>
+        </tbody>
+      </table>
+
+      <h5 class="tool-docs-h">Image Inputs Explained</h5>
+      <dl class="qr-input-guide">
+        <dt><strong>Pattern</strong> (Illusion mode only)</dt>
+        <dd>Monochrome, high-contrast structure map. Think: QR code, maze, barcode, line art, silhouette. White=background, black=foreground. <strong>Aspect ratio matters</strong> — use 1:1 (512×512) for best results; non-square gets center-cropped.</dd>
+
+        <dt><strong>Appearance</strong> (Illusion mode only)</dt>
+        <dd>The photo/texture to weave <em>through</em> the pattern. Any image works: photos, paintings, textures. Resolution doesn't matter (resized to 512×512). This is your "style reference."</dd>
+
+        <dt><strong>Reference Image (IP-Adapter)</strong> (QR mode, when IP-Adapter checked)</dt>
+        <dd>Same as Appearance above — style donor for the QR code. Used alongside generated QR structure.</dd>
+
+        <dt><strong>QR Data</strong> (QR mode only)</dt>
+        <dd>The actual text/URL to encode. Generates a real QR code internally as the structure.</dd>
+      </dl>
+
+      <h5 class="tool-docs-h">Resolution & Aspect Ratio</h5>
+      <ul class="qr-res-notes">
+        <li><strong>Internal resolution is always 512×512</strong> when IP-Adapter is active (both modes). Your inputs are resized/cropped to fit.</li>
+        <li><strong>Pattern</strong>: use 1:1 square. Non-square → center-cropped → may lose corners.</li>
+        <li><strong>Appearance/Reference</strong>: any aspect ratio OK — stretched to 512×512.</li>
+        <li>Output PNG is 512×512. Upscale afterward if needed (use Upscale tab).</li>
+      </ul>
+
+      <h5 class="tool-docs-h">Why Your Run Failed to Scan</h5>
+      <p class="qr-fail-note">
+        <code>scannable=no</code> with <strong>Strength 0.35</strong>, <strong>Ctrl Scale 1.1</strong>, <strong>Guidance 9.0</strong> = too much diffusion freedom, not enough pattern enforcement.
+        <br><strong>Fix for QR mode:</strong> Strength <strong>0.18</strong>, Ctrl Scale <strong>1.5</strong>, Guidance <strong>7.0</strong>.
+        <br><strong>Fix for Illusion mode:</strong> Strength <strong>0.25</strong>, Ctrl Scale <strong>1.3</strong>, Guidance <strong>6.0</strong> — but illusion mode <em>never shows scannability badge</em> (no QR payload generated).
+      </p>
     </section>
   `;
   elements.actionPanel.innerHTML = html;

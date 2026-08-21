@@ -1445,6 +1445,81 @@ input.daw-knob-value-input:focus {
   background: rgba(0, 0, 0, 0.35);
 }
 
+/* QR Art quick reference table */
+.qr-quick-ref {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 6px 0 10px;
+  font-size: 0.65rem;
+}
+.qr-quick-ref th,
+.qr-quick-ref td {
+  border: 1px solid var(--panel-border);
+  padding: 4px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+.qr-quick-ref th {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--text-main);
+  font-weight: 600;
+}
+.qr-quick-ref td {
+  color: var(--text-muted);
+}
+.qr-quick-ref tr:nth-child(even) td {
+  background: rgba(0, 0, 0, 0.15);
+}
+.qr-quick-ref strong {
+  color: var(--text-main);
+}
+
+/* QR input guide definition list */
+.qr-input-guide {
+  margin: 4px 0 10px;
+}
+.qr-input-guide dt {
+  font-weight: 600;
+  color: var(--text-main);
+  margin-top: 8px;
+  font-size: 0.7rem;
+}
+.qr-input-guide dd {
+  margin: 2px 0 6px 12px;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+/* Resolution notes */
+.qr-res-notes {
+  margin: 4px 0 10px;
+  padding-left: 1.25rem;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+.qr-res-notes li {
+  margin: 3px 0;
+}
+
+/* Failure note highlight */
+.qr-fail-note {
+  margin: 6px 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--danger, #ef4444);
+  background: rgba(239, 68, 68, 0.12);
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: var(--text-main);
+}
+.qr-fail-note code {
+  background: rgba(239, 68, 68, 0.2);
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
 /* Agent tab */
 .agent-transcript {
   max-height: 280px;
