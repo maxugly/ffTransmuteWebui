@@ -133,3 +133,7 @@
 | [image-compare-spec.md](image-compare-spec.md) | Shared module + **Compare tab `4.68`** |
 | [nav-collapse-spec.md](nav-collapse-spec.md) | **Sidebar category collapse** (headers) — **Implemented `4.69`** |
 | [deepdream-evolve-video-spec.md](deepdream-evolve-video-spec.md) | **DeepDream Evolve** — **Implemented `4.73`** (stills A+B); multi/video later |
+
+### 000.000.7.013
+- Datamosh: Implemented Mosh-ups (from Parker Higgins' automated datamoshing from multiple video sources technique). Added `video` and `shuffle` inject modes to Visual Hijack.
+- `_resolve_payload_stills` and `_create_payload_yuv_from_stills` pipelines process multi-image/frame streams to stitch into MPEG-2 payload P-frames.

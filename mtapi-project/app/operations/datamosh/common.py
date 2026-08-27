@@ -3,6 +3,7 @@ datamosh.sh logic implemented directly in Python to support advanced creative co
 - Melt (continuous motion-vector averaged smear)
 - Classic (no-keyframe mosh at cuts)
 - Visual Hijack (inject an image/frame at a start frame range and recover at end frame)
+- Mosh-up (hijack with successive stills from a second clip or shuffled source I-frames)
 - Residual Destruct (zero out DCT error correction coefficients to force pixel bleed)
 - Motion Vector Hack (multiply or drift vectors in a custom frame range)
 """
@@ -699,19 +700,266 @@ async def _probe_source_info(input_path: str) -> dict:
     }
 
 
+_MIN_GOP = 2  # 1 I-frame + 1 P-frame so MV smear has somewhere to go
+
+
+def _distribute_holds(n_frames: int, n_stills: int, min_gop: int = _MIN_GOP) -> list[int]:
+    """Split *n_frames* into ``min(n_stills, n_frames // min_gop)`` chunks.
+
+    Each chunk is at least *min_gop* frames. Extra stills are dropped (first
+    N are kept). Remainder frames go to the last chunk so the total matches
+    *n_frames* exactly.
+    """
+    n_frames = max(int(n_frames), 1)
+    n_stills = max(int(n_stills), 1)
+    n_used = min(n_stills, max(1, n_frames // min_gop))
+    base = n_frames // n_used
+    rem = n_frames % n_used
+    return [base + (1 if i < rem else 0) for i in range(n_used)]
+
+
+def _holds_for_stills(n_hijack: int, n_stills: int, payload_gop: int = 0) -> list[int]:
+    """GOP lengths for a multi-still payload covering *n_hijack* frames."""
+    if payload_gop and payload_gop >= _MIN_GOP:
+        n_used = min(n_stills, max(1, n_hijack // payload_gop))
+        holds = [payload_gop] * n_used
+        total = payload_gop * n_used
+        if total < n_hijack:
+            holds[-1] += n_hijack - total
+        elif total > n_hijack:
+            holds[-1] = max(_MIN_GOP, holds[-1] - (total - n_hijack))
+        return holds
+    return _distribute_holds(n_hijack, n_stills)
+
+
+def _iframe_positions_from_holds(holds: list[int]) -> list[int]:
+    """0-based payload indices of each GOP's I-frame (the start of each hold)."""
+    pos = 0
+    out: list[int] = []
+    for n in holds:
+        out.append(pos)
+        pos += n
+    return out
+
+
+def _automosh_shuffle_indices(iframes: list[dict]) -> list[int]:
+    """Parker Higgins automosh self-mosh order.
+
+    Keep the first I-frame (so the stream can start), size-sort the rest,
+    then swap adjacent odd/even pairs. Returns 0-based frame indices.
+    """
+    if not iframes:
+        return []
+    first = int(iframes[0]["index"])
+    rest = sorted(iframes[1:], key=lambda x: int(x.get("pkt_size") or 0))
+    swapped = rest[:]
+    for i in range(len(swapped) - 1):
+        if i % 2:
+            swapped[i], swapped[i + 1] = swapped[i + 1], swapped[i]
+    return [first] + [int(x["index"]) for x in swapped]
+
+
+def _sample_indices(n_src: int, n_want: int) -> list[int]:
+    """Evenly spaced 0-based indices, including first and last when n_want > 1."""
+    n_src = max(int(n_src), 1)
+    n_want = max(int(n_want), 1)
+    if n_want == 1:
+        return [0]
+    if n_src <= n_want:
+        return list(range(n_src))
+    return [round(i * (n_src - 1) / (n_want - 1)) for i in range(n_want)]
+
+
+async def _probe_iframe_meta(path: str) -> list[dict]:
+    """Return ``[{index, pkt_size}, ...]`` for every I-frame in *path*."""
+    code, out, _err = await run_command([
+        "ffprobe", "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "frame=pict_type,pkt_size",
+        "-of", "csv=p=0",
+        path,
+    ])
+    if code != 0 or not out.strip():
+        return []
+    result: list[dict] = []
+    for i, line in enumerate(out.splitlines()):
+        parts = [p.strip() for p in line.split(",")]
+        if not parts or parts[0] != "I":
+            continue
+        size = 0
+        if len(parts) > 1:
+            try:
+                size = int(parts[1])
+            except ValueError:
+                size = 0
+        result.append({"index": i, "pkt_size": size})
+    return result
+
+
+async def _extract_frames_at(
+    video_path: str,
+    indices: list[int],
+    out_dir: str,
+    prefix: str = "still",
+) -> tuple[list[str], str]:
+    """Extract 0-based frame *indices* as PNGs.
+
+    Returns ``(paths_in_requested_order, error)``. Empty error means success.
+    """
+    if not indices:
+        return [], "no frame indices to extract"
+    os.makedirs(out_dir, exist_ok=True)
+    unique_sorted = sorted(set(int(i) for i in indices if i >= 0))
+    if not unique_sorted:
+        return [], "no valid frame indices to extract"
+    expr = "+".join(f"eq(n\\,{i})" for i in unique_sorted)
+    pattern = os.path.join(out_dir, f"{prefix}_%06d.png")
+    code, _, err = await run_command([
+        "ffmpeg", "-y", "-i", video_path,
+        "-vf", f"select='{expr}'",
+        "-fps_mode", "vfr",
+        "-start_number", "0",
+        pattern,
+    ])
+    if code != 0:
+        return [], f"frame extract failed: {err.strip()}"
+    files = sorted(
+        os.path.join(out_dir, f)
+        for f in os.listdir(out_dir)
+        if f.startswith(prefix) and f.endswith(".png")
+    )
+    if len(files) < len(unique_sorted):
+        return [], (
+            f"frame extract expected {len(unique_sorted)} stills, got {len(files)}"
+        )
+    mapping = {idx: files[n] for n, idx in enumerate(unique_sorted)}
+    return [mapping[int(i)] for i in indices], ""
+
+
+async def _create_payload_yuv_from_stills(
+    stills: list[str],
+    holds: list[int],
+    out_yuv: str,
+    w: int, h: int, fps: float,
+) -> tuple[bool, str]:
+    """Build a raw YUV by concatenating per-still loops (reuses ``_create_payload_yuv``)."""
+    if not stills or not holds or len(stills) != len(holds):
+        return False, f"stills/holds mismatch: {len(stills)} stills, {len(holds)} holds"
+    tmpdir = os.path.dirname(out_yuv) or "."
+    chunks: list[str] = []
+    for i, (still, n) in enumerate(zip(stills, holds)):
+        if n < 1:
+            return False, f"hold[{i}] is {n}"
+        chunk = os.path.join(tmpdir, f"payload_chunk_{i:03d}.yuv")
+        ok, err = await _create_payload_yuv(still, chunk, n, w, h, fps)
+        if not ok:
+            return False, err
+        chunks.append(chunk)
+    with open(out_yuv, "wb") as out:
+        for c in chunks:
+            with open(c, "rb") as f:
+                shutil.copyfileobj(f, out)
+    return True, ""
+
+
+async def _resolve_payload_stills(
+    *,
+    inject_mode: str,
+    input_path: str,
+    inject_image_path: str | None,
+    inject_image_paths: list[str] | None,
+    inject_frame_num: int,
+    inject_video_path: str | None,
+    stills_mode: str,
+    n_hijack: int,
+    payload_gop: int,
+    tmpdir: str,
+) -> tuple[list[str], list[int], str]:
+    """Resolve the payload stills and GOP holds for a hijack/mosh-up run.
+
+    Returns ``(stills, holds, error)``. *error* is empty on success.
+    """
+    stills: list[str] = []
+    mode = (inject_mode or "file").strip().lower()
+    s_mode = (stills_mode or "iframes").strip().lower()
+
+    if mode == "file":
+        paths = [p for p in (inject_image_paths or []) if p]
+        if not paths and inject_image_path:
+            paths = [inject_image_path]
+        missing = [p for p in paths if not os.path.isfile(p)]
+        if missing:
+            return [], [], f"Injected image not found: {missing[0]}"
+        if not paths:
+            return [], [], "Injected image not found: None"
+        stills = [os.path.abspath(p) for p in paths]
+
+    elif mode == "frame":
+        out_png = os.path.join(tmpdir, "extracted.png")
+        code, _, err = await run_command([
+            "ffmpeg", "-y", "-i", input_path,
+            "-vf", f"select=eq(n\\,{inject_frame_num})",
+            "-vframes", "1",
+            out_png,
+        ])
+        if code != 0 or not os.path.isfile(out_png):
+            return [], [], f"Frame extraction failed: {err.strip()}"
+        stills = [out_png]
+
+    elif mode == "video":
+        origin = inject_video_path
+        if not origin or not os.path.isfile(origin):
+            return [], [], f"Origin video not found: {origin}"
+        origin_info = await _probe_source_info(origin)
+        n_origin = max(int(origin_info.get("frame_count") or 1), 1)
+        still_dir = os.path.join(tmpdir, "origin_stills")
+        if s_mode == "sample":
+            n_want = n_hijack // max(payload_gop, _MIN_GOP) if payload_gop else max(
+                2, min(n_origin, n_hijack // 8 or 1)
+            )
+            n_want = max(1, min(n_want, n_origin, n_hijack // _MIN_GOP or 1))
+            idxs = _sample_indices(n_origin, n_want)
+        else:
+            meta = await _probe_iframe_meta(origin)
+            idxs = [m["index"] for m in meta] or [0]
+            if len(idxs) < 2:
+                n_want = max(2, min(n_origin, n_hijack // max(payload_gop, 8) or 1))
+                idxs = _sample_indices(n_origin, n_want)
+        stills, err = await _extract_frames_at(origin, idxs, still_dir, prefix="origin")
+        if err:
+            return [], [], err
+
+    elif mode == "shuffle":
+        meta = await _probe_iframe_meta(input_path)
+        if not meta:
+            meta = [{"index": 0, "pkt_size": 0}]
+        idxs = _automosh_shuffle_indices(meta)
+        still_dir = os.path.join(tmpdir, "shuffle_stills")
+        stills, err = await _extract_frames_at(input_path, idxs, still_dir, prefix="shuf")
+        if err:
+            return [], [], err
+
+    else:
+        return [], [], f"Unknown inject_mode: {inject_mode}"
+
+    holds = _holds_for_stills(n_hijack, len(stills), payload_gop)
+    stills = stills[:len(holds)]
+    return stills, holds, ""
+
+
 def _build_spliced_mv_json(
     source_mv_json: dict,
     start_frame_0: int,
     n_payload_frames: int,
     transition_style: str = "smear",
     mv_multiplier: float = 1.0,
+    iframe_positions: list[int] | None = None,
 ) -> dict:
     """Build an MV JSON matching a payload of *n_payload_frames* frames.
 
-    - Frame 0 is an I-frame (empty ``mv``).
-    - Frames 1..N-1 receive the source MVs from source frames
-      [start_frame_0+1, start_frame_0+N) (0-indexed), reindexed to payload
-      frames 1..N-1.
+    - Frame 0 is an I-frame (empty ``mv``). Additional *iframe_positions*
+      (0-based payload indices) are also I-frames — used by mosh-up GOPs.
+    - Other frames receive the source MVs from source frames
+      [start_frame_0+i] (0-indexed), reindexed to payload frames.
     - Source I-frames (missing MV data) fall back to the last known MVs so
       motion continuity is preserved within the hijack window.
     - For ``"freeze"`` mode all forward MVs are zeroed.
@@ -721,6 +969,10 @@ def _build_spliced_mv_json(
     src_stream = source_mv_json["streams"][0]
     src_frames = src_stream["frames"]
     result_frames = []
+
+    iframe_set = {0}
+    if iframe_positions:
+        iframe_set.update(i for i in iframe_positions if 0 <= i < n_payload_frames)
 
     first_src = src_frames[0] if src_frames else {}
     result_frames.append({
@@ -735,6 +987,15 @@ def _build_spliced_mv_json(
 
     for i in range(1, n_payload_frames):
         src_idx = start_frame_0 + i
+        if i in iframe_set:
+            src_frame = src_frames[src_idx] if 0 <= src_idx < len(src_frames) else {}
+            result_frames.append({
+                "pkt_pos": src_frame.get("pkt_pos", 0),
+                "pts": src_frame.get("pts"),
+                "dts": src_frame.get("dts", 0),
+                "mv": {},
+            })
+            continue
         if 0 <= src_idx < len(src_frames):
             src_frame = src_frames[src_idx]
             src_mv = src_frame.get("mv", {})
@@ -857,23 +1118,43 @@ async def _encode_payload_m2v(
     out_m2v: str,
     w: int, h: int, fps: float,
     fcode: int,
+    key_frames: list[int] | None = None,
 ) -> tuple[bool, str]:
-    """Encode the payload raw YUV as MPEG-2 P-frames (I-frame only at frame 0)."""
+    """Encode the payload raw YUV as MPEG-2.
+
+    Default (no *key_frames* / only frame 0): I-frame only at frame 0, matching
+    the original single-still hijack. When extra keyframe indices are given,
+    those payload frames become I-frames so each mosh-up still can reset.
+    """
+    fps_str = str(int(round(fps))) if fps == int(fps) else str(fps)
+    extra_keys = [k for k in (key_frames or []) if k > 0]
     ffgac_cmd = [
         "ffgac", "-f", "rawvideo", "-video_size", f"{w}x{h}",
-        "-r", str(int(round(fps))) if fps == int(fps) else str(fps),
+        "-r", fps_str,
         "-i", in_yuv,
         "-an",
         "-vcodec", "mpeg2video",
         "-mpv_flags", "+nopimb+forcemv",
-        "-intra_penalty", "1000000000",
         "-fcode", str(fcode),
         "-qscale:v", "1",
-        "-g", "9999",
-        "-sc_threshold", "100",
         "-f", "rawvideo",
         "-y", out_m2v,
     ]
+    if extra_keys:
+        expr = "+".join(f"eq(n,{k})" for k in [0, *extra_keys])
+        gop = extra_keys[0]  # first spacing; force_key_frames owns the rest
+        ffgac_cmd[ffgac_cmd.index("-qscale:v"):ffgac_cmd.index("-qscale:v")] = [
+            "-force_key_frames", f"expr:{expr}",
+            "-g", str(max(gop, _MIN_GOP)),
+            "-intra_penalty", "0",
+            "-sc_threshold", "0",
+        ]
+    else:
+        ffgac_cmd[ffgac_cmd.index("-qscale:v"):ffgac_cmd.index("-qscale:v")] = [
+            "-intra_penalty", "1000000000",
+            "-g", "9999",
+            "-sc_threshold", "100",
+        ]
     code, _, err = await run_command(ffgac_cmd)
     if code != 0:
         return False, f"ffgac payload encode failed: {err.strip()}"
@@ -932,7 +1213,11 @@ async def _execute_hijack_pipeline(
     output_path: str,
     inject_mode: str | None = None,
     inject_image_path: str | None = None,
+    inject_image_paths: list[str] | None = None,
     inject_frame_num: int = 0,
+    inject_video_path: str | None = None,
+    stills_mode: str = "iframes",
+    payload_gop: int = 0,
     start_frame: int = 1,
     end_frame: int = 999999,
     transition_style: str = "smear",
@@ -993,27 +1278,26 @@ async def _execute_hijack_pipeline(
     start_frame_0 = start_frame - 1  # convert 1-indexed → 0-indexed
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        # ── Step 1: Resolve inject image ──────────────────────────────────
+        # ── Step 1: Resolve payload stills and GOP structure ───────────────────
         job_control.check_cancelled()
-        inject_img = inject_image_path
-        if inject_mode == "frame":
-            inject_img = os.path.join(tmpdir, "extracted.png")
-            code, _, err = await run_command([
-                "ffmpeg", "-y", "-i", input_path,
-                "-vf", f"select=eq(n\\,{inject_frame_num})",
-                "-vframes", "1",
-                inject_img,
-            ])
-            if code != 0:
-                return OperationResult(
-                    ok=False, operation=operation,
-                    error=f"Frame extraction failed: {err.strip()}",
-                )
-        if not inject_img or not os.path.exists(inject_img):
+        stills, holds, err = await _resolve_payload_stills(
+            inject_mode=inject_mode or "file",
+            input_path=input_path,
+            inject_image_path=inject_image_path,
+            inject_image_paths=inject_image_paths,
+            inject_frame_num=inject_frame_num,
+            inject_video_path=inject_video_path,
+            stills_mode=stills_mode,
+            n_hijack=n_hijack,
+            payload_gop=payload_gop,
+            tmpdir=tmpdir,
+        )
+        if err:
             return OperationResult(
                 ok=False, operation=operation,
-                error=f"Injected image not found: {inject_img}",
+                error=err,
             )
+        iframe_positions = _iframe_positions_from_holds(holds)
 
         # ── Step 2: Encode source to m2v for MV extraction ──────────────
         job_control.check_cancelled()
@@ -1050,6 +1334,7 @@ async def _execute_hijack_pipeline(
             source_mv_json, start_frame_0, n_hijack,
             transition_style=transition_style,
             mv_multiplier=mv_multiplier,
+            iframe_positions=iframe_positions,
         )
         spliced_mv_path = os.path.join(tmpdir, "spliced_mv.json")
         with open(spliced_mv_path, "w") as f:
@@ -1058,8 +1343,8 @@ async def _execute_hijack_pipeline(
         # ── Step 5: Create payload raw YUV ────────────────────────────────
         job_control.check_cancelled()
         payload_yuv = os.path.join(tmpdir, "payload.yuv")
-        ok, err = await _create_payload_yuv(
-            inject_img, payload_yuv, n_hijack, w, h, fps,
+        ok, err = await _create_payload_yuv_from_stills(
+            stills, holds, payload_yuv, w, h, fps,
         )
         if not ok:
             return OperationResult(ok=False, operation=operation, error=err)
@@ -1069,6 +1354,7 @@ async def _execute_hijack_pipeline(
         payload_m2v = os.path.join(tmpdir, "payload.m2v")
         ok, err = await _encode_payload_m2v(
             payload_yuv, payload_m2v, w, h, fps, payload_fcode,
+            key_frames=iframe_positions,
         )
         if not ok:
             return OperationResult(ok=False, operation=operation, error=err)

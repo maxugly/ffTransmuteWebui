@@ -17,9 +17,13 @@ from .common import _execute_hijack_pipeline
 class DatamoshHijackParams(BaseModel):
     input_path: str = Field(..., description="Source video path")
     output_path: str | None = Field(None, description="Where to write the result; auto-named if omitted")
-    inject_mode: str = Field("file", description="Source of injected image: 'file' or 'frame'")
+    inject_mode: str = Field("file", description="Source of injected payload: 'file', 'frame', 'video', or 'shuffle'")
     inject_image_path: str | None = Field(None, description="Absolute path to the image file (if mode is 'file')")
+    inject_image_paths: list[str] | None = Field(None, description="Multiple image files for mosh-up")
     inject_frame_num: int = Field(0, ge=0, description="Source frame number to extract (if mode is 'frame')")
+    inject_video_path: str | None = Field(None, description="Second video source for mosh-up (if mode is 'video')")
+    stills_mode: str = Field("iframes", description="How to extract stills from video: 'iframes' or 'sample'")
+    payload_gop: int = Field(0, description="Frames to hold each still before the next I-frame (0 = auto-distribute)")
     start_frame: int = Field(1, ge=1, description="Injection frame position where the glitch starts")
     end_frame: int = Field(999999, ge=1, description="Recovery frame position where the video recovers")
     transition_style: str = Field("smear", description="Motion behavior: 'smear' (apply source MVs) or 'freeze' (zero MVs)")
@@ -39,7 +43,11 @@ async def datamosh_hijack(p: DatamoshHijackParams) -> OperationResult:
         out,
         inject_mode=p.inject_mode,
         inject_image_path=p.inject_image_path,
+        inject_image_paths=p.inject_image_paths,
         inject_frame_num=p.inject_frame_num,
+        inject_video_path=p.inject_video_path,
+        stills_mode=p.stills_mode,
+        payload_gop=p.payload_gop,
         start_frame=p.start_frame,
         end_frame=p.end_frame,
         transition_style=p.transition_style,
