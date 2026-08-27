@@ -603,10 +603,18 @@ function resolveActiveOpAndBody() {
     } else if (mode === 'hijack') {
       opId = 'datamosh_hijack';
       const injectMode = document.getElementById('hijackSourceSelect').value;
+      const stillsMode = document.getElementById('hijackStillsMode') ? document.getElementById('hijackStillsMode').value : 'iframes';
+      const payloadGop = document.getElementById('hijackPayloadGOP') ? parseInt(document.getElementById('hijackPayloadGOP').value) : 0;
+      let imgVal = injectMode === 'file' ? document.getElementById('hijackImagePath').value : '';
+      let imgPaths = imgVal.split(',').map(s => s.trim()).filter(s => s.length > 0);
       body = {
         input_path: input, output_path: output, inject_mode: injectMode,
-        inject_image_path: injectMode === 'file' ? document.getElementById('hijackImagePath').value : null,
+        inject_image_path: imgPaths.length > 0 ? imgPaths[0] : null,
+        inject_image_paths: imgPaths.length > 0 ? imgPaths : null,
         inject_frame_num: injectMode === 'frame' ? parseInt(document.getElementById('hijackSourceFrame').value) : 0,
+        inject_video_path: injectMode === 'video' ? document.getElementById('hijackVideoPath').value : null,
+        stills_mode: stillsMode,
+        payload_gop: isNaN(payloadGop) ? 0 : payloadGop,
         start_frame: window.globalInputs.frameStart, end_frame: window.globalInputs.frameEnd,
         transition_style: document.getElementById('hijackTransitionStyle').value
       };

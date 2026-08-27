@@ -90,19 +90,27 @@ function updateMoshParams() {
     `;
   } else if (mode === 'hijack') {
     html = `
-      <div class="knob-bank">
-        ${knobUnitHtml({ id: 'hijackSourceSelect', label: 'Source', value: 'file', binary: true, leftCap: 'Image', rightCap: 'Frame' })}
+      <div class="form-row">
+        <label for="hijackSourceSelect">Payload Source</label>
+        <select id="hijackSourceSelect">
+          <option value="file">Image File(s)</option>
+          <option value="frame">Source Frame (Extract)</option>
+          <option value="video">Secondary Video (Mosh-up)</option>
+          <option value="shuffle">Shuffle Source (Auto-mosh)</option>
+        </select>
+      </div>
+
+      <div class="knob-bank" style="margin-top: 12px;">
         ${knobUnitHtml({ id: 'hijackTransitionStyle', label: 'Transition', value: 'smear', binary: true, leftCap: 'Smear', rightCap: 'Freeze' })}
       </div>
       <p class="dream-hint">
-        <strong>Smear</strong> keeps motion vectors (video motion drags the inject).
-        <strong>Freeze</strong> zeroes vectors (image holds still). Residuals cleared either way.
+        <strong>Smear</strong> keeps motion vectors. <strong>Freeze</strong> zeroes vectors. Mosh-ups use multiple source stills.
       </p>
 
       <div class="form-group" id="groupHijackFile">
-        <label>Injected Image Path</label>
+        <label>Injected Image Path(s)</label>
         <div class="input-row">
-          <input type="text" id="hijackImagePath" placeholder="/absolute/path/to/image.png">
+          <input type="text" id="hijackImagePath" placeholder="/absolute/path/to/image.png, /another.png">
           <button class="btn" onclick="openFileBrowser('hijackImagePath', false, 'file', 'image')">Browse</button>
         </div>
       </div>
@@ -110,9 +118,30 @@ function updateMoshParams() {
       <div class="form-group" id="groupHijackFrame" style="display: none;">
         <label>Source Frame Index to Extract</label>
         <input type="number" id="hijackSourceFrame" value="50" min="0" step="1">
-        <span class="field-desc">The index of the frame (0-indexed) inside the video to clone and inject.</span>
+        <span class="field-desc">The index of the frame (0-indexed) inside the video to clone.</span>
       </div>
 
+      <div class="form-group" id="groupHijackVideo" style="display: none;">
+        <label>Secondary Video Path (Mosh-up)</label>
+        <div class="input-row">
+          <input type="text" id="hijackVideoPath" placeholder="/absolute/path/to/video.mp4">
+          <button class="btn" onclick="openFileBrowser('hijackVideoPath', false, 'file', 'video')">Browse</button>
+        </div>
+      </div>
+
+      <div class="form-group" id="groupHijackStills" style="display: none; margin-top: 8px;">
+        <label>Stills Extraction Mode</label>
+        <select id="hijackStillsMode">
+          <option value="iframes">I-Frames (Native Keyframes)</option>
+          <option value="sample">Sample (Evenly Spaced)</option>
+        </select>
+      </div>
+
+      <div class="form-group" id="groupHijackGOP" style="display: none; margin-top: 8px;">
+        <label>Payload GOP (Hold Frames)</label>
+        <input type="number" id="hijackPayloadGOP" value="0" min="0" step="1">
+        <span class="field-desc">Frames to hold each still (0 = auto-distribute across range).</span>
+      </div>
     `;
   } else if (mode === 'destruct') {
     html = `
@@ -176,19 +205,22 @@ function updateMoshParams() {
 
   } else if (mode === 'hijack') {
     setupBinaryKnob({
-      knobId: 'hijackSourceSelectKnob', indicatorId: 'hijackSourceSelectKnobInd', hiddenId: 'hijackSourceSelect',
-      leftValue: 'file', rightValue: 'frame', initial: 'file',
-    });
-    setupBinaryKnob({
       knobId: 'hijackTransitionStyleKnob', indicatorId: 'hijackTransitionStyleKnobInd', hiddenId: 'hijackTransitionStyle',
       leftValue: 'smear', rightValue: 'freeze', initial: 'smear',
     });
     const syncHijackSource = () => {
-      const isFile = (document.getElementById('hijackSourceSelect')?.value || 'file') === 'file';
+      const src = document.getElementById('hijackSourceSelect')?.value || 'file';
       const gf = document.getElementById('groupHijackFile');
       const gr = document.getElementById('groupHijackFrame');
-      if (gf) gf.style.display = isFile ? 'block' : 'none';
-      if (gr) gr.style.display = isFile ? 'none' : 'block';
+      const gv = document.getElementById('groupHijackVideo');
+      const gs = document.getElementById('groupHijackStills');
+      const gg = document.getElementById('groupHijackGOP');
+
+      if (gf) gf.style.display = src === 'file' ? 'block' : 'none';
+      if (gr) gr.style.display = src === 'frame' ? 'block' : 'none';
+      if (gv) gv.style.display = src === 'video' ? 'block' : 'none';
+      if (gs) gs.style.display = src === 'video' ? 'block' : 'none';
+      if (gg) gg.style.display = (src === 'video' || src === 'shuffle') ? 'block' : 'none';
     };
     document.getElementById('hijackSourceSelect')?.addEventListener('change', syncHijackSource);
     syncHijackSource();
