@@ -8,6 +8,7 @@ datamosh.sh logic implemented directly in Python to support advanced creative co
 """
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import tempfile
@@ -21,6 +22,11 @@ from ...shell import run_command, BIN_DIR
 CUSTOM_GLITCH_JS = str(BIN_DIR / "custom_glitch.js")
 NO_KEYFRAME_JS = str(BIN_DIR.parent.parent / "no_keyframe.js")
 MELT_JS = str(BIN_DIR.parent.parent / "melt.js")
+
+DECODER_ERROR_PATTERNS = (
+    "invalid cbp", "corrupt", "conceal", "concealing",
+    "out of range", "numerical result",
+)
 
 
 async def _execute_mosh_pipeline(
@@ -258,6 +264,7 @@ async def _execute_mosh_pipeline(
         ffgac_cmd = [
             "ffgac", "-i", source_video, "-an", "-vcodec", "mpeg2video", 
             "-mpv_flags", "+nopimb+forcemv", "-qscale:v", "1", 
+            "-intra_penalty", "1000000000",
             "-g", "max", "-sc_threshold", "max"
         ]
         # Suppress keyframes for classic, destruct, mv_hack, and freeze modes
@@ -640,3 +647,577 @@ async def _trim_and_mosh(
         )
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+# ─── Visual Hijack — Motion-Vector Payload Injection ──────────────────────────
+#
+# Instead of splicing an image into the video and then destroying DCT residuals
+# (which produces invalid block states and green decoder-error frames), this
+# pipeline performs a clean motion-vector transfer:
+#
+#   SOURCE → export MVs →  source_mv.json
+#   IMAGE  → repeat N×   →  payload.m2v  (all P-frames, zero residuals)
+#   payload.m2v + source_mv.json → ffedit -a → hijacked.m2v
+#   hijacked.m2v → re-encode → mp4
+#   clean_source[0:start] + hijacked_mp4 + clean_source[end+1:] → final mp4
+#
+# The payload image becomes the visual content while the source video's
+# motion vectors drive the prediction chain.
+
+
+async def _probe_source_info(input_path: str) -> dict:
+    """Probe width, height, fps, frame count, and audio presence."""
+    from ...probe import probe_fps, probe_frame_count
+
+    code, out, _ = await run_command([
+        "ffprobe", "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "stream=width,height,r_frame_rate",
+        "-of", "csv=s=x:p=0", input_path,
+    ])
+    w, h, fps = 1920, 1080, 30
+    if code == 0 and out.strip():
+        parts = out.strip().split("x")
+        if len(parts) >= 3:
+            w, h = int(parts[0]), int(parts[1])
+            try:
+                if "/" in parts[2]:
+                    num, den = map(float, parts[2].split("/"))
+                    fps = num / den if den else 30
+                else:
+                    fps = float(parts[2])
+            except (ValueError, ZeroDivisionError):
+                pass
+
+    frame_count = await probe_frame_count(input_path, default=0)
+    if frame_count <= 0:
+        frame_count = 999999
+
+    has_audio = await _probe_has_audio(input_path)
+    return {
+        "width": w, "height": h, "fps": fps,
+        "frame_count": frame_count, "has_audio": has_audio,
+    }
+
+
+def _build_spliced_mv_json(
+    source_mv_json: dict,
+    start_frame_0: int,
+    n_payload_frames: int,
+    transition_style: str = "smear",
+    mv_multiplier: float = 1.0,
+) -> dict:
+    """Build an MV JSON matching a payload of *n_payload_frames* frames.
+
+    - Frame 0 is an I-frame (empty ``mv``).
+    - Frames 1..N-1 receive the source MVs from source frames
+      [start_frame_0+1, start_frame_0+N) (0-indexed), reindexed to payload
+      frames 1..N-1.
+    - Source I-frames (missing MV data) fall back to the last known MVs so
+      motion continuity is preserved within the hijack window.
+    - For ``"freeze"`` mode all forward MVs are zeroed.
+    - ``mv_multiplier`` scales every component (1.0 = as-is, 0.0 = freeze,
+      3.0 = triple speed, etc.).
+    """
+    src_stream = source_mv_json["streams"][0]
+    src_frames = src_stream["frames"]
+    result_frames = []
+
+    first_src = src_frames[0] if src_frames else {}
+    result_frames.append({
+        "pkt_pos": first_src.get("pkt_pos", 0),
+        "pts": first_src.get("pts"),
+        "dts": first_src.get("dts", 0),
+        "mv": {}
+    })
+
+    last_mv: dict | None = None
+    freeze = transition_style == "freeze" or (mv_multiplier == 0.0)
+
+    for i in range(1, n_payload_frames):
+        src_idx = start_frame_0 + i
+        if 0 <= src_idx < len(src_frames):
+            src_frame = src_frames[src_idx]
+            src_mv = src_frame.get("mv", {})
+            if src_mv and src_mv.get("forward"):
+                last_mv = src_mv
+                fcode = src_mv.get("fcode", [2, 2])
+                if freeze or mv_multiplier != 1.0:
+                    fwd = src_mv["forward"]
+                    if freeze:
+                        new_fwd = [[[0, 0] for _ in row] for row in fwd]
+                    else:
+                        new_fwd = [
+                            [[round(pair[0] * mv_multiplier), round(pair[1] * mv_multiplier)]
+                             for pair in row]
+                            for row in fwd
+                        ]
+                    mv_data = {
+                        "forward": new_fwd,
+                        "fcode": fcode,
+                        "overflow": "truncate",
+                    }
+                else:
+                    mv_data = src_mv
+                result_frames.append({
+                    "pkt_pos": src_frame.get("pkt_pos", 0),
+                    "pts": src_frame.get("pts"),
+                    "dts": src_frame.get("dts", 0),
+                    "mv": mv_data,
+                })
+            else:
+                if last_mv:
+                    result_frames.append({
+                        "pkt_pos": src_frame.get("pkt_pos", 0),
+                        "pts": src_frame.get("pts"),
+                        "dts": src_frame.get("dts", 0),
+                        "mv": last_mv,
+                    })
+                else:
+                    result_frames.append({
+                        "pkt_pos": src_frame.get("pkt_pos", 0),
+                        "pts": src_frame.get("pts"),
+                        "dts": src_frame.get("dts", 0),
+                        "mv": {},
+                    })
+        else:
+            result_frames.append({
+                "pkt_pos": 0, "pts": None, "dts": 0, "mv": {},
+            })
+
+    return {
+        "ffedit_version": source_mv_json.get("ffedit_version", ""),
+        "filename": source_mv_json.get("filename", ""),
+        "sha1sum": source_mv_json.get("sha1sum", ""),
+        "features": source_mv_json.get("features", ["mv"]),
+        "streams": [{
+            "codec": src_stream.get("codec", "mpeg2video"),
+            "frames": result_frames,
+        }],
+    }
+
+
+async def _encode_source_m2v(
+    input_path: str,
+    out_m2v: str,
+    info: dict,
+) -> tuple[bool, str]:
+    """Encode the source to raw MPEG-2 with suppressed keyframes (fcode=2).
+
+    Using ``-g 9999`` makes only the first frame an I-frame; every subsequent
+    frame is a P-frame with forward motion vectors — ideal for MV extraction.
+    """
+    ffgac_cmd = [
+        "ffgac", "-i", input_path, "-an",
+        "-vcodec", "mpeg2video",
+        "-mpv_flags", "+nopimb+forcemv",
+        "-intra_penalty", "1000000000",
+        "-fcode", "2",
+        "-qscale:v", "1",
+        "-g", "9999",
+        "-sc_threshold", "100",
+        "-f", "rawvideo",
+        "-y", out_m2v,
+    ]
+    code, _, err = await run_command(ffgac_cmd)
+    if code != 0:
+        return False, f"ffgac source encode failed: {err.strip()}"
+    return True, ""
+
+
+async def _create_payload_yuv(
+    inject_image_path: str,
+    out_yuv: str,
+    n_frames: int,
+    w: int, h: int, fps: float,
+) -> tuple[bool, str]:
+    """Create a raw YUV420p file with *n_frames* repetitions of *inject_image_path*,
+    scaled/padded to *w*×*h* and timed at *fps*.
+    """
+    fps_str = str(int(round(fps))) if fps == int(fps) else str(fps)
+    cmd = [
+        "ffmpeg", "-y", "-loop", "1", "-i", inject_image_path,
+        "-vf", (
+            f"scale={w}:{h}:force_original_aspect_ratio=decrease,"
+            f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,setsar=1"
+        ),
+        "-vframes", str(n_frames),
+        "-r", fps_str,
+        "-pix_fmt", "yuv420p",
+        "-f", "rawvideo",
+        out_yuv,
+    ]
+    code, _, err = await run_command(cmd)
+    if code != 0:
+        return False, f"payload YUV creation failed: {err.strip()}"
+    return True, ""
+
+
+async def _encode_payload_m2v(
+    in_yuv: str,
+    out_m2v: str,
+    w: int, h: int, fps: float,
+    fcode: int,
+) -> tuple[bool, str]:
+    """Encode the payload raw YUV as MPEG-2 P-frames (I-frame only at frame 0)."""
+    ffgac_cmd = [
+        "ffgac", "-f", "rawvideo", "-video_size", f"{w}x{h}",
+        "-r", str(int(round(fps))) if fps == int(fps) else str(fps),
+        "-i", in_yuv,
+        "-an",
+        "-vcodec", "mpeg2video",
+        "-mpv_flags", "+nopimb+forcemv",
+        "-intra_penalty", "1000000000",
+        "-fcode", str(fcode),
+        "-qscale:v", "1",
+        "-g", "9999",
+        "-sc_threshold", "100",
+        "-f", "rawvideo",
+        "-y", out_m2v,
+    ]
+    code, _, err = await run_command(ffgac_cmd)
+    if code != 0:
+        return False, f"ffgac payload encode failed: {err.strip()}"
+    return True, ""
+
+
+def _max_fcode_in_range(source_mv_json: dict, start_0: int, end_0_exclusive: int) -> int:
+    """Find the maximum fcode value across source MVs in the given frame range.
+    Falls back to 2 if none found.
+    """
+    frames = source_mv_json["streams"][0]["frames"]
+    max_fc = 0
+    for idx in range(start_0, end_0_exclusive):
+        if idx >= len(frames):
+            break
+        mv = frames[idx].get("mv", {})
+        fcode = mv.get("fcode")
+        if fcode and isinstance(fcode, list) and len(fcode) >= 2:
+            max_fc = max(max_fc, max(fcode))
+    return max(max_fc, 2)
+
+
+def _scan_mv_magnitude(source_mv_json: dict, start_0: int, end_0_exclusive: int) -> tuple[int, int]:
+    """Return (max_abs_x, max_abs_y) across all MVs in the given source range."""
+    frames = source_mv_json["streams"][0]["frames"]
+    max_x, max_y = 0, 0
+    for idx in range(start_0, end_0_exclusive):
+        if idx >= len(frames):
+            break
+        mv = frames[idx].get("mv", {})
+        fwd = mv.get("forward")
+        if fwd:
+            for row in fwd:
+                for pair in row:
+                    max_x = max(max_x, abs(pair[0]))
+                    max_y = max(max_y, abs(pair[1]))
+    return max_x, max_y
+
+
+def _fcode_for_max_mv(max_abs: int) -> int:
+    """Determine the minimum MPEG-2 fcode that can represent *max_abs*."""
+    if max_abs <= 16:
+        return 1
+    if max_abs <= 32:
+        return 2
+    if max_abs <= 64:
+        return 3
+    if max_abs <= 128:
+        return 4
+    return 5
+
+
+async def _execute_hijack_pipeline(
+    operation: str,
+    input_path: str,
+    output_path: str,
+    inject_mode: str | None = None,
+    inject_image_path: str | None = None,
+    inject_frame_num: int = 0,
+    start_frame: int = 1,
+    end_frame: int = 999999,
+    transition_style: str = "smear",
+    mv_multiplier: float = 1.0,
+    dry_run: bool = False,
+) -> OperationResult:
+    """Visual Hijack via motion-vector payload injection.
+
+    Replaces the splice-and-destroy residual approach with a clean
+    source-MV → payload transfer:
+    1. Encode source to MPEG-2 (suppressed keyframes, fcode=2)
+    2. Export source motion vectors
+    3. Create a payload video (image repeated N frames) as MPEG-2 P-frames
+    4. Apply source MVs to the payload via ``ffedit -a``
+    5. Splice the hijacked segment between clean source bookends
+    """
+    from ...pathutil import unique_output_path
+    from ... import job_control
+
+    mode_desc = (
+        f"datamosh hijack inject={inject_mode} start={start_frame} end={end_frame} "
+        f"style={transition_style} mult={mv_multiplier} -> {output_path}"
+    )
+    if dry_run:
+        return OperationResult(
+            ok=True, operation=operation, output_path=output_path,
+            dry_run=True, command=mode_desc, stdout=f"Command: {mode_desc}\n",
+        )
+
+    if not os.path.exists(input_path):
+        return OperationResult(
+            ok=False, operation=operation,
+            error=f"Input file not found: {input_path}",
+        )
+
+    output_path = str(unique_output_path(output_path))
+    info = await _probe_source_info(input_path)
+    w, h, fps = info["width"], info["height"], info["fps"]
+    total_frames = info["frame_count"]
+    has_audio = info["has_audio"]
+
+    start_frame = max(start_frame, 1)
+    if end_frame >= 999999 or end_frame > total_frames:
+        end_frame = total_frames
+    if end_frame < start_frame:
+        return OperationResult(
+            ok=False, operation=operation,
+            error=f"end_frame ({end_frame}) < start_frame ({start_frame})",
+        )
+
+    n_hijack = end_frame - start_frame + 1
+    if n_hijack < 2:
+        return OperationResult(
+            ok=False, operation=operation,
+            error=f"Hijack interval too short: {n_hijack} frames (need >= 2: 1 I-frame + 1 P-frame)",
+        )
+
+    start_frame_0 = start_frame - 1  # convert 1-indexed → 0-indexed
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # ── Step 1: Resolve inject image ──────────────────────────────────
+        job_control.check_cancelled()
+        inject_img = inject_image_path
+        if inject_mode == "frame":
+            inject_img = os.path.join(tmpdir, "extracted.png")
+            code, _, err = await run_command([
+                "ffmpeg", "-y", "-i", input_path,
+                "-vf", f"select=eq(n\\,{inject_frame_num})",
+                "-vframes", "1",
+                inject_img,
+            ])
+            if code != 0:
+                return OperationResult(
+                    ok=False, operation=operation,
+                    error=f"Frame extraction failed: {err.strip()}",
+                )
+        if not inject_img or not os.path.exists(inject_img):
+            return OperationResult(
+                ok=False, operation=operation,
+                error=f"Injected image not found: {inject_img}",
+            )
+
+        # ── Step 2: Encode source to m2v for MV extraction ──────────────
+        job_control.check_cancelled()
+        src_m2v = os.path.join(tmpdir, "source.m2v")
+        ok, err = await _encode_source_m2v(input_path, src_m2v, info)
+        if not ok:
+            return OperationResult(ok=False, operation=operation, error=err)
+
+        # ── Step 3: Export source MVs ───────────────────────────────────
+        job_control.check_cancelled()
+        src_mv_json_path = os.path.join(tmpdir, "source_mv.json")
+        export_cmd = ["ffedit", "-i", src_m2v, "-f", "mv:0", "-e", src_mv_json_path]
+        code, _, err = await run_command(export_cmd)
+        if code != 0:
+            return OperationResult(
+                ok=False, operation=operation,
+                error=f"MV export failed: {err.strip()}",
+            )
+
+        # ── Step 4: Determine fcode and build spliced MV JSON ─────────────
+        job_control.check_cancelled()
+        with open(src_mv_json_path) as f:
+            source_mv_json = json.load(f)
+
+        src_end_0 = start_frame_0 + n_hijack  # exclusive
+        max_abs_x, max_abs_y = _scan_mv_magnitude(source_mv_json, start_frame_0, src_end_0)
+        max_abs = max(max_abs_x, max_abs_y)
+        # Use the max of the source's fcode and what the MVs require
+        src_fcode = _max_fcode_in_range(source_mv_json, start_frame_0, src_end_0)
+        req_fcode = _fcode_for_max_mv(max_abs)
+        payload_fcode = max(src_fcode, req_fcode)
+
+        spliced_mv = _build_spliced_mv_json(
+            source_mv_json, start_frame_0, n_hijack,
+            transition_style=transition_style,
+            mv_multiplier=mv_multiplier,
+        )
+        spliced_mv_path = os.path.join(tmpdir, "spliced_mv.json")
+        with open(spliced_mv_path, "w") as f:
+            json.dump(spliced_mv, f)
+
+        # ── Step 5: Create payload raw YUV ────────────────────────────────
+        job_control.check_cancelled()
+        payload_yuv = os.path.join(tmpdir, "payload.yuv")
+        ok, err = await _create_payload_yuv(
+            inject_img, payload_yuv, n_hijack, w, h, fps,
+        )
+        if not ok:
+            return OperationResult(ok=False, operation=operation, error=err)
+
+        # ── Step 6: Encode payload to m2v ─────────────────────────────────
+        job_control.check_cancelled()
+        payload_m2v = os.path.join(tmpdir, "payload.m2v")
+        ok, err = await _encode_payload_m2v(
+            payload_yuv, payload_m2v, w, h, fps, payload_fcode,
+        )
+        if not ok:
+            return OperationResult(ok=False, operation=operation, error=err)
+
+        # ── Step 7: Apply source MVs to payload ─────────────────────────
+        job_control.check_cancelled()
+        hijacked_m2v = os.path.join(tmpdir, "hijacked.m2v")
+        if transition_style == "freeze":
+            # For freeze, don't apply MVs — the payload's own zero MVs suffice
+            shutil.copy2(payload_m2v, hijacked_m2v)
+        else:
+            ffedit_cmd = [
+                "ffedit", "-i", payload_m2v, "-f", "mv",
+                "-a", spliced_mv_path, "-o", hijacked_m2v, "-y",
+            ]
+            code, _, err = await run_command(ffedit_cmd)
+            if code != 0:
+                return OperationResult(
+                    ok=False, operation=operation,
+                    error=f"ffedit MV application failed: {err.strip()}",
+                )
+
+        # ── Step 8: Convert hijacked m2v → mp4 ────────────────────────────
+        job_control.check_cancelled()
+        hijacked_mp4 = os.path.join(tmpdir, "hijacked.mp4")
+        fps_str = str(int(round(fps))) if fps == int(fps) else str(fps)
+        ffmpeg_cmd = [
+            "ffmpeg", "-y",
+            "-r", fps_str, "-i", hijacked_m2v,
+            "-c:v", "libx264", "-crf", "18", "-pix_fmt", "yuv420p",
+            "-an",
+            hijacked_mp4,
+        ]
+        code, out_hijack, err_hijack = await run_command(ffmpeg_cmd)
+        if code != 0:
+            return OperationResult(
+                ok=False, operation=operation,
+                error=f"Hijacked segment re-encode failed: {err_hijack.strip()}",
+            )
+
+        # ── Step 9: Assemble final output with clean bookends ───────────
+        job_control.check_cancelled()
+        segments: list[str] = []
+        seg_labels: list[str] = []
+
+        # Part A: clean source before hijack (video-only, audio extracted separately)
+        if start_frame_0 > 0:
+            part_a = os.path.join(tmpdir, "partA.mp4")
+            cut_cmd = [
+                "ffmpeg", "-y", "-i", input_path,
+                "-t", f"{start_frame_0 * (1.0 / fps):.6f}",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                "-an",  # audio handled separately (source-wide)
+                part_a,
+            ]
+            code, _, err = await run_command(cut_cmd)
+            if code == 0 and os.path.exists(part_a):
+                segments.append(part_a)
+                seg_labels.append("A")
+
+        # Hijacked segment (video-only)
+        segments.append(hijacked_mp4)
+        seg_labels.append("H")
+
+        # Part C: clean source after hijack (video-only)
+        post_start_0 = end_frame  # 0-indexed first frame after hijack
+        if post_start_0 < total_frames:
+            part_c = os.path.join(tmpdir, "partC.mp4")
+            ss_time = post_start_0 * (1.0 / fps)
+            cut_cmd = [
+                "ffmpeg", "-y", "-ss", f"{ss_time:.6f}", "-i", input_path,
+                "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                "-an",
+                part_c,
+            ]
+            code, _, err = await run_command(cut_cmd)
+            if code == 0 and os.path.exists(part_c):
+                segments.append(part_c)
+                seg_labels.append("C")
+
+        # Remove any segment without video
+        good_segs: list[str] = []
+        for seg in segments:
+            if os.path.exists(seg) and os.path.getsize(seg) > 100:
+                good_segs.append(seg)
+        if not good_segs:
+            return OperationResult(
+                ok=False, operation=operation,
+                error="No valid segments to concatenate",
+            )
+
+        job_control.check_cancelled()
+
+        # Concatenate video-only (audio is muxed from the full source after concat)
+        n = len(good_segs)
+        vlabels = "".join(f"[{i}:v]" for i in range(n))
+        filter_str = f"{vlabels}concat=n={n}:v=1:a=0[outv]"
+        concat_cmd = [
+            "ffmpeg", "-y", *[x for seg in good_segs for x in ["-i", seg]],
+            "-filter_complex", filter_str,
+            "-map", "[outv]",
+            "-an",
+            "-c:v", "libx264", "-pix_fmt", "yuv420p",
+            output_path,
+        ]
+
+        code, out_concat, err_concat = await run_command(concat_cmd)
+        if code != 0:
+            return OperationResult(
+                ok=False, operation=operation,
+                error=f"Video concat failed: {err_concat.strip()}",
+            )
+
+        # ── Step 10: Preserve audio from the original source ────────────
+        if has_audio:
+            job_control.check_cancelled()
+            audio_tmp = os.path.join(tmpdir, "source_audio.aac")
+            ext_code, _, ext_err = await run_command([
+                "ffmpeg", "-y", "-i", input_path,
+                "-c:a", "aac", "-b:a", "192k",
+                audio_tmp,
+            ])
+            if ext_code == 0 and os.path.exists(audio_tmp) and os.path.getsize(audio_tmp) > 100:
+                # Extract video from the concat output and mux with the source audio
+                recoded = os.path.join(tmpdir, "final_with_audio.mp4")
+                mux_code, _, mux_err = await run_command([
+                    "ffmpeg", "-y",
+                    "-i", output_path,
+                    "-i", audio_tmp,
+                    "-c:v", "copy",
+                    "-c:a", "aac", "-b:a", "192k",
+                    "-shortest",
+                    recoded,
+                ])
+                if mux_code == 0 and os.path.exists(recoded):
+                    shutil.move(recoded, output_path)
+                else:
+                    # Keep video-only if muxing fails; audio is non-fatal
+                    pass
+
+        return OperationResult(
+            ok=True,
+            operation=operation,
+            output_path=output_path,
+            command=(
+                f"ffgac (source m2v) -> ffedit -e (MV export) -> "
+                f"ffgac (payload) -> ffedit -a (MV apply) -> "
+                f"ffmpeg concat({'|'.join(seg_labels[:len(good_segs)])})"
+            ),
+            stdout=f"ffgac: ok\nffedit: ok\nffmpeg concat:\n{out_concat}",
+            stderr=err_concat,
+        )

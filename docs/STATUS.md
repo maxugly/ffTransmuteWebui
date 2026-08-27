@@ -20,6 +20,7 @@
 | **QR Art Illusion** | Two stills, no QR Data. Same worker. Mode switch on QR tab. | `qr-illusion-art-spec.md` · **`7.009`** |
 | **Stable Fluids sim** | Phase 1 (self-host + iframe + Record) **+ Phase 2 pure WebGPU port** (advect / pressure / project) **+ Phase 3 seed-image injection** (dedicated path or first Image Pool still). Mode toggle in the tab; Record shared across modes. | `stablefluids-sim-spec.md` · **`7.011`** |
 | **FastSAM multimodel** | Phase 1 (FastSAM-s/x) shipped in `ac25a60`. Phase 2 (SAM ViT-L/H) still deferred. | `fastsam-sam-multimodel-spec.md` · **`7.002` Partial** |
+| **Visual Hijack** | Motion-vector payload injection. Full pipeline in `app/operations/datamosh/common.py` (`_execute_hijack_pipeline`) + handler (`hijack.py`). Register `datamosh_hijack` op with `inject_mode` (file/frame), `start_frame`, `end_frame`, `transition_style` (smear/freeze), `mv_multiplier`. CLI `-H IMG:START:END[:STYLE]` in both `transmute` and `bin/transmute`. `visualhijack` per_frame filter registered in `app/filters/`. 9 unit tests + 4 POC validation tests passing. Zero decoder errors, zero green pixels, frame count preserved. | `app/operations/datamosh/hijack.py` · `app/operations/datamosh/common.py` · `app/filters/visualhijack.py` · **`7.012`** |
 
 **Next:** human names the next job.
 

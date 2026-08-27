@@ -39,18 +39,24 @@ Options:
   -g [MODE] GRID 2x2 panel of 4 videos. MODE=pad|crop|stretch (default: pad)
            INPUT must be 4 videos: "a,b,c,d" or folder with 4 videos
            Tile size from -A + max dims; final = tile*2 x tile*2
-  -r REVERSE video -> <name>_rev.ext
-  -q QUALITY JPEG quality for -f/-l. 2-31, default 2. Lower=better
-  -d DRY RUN. Print command but don't execute
-  -h HELP. Show this message and exit
+   -H IMG:START:END[:STYLE] VISUAL HIJACK — inject image at frame range.
+                          STYLE=smear(default)|freeze. Injects IMG across
+                          frames START..END (1-based, inclusive). The image is
+                          scaled/padded to match source. Smear fades the image
+                          in/out at the edges; freeze holds it constant.
+   -r REVERSE video -> <name>_rev.ext
+   -q QUALITY JPEG quality for -f/-l. 2-31, default 2. Lower=better
+   -d DRY RUN. Print command but don't execute
+   -h HELP. Show this message and exit
 
 Examples:
-  transmute input.mp4 -s
-  transmute input.mp4 -z 1080x1080
-  transmute a.mp4,b.mp4,c.mp4 -j pad
-  transmute a.mp4,b.mp4 -j pad -A 1:1
-  transmute tl.mp4,tr.mp4,bl.mp4,br.mp4 -g crop
-  transmute./clips -g -o grid.mp4
+   transmute input.mp4 -s
+   transmute input.mp4 -z 1080x1080
+   transmute a.mp4,b.mp4,c.mp4 -j pad
+   transmute a.mp4,b.mp4 -j pad -A 1:1
+   transmute tl.mp4,tr.mp4,bl.mp4,br.mp4 -g crop
+   transmute input.mp4 -H /path/to/image.png:30:49:smear
+   transmute./clips -g -o grid.mp4
 EOF
 }
 
@@ -74,6 +80,7 @@ GRID_MODE="pad"
 ASPECT="auto"   # auto|1:1|16:9|3:2|2:3|9:16|W:H|WxH
 TIME_DURS=""    # comma-separated target seconds for -j (empty slot = native)
 REVERSE=false
+HYDRAID=""
 DRYRUN=false
 QUALITY=2
 
@@ -236,6 +243,8 @@ while [[ $# -gt 0 ]]; do
         fi
         ;;
     -r) REVERSE=true; shift ;;
+    -H) [[ -n "${2:-}" ]] || { echo "Error: -H requires IMG:START:END[:STYLE]" >&2; exit 1; }
+        HYDRAID="$2"; shift 2 ;;
     -q) if [[ ${2:-} =~ ^[0-9]+$ ]]; then QUALITY="$2"; shift 2; else echo "Error: -q requires a numeric value (2-31)"; usage; exit 1; fi ;;
     -d) DRYRUN=true; shift ;;
     -h) usage; exit 0 ;;
@@ -254,12 +263,13 @@ $CROP && GEOM_COUNT=$((GEOM_COUNT+1))
 $LETTERBOX && GEOM_COUNT=$((GEOM_COUNT+1))
 [[ -n "$CROP_RES" ]] && GEOM_COUNT=$((GEOM_COUNT+1))
 [[ -n "$STRETCH_RES" ]] && GEOM_COUNT=$((GEOM_COUNT+1))
-$JOIN && GEOM_COUNT=$((GEOM_COUNT+1))
-$GRID && GEOM_COUNT=$((GEOM_COUNT+1))
-if [[ $GEOM_COUNT -gt 1 ]]; then
-  echo "Error: -c, -b, -s, -S, -z, -x, -j, -g are mutually exclusive (pick one geometry)" >&2
-  exit 1
-fi
+ $JOIN && GEOM_COUNT=$((GEOM_COUNT+1))
+ $GRID && GEOM_COUNT=$((GEOM_COUNT+1))
+ [[ -n "$HYDRAID" ]] && GEOM_COUNT=$((GEOM_COUNT+1))
+ if [[ $GEOM_COUNT -gt 1 ]]; then
+   echo "Error: -c, -b, -s, -S, -z, -x, -j, -g, -H are mutually exclusive (pick one operation)" >&2
+   exit 1
+ fi
 
 is_video_file() {
   local lc="${1,,}"
@@ -497,12 +507,57 @@ build_output_name() {
   $SQUARE_PAD && suffix="${suffix}_1x1b"
   $CROP && suffix="${suffix}_16x9c"
   $LETTERBOX && suffix="${suffix}_16x9b"
-  [[ -n "$CROP_RES" ]] && suffix="${suffix}_${CROP_RES}z"
-  [[ -n "$STRETCH_RES" ]] && suffix="${suffix}_${STRETCH_RES}x"
-  $REVERSE && suffix="${suffix}_rev"
-  [[ -z "$suffix" ]] && suffix="_copy"
-  echo "${basename}${suffix}.${ext}"
+   [[ -n "$CROP_RES" ]] && suffix="${suffix}_${CROP_RES}z"
+   [[ -n "$STRETCH_RES" ]] && suffix="${suffix}_${STRETCH_RES}x"
+   $REVERSE && suffix="${suffix}_rev"
+   [[ -n "$HYDRAID" ]] && suffix="${suffix}_hijack"
+   [[ -z "$suffix" ]] && suffix="_copy"
+   echo "${basename}${suffix}.${ext}"
 }
+
+# --- HIJACK MODE ---
+if [[ -n "$HYDRAID" ]]; then
+   IFS=':' read -r H_IMG H_START H_END H_STYLE <<< "$HYDRAID"
+   H_STYLE="${H_STYLE:-smear}"
+   [[ -f "$H_IMG" ]] || { echo "Error: hijack image not found: $H_IMG" >&2; exit 1; }
+   [[ -n "$H_START" ]] || { echo "Error: -H requires START frame (IMG:START:END)" >&2; exit 1; }
+   [[ -n "$H_END" ]] || { echo "Error: -H requires END frame (IMG:START:END)" >&2; exit 1; }
+   [[ "$H_STYLE" =~ ^(smear|freeze)$ ]] || { echo "Error: hijack style must be smear or freeze, got: $H_STYLE" >&2; exit 1; }
+
+   if [[ -z "$OUTPUT" ]]; then OUTPUT="$(build_output_name "$INPUT")"
+   elif [[ -d "$OUTPUT" ]]; then OUTPUT="$OUTPUT/$(build_output_name "$INPUT")"
+   fi
+
+    SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+    MTAPI_ROOT="$SCRIPT_DIR/mtapi-project"
+    [[ -d "$MTAPI_ROOT" ]] || MTAPI_ROOT="$(cd "$SCRIPT_DIR/../.." &>/dev/null && pwd)/mtapi-project"
+
+    CMD=(python3 -c "
+import asyncio, os, sys
+sys.path.insert(0, '$MTAPI_ROOT')
+from app.operations.datamosh.hijack import DatamoshHijackParams, datamosh_hijack
+p = DatamoshHijackParams(
+    input_path='$INPUT',
+    output_path='$OUTPUT',
+    inject_mode='file',
+    inject_image_path='$H_IMG',
+    start_frame=$H_START,
+    end_frame=$H_END,
+    transition_style='$H_STYLE',
+)
+res = asyncio.run(datamosh_hijack(p))
+print('Output:', res.output_path or '')
+print('Command:', res.command or '')
+if not res.ok:
+    print('ERROR:', res.error, file=sys.stderr)
+    sys.exit(1)
+")
+
+   echo "Output: $OUTPUT"
+   echo "Command: ${CMD[*]}"
+   if ! $DRYRUN; then "${CMD[@]}"; fi
+   exit 0
+ fi
 
 process_file() {
   local in_file="$1"

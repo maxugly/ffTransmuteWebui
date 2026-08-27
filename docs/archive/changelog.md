@@ -106,6 +106,7 @@
 | **Docs slim pass 1** | Archived competing TODO/ideas piles + July root STATUS/TODO/ROADMAP. Live truth is this file. | `docs-slim-plan.md` · **`7.002`** |
 | **FastSAM multimodel** | Model selector on FastSAM tab: FastSAM-s (default) + FastSAM-x. Same OpenVINO export path. Phase 2 (SAM ViT-L/H) deferred: ultralytics SAM export crashes (`SAMModel` has no `args`). | `fastsam-sam-multimodel-spec.md` · **`7.002` Partial** |
 | **Server-resident catalog** | CatalogIndex hydrates the full cache before serve; display paths read RAM; exclusive process lock; 64 MiB JPEG warmer; `/api/catalog/status`. §11–12 I/O, lock, warmer, restart, Video+Image+Sequence browser checks accepted | `server-memory-catalog-spec.md` · **`5.38`** |
+| **Visual Hijack** | Motion-vector payload injection pipeline (`_execute_hijack_pipeline` in `common.py`). Source MVs extracted via `ffgac` → `ffedit -e` → applied to payload via `ffedit -a`. Image payload (file or extracted frame) injected at frame range, smeared by source MVs or frozen constant. Clean source bookends before/after. CLI `-H IMG:START:END[:STYLE]` in `transmute` + `bin/transmute`. `visualhijack` per_frame filter registered in `app/filters/`. 9 unit tests + 4 POC validation tests. Zero decoder errors, zero green pixels, frame count preserved, audio preserved. | `app/operations/datamosh/hijack.py`, `app/operations/datamosh/common.py`, `app/filters/visualhijack.py` · **`7.012`** |
 
 
 ## Recently Shipped (from old §5.2)

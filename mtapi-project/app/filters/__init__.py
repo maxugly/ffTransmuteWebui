@@ -36,3 +36,4 @@ from . import speedramp as _speedramp  # noqa: E402, F401
 from . import img2img as _img2img  # noqa: E402, F401
 from . import upscale as _upscale  # noqa: E402, F401
 from . import fastsam as _fastsam  # noqa: E402, F401
+from . import visualhijack as _visualhijack  # noqa: E402, F401
