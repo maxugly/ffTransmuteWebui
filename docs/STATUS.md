@@ -111,6 +111,7 @@ Version diary: [archive/changelog.md](archive/changelog.md).
 
 | Spec | Intent |
 |------|--------|
+| [unified-speed-tab-spec.md](unified-speed-tab-spec.md) | **Unified Speed & Time Tab** — UI redesign for deterministic time manipulation, consolidating Speed and RIFE. |
 | [audio-analysis-spec.md](audio-analysis-spec.md) | BPM / key / analysis |
 | [automation-spec-legacy.md](automation-spec-legacy.md) / [parameter-automation-spec.md](parameter-automation-spec.md) | Parameter envelopes |
 | [dynamic-mixing-spec.md](dynamic-mixing-spec.md) | Dynamic mix |
