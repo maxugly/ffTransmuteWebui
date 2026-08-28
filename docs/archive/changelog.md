@@ -2,6 +2,25 @@
 
 ## Shipped History (from old §3)
 
+### 000.000.7.016
+- **Clearable inputs**: a red ✕ now ships with any populated text box, as a truly portable module. `js/ui/clearable.js` + `css/clearable.css`: add `data-clearable` to an `<input type="text">`/`<textarea>` → auto-wired as part of the page boot, plus a MutationObserver upgrades any dynamically rendered form (tabs re-render later and still get it with zero JS). The ✕ is red (`--error`), appears only when the field holds content, clears on click while firing `input` + `change` (so `updateGlobalInputs`, probing, and form-state capture all keep running), then restores focus. A 250 ms self-sync poller catches programmatic value writes that never dispatch events (desk-restore `applyDeskSnapshot`, file-browser picks, pool sends), so show/hide never desyncs. Wired on the four global inputs (Video file(s), Image file(s), Path in, Path out) in `index.html`; the old status ❌ “Not used by this tab” glyph (read as a dead clear button) was removed from `updateStatusIndicators`. `makeClearable`/`bindClearables` are exported from app.js for ad-hoc upgrades. Playwright-verified on the real UI: typed and picker-set values show the ✕, clicking clears the field and un-populates the panel / deactivates quick buttons; dynamic `data-clearable` injection auto-wraps. Systematic roll-out to all existing text boxes = the open follow-up.
+
+---
+
+## Shipped History (from old §3)
+
+### 000.000.7.015
+- **Keep the Change** (Unified Speed): RIFE **Free** overage is spendable, not just dropped. API `keep_extra`: `trim` (default; drop `G−R`, exact target), `fps` (encode all `G` inside target duration `T`, output rate rises to `G/T` — rejected by a Pydantic validator when `target_fps` is pinned), `length` (encode all `G` at the output rate, duration stretches to `G/F`, effective speed recomputed as `D/T`). Backend `resolve_speed_plan` returns `kept_mode`; the conforming encoder keeps all frames and encode-fuse re-times. Speed tab rebuilt to per-variable **Control/Auto**: Multiplier (Control) ⇄ Target Length (Control), the auto row shows the live derived value and is pointer-inert; **Keep the Change** segmented row (Trim / FPS-raise / Length-stretch) shown only with RIFE on, FPS-raise auto-disabled (and reverting to trim) while Output FPS is Auto·Match; live readout notes switch between `dropping N → target`, `encode all @ FPS`, and `encode all → duration`. Frontend `resolveUsPlan` is again a 1:1 mirror of the backend plan. New tests: 5 (keep trim / fps / length maths + validator rejection + rife-off ignore). Playwright verification on a real cut clip: 0.3× Free ⇒ 140 generated / 117 target / drop 23 → `encode all @ 28.8 FPS` (fps) → `encode all → 5.83s` (length); dry-run payload carries `keep_extra:"length"`, backend logs `0.25× → 5.83s`; clean console, no JS errors.
+
+---
+
+### 000.000.7.014
+- **Unified Speed & Time**: one deterministic model for the Speed tab — per-frame FPS locked to source, `T = D/S`, `R = T×F`. Target Mode **Length** (exact duration) or **Multiplier** (exact factor). Optional RIFE **Snap** (speed locked to `1/M`, no extra frames) vs **Free** (next valid `M` with `G = N×M ≥ R`, extra dropped by a conforming encode). Fixes the wrong duration estimate (4s @ 0.5× reported 2.6s → now 8.00s). Backend `resolve_speed_plan` is mirrored 1:1 by the live UI readout (`app/static/js/tabs/speedchange.js`); API: `POST /ops/speedchange` with `target_mode` / `target_length` / `speed` / `rife_snap`. Fast path = pure ffmpeg; RIFE path = dump → ×M → thin G→R → encode @ F (audio atempo preserved). 13 new unit tests (`tests/test_speedchange.py`), Playwright-proofed on real `testsrc` assets (RIFE 0.5× snap → exactly 4.000s, 96 frames @ 24fps; super-simple fast 2× → 24 frames; 0.3× Free ⇒ 400/480/+80 readout).
+
+---
+
+## Shipped History (from old §3)
+
 | Area | Notes | Spec / code |
 |------|--------|-------------|
 | **Stable Fluids Phase 2/3** | Pure WebGPU compute port (~3 passes: spray/advect, divergence+Jacobi×20, gradient-subtract) replacing the Unity iframe when native mode is on; **seed-image injection** (dedicated path → first Image Pool still → black) as the initial dye field; mode radio toggle; Record shared across both modes; tab teardown stops the sim/rAF on leave | `stablefluids-sim-spec.md` · `7.011` |

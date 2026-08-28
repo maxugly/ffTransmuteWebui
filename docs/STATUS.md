@@ -1,6 +1,6 @@
 # Project status — agent & human source of truth
 
-> **Updated:** 2026-08-18  \
+> **Updated:** 2026-08-28  \
 > **VERSION:** root `VERSION` file (do not copy the digits here)  \
 > **Branch:** `wip`  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
@@ -13,16 +13,22 @@
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
-| **Docs slim pass 3** | Prompts, legacy renaming, and sequence spec cleanup. | **`7.004`** |
-| **Docs STATUS diet** | STATUS is now a map; diary moved to changelog. | **`7.006`** |
-| **Live VERSION** | One file (`VERSION`). WebUI brand reads `/health`. STATUS does not restate the digits. | **`7.007`** |
-| **Settings chrome** | No page title / knob how-to. Cards start immediately. | **`7.008`** |
-| **QR Art Illusion** | Two stills, no QR Data. Same worker. Mode switch on QR tab. | `qr-illusion-art-spec.md` · **`7.009`** |
-| **Stable Fluids sim** | Phase 1 (self-host + iframe + Record) **+ Phase 2 pure WebGPU port** (advect / pressure / project) **+ Phase 3 seed-image injection** (dedicated path or first Image Pool still). Mode toggle in the tab; Record shared across modes. | `stablefluids-sim-spec.md` · **`7.011`** |
-| **FastSAM multimodel** | Phase 1 (FastSAM-s/x) shipped in `ac25a60`. Phase 2 (SAM ViT-L/H) still deferred. | `fastsam-sam-multimodel-spec.md` · **`7.002` Partial** |
+| **Clearable inputs** | A red ✕ now comes with any populated text box. Portable module (`js/ui/clearable.js` + `css/clearable.css`): drop `data-clearable` on an `<input>`/`<textarea>` and it auto-wires — one attribute, zero JS. ✕ appears only when the field holds content, clears on click (fires `input` + `change` so global sync / probe / form-state keep working), restores focus; values set programmatically (e.g. desk restore, file browser) are picked up via a 250 ms self-sync poller, and a MutationObserver upgrades dynamically rendered forms. Wired on the four global inputs (Video/Image/**Path in**/**Path out**) where the ✕ actually clears the box now; the old misleading ❌ “not used by this tab” status glyph (read as a dead clear button) is gone. Playwright-proven: ✕ appears⇄clears on real typed/picked values, panel un-populates, quick buttons deactivate. **Roll-out to every existing text box is a systematic follow-up.** | `app/static/js/ui/clearable.js` · `app/static/css/clearable.css` · **`7.016`** |
+| **Unified Speed: Keep the Change** | RIFE **Free** overage is now spendable: `keep_extra` **trim** (drop `G−R`, exact — default), **fps** (encode all `G` inside target duration, rate rises to `G/T`), **length** (encode all at the output rate, duration stretches to `G/F`, effective speed recomputed). `keep_extra='fps'` is rejected when `target_fps` is pinned (validator + UI: the FPS raise button is disabled while Output FPS is Auto·Match). Speed tab rebuilt to per-variable **Control/Auto** (Multiplier ⇄ Length; auto row shows the derived value live and is inert), Keep the Change segmented row, and live readout notes (`dropping N → target`, `encode all @ FPS`, `encode all → duration`). Frontend `resolveUsPlan` mirrors backend 1:1 again. 5 new tests (16 speed plan/execute/validator); Playwright-proven on real clip: 0.3× Free ⇒ 140 generated / 117 target / drop 23; fps ⇒ `encode all @ 28.8 FPS`; length ⇒ `encode all → 5.83s`; dry-run payload carries `keep_extra` and backend accepts it. | `app/operations/speedchange_ops.py` · `app/static/js/tabs/speedchange.js` · `app/static/css/forms.css` · `unified-speed-tab-spec.md` · **`7.015`** |
+| **Unified Speed & Time** | Speed factor is now a single deterministic model: per-frame FPS is locked to source, `T = D/S`, `R = T×F`. Target Mode = **Length** (exact output duration, speed derived) or **Multiplier** (exact speed factor). Optional RIFE with **Snap** (speed locks to `1/M`, zero extra frames) or **Free** (next M with `G=N×M ≥ R`, extra frames dropped by a conforming encode). Replaces the old Speed + RIFE Slo-Mo split and fixes the wrong final-duration estimate (e.g. 4s @ 0.5× now reports 8.00s, not 2.6s). UI readout mirrors backend `resolve_speed_plan` 1:1, live in Multiplier/Length/RIFE-Snap/Free. Fast path pure ffmpeg `setpts`+`fps`+`atempo`; RIFE path dump→×M→conform→encode@F. 13 backend unit tests; Playwright proof on real testsrc (RIFE 0.5× snap → exactly 4.000s / 96 frames @ 24fps; fast 2× → 24 frames; readout 0.3× Free ⇒ 400 target / 480 generated / overshoot 80). | `app/operations/speedchange_ops.py` · `app/static/js/tabs/speedchange.js` · `unified-speed-tab-spec.md` · **`7.014`** |
 | **Visual Hijack / Mosh-up** | Motion-vector payload injection. Full pipeline in `app/operations/datamosh/common.py` (`_execute_hijack_pipeline`) + handler (`hijack.py`). Register `datamosh_hijack` op with `inject_mode` (file/frame/video/shuffle), `start_frame`, `end_frame`, `transition_style` (smear/freeze), `mv_multiplier`. CLI `-H IMG:START:END[:STYLE]` in both `transmute` and `bin/transmute`. `visualhijack` per_frame filter registered in `app/filters/`. 9 unit tests + 4 POC validation tests passing. Zero decoder errors, zero green pixels, frame count preserved. Mosh-ups implemented from Parker Higgins' multiple video sources technique. | `app/operations/datamosh/hijack.py` · `app/operations/datamosh/common.py` · `app/filters/visualhijack.py` · **`7.013`** |
+| **FastSAM multimodel** | Phase 1 (FastSAM-s/x) shipped in `ac25a60`. Phase 2 (SAM ViT-L/H) still deferred. | `fastsam-sam-multimodel-spec.md` · **`7.002` Partial** |
+| **Stable Fluids sim** | Phase 1 (self-host + iframe + Record) **+ Phase 2 pure WebGPU port** (advect / pressure / project) **+ Phase 3 seed-image injection** (dedicated path or first Image Pool still). Mode toggle in the tab; Record shared across modes. | `stablefluids-sim-spec.md` · **`7.011`** |
+| **QR Art Illusion** | Two stills, no QR Data. Same worker. Mode switch on QR tab. | `qr-illusion-art-spec.md` · **`7.009`** |
+| **Settings chrome** | No page title / knob how-to. Cards start immediately. | **`7.008`** |
+| **Live VERSION** | One file (`VERSION`). WebUI brand reads `/health`. STATUS does not restate the digits. | **`7.007`** |
+| **Docs STATUS diet** | STATUS is now a map; diary moved to changelog. | **`7.006`** |
+| **Docs slim pass 3** | Prompts, legacy renaming, and sequence spec cleanup. | **`7.004`** |
 
 **Next:** human names the next job.
+
+**Ready to build (spec written, not shipped):**
+- **Python Environment card (uv)** — Settings card listing every dependency (required vs installed, Missing/Update/Extra/Protected), checkboxes + mass **Install/Upgrade/Remove** via `uv` through the existing op/job machinery. Spec: `docs/venv-deps-card-spec.md`.
 
 ---
 
@@ -163,7 +169,8 @@ Version diary: [archive/changelog.md](archive/changelog.md).
 3. **Arrows** scroll page outside wired list tabs.  
 5. **High RIFE M** × large K = huge jobs; no soft warn.  
 6. Pool **normalize strips unknown fields** — blocks quality rating.  
-7. Large **uncommitted** tree risk — `git status` before ship/push.
+7. Large **uncommitted** tree risk — `git status` before ship/push.  
+8. **Speed tab RIFE ≈10× slower than Sequence Instant RIFE** (unresolved). Same clip/workflow — 4–6 s, 720×720–1080×1080, TTA on, interpolate to 60 fps — normally ~2–3 min, Speed tab ~17 min. Both paths call the identical `run_rife_directory` (`rife_ops.py` vs `speedchange_ops.py`) with identical flags and matching multiplier math, so no code path found yet; candidates: real M/length mismatch between tabs, TTA path, or Sequence reusing cached variant, none confirmed. Troubleshooting deferred.
 
 
 ---
