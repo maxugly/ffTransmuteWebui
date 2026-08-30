@@ -55,6 +55,8 @@ function renderImageEditForm() {
       <!-- Ops get injected here -->
     </div>
 
+    <div id="ieCropPreview" class="ie-crop-preview" hidden></div>
+
     <div class="knob-row" style="margin-top: 1rem;">
       <div class="knob-bank">
         ${knobUnitHtml({ id: 'ieDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
@@ -119,12 +121,153 @@ window.ieUpdateOp = function(index, field, value) {
   state.imageEdit.stack[index][field] = value;
 };
 
+function firstInputPath() {
+  const paths = allInputPaths();
+  return (paths && paths[0]) || '';
+}
+
+let _dimsCachePath = '';
+let _dimsCache = null;
+let _imgUrlCachePath = '';
+let _imgUrlCache = null;
+
+async function probeInputDims() {
+  const path = firstInputPath();
+  if (!path) return null;
+  if (_dimsCachePath === path && _dimsCache) return _dimsCache;
+  try {
+    const res = await fetch(`/api/probe?path=${encodeURIComponent(path)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    const w = parseInt(data.width || data.w, 10);
+    const h = parseInt(data.height || data.h, 10);
+    if (w > 0 && h > 0) {
+      _dimsCachePath = path;
+      _dimsCache = { w, h };
+      return _dimsCache;
+    }
+  } catch (_) { /* ignore */ }
+  return null;
+}
+
+function ieFieldValue(index, suffix) {
+  const el = document.getElementById(`ie${suffix}_${index}`);
+  const v = parseInt(el ? el.value : '', 10);
+  return Number.isFinite(v) ? v : 0;
+}
+
+window.ieSquareCrop = async function(index) {
+  const op = state.imageEdit.stack[index];
+  if (!op) return;
+  let side = Math.max(ieFieldValue(index, 'W'), ieFieldValue(index, 'H'));
+  const src = await probeInputDims();
+  if (src) side = Math.min(src.w, src.h, side || 0) || side;
+  if (!side) {
+    window.alert('Set a width or height first (or pick a global input image) to make a square.');
+    return;
+  }
+  op.width = side;
+  op.height = side;
+  renderStack();
+};
+
+window.ieAnchorX = async function(index, anchor) {
+  const op = state.imageEdit.stack[index];
+  if (!op) return;
+  const w = ieFieldValue(index, 'W');
+  const src = await probeInputDims();
+  if (!src || !w) return;
+  const x = anchor === 'L' ? 0 : anchor === 'R' ? src.w - w : Math.floor((src.w - w) / 2);
+  op.x = Math.max(0, x);
+  renderStack();
+};
+
+window.ieAnchorY = async function(index, anchor) {
+  const op = state.imageEdit.stack[index];
+  if (!op) return;
+  const h = ieFieldValue(index, 'H');
+  const src = await probeInputDims();
+  if (!src || !h) return;
+  const y = anchor === 'T' ? 0 : anchor === 'B' ? src.h - h : Math.floor((src.h - h) / 2);
+  op.y = Math.max(0, y);
+  renderStack();
+};
+
+function pct(part, whole) {
+  if (!whole) return 0;
+  return (part / whole) * 100;
+}
+
+/**
+ * Live crop preview: show the source image with a shaded "removed" region and a
+ * hole for the region the first crop op keeps. Re-probes source dims cheaply and
+ * uses percentage-rect positioning so it stays accurate at any thumbnail scale.
+ */
+async function ieSyncCropPreview() {
+  const host = document.getElementById('ieCropPreview');
+  if (!host) return;
+
+  const crops = (state.imageEdit.stack || []).filter((op) => op.type === 'crop');
+  if (!crops.length) {
+    host.hidden = true;
+    host.innerHTML = '';
+    return;
+  }
+
+  const src = await probeInputDims();
+  const path = firstInputPath();
+  if (!src || !path) {
+    host.hidden = true;
+    host.innerHTML = '';
+    return;
+  }
+
+  const index = (state.imageEdit.stack || []).indexOf(crops[0]);
+  const cw = ieFieldValue(index, 'W') || parseInt(crops[0].width, 10) || 0;
+  const ch = ieFieldValue(index, 'H') || parseInt(crops[0].height, 10) || 0;
+  const cx = ieFieldValue(index, 'X') || parseInt(crops[0].x, 10) || 0;
+  const cy = ieFieldValue(index, 'Y') || parseInt(crops[0].y, 10) || 0;
+
+  const oob = cw > src.w || ch > src.h || cx < 0 || cy < 0 || cx + cw > src.w || cy + ch > src.h;
+
+  if (_imgUrlCachePath !== path) {
+    _imgUrlCachePath = path;
+    _imgUrlCache = `/api/image?path=${encodeURIComponent(path)}&t=${Date.now()}`;
+  }
+  const imgUrl = _imgUrlCache;
+  const ar = src.w / src.h;
+  const frameStyle = `width: min(100%, calc(46vh * ${ar.toFixed(4)}));` +
+    ` aspect-ratio: ${src.w} / ${src.h};`;
+
+  host.innerHTML = `
+    <h4 class="ie-crop-preview-title">Crop preview${crops.length > 1 ? ' · first crop op' : ''}</h4>
+    <div class="ie-crop-preview-frame" style="${frameStyle}">
+      <img src="${imgUrl}" alt="crop preview">
+      <div class="ie-crop-mask" style="
+        left: ${pct(cx, src.w)}%; top: ${pct(cy, src.h)}%;
+        width: ${pct(cw, src.w)}%; height: ${pct(ch, src.h)}%;
+      "></div>
+      <div class="ie-crop-rect${oob ? ' oob' : ''}" style="
+        left: ${pct(cx, src.w)}%; top: ${pct(cy, src.h)}%;
+        width: ${pct(cw, src.w)}%; height: ${pct(ch, src.h)}%;
+      "></div>
+    </div>
+    <p class="ie-crop-preview-note">
+      <span>Keeps ${cw}×${ch} at (${cx},${cy}) of ${src.w}×${src.h}</span>
+      ${oob ? ' · <span style="color:rgb(255,120,80)">crop exceeds source — clamp or resize</span>' : ''}
+    </p>
+  `;
+  host.hidden = false;
+}
+window.ieSyncCropPreview = ieSyncCropPreview;
+
 function renderStack() {
   const container = document.getElementById('ieStackContainer');
   if (!container) return;
   
   if (state.imageEdit.stack.length === 0) {
     container.innerHTML = '<div style="padding: 1rem; text-align: center; color: var(--text-muted); background: var(--panel-bg); border-radius: var(--radius-sm); border: 1px dashed var(--panel-border);">No operations added. Output will be unmodified format conversion.</div>';
+    ieSyncCropPreview();
     return;
   }
 
@@ -139,12 +282,33 @@ function renderStack() {
         </div>
       `;
     } else if (op.type === 'crop') {
+      const anchorBtn = (fn, anchor, label, title) =>
+        `<button class="btn btn-sm" style="padding: 1px 6px; font-size:0.7rem; line-height:1.2;" onclick="${fn}(${idx}, '${anchor}')" title="${title}">${label}</button>`;
       content = `
-        <div style="display:flex; gap: 8px; align-items:center;">
-          W: <input type="number" class="timeline-value-input" value="${op.width}" onchange="ieUpdateOp(${idx}, 'width', this.value)" style="width: 60px;">
-          H: <input type="number" class="timeline-value-input" value="${op.height}" onchange="ieUpdateOp(${idx}, 'height', this.value)" style="width: 60px;">
-          X: <input type="number" class="timeline-value-input" value="${op.x}" onchange="ieUpdateOp(${idx}, 'x', this.value)" style="width: 60px;">
-          Y: <input type="number" class="timeline-value-input" value="${op.y}" onchange="ieUpdateOp(${idx}, 'y', this.value)" style="width: 60px;">
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="display:flex; gap:8px; align-items:center;">
+            W: <input id="ieW_${idx}" type="number" class="timeline-value-input" value="${op.width}" onchange="ieUpdateOp(${idx}, 'width', this.value)" oninput="ieSyncCropPreview()" style="width: 60px;">
+            H: <input id="ieH_${idx}" type="number" class="timeline-value-input" value="${op.height}" onchange="ieUpdateOp(${idx}, 'height', this.value)" oninput="ieSyncCropPreview()" style="width: 60px;">
+            <button class="btn btn-sm" style="padding: 1px 6px; font-size:0.7rem; line-height:1.2;" onclick="ieSquareCrop(${idx})" title="Set W=H to a square (min source side if known)">▣ Square</button>
+          </div>
+          <div style="display:flex; gap:6px; align-items:center;">
+            X:
+            <input id="ieX_${idx}" type="number" class="timeline-value-input" value="${op.x}" onchange="ieUpdateOp(${idx}, 'x', this.value)" oninput="ieSyncCropPreview()" style="width: 60px;">
+            <span style="display:flex; gap:3px;">
+              ${anchorBtn('ieAnchorX', 'L', 'L', 'Left: crop window flush to the left edge (X=0)')}
+              ${anchorBtn('ieAnchorX', 'C', 'C', 'Center horizontally (X=(srcW-cropW)/2)')}
+              ${anchorBtn('ieAnchorX', 'R', 'R', 'Right: crop window flush to the right edge (X=srcW-cropW)')}
+            </span>
+          </div>
+          <div style="display:flex; gap:6px; align-items:center;">
+            Y:
+            <input id="ieY_${idx}" type="number" class="timeline-value-input" value="${op.y}" onchange="ieUpdateOp(${idx}, 'y', this.value)" oninput="ieSyncCropPreview()" style="width: 60px;">
+            <span style="display:flex; gap:3px;">
+              ${anchorBtn('ieAnchorY', 'T', 'T', 'Top: crop window flush to the top edge (Y=0)')}
+              ${anchorBtn('ieAnchorY', 'M', 'M', 'Middle vertically (Y=(srcH-cropH)/2)')}
+              ${anchorBtn('ieAnchorY', 'B', 'B', 'Bottom: crop window flush to the bottom edge (Y=srcH-cropH)')}
+            </span>
+          </div>
         </div>
       `;
     } else if (op.type === 'pad') {
@@ -172,6 +336,7 @@ function renderStack() {
     `;
   });
   container.innerHTML = html;
+  ieSyncCropPreview();
 }
 
 function collectImageEditBody(jobToken) {

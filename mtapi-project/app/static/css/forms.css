@@ -1297,6 +1297,63 @@ input.daw-knob-value-input:focus {
   align-items: flex-start;
 }
 
+/* Image Edit — live crop preview (shaded region removed, hole = kept) */
+.ie-crop-preview {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-border);
+}
+.ie-crop-preview[hidden] {
+  display: none !important;
+}
+.ie-crop-preview-title {
+  margin: 0 0 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.ie-crop-preview-note {
+  margin: 6px 0 0;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.ie-crop-preview-frame {
+  position: relative;
+  max-width: 100%;
+  margin: 0 auto;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--panel-border);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ie-crop-preview-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  user-select: none;
+}
+.ie-crop-mask {
+  position: absolute;
+  background: transparent;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+.ie-crop-rect {
+  position: absolute;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+.ie-crop-rect.oob {
+  border-color: rgba(255, 120, 80, 0.95);
+}
+
 .tool-input-slot {
   flex: 1 1 140px;
   max-width: 280px;
