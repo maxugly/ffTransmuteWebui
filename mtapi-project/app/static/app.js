@@ -486,10 +486,14 @@ function updateGlobalInputs() {
   const videoRow = document.querySelector('.global-row[data-input="video"]');
   const imageRow = document.querySelector('.global-row[data-input="image"]');
   const pathInRow = document.querySelector('.global-row[data-input="pathIn"]');
-  
-  if (videoRow) videoRow.style.display = (hasImage || hasPathIn) ? 'none' : '';
-  if (imageRow) imageRow.style.display = (hasVideo || hasPathIn) ? 'none' : '';
-  if (pathInRow) pathInRow.style.display = (hasVideo || hasImage) ? 'none' : '';
+
+  // De-clutter: only collapse an input row that is EMPTY, when another input is
+  // populated. NEVER hide a row that has content — a loaded input must always
+  // stay visible (and clearable). Otherwise video+image both populated used to
+  // hide every input row and the user couldn't remove them.
+  if (videoRow)  videoRow.style.display  = (!hasVideo  && (hasImage || hasPathIn)) ? 'none' : '';
+  if (imageRow)  imageRow.style.display  = (!hasImage && (hasVideo || hasPathIn)) ? 'none' : '';
+  if (pathInRow) pathInRow.style.display = (!hasPathIn && (hasVideo || hasImage)) ? 'none' : '';
 
   try { refreshInputPreview(); } catch (_) { /* ignore */ }
   syncGlobalPanelVisibility();
