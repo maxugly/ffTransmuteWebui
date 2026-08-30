@@ -51,6 +51,7 @@ import { renderSettingsForm, applyUiTweaks, readStoredScrollbarWidth } from '/js
 import { renderJobsForm, stopJobsPoll } from '/js/tabs/jobs.js';
 import { renderImageEditForm, collectImageEditBody } from '/js/tabs/imageedit.js';
 import { refreshInputPreview, bindInputPreviewListeners } from '/js/ui/input-preview.js';
+import { makeClearable, bindClearables } from '/js/ui/clearable.js';
 import { setupNavSectionCollapse, ensureNavSectionForTab } from '/js/ui/nav-sections.js';
 import { globalMediaIndex } from '/js/media-index.js';
 import '/js/repair-queue.js';
@@ -573,7 +574,9 @@ function updateStatusIndicators() {
       return;
     }
     var val = (gi[r.key] || '').trim();
-    if (!r.needs)      { el.textContent = '\u274C'; el.title = 'Not used by this tab'; }
+    // Clear/status cells no longer render a dead red ✗ (it read as a clear
+    // button). The ✕ inside the box (js/ui/clearable.js) is the clear affordance.
+    if (!r.needs)      { el.textContent = ''; el.title = 'Not used by this tab'; }
     else if (val)      { el.textContent = '\u2705'; el.title = 'Active'; }
     else               { el.textContent = ''; el.title = ''; }
   });
@@ -638,6 +641,7 @@ function resolveGlobalImages() {
 
 async function init() {
   loadQuickSettings();
+  bindClearables();
   setupGlobalTimeline();
   setupFrameScrubber();
   setupListKeys();
@@ -1274,6 +1278,7 @@ export {
   logConsole, fitPreviewViewer,
   probeGlobalVideo, updateGlobalInputs, updateStatusIndicators,
   refreshInputPreview,
+  makeClearable, bindClearables,
   showPreview,
   selectPoolItem, removePoolItem, sequencePositions,
   loadPoolItemMeta, setPreviewAspect, clearPreviewAspect,

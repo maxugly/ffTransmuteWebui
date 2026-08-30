@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/css/pool.css">
   <link rel="stylesheet" href="/css/image-compare.css">
   <link rel="stylesheet" href="/css/zoompan.css">
+  <link rel="stylesheet" href="/css/clearable.css">
   <link rel="stylesheet" href="/css/notes.css">
   <link rel="stylesheet" href="/css/settings.css">
 </head>
@@ -404,28 +405,28 @@
         <!-- Row 1: Video file(s) -->
         <div class="global-row" data-input="video">
           <label>Video file(s):</label>
-          <textarea id="giVideo" rows="3" placeholder="One absolute path per line…" title="Type one absolute path per line. Use Browse to select multiple files at once. For image ops, files are processed one at a time." autocomplete="off" spellcheck="false"></textarea>
+          <textarea id="giVideo" rows="3" placeholder="One absolute path per line…" title="Type one absolute path per line. Use Browse to select multiple files at once. For image ops, files are processed one at a time." autocomplete="off" spellcheck="false" data-clearable></textarea>
           <button class="btn" id="btnGiVideoBrowse" title="Pick one or more video files">Browse</button>
           <span class="gi-status" id="giVideoStatus" title=""></span>
         </div>
         <!-- Row 2: Image file(s) -->
         <div class="global-row" data-input="image">
           <label>Image file(s):</label>
-          <textarea id="giImage" rows="3" placeholder="One absolute path per line…" title="Type one absolute path per line. Use Browse to select multiple files at once. For image ops, files are processed one at a time." autocomplete="off" spellcheck="false"></textarea>
+          <textarea id="giImage" rows="3" placeholder="One absolute path per line…" title="Type one absolute path per line. Use Browse to select multiple files at once. For image ops, files are processed one at a time." autocomplete="off" spellcheck="false" data-clearable></textarea>
           <button class="btn" id="btnGiImageBrowse" title="Pick one or more images">Browse</button>
           <span class="gi-status" id="giImageStatus" title=""></span>
         </div>
         <!-- Row 3: Path in -->
         <div class="global-row" data-input="pathIn">
           <label>Path in:</label>
-          <input type="text" id="giPathIn" placeholder="Scan this directory for input files…" autocomplete="off" spellcheck="false">
+          <input type="text" id="giPathIn" placeholder="Scan this directory for input files…" autocomplete="off" spellcheck="false" data-clearable>
           <button class="btn" id="btnGiPathInBrowse" title="Pick input directory">Browse</button>
           <span class="gi-status" id="giPathInStatus" title=""></span>
         </div>
         <!-- Row 4: Path out -->
         <div class="global-row" data-input="pathOut">
           <label>Path out:</label>
-          <input type="text" id="giPathOut" placeholder="All outputs land here (auto: next to input)…" autocomplete="off" spellcheck="false">
+          <input type="text" id="giPathOut" placeholder="All outputs land here (auto: next to input)…" autocomplete="off" spellcheck="false" data-clearable>
           <button class="btn" id="btnGiPathOutBrowse" title="Pick output directory">Browse</button>
           <span class="gi-status" id="giPathOutStatus" title=""></span>
         </div>
