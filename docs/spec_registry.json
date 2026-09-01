@@ -329,6 +329,13 @@
     "summary": "This specification introduces a toggle button to collapse/hide the pool grid, allowing the sequencer and preview modules to expand and fill the available height."
   },
   {
+    "file": "random-word-generator-spec.md",
+    "path": "docs/random-word-generator-spec.md",
+    "category": "Utility / Generator",
+    "status": "Spec Drafted (Not Implemented)",
+    "summary": "No-LLM, seedable random word/category generator: noun, verb, adjective, adverb (WordNet baked at build) plus culturally-notable proper nouns (person, famous_person, by-occupation, country, city) from Wikidata via SPARQL — notability = has a Wikipedia article. Static per-category list files loaded at startup with exact line-count pool sizes. Evolves into a template-filling MadLib machine."
+  },
+  {
     "file": "resolve-transcode-spec.md",
     "path": "docs/resolve-transcode-spec.md",
     "category": "Operation",
