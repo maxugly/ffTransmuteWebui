@@ -2,6 +2,13 @@
 
 ## Shipped History (from old §3)
 
+## Shipped History (from old §3)
+
+### 000.000.8.000 — Point release
+- Everything since `7.000` merges to `main`: Flip / Rotate `7.017`, Clearable inputs `7.016`, Keep the Change `7.015`, Unified Speed & Time `7.014`, Visual Hijack + Mosh-ups `7.013`, Stable Fluids Phase 1–3 `7.011`, QR Art Illusion `7.009`, Settings chrome `7.008`, Live VERSION `7.007`, docs diet/slim `7.006`/`7.004`, FastSAM multimodel Partial `7.002`. Full suite 55 tests green.
+
+---
+
 ### 000.000.7.017
 - **Flip / Rotate** — lossless geometry in two places with one shared design. Single parameterized op `flip_rotate` (mode dropdown, 6 choices) on **Single-Clip Ops** and as a **Flip/Rotate** card in the **Image Edit** ops stack; both tabs are driven by `FLIP_ROTATE_MODES` + `flipRotateOptionsHtml` in `app/static/js/utils.js` so the vocabulary can never drift. Video path: new `-R MODE` flag on `transmute` and (parity) `bin/transmute` — `rotate_90`/`rotate_180`/`rotate_270` (`transpose` chain), `hflip`, `vflip`, diagonal `hflip+rotate_90`; composes with `-c/-b/-s/-S/-z/-x/-r`, audio stream-copy, auto-named `_r90/_r180/_r270/_hflip/_vflip/_hflip_r90` suffixes; registered as `/ops/flip_rotate`. Image path: `flip_rotate` stack op implemented on all three engines (ffmpeg `transpose`/`hflip`/`vflip`, ImageMagick `-rotate`/`-flop`/`-flip`, Pillow `Image.Transpose` with the CW/CCW correction) — a marker-image test proved pixel-identical corner orientation and dimension swap across all three. New `tests/test_fliprotate.py` (5 tests: CLI `-R` filter chain + suffix naming + real dim swap + bad-mode rejection, registry contract for `flip_rotate`, all three image engines × all six modes). Playwright-verified on the real UI for both tabs (Single-Clip: `-R hflip` → `src_hflip.mp4` 320×240; Image Edit: global image + vflip stack op → `ffmpeg -vf vflip`, ok=true, preview shown).
 

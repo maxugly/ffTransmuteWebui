@@ -500,7 +500,7 @@
     "file": "fastsam-sam-multimodel-spec.md",
     "path": "docs/fastsam-sam-multimodel-spec.md",
     "category": "Operation",
-    "status": "Partial 000.000.7.002 — Phase 1 shipped (FastSAM-s + FastSAM-x); Phase 2 SAM ViT-L/H deferred (ultralytics SAM export crashes)",
+    "status": "Partial 000.000.7.002 — Phase 1 shipped (FastSAM-s + FastSAM-x); Phase 2 SAM ViT-L/H deferred (ultralytics SAM export crashes); released 000.000.8.000 Partial",
     "summary": "Extend FastSAM tab with model selector (FastSAM-s/x, SAM ViT-L/H). Phase 1 = s+x same FastSAM class. Phase 2 = ultralytics SAM or stop. Reuse device field; default still GPU + FastSAM-s."
   },
   {
@@ -535,7 +535,7 @@
     "file": "qr-illusion-art-spec.md",
     "path": "docs/qr-illusion-art-spec.md",
     "category": "Operation",
-    "status": "Implemented 000.000.7.009 — QR + Illusion v1",
+    "status": "Implemented 000.000.7.009 — QR + Illusion v1; released 000.000.8.000",
     "summary": "QR mode shipped (generate QR from text + optional one IP-Adapter still). Illusion mode (user pattern + appearance still, no QR Data) implemented v1. Dual-conditioning is PyTorch ControlNet+IP-Adapter (XPU/CUDA/CPU); OpenVINO iGPU is QR-without-IP only. Vulkan SD out of scope."
   }
 ]
