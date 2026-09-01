@@ -52,4 +52,21 @@ function withFrameRange(body) {
   return Object.assign({}, body, globalFrameRange());
 }
 
-export { isVideoPath, isImagePath, basename, formatDurationExact, escapeHtml, globalFrameRange, withFrameRange };
+/** Shared flip/rotate vocabulary (matches transmute -R MODE + ImageEdit stack
+ *  op "flip_rotate"). Used by the Single-Clip and Image Edit tabs. */
+const FLIP_ROTATE_MODES = [
+  { value: 'rotate_90', label: 'Rotate 90° clockwise' },
+  { value: 'rotate_180', label: 'Rotate 180°' },
+  { value: 'rotate_270', label: 'Rotate 90° counter-clockwise' },
+  { value: 'hflip', label: 'Flip horizontal (mirror left-right)' },
+  { value: 'vflip', label: 'Flip vertical (mirror top-bottom)' },
+  { value: 'hflip+rotate_90', label: 'Flip horizontal + rotate 90° clockwise' },
+];
+
+function flipRotateOptionsHtml(selectedValue) {
+  return FLIP_ROTATE_MODES.map(m =>
+    `<option value="${m.value}" ${m.value === selectedValue ? 'selected' : ''}>${m.label}</option>`
+  ).join('');
+}
+
+export { isVideoPath, isImagePath, basename, formatDurationExact, escapeHtml, globalFrameRange, withFrameRange, FLIP_ROTATE_MODES, flipRotateOptionsHtml };

@@ -45,6 +45,9 @@ Options:
                           scaled/padded to match source. Smear fades the image
                           in/out at the edges; freeze holds it constant.
    -r REVERSE video -> <name>_rev.ext
+   -R MODE FLIP/ROTATE (lossless geometry). MODE=rotate_90|rotate_180|rotate_270|hflip|vflip|hflip+rotate_90
+           Composes with -c/-b/-s/-S/-z/-x and -r (geometric, not exclusive).
+           rotate_90 = 90° clockwise; rotate_270 = 90° counter-clockwise; hflip = mirror left-right; vflip = mirror top-bottom.
    -q QUALITY JPEG quality for -f/-l. 2-31, default 2. Lower=better
    -d DRY RUN. Print command but don't execute
    -h HELP. Show this message and exit
@@ -83,6 +86,7 @@ REVERSE=false
 HYDRAID=""
 DRYRUN=false
 QUALITY=2
+ROTATE_MODE=""
 
 INPUT="$1"; shift
 OUTPUT=""
@@ -243,6 +247,9 @@ while [[ $# -gt 0 ]]; do
         fi
         ;;
     -r) REVERSE=true; shift ;;
+    -R) [[ -n "${2:-}" && "$2" =~ ^(rotate_90|rotate_180|rotate_270|hflip|vflip|hflip\+rotate_90)$ ]] \
+          || { echo "Error: -R requires mode rotate_90|rotate_180|rotate_270|hflip|vflip|hflip+rotate_90" >&2; exit 1; }
+        ROTATE_MODE="$2"; shift 2 ;;
     -H) [[ -n "${2:-}" ]] || { echo "Error: -H requires IMG:START:END[:STYLE]" >&2; exit 1; }
         HYDRAID="$2"; shift 2 ;;
     -q) if [[ ${2:-} =~ ^[0-9]+$ ]]; then QUALITY="$2"; shift 2; else echo "Error: -q requires a numeric value (2-31)"; usage; exit 1; fi ;;
@@ -492,6 +499,31 @@ if $JOIN; then
 fi
 
 # --- build_output_name and process_file for single ops ---
+flip_rotate_vf() {
+  # ffmpeg filter chain for -R MODE. hflip+rotate_90 = diagonal mirror.
+  case "$ROTATE_MODE" in
+    rotate_90)        echo "transpose=1" ;;
+    rotate_180)       echo "transpose=1,transpose=1" ;;
+    rotate_270)       echo "transpose=2" ;;
+    hflip)            echo "hflip" ;;
+    vflip)            echo "vflip" ;;
+    hflip+rotate_90)  echo "hflip,transpose=1" ;;
+    *)                echo "" ;;
+  esac
+}
+
+flip_rotate_suffix() {
+  case "$ROTATE_MODE" in
+    rotate_90)        echo "_r90" ;;
+    rotate_180)       echo "_r180" ;;
+    rotate_270)       echo "_r270" ;;
+    hflip)            echo "_hflip" ;;
+    vflip)            echo "_vflip" ;;
+    hflip+rotate_90)  echo "_hflip_r90" ;;
+    *)                echo "" ;;
+  esac
+}
+
 build_output_name() {
   local in_file="$1"
   local filename; filename="$(basename -- "$in_file")"
@@ -510,6 +542,7 @@ build_output_name() {
    [[ -n "$CROP_RES" ]] && suffix="${suffix}_${CROP_RES}z"
    [[ -n "$STRETCH_RES" ]] && suffix="${suffix}_${STRETCH_RES}x"
    $REVERSE && suffix="${suffix}_rev"
+   [[ -n "$ROTATE_MODE" ]] && suffix="${suffix}$(flip_rotate_suffix)"
    [[ -n "$HYDRAID" ]] && suffix="${suffix}_hijack"
    [[ -z "$suffix" ]] && suffix="_copy"
    echo "${basename}${suffix}.${ext}"
@@ -566,6 +599,7 @@ process_file() {
     echo "Error: Refusing to overwrite input: $out_file" >&2; return 1
   fi
   local VF=() AF=() CMD=(ffmpeg -hide_banner -y)
+  [[ -n "$ROTATE_MODE" ]] && VF+=("$(flip_rotate_vf)")
   if [[ -n "$CROP_RES" ]]; then
     local cw="${CROP_RES%x*}"; local ch="${CROP_RES#*x}"
     VF+=("crop=${cw}:${ch}")

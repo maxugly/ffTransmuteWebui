@@ -1,5 +1,6 @@
 import { state, elements, allInputPaths } from '/app.js';
 import { setupContinuousKnob, knobUnitHtml, setupBinaryKnob } from '/js/ui/knobs.js';
+import { flipRotateOptionsHtml } from '/js/utils.js';
 
 // The operations stack for image editing
 // Let's create a dynamic stack
@@ -46,6 +47,7 @@ function renderImageEditForm() {
       <span>Operations Stack</span>
       <div style="display: flex; gap: 4px;">
         <button class="btn btn-sm" id="btnAddOpScale">Scale</button>
+        <button class="btn btn-sm" id="btnAddOpFlipRotate">Flip/Rotate</button>
         <button class="btn btn-sm" id="btnAddOpCrop">Crop</button>
         <button class="btn btn-sm" id="btnAddOpPad">Pad</button>
       </div>
@@ -83,6 +85,7 @@ function renderImageEditForm() {
   });
 
   document.getElementById('btnAddOpScale').addEventListener('click', () => addStackOp('scale'));
+  document.getElementById('btnAddOpFlipRotate').addEventListener('click', () => addStackOp('flip_rotate'));
   document.getElementById('btnAddOpCrop').addEventListener('click', () => addStackOp('crop'));
   document.getElementById('btnAddOpPad').addEventListener('click', () => addStackOp('pad'));
 
@@ -93,6 +96,8 @@ function addStackOp(type) {
   const id = 'op_' + Date.now();
   if (type === 'scale') {
     state.imageEdit.stack.push({ id, type, width: 1920, height: 1080 });
+  } else if (type === 'flip_rotate') {
+    state.imageEdit.stack.push({ id, type, mode: 'rotate_90' });
   } else if (type === 'crop') {
     state.imageEdit.stack.push({ id, type, width: 1920, height: 1080, x: 0, y: 0 });
   } else if (type === 'pad') {
@@ -317,6 +322,15 @@ function renderStack() {
           W: <input type="number" class="timeline-value-input" value="${op.width}" onchange="ieUpdateOp(${idx}, 'width', this.value)" style="width: 60px;">
           H: <input type="number" class="timeline-value-input" value="${op.height}" onchange="ieUpdateOp(${idx}, 'height', this.value)" style="width: 60px;">
           Color: <input type="text" class="timeline-value-input" value="${op.color}" onchange="ieUpdateOp(${idx}, 'color', this.value)" style="width: 80px;">
+        </div>
+      `;
+    } else if (op.type === 'flip_rotate') {
+      content = `
+        <div style="display:flex; gap: 8px; align-items:center;">
+          <label style="font-size:0.8rem;">Transform</label>
+          <select style="flex:1;" onchange="ieUpdateOp(${idx}, 'mode', this.value)">
+            ${flipRotateOptionsHtml(op.mode || 'rotate_90')}
+          </select>
         </div>
       `;
     }

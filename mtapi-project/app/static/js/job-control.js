@@ -657,6 +657,9 @@ function resolveActiveOpAndBody() {
       body.width = parseInt(document.getElementById('transmuteWidth').value, 10);
       body.height = parseInt(document.getElementById('transmuteHeight').value, 10);
     }
+    if (activeTransmuteOp === 'flip_rotate') {
+      body.mode = document.getElementById('transmuteFlipRotate')?.value || 'rotate_90';
+    }
     if (activeTransmuteOp === 'speed_ramp') {
       body = {
         input_path: input, output_path: output, dry_run: dryRun,

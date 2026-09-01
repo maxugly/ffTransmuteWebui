@@ -20,6 +20,44 @@ class ImageEditParams(BaseModel):
     stack: list[dict] = Field(default_factory=list, description="Operations")
     dry_run: bool = Field(False)
 
+
+# Flip/rotate mode → engine-specific transforms. Shared vocabulary across
+# transmute (-R MODE), ImageEdit stack ops, and the three engines here.
+# rotate_90/rotate_270 are clockwise / counter-clockwise respectively, and
+# hflip = mirror left-right, vflip = mirror top-bottom.
+_FFMPEG_FLIP_ROTATE = {
+    "rotate_90": "transpose=1",
+    "rotate_180": "transpose=1,transpose=1",
+    "rotate_270": "transpose=2",
+    "hflip": "hflip",
+    "vflip": "vflip",
+    "hflip+rotate_90": "hflip,transpose=1",
+}
+
+_IM_FLIP_ROTATE = {
+    "rotate_90": ["-rotate", "90"],
+    "rotate_180": ["-rotate", "180"],
+    "rotate_270": ["-rotate", "270"],
+    "hflip": ["-flop"],
+    "vflip": ["-flip"],
+    "hflip+rotate_90": ["-flop", "-rotate", "90"],
+}
+
+# Pillow transposes counter-clockwise, so "rotate_90" (cw) = ROTATE_270.
+_PIL_FLIP_ROTATE = {
+    "rotate_90": ["ROTATE_270"],
+    "rotate_180": ["ROTATE_180"],
+    "rotate_270": ["ROTATE_90"],
+    "hflip": ["FLIP_LEFT_RIGHT"],
+    "vflip": ["FLIP_TOP_BOTTOM"],
+    "hflip+rotate_90": ["FLIP_LEFT_RIGHT", "ROTATE_270"],
+}
+
+
+def _img_filter_frag(op: dict) -> str:
+    """One ffmpeg -vf fragment for a flip_rotate stack op."""
+    return _FFMPEG_FLIP_ROTATE.get(op.get("mode", "rotate_90"), "hflip")
+
 async def _run_cmd(cmd: list[str], dry_run: bool) -> tuple[bool, str]:
     cmd_str = shlex.join(cmd)
     if dry_run:
@@ -56,6 +94,8 @@ async def _process_one(p: ImageEditParams, in_path: Path, out_path: Path) -> tup
                 cmd.extend(["-crop", f"{op['width']}x{op['height']}+{op.get('x', 0)}+{op.get('y', 0)}", "+repage"])
             elif op["type"] == "pad":
                 cmd.extend(["-gravity", "center", "-background", op.get('color', 'black'), "-extent", f"{op['width']}x{op['height']}"])
+            elif op["type"] == "flip_rotate":
+                cmd.extend(_IM_FLIP_ROTATE.get(op.get("mode", "rotate_90"), []))
         cmd.append(str(out_path))
 
         ok, msg = await _run_cmd(cmd, p.dry_run)
@@ -71,6 +111,8 @@ async def _process_one(p: ImageEditParams, in_path: Path, out_path: Path) -> tup
                 vf.append(f"crop={op['width']}:{op['height']}:{op.get('x', 0)}:{op.get('y', 0)}")
             elif op["type"] == "pad":
                 vf.append(f"pad={op['width']}:{op['height']}:-1:-1:color={op.get('color', 'black')}")
+            elif op["type"] == "flip_rotate":
+                vf.append(_img_filter_frag(op))
 
         if vf:
             cmd.extend(["-vf", ",".join(vf)])
@@ -107,6 +149,9 @@ async def _process_one(p: ImageEditParams, in_path: Path, out_path: Path) -> tup
                     paste_y = (h - img.height) // 2
                     new_img.paste(img, (paste_x, paste_y))
                     img = new_img
+                elif op["type"] == "flip_rotate":
+                    for name in _PIL_FLIP_ROTATE.get(op.get("mode", "rotate_90"), []):
+                        img = img.transpose(getattr(Image.Transpose, name))
 
             if p.outputFormat.lower() in ("jpg", "jpeg") and img.mode == "RGBA":
                 img = img.convert("RGB")

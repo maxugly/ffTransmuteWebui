@@ -176,6 +176,50 @@ _make_simple_geometry_op("square_letterbox", "-S", "Letterbox (pad) to a 1:1 squ
 _make_simple_geometry_op("reverse", "-r", "Reverse video and audio", "Wraps `transmute -r`.")
 
 
+FlipRotateMode = Literal[
+    "rotate_90",
+    "rotate_180",
+    "rotate_270",
+    "hflip",
+    "vflip",
+    "hflip+rotate_90",
+]
+
+FLIP_ROTATE_LABELS: dict[FlipRotateMode, str] = {
+    "rotate_90": "Rotate 90° clockwise",
+    "rotate_180": "Rotate 180°",
+    "rotate_270": "Rotate 90° counter-clockwise",
+    "hflip": "Flip horizontal (mirror left-right)",
+    "vflip": "Flip vertical (mirror top-bottom)",
+    "hflip+rotate_90": "Flip horizontal + rotate 90° clockwise",
+}
+
+
+class FlipRotateParams(BaseModel):
+    input_path: str = Field(..., description="Source video path")
+    mode: FlipRotateMode = Field(..., description="Which flip/rotate transform to apply")
+    output_path: str | None = Field(None, description="Output video path; auto-named if omitted")
+    dry_run: bool = False
+
+
+async def flip_rotate(p: FlipRotateParams) -> OperationResult:
+    return await _run_transmute("flip_rotate", p.input_path, ["-R", p.mode], p.output_path, p.dry_run)
+
+
+register(OperationSpec(
+    id="flip_rotate",
+    summary="Flip / rotate (lossless geometry)",
+    description=(
+        "Wraps `transmute -R MODE`. 90°-increment rotation and horizontal/vertical "
+        "flip without scaling; composes with crop/pad if chained. "
+        "Modes: " + ", ".join(f"{k}={v}" for k, v in FLIP_ROTATE_LABELS.items()) + "."
+    ),
+    params_model=FlipRotateParams,
+    handler=flip_rotate,
+    tags=["transmute", "geometry"],
+))
+
+
 class ExactResParams(BaseModel):
     input_path: str = Field(..., description="Source video path")
     width: int = Field(..., gt=0)
