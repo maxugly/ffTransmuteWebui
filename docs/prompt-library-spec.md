@@ -3,7 +3,7 @@
 > **Status:** **Implemented** `000.000.4.61`  
 > **Date:** 2026-08-04  
 > **Audience:** Builders  
-> **Builder prompt:** [coder-prompt-library-prompt.md](coder-prompt-library-prompt.md)  
+> **Builder prompt:** [coder-prompt-library-prompt.md](archive/coder-prompt-library-prompt.md)  
 > **Related:** `STATUS.md`, `universal-persistence-spec.md`, img2img / txt2img / riferecohere tabs  
 > **Kickoff (agy):** `coder-agy-prompt-library-prompt.md`
 

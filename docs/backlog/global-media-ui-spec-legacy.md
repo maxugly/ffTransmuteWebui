@@ -1,3 +1,5 @@
+> **LEGACY — do not build from this file. STATUS.md is law.**
+
 # Global Active Media UI (`global_media_ui`)
 
 ## Concept

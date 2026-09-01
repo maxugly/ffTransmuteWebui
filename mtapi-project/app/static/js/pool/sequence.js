@@ -26,6 +26,39 @@ function findPoolItem(path) {
   return state.pool.items.find(i => i.path === path) || null;
 }
 
+/** Play length of one sequence entry: Time override if set, else native meta. */
+function seqEntryPlayDuration(entry) {
+  if (!entry) return 0;
+  if (entry.targetDuration != null && Number.isFinite(entry.targetDuration) && entry.targetDuration > 0) {
+    return Number(entry.targetDuration);
+  }
+  const native = findPoolItem(entry.path)?.meta?.duration;
+  if (native != null && Number(native) > 0) return Number(native);
+  return 0;
+}
+
+function sequenceTotalDuration() {
+  return (state.pool.sequence || []).reduce((sum, entry) => sum + seqEntryPlayDuration(entry), 0);
+}
+
+function updateSeqTotalTime() {
+  const el = document.getElementById('seqTotalTime');
+  if (!el) return;
+  const n = state.pool.sequence?.length || 0;
+  if (!n) {
+    el.textContent = '';
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  const total = sequenceTotalDuration();
+  const unknown = (state.pool.sequence || []).filter((e) => seqEntryPlayDuration(e) <= 0).length;
+  el.textContent = unknown
+    ? `${formatDurationExact(total)} total · ${unknown} unknown`
+    : `${formatDurationExact(total)} total`;
+  el.title = 'Sum of clip times (Time override if set, else native duration)';
+}
+
 function _getNativeMeta(path) {
   const item = findPoolItem(path);
   return item?.meta || null;
@@ -1512,22 +1545,18 @@ function renderSequenceBox(opts) {
 
   if (state.pool.sequence.length === 0) {
     box.innerHTML = `<div class="seq-placeholder">Drop videos here to build a stitch sequence…</div>`;
+    updateSeqTotalTime();
     _updateInstantRifeStrip();
     updateSeqTransportUI();
     return;
   }
 
   // Compute total effective duration for proportional token widths
-  let totalDuration = 0;
-  const durations = state.pool.sequence.map(entry => {
-    if (entry.targetDuration != null && Number.isFinite(entry.targetDuration) && entry.targetDuration > 0) {
-      return entry.targetDuration;
-    }
-    const native = findPoolItem(entry.path)?.meta?.duration;
-    if (native != null && native > 0) return native;
-    return 1.0;
+  const durations = state.pool.sequence.map((entry) => {
+    const play = seqEntryPlayDuration(entry);
+    return play > 0 ? play : 1.0;
   });
-  totalDuration = durations.reduce((a, b) => a + b, 0);
+  const totalDuration = durations.reduce((a, b) => a + b, 0);
 
   box.innerHTML = '';
   const playIdx = state.pool.playback.playing || state.pool.playback.index >= 0
@@ -1684,6 +1713,7 @@ function renderSequenceBox(opts) {
 
   _updateInstantRifeStrip();
   updateSeqTransportUI();
+  updateSeqTotalTime();
   if (!opts.skipInstantKick && _hydrationComplete && state.pool.instantRife && state.pool.useRife) {
     const hasIdleNeed = (state.pool.sequence || []).some((e) => {
       if (e._rifeStatus === 'pending' || e._rifeStatus === 'running'
@@ -1995,6 +2025,7 @@ function applySeqTokenTimeStyles() {
       previewVid.playbackRate = speedInfo.speed;
     }
   });
+  updateSeqTotalTime();
 }
 
 /**
@@ -2507,6 +2538,8 @@ export {
   removeSequenceAt,
   clearSequence,
   renderSequenceBox,
+  updateSeqTotalTime,
+  sequenceTotalDuration,
   updateSeqTransportUI,
   findSelectedSeqIndex,
   moveSelectedInSequence,

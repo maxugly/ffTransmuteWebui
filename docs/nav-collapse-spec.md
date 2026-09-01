@@ -2,7 +2,7 @@
 
 > **Status:** **Implemented** — `000.000.4.69`  
 > **Audience:** Builder (codewhale / codex / opencode)  
-> **Kickoff:** [coder-nav-collapse-prompt.md](coder-nav-collapse-prompt.md)  
+> **Kickoff:** [coder-nav-collapse-prompt.md](archive/coder-nav-collapse-prompt.md)  
 > **Related:** `STATUS.md`, `ui-state-map.md`, `persistence-inventory.md`, `style-css-map.md`  
 > **Not this:** Whole-sidebar icon mode (`body.sidebar-collapsed` + `#btnSidebarCollapse`) — **already shipped**.  
 > **Not this:** Pool section collapse (`state.pool.layout.collapsed.*`) — different feature.

@@ -1,8 +1,13 @@
 # Spec: Speed Change (`speedchange`)
 
-> **Status:** Implemented (as-built) — see also Speed tab + optional RIFE  
+> **Status:** Superseded (`7.014`) — see **[unified-speed-tab-spec.md](unified-speed-tab-spec.md)** for the shipped model.
 > **Code:** `mtapi-project/app/operations/speedchange_ops.py`, `js/tabs/speedchange.js`  
-> **Note:** This original draft was pure `setpts`+`atempo`. Shipped code adds **target FPS**, **frame-budget warn**, and **optional RIFE** (dump→RIFE→encode) when density is short. Prefer the as-built op + UI over this file for builder truth; keep §2 ffmpeg math for the fast path.
+> **Note:** This file is the original `setpts`+`atempo` design. Shipped code is the
+> **Unified Speed & Time** model: Target Mode (Length | Multiplier) is the single source
+> of truth, per-frame FPS is **locked to source**, `T = D/S`, `R = T×F`, and optional RIFE
+> conforms G→R (Snap = lock S to 1/M, Free = drop extras). The readout mirrors backend
+> `resolve_speed_plan` 1:1. Keep §2 ffmpeg math for the **fast path**; ignore the old
+> §2 target-FPS / frame-budget-warn behavior.
 
 ---
 

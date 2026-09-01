@@ -1,3 +1,5 @@
+> **LEGACY — do not build from this file. STATUS.md is law.**
+
 # Unified Video Pipeline & JobWorkspace
 
 > **Status:** Implemented (`app/video_pipeline.py`, `app/job_workspace.py`)  

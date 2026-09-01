@@ -2,7 +2,7 @@
 
 > **Status:** Implemented (2026-07-31) — `app/filters/rife.py`, thin `rife_ops.py`  
 > **Depends on:** `filter-platform-spec.md` (stage kinds), existing `video_pipeline`  
-> **Replaces / supersedes:** pairwise “fake FilterFn” design in `rife-migration-spec.md`
+> **Replaces / supersedes:** pairwise “fake FilterFn” design in `rife-migration-spec-legacy.md`
 
 ---
 
@@ -113,7 +113,7 @@ so duration holds (same policy as PipelineChain heuristic).
 ### 3.6 Docs
 
 - Update `rife-spec.md` status + architecture to directory stage + filters/.
-- Mark `rife-migration-spec.md` superseded by this doc (or status: superseded).
+- Mark `rife-migration-spec-legacy.md` superseded by this doc (or status: superseded).
 
 ---
 

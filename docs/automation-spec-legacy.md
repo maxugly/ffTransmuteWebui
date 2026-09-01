@@ -1,3 +1,5 @@
+> **LEGACY — do not build from this file. STATUS.md is law.**
+
 # Automation Envelope Spec — Freehand Parameter Modulation
 
 > **Status:** UI brainstorm / historical  

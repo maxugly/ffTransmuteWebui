@@ -639,6 +639,7 @@ function _composeHtml() {
             <span class="pool-collapse-chevron">${col.sequence ? '▸' : '▾'}</span>
           </button>
           <span class="pool-section-title">Sequence</span>
+          <span class="seq-total-time" id="seqTotalTime" hidden title="Sum of clip times (Time override if set, else native duration)"></span>
           <div class="seq-transport" id="seqTransport" onclick="event.stopPropagation()">
             <button type="button" class="btn seq-ctrl" id="btnSeqPrev" title="Previous clip" ${seqCount === 0 ? 'disabled' : ''}>⏮</button>
             <button type="button" class="btn seq-ctrl seq-ctrl-play" id="btnSeqPlay" title="Play sequence" ${seqCount === 0 ? 'disabled' : ''}>▶</button>

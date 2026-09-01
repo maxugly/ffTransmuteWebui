@@ -27,8 +27,8 @@ ffTransmuteWebui/
 ├── datamosh.sh                  # Video datamoshing suite (MPEG-2 / AVI frame destruction)
 ├── melt.js                      # ffglitch motion vector displacement script
 ├── no_keyframe.js               # ffglitch iframe removal script
-├── docs-transmute-README.md     # Standalone transmute CLI reference
-├── docs-datamosh-README.md      # Standalone datamosh.sh CLI reference
+├── docs/docs-transmute-README.md  # Standalone transmute CLI reference
+├── docs/docs-datamosh-README.md   # Standalone datamosh.sh CLI reference
 ├── VERSIONING.md                # Humble versioning scheme explanation
 ├── VERSION                      # Single-line version source of truth
 ├── mtapi-project/               # FastAPI backend & WebUI project directory
@@ -72,7 +72,7 @@ Run `datamosh.sh` for motion-vector or keyframe-suppression glitching:
 ./datamosh.sh input.mp4 output.mp4 --mode classic
 ```
 
-Full references: [transmute CLI](docs-transmute-README.md) · [datamosh CLI](docs-datamosh-README.md) · [versioning](VERSIONING.md)
+Full references: [transmute CLI](docs/docs-transmute-README.md) · [datamosh CLI](docs/docs-datamosh-README.md) · [versioning](VERSIONING.md)
 
 ### 3. Launching the Web Server & UI
 ```bash
@@ -104,8 +104,8 @@ Outputs auto-sequence (`file.png`, `file_0001.png`, …) so repeated runs do not
 ## 📜 Subdirectory Documentation
 
 Detailed documentation and agent guidance are available in each directory:
-- [mtapi-project README](mtapi-project/README.md) & [mtapi-project AGENTS.md](mtapi-project/AGENTS.md)
-- [app README](mtapi-project/app/README.md) & [app AGENTS.md](mtapi-project/app/AGENTS.md)
-- [operations README](mtapi-project/app/operations/README.md) & [operations AGENTS.md](mtapi-project/app/operations/AGENTS.md)
-- [static README](mtapi-project/app/static/README.md) & [static AGENTS.md](mtapi-project/app/static/AGENTS.md)
-- [bin README](mtapi-project/bin/README.md) & [bin AGENTS.md](mtapi-project/bin/AGENTS.md)
+- [mtapi-project README](mtapi-project/README.md)
+- [app README](mtapi-project/app/README.md)
+- [operations README](mtapi-project/app/operations/README.md)
+- [static README](mtapi-project/app/static/README.md)
+- [bin README](mtapi-project/bin/README.md)

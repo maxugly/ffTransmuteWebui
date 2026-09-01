@@ -1297,6 +1297,63 @@ input.daw-knob-value-input:focus {
   align-items: flex-start;
 }
 
+/* Image Edit — live crop preview (shaded region removed, hole = kept) */
+.ie-crop-preview {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-border);
+}
+.ie-crop-preview[hidden] {
+  display: none !important;
+}
+.ie-crop-preview-title {
+  margin: 0 0 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.ie-crop-preview-note {
+  margin: 6px 0 0;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.ie-crop-preview-frame {
+  position: relative;
+  max-width: 100%;
+  margin: 0 auto;
+  border-radius: var(--radius-sm, 6px);
+  border: 1px solid var(--panel-border);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ie-crop-preview-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  user-select: none;
+}
+.ie-crop-mask {
+  position: absolute;
+  background: transparent;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+.ie-crop-rect {
+  position: absolute;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+.ie-crop-rect.oob {
+  border-color: rgba(255, 120, 80, 0.95);
+}
+
 .tool-input-slot {
   flex: 1 1 140px;
   max-width: 280px;
@@ -1443,6 +1500,109 @@ input.daw-knob-value-input:focus {
   border-radius: 3px;
   border: 1px solid var(--panel-border);
   background: rgba(0, 0, 0, 0.35);
+}
+
+/* QR Art quick reference table */
+.qr-quick-ref {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 6px 0 10px;
+  font-size: 0.65rem;
+}
+.qr-quick-ref th,
+.qr-quick-ref td {
+  border: 1px solid var(--panel-border);
+  padding: 4px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+.qr-quick-ref th {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--text-main);
+  font-weight: 600;
+}
+.qr-quick-ref td {
+  color: var(--text-muted);
+}
+.qr-quick-ref tr:nth-child(even) td {
+  background: rgba(0, 0, 0, 0.15);
+}
+.qr-quick-ref strong {
+  color: var(--text-main);
+}
+
+/* QR input guide definition list */
+.qr-input-guide {
+  margin: 4px 0 10px;
+}
+.qr-input-guide dt {
+  font-weight: 600;
+  color: var(--text-main);
+  margin-top: 8px;
+  font-size: 0.7rem;
+}
+.qr-input-guide dd {
+  margin: 2px 0 6px 12px;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+/* Resolution notes */
+.qr-res-notes {
+  margin: 4px 0 10px;
+  padding-left: 1.25rem;
+  font-size: 0.68rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+.qr-res-notes li {
+  margin: 3px 0;
+}
+
+/* Failure note highlight */
+.qr-fail-note {
+  margin: 6px 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--danger, #ef4444);
+  background: rgba(239, 68, 68, 0.12);
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: var(--text-main);
+}
+.qr-fail-note code {
+  background: rgba(239, 68, 68, 0.2);
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+/* Clear buttons for QR Art inputs */
+.btn-clear {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+  border-radius: 4px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid var(--danger, #ef4444);
+  color: var(--danger, #ef4444);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-clear:hover {
+  background: var(--danger, #ef4444);
+  color: white;
+  border-color: var(--danger, #ef4444);
+}
+.btn-clear:focus-visible {
+  outline: 2px solid var(--danger, #ef4444);
+  outline-offset: 2px;
 }
 
 /* Agent tab */
@@ -1663,4 +1823,119 @@ input.daw-knob-value-input:focus {
   font-size: 0.7rem;
   color: var(--text-muted, #94a3b8);
   word-break: break-all;
+}
+
+/* ── Unified Speed & Time: mode segments + real-time readout ──────────── */
+
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: var(--input-bg, #111827);
+  border: 1px solid var(--panel-border);
+}
+.seg-seg {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted, #9ca3af);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 5px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.seg-seg:hover { color: var(--text-main, #f3f4f6); }
+.seg-seg.active {
+  background: rgba(59, 130, 246, 0.18);
+  color: #60a5fa;
+  box-shadow: inset 0 0 0 1px rgba(59, 130, 246, 0.35);
+}
+
+/* Compact per-variable Control/Auto toggles + Keep the Change */
+.ca-row .knob-bank {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ca-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+.ca-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted, #9ca3af);
+}
+.seg-mini {
+  padding: 2px;
+}
+.seg-mini .seg-seg {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 9px;
+}
+.ca-row.is-auto {
+  opacity: 0.55;
+}
+.ca-row.is-auto .daw-knob,
+.ca-row.is-auto .daw-knob-value-input {
+  pointer-events: none;
+}
+.keep-seg .seg-seg.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+.keep-seg .seg-seg.disabled:hover { color: var(--text-muted, #9ca3af); }
+
+.us-readout {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: rgba(8, 11, 17, 0.65);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+}
+.us-placeholder {
+  color: var(--text-muted, #9ca3af);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+.us-original {
+  font-size: 0.82rem;
+  color: var(--text-muted, #9ca3af);
+  margin-bottom: 8px;
+}
+.us-original b { color: var(--text-main, #f3f4f6); font-weight: 600; }
+.us-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+}
+.us-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--panel-border);
+}
+.us-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted, #9ca3af);
+}
+.us-val {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-main, #f3f4f6);
+  font-variant-numeric: tabular-nums;
 }

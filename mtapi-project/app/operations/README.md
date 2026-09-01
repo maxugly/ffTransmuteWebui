@@ -2,7 +2,7 @@
 
 Typed ops exposed by `mtapi-project`. Each module registers an `OperationSpec` into `contract.REGISTRY` at import time via `operations/__init__.py`.
 
-**Platform direction:** frame effects are **filters** + thin ops. Bookends are **video_pipeline** / **convert_presets**. See `docs/filter-platform-spec.md` and `app/filters/AGENTS.md`.
+**Platform direction:** frame effects are **filters** + thin ops. Bookends are **video_pipeline** / **convert_presets**. See `docs/filter-platform-spec.md` and root `AGENTS.md`.
 
 ---
 
@@ -105,7 +105,7 @@ facemorph — multi-image chain; may need a multi-source stage kind.
 ## Adding an operation
 
 1. Choose kind: frame stage / CLI / convert preset.  
-2. Frame stage → `filters/` + thin ops (see `operations/AGENTS.md`).  
+2. Frame stage → `filters/` + thin ops.  
 3. `register(OperationSpec)` + `__init__.py` import.  
 4. Optional UI tab.  
 5. Smoke `/tmp/teste.mp4`.  

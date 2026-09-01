@@ -69,6 +69,9 @@ def main() -> int:
         return 2
 
     prompt = (job.get("prompt") or "").strip()
+    if not prompt:
+        prompt = "high quality, detailed"
+        print("WARNING: empty prompt, using fallback", flush=True)
     negative = job.get("negative_prompt") or ""
     steps = max(1, int(job.get("steps") or 30))
     guidance = float(job.get("guidance_scale") or 9.0)
@@ -244,11 +247,13 @@ def _run_ip_adapter_mode(
 
     torch_device = "cpu"
     if device != "CPU":
-        # Try GPU first (may be Intel iGPU via IPEX or CUDA)
         if torch.cuda.is_available():
             torch_device = "cuda"
+        elif hasattr(torch, "xpu") and torch.xpu.is_available():
+            torch_device = "xpu"
         else:
             torch_device = "cpu"
+    print(f"device={torch_device}", flush=True)
 
     try:
         controlnet = ControlNetModel.from_pretrained(

@@ -1,3 +1,5 @@
+> **LEGACY — do not build from this file. STATUS.md is law.**
+
 # Spec: Universal Global Inputs + Multi-File Sequential Processing
 
 > **Version**: 000.000.3.1 (next bump)

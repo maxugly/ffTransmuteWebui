@@ -637,7 +637,7 @@ curl -s -X POST http://localhost:24590/ops/imagesort_rife \
 - [x] + Folder → `/api/images/list` populates list  
 - [x] Sort button → rank → rewrite list  
 - [x] Run with `auto_sort: false`  
-- [x] VERSION / AGENTS registry  
+- [x] VERSION / STATUS registry  
 
 ### Landed (~4.54)
 

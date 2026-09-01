@@ -1,0 +1,64 @@
+/* ── Clearable inputs — reusable red ✕ for any text box ─────────────────────
+ * The module (js/ui/clearable.js) drops a .clearable-wrap around any
+ * [data-clearable] input/textarea. The ✕ lives inside the field, appears only
+ * when the field holds content, and clears it on click.
+ */
+
+.clearable-wrap {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.clearable-wrap > input[type="text"],
+.clearable-wrap > input[type="search"],
+.clearable-wrap > textarea {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+}
+
+.clearable-wrap > .clearable-clear {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--error, #ef4444);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+
+.clearable-wrap.is-textarea > .clearable-clear {
+  top: 8px;
+  transform: none;
+}
+
+.clearable-wrap.has-value > .clearable-clear {
+  opacity: 0.9;
+  visibility: visible;
+}
+
+.clearable-wrap > .clearable-clear:hover {
+  opacity: 1;
+  background: var(--error-glow, rgba(239, 68, 68, 0.18));
+}
+
+.clearable-wrap > .clearable-clear:focus-visible {
+  outline: 1px solid var(--error, #ef4444);
+  outline-offset: 1px;
+}

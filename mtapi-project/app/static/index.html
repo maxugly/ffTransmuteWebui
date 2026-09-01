@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/css/pool.css">
   <link rel="stylesheet" href="/css/image-compare.css">
   <link rel="stylesheet" href="/css/zoompan.css">
+  <link rel="stylesheet" href="/css/clearable.css">
   <link rel="stylesheet" href="/css/notes.css">
   <link rel="stylesheet" href="/css/settings.css">
 </head>
@@ -29,7 +30,10 @@
         <path d="M16 7v10"/>
         <path d="M12 7v10"/>
       </svg>
-      <h1>ffTransmute UI</h1>
+      <div class="brand-text">
+        <h1>ffTransmute UI</h1>
+        <span id="appVersion" class="app-version" aria-label="App version"></span>
+      </div>
     </div>
     
     <div class="nav-menu">
@@ -152,6 +156,13 @@
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
             </svg>
             RIFE Slow-Mo
+          </div>
+          <div class="nav-item" data-tab="stablefluids">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 12c2-2 4-3 6-3s4 1 6 3 4 3 6 3 4 1 6-3"/>
+              <path d="M2 17c2-2 4-3 6-3s4 1 6 3 4 3 6 3 4 1 6-3"/>
+            </svg>
+            Stable Fluids
           </div>
           <div class="nav-item" data-tab="speedchange">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -360,13 +371,13 @@
   <!-- Main View -->
   <main>
     <header>
-      <div id="globalProbeOverlay" class="global-probe-overlay" style="display: none;"></div>
       <div class="global-quick-btns">
         <button class="btn btn-quick" id="btnQuickVIn" title="Pick video input(s)">V-in</button>
         <button class="btn btn-quick" id="btnQuickVOut" title="Pick output path">V-out</button>
         <button class="btn btn-quick" id="btnQuickIIn" title="Pick image input(s)">I-in</button>
         <button class="btn btn-quick" id="btnQuickIOut" title="Pick input directory">I-out</button>
       </div>
+      <div id="globalProbeOverlay" class="global-probe-overlay" style="display: none;"></div>
       <div class="header-actions">
         <button class="btn btn-primary" id="btnRun">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -394,28 +405,28 @@
         <!-- Row 1: Video file(s) -->
         <div class="global-row" data-input="video">
           <label>Video file(s):</label>
-          <textarea id="giVideo" rows="3" placeholder="One absolute path per line…" title="Type one absolute path per line. Use Browse to select multiple files at once. For image ops, files are processed one at a time." autocomplete="off" spellcheck="false"></textarea>
+          <textarea id="giVideo" rows="3" placeholder="One absolute path per line…" title="Type one absolute path per line. Use Browse to select multiple files at once. For image ops, files are processed one at a time." autocomplete="off" spellcheck="false" data-clearable></textarea>
           <button class="btn" id="btnGiVideoBrowse" title="Pick one or more video files">Browse</button>
           <span class="gi-status" id="giVideoStatus" title=""></span>
         </div>
         <!-- Row 2: Image file(s) -->
         <div class="global-row" data-input="image">
           <label>Image file(s):</label>
-          <textarea id="giImage" rows="3" placeholder="One absolute path per line…" title="Type one absolute path per line. Use Browse to select multiple files at once. For image ops, files are processed one at a time." autocomplete="off" spellcheck="false"></textarea>
+          <textarea id="giImage" rows="3" placeholder="One absolute path per line…" title="Type one absolute path per line. Use Browse to select multiple files at once. For image ops, files are processed one at a time." autocomplete="off" spellcheck="false" data-clearable></textarea>
           <button class="btn" id="btnGiImageBrowse" title="Pick one or more images">Browse</button>
           <span class="gi-status" id="giImageStatus" title=""></span>
         </div>
         <!-- Row 3: Path in -->
         <div class="global-row" data-input="pathIn">
           <label>Path in:</label>
-          <input type="text" id="giPathIn" placeholder="Scan this directory for input files…" autocomplete="off" spellcheck="false">
+          <input type="text" id="giPathIn" placeholder="Scan this directory for input files…" autocomplete="off" spellcheck="false" data-clearable>
           <button class="btn" id="btnGiPathInBrowse" title="Pick input directory">Browse</button>
           <span class="gi-status" id="giPathInStatus" title=""></span>
         </div>
         <!-- Row 4: Path out -->
         <div class="global-row" data-input="pathOut">
           <label>Path out:</label>
-          <input type="text" id="giPathOut" placeholder="All outputs land here (auto: next to input)…" autocomplete="off" spellcheck="false">
+          <input type="text" id="giPathOut" placeholder="All outputs land here (auto: next to input)…" autocomplete="off" spellcheck="false" data-clearable>
           <button class="btn" id="btnGiPathOutBrowse" title="Pick output directory">Browse</button>
           <span class="gi-status" id="giPathOutStatus" title=""></span>
         </div>

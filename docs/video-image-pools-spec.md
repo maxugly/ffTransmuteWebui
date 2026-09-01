@@ -1,4 +1,4 @@
-# Video Pool, Image Pool & Cut Workspace — As-Built Handoff
+# Video Pool, Image Pool & Cut Workspace — As-Built Spec
 
 > **Status:** Implemented (basics + persistence + global-range Cut)  
 > **Version:** landed through `000.000.4.25` (2026-07-31)  
@@ -408,4 +408,4 @@ curl -s "http://127.0.0.1:24590/api/pool/scan?path=/tmp&kind=image" | jq '.kind,
 
 ---
 
-*End of handoff. Prefer updating this file when behavior changes rather than scattering notes.*
+*End of spec. Prefer updating this file when behavior changes rather than scattering notes.*

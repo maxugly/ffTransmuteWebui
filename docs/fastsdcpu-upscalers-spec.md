@@ -3,7 +3,7 @@
 > **Status:** **Research** — not an mtapi op (`STATUS.md` §5)  
 > **Source project:** [rupeshs/fastsdcpu](https://github.com/rupeshs/fastsdcpu)  
 > **Audience:** Spec writers & builders choosing upscale stacks for Intel CPU / iGPU  
-> **Related:** `STATUS.md`, `backlog/upscale-spec.md`, `backlog/sd-tiled-upscale-spec.md` (legacy), **`tilagup-mtapi-mode-spec.md`**, `backlog/swinir-spec.md`  
+> **Related:** `STATUS.md`, `backlog/upscale-spec.md`, `backlog/sd-tiled-upscale-spec-legacy.md` (legacy), **`tilagup-mtapi-mode-spec.md`**, `backlog/swinir-spec.md`  
 > **Sibling:** `/home/m/snc/cod/tilagup` — multi-step agent grid, not a checkbox  
 > **Not this:** A full FastSD port.
 
@@ -102,7 +102,7 @@ This doc:
 | `strength` | Denoise / rewrite amount |
 | `tiles[]` | Optional local regions: `x,y,w,h`, local `scale_factor`, optional `prompt` |
 
-**mtapi note:** This is the same *idea* as `sd-tiled-upscale-spec.md`, not EDSR. Implement once under the **filter platform** (still → tiles → encode bookends as needed). Do **not** pull FastSD’s app as a subprocess if we already own OpenVINO img2img.
+**mtapi note:** This is the same *idea* as `sd-tiled-upscale-spec-legacy.md`, not EDSR. Implement once under the **filter platform** (still → tiles → encode bookends as needed). Do **not** pull FastSD’s app as a subprocess if we already own OpenVINO img2img.
 
 ---
 

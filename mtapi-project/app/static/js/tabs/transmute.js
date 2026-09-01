@@ -1,6 +1,7 @@
 import { state, elements } from '/app.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
 import { rifeModelSelectHtml } from '/js/ui/evolve-rife.js';
+import { flipRotateOptionsHtml } from '/js/utils.js';
 
 // Transmute single-clip form
 const transmuteOpsDetails = {
@@ -14,6 +15,7 @@ const transmuteOpsDetails = {
   reverse: { summary: "Reverse video and audio completely", fields: [] },
   crop_exact: { summary: "Center-crop to exact resolution", fields: ['width', 'height'] },
   stretch_exact: { summary: "Stretch to exact resolution", fields: ['width', 'height'] },
+  flip_rotate: { summary: "Flip / rotate (lossless geometry)", fields: ['flip_rotate'] },
   speed_ramp: { summary: "Speed ramp (spin-up / spin-down)", fields: ['speed_ramp'] }
 };
 
@@ -119,6 +121,17 @@ function updateTransmuteExtras() {
           ${knobUnitHtml({ id: 'transmuteHeight', label: 'Height', value: '1080' })}
         </div>
         <p class="knob-row-legend">Pixels (prefer even).</p>
+      </div>
+    `;
+  }
+
+  if (fields.includes('flip_rotate')) {
+    html += `
+      <div class="form-row">
+        <label for="transmuteFlipRotate">Transform</label>
+        <select id="transmuteFlipRotate">
+          ${flipRotateOptionsHtml('rotate_90')}
+        </select>
       </div>
     `;
   }

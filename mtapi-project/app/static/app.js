@@ -46,10 +46,12 @@ import { renderZoompanForm, collectZoompanBody } from '/js/tabs/zoompan.js';
 import { renderImageSortForm, collectImageSortBody } from '/js/tabs/imagesort.js';
 import { renderImgCompareForm } from '/js/tabs/imgcompare.js';
 import { renderNotesForm } from '/js/tabs/notes.js';
+import { renderStableFluidsForm } from '/js/tabs/stablefluids.js';
 import { renderSettingsForm, applyUiTweaks, readStoredScrollbarWidth } from '/js/tabs/settings.js';
 import { renderJobsForm, stopJobsPoll } from '/js/tabs/jobs.js';
 import { renderImageEditForm, collectImageEditBody } from '/js/tabs/imageedit.js';
 import { refreshInputPreview, bindInputPreviewListeners } from '/js/ui/input-preview.js';
+import { makeClearable, bindClearables } from '/js/ui/clearable.js';
 import { setupNavSectionCollapse, ensureNavSectionForTab } from '/js/ui/nav-sections.js';
 import { globalMediaIndex } from '/js/media-index.js';
 import '/js/repair-queue.js';
@@ -202,6 +204,13 @@ let state = {
     sortStrategy: 'radial',
     sortOrder: 'nearest_first',
     output: '',
+  },
+  // Stable Fluids
+  stableFluids: {
+    recording: false,
+    buildPresent: false,
+    mode: 'webgpu',        // 'webgpu' (native) | 'iframe' (Unity WebGL)
+    seedPath: '',          // dedicated seed image path (Phase 3); blank = first Image Pool still
   },
   // Cut workspace: clip endpoints + two reference stills + shared image-compare state
   // Compare fields: mode / overlayOpacity / abPosition — see js/ui/image-compare.js
@@ -424,6 +433,7 @@ const TAB_ACCEPTS = {
   zoompan:     'image',
   notes:       'none',
   settings:    'none',
+  stablefluids:'none',
 };
 
 /** Tabs that show the global frame-range row (video pipeline / mosh / convert). */
@@ -476,10 +486,14 @@ function updateGlobalInputs() {
   const videoRow = document.querySelector('.global-row[data-input="video"]');
   const imageRow = document.querySelector('.global-row[data-input="image"]');
   const pathInRow = document.querySelector('.global-row[data-input="pathIn"]');
-  
-  if (videoRow) videoRow.style.display = (hasImage || hasPathIn) ? 'none' : '';
-  if (imageRow) imageRow.style.display = (hasVideo || hasPathIn) ? 'none' : '';
-  if (pathInRow) pathInRow.style.display = (hasVideo || hasImage) ? 'none' : '';
+
+  // De-clutter: only collapse an input row that is EMPTY, when another input is
+  // populated. NEVER hide a row that has content — a loaded input must always
+  // stay visible (and clearable). Otherwise video+image both populated used to
+  // hide every input row and the user couldn't remove them.
+  if (videoRow)  videoRow.style.display  = (!hasVideo  && (hasImage || hasPathIn)) ? 'none' : '';
+  if (imageRow)  imageRow.style.display  = (!hasImage && (hasVideo || hasPathIn)) ? 'none' : '';
+  if (pathInRow) pathInRow.style.display = (!hasPathIn && (hasVideo || hasImage)) ? 'none' : '';
 
   try { refreshInputPreview(); } catch (_) { /* ignore */ }
   syncGlobalPanelVisibility();
@@ -564,7 +578,9 @@ function updateStatusIndicators() {
       return;
     }
     var val = (gi[r.key] || '').trim();
-    if (!r.needs)      { el.textContent = '\u274C'; el.title = 'Not used by this tab'; }
+    // Clear/status cells no longer render a dead red ✗ (it read as a clear
+    // button). The ✕ inside the box (js/ui/clearable.js) is the clear affordance.
+    if (!r.needs)      { el.textContent = ''; el.title = 'Not used by this tab'; }
     else if (val)      { el.textContent = '\u2705'; el.title = 'Active'; }
     else               { el.textContent = ''; el.title = ''; }
   });
@@ -629,6 +645,7 @@ function resolveGlobalImages() {
 
 async function init() {
   loadQuickSettings();
+  bindClearables();
   setupGlobalTimeline();
   setupFrameScrubber();
   setupListKeys();
@@ -792,6 +809,11 @@ async function checkHealth() {
     const response = await fetch('/health');
     const data = await response.json();
     state.health = data;
+    const verEl = document.getElementById('appVersion');
+    if (verEl && data.version) {
+      verEl.textContent = data.version;
+      verEl.title = data.version;
+    }
     if (data.warnings && data.warnings.length > 0) {
       elements.statusDot.className = 'status-dot loading';
       elements.statusText.textContent = `${data.warnings.length} Warnings`;
@@ -885,6 +907,7 @@ function switchTab(tab) {
   if (tab === 'jobs') title = 'Jobs · Queue';
   if (tab === 'notes') title = 'Notes';
   if (tab === 'settings') title = 'Settings';
+  if (tab === 'stablefluids') title = 'Stable Fluids · Sim';
   // Library tabs: drop the big header title (sidebar already shows active item)
   if (tab === 'pool' || tab === 'sequence' || tab === 'images') title = '';
   if (elements.tabTitle) elements.tabTitle.textContent = title;
@@ -895,6 +918,7 @@ function switchTab(tab) {
     || tab === 'quick' || tab === 'watcher' || tab === 'notes' || tab === 'settings'
     || tab === 'agent' || tab === 'jobs'
     || tab === 'imgcompare'
+    || tab === 'stablefluids'
   );
   if (elements.btnRun) {
     elements.btnRun.style.display = hideRun ? 'none' : '';
@@ -941,6 +965,9 @@ function renderTabForm(tab) {
       window.__mtapiLazyLoader?.unobserve(el);
     });
   } catch (_) { /* ignore */ }
+  // Tear down interactive tab resources (e.g. native WebGPU sim) before the
+  // panel DOM is destroyed, so no rAF loop / MediaRecorder keeps running.
+  try { window.__sfTeardown?.(); } catch (_) { /* ignore */ } finally { window.__sfTeardown = null; }
   elements.actionPanel.innerHTML = '';
   const root = elements.actionPanelRoot || elements.actionPanel;
   if (root) {
@@ -1011,6 +1038,8 @@ function renderTabForm(tab) {
     renderJobsForm();
   } else if (tab === 'notes') {
     renderNotesForm();
+  } else if (tab === 'stablefluids') {
+    renderStableFluidsForm();
   } else if (tab === 'settings') {
     renderSettingsForm();
   }
@@ -1253,6 +1282,7 @@ export {
   logConsole, fitPreviewViewer,
   probeGlobalVideo, updateGlobalInputs, updateStatusIndicators,
   refreshInputPreview,
+  makeClearable, bindClearables,
   showPreview,
   selectPoolItem, removePoolItem, sequencePositions,
   loadPoolItemMeta, setPreviewAspect, clearPreviewAspect,
@@ -1275,6 +1305,7 @@ export {
   renderImageSortForm,
   renderQuickTransmuteForm,
   renderWatcherForm, renderPoolForm, renderPoolGrid,
+  renderStableFluidsForm,
   checkHealth, addPathsToPool,
   sendPoolPathTo, applyPoolAsInput, formatBytes,
   ensureTileInfo, defaultTileInfo,

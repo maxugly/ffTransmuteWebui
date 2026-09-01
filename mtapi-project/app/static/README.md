@@ -4,8 +4,7 @@ Vanilla HTML5 / CSS / ES6 modules (no build step, no npm). Served by FastAPI fro
 
 **Agent handoff (pools + Cut):** repo root `docs/video-image-pools-spec.md`  
 **Frame range:** `docs/frame-range-spec.md`  
-**Frontend rules:** `AGENTS.md` (this directory)
-
+**Frontend rules:** root `AGENTS.md`
 ---
 
 ## Layout
@@ -14,7 +13,6 @@ Vanilla HTML5 / CSS / ES6 modules (no build step, no npm). Served by FastAPI fro
 static/
 ├── index.html           # Shell + sidebar (data-tab=…)
 ├── app.js               # State, tabs, global inputs, module exports
-├── AGENTS.md
 ├── css/                 # base, layout, forms, pool, …
 └── js/
     ├── timeline.js      # Probe + global frame range

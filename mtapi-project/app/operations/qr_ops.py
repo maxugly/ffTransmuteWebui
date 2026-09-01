@@ -8,7 +8,7 @@ import os
 import uuid
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from ..contract import OperationResult, OperationSpec, register
 from ..pathutil import finalize_output_path
@@ -38,9 +38,11 @@ DEFAULTS = {
 
 
 class QrArtParams(BaseModel):
-    prompt: str = Field(..., min_length=1)
+    mode: str = Field("qr", description="Generation mode: qr or illusion")
+    prompt: str = Field("", description="Positive prompt (required for QR; optional for illusion)")
     negative_prompt: str = Field("")
-    qr_text: str = Field(..., min_length=1, description="Text to encode in QR code")
+    qr_text: str = Field("", description="Text to encode in QR code (required for QR; ignored for illusion)")
+    pattern_image: str = Field("", description="Absolute path to pattern image (required for illusion)")
     steps: int = Field(30, ge=1, le=50)
     guidance_scale: float = Field(9.0, ge=0.0, le=20.0)
     strength: float = Field(0.35, ge=0.05, le=0.95, description="Img2img strength (QR preservation)")
@@ -61,6 +63,21 @@ class QrArtParams(BaseModel):
     controlnet_scale: float = Field(
         1.1, ge=0.0, le=2.0, description="ControlNet QR Monster conditioning scale"
     )
+
+    @model_validator(mode="after")
+    def _validate_mode_requirements(self):
+        if self.mode == "qr":
+            if not self.qr_text:
+                raise ValueError("qr_text is required when mode is 'qr'.")
+            if not self.prompt:
+                raise ValueError("prompt is required when mode is 'qr'.")
+        elif self.mode == "illusion":
+            if not self.pattern_image:
+                raise ValueError("pattern_image is required when mode is 'illusion'.")
+            if not self.ip_adapter_image:
+                raise ValueError("ip_adapter_image is required when mode is 'illusion'.")
+            self.use_ip_adapter = True
+        return self
 
 
 def _resolve_fastsd_python() -> str:
@@ -142,7 +159,9 @@ async def qr_art_run(p: QrArtParams) -> OperationResult:
     )
 
     summary = (
-        f"qr_art text={p.qr_text!r} steps={p.steps} guidance={p.guidance_scale} "
+        f"qr_art mode={p.mode} "
+        + (f"text={p.qr_text!r} " if p.mode == "qr" else f"pattern={p.pattern_image} ")
+        + f"steps={p.steps} guidance={p.guidance_scale} "
         f"strength={p.strength} model={p.model_id} device={p.device}"
         + (f" ip_adapter=True scale={p.ip_adapter_scale} ctrl_scale={p.controlnet_scale}" if p.use_ip_adapter else "")
     )
@@ -173,25 +192,41 @@ async def qr_art_run(p: QrArtParams) -> OperationResult:
         qr_path = ws.frames_in / "qr_base.png"
         job_path = ws.frames_in / "_qr_art_job.json"
 
-        import qrcode
-        from PIL import Image
+        if p.mode == "illusion":
+            from PIL import Image
 
-        qr_res = RESOLUTION_DEFAULT
-        if p.use_ip_adapter:
-            qr_res = IP_ADAPTER_MAX_RES
+            pattern_src = Path(p.pattern_image)
+            if not pattern_src.is_file():
+                return OperationResult(
+                    ok=False,
+                    operation=op,
+                    error=f"pattern_image not found: {p.pattern_image}",
+                    stdout="\n".join(logs),
+                )
+            pattern_img = Image.open(pattern_src).convert("RGB")
+            pattern_img = pattern_img.resize((RESOLUTION_DEFAULT, RESOLUTION_DEFAULT), Image.LANCZOS)
+            pattern_img.save(str(qr_path), format="PNG")
+            logs.append(f"pattern={qr_path}")
+        else:
+            import qrcode
+            from PIL import Image
 
-        qr = qrcode.QRCode(
-            version=None,
-            error_correction=qrcode.constants.ERROR_CORRECT_H,
-            box_size=16,
-            border=4,
-        )
-        qr.add_data(p.qr_text)
-        qr.make(fit=True)
-        qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
-        qr_img = qr_img.resize((qr_res, qr_res), Image.NEAREST)
-        qr_img.save(str(qr_path), format="PNG")
-        logs.append(f"qr_base={qr_path}")
+            qr_res = RESOLUTION_DEFAULT
+            if p.use_ip_adapter:
+                qr_res = IP_ADAPTER_MAX_RES
+
+            qr = qrcode.QRCode(
+                version=None,
+                error_correction=qrcode.constants.ERROR_CORRECT_H,
+                box_size=16,
+                border=4,
+            )
+            qr.add_data(p.qr_text)
+            qr.make(fit=True)
+            qr_img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
+            qr_img = qr_img.resize((qr_res, qr_res), Image.NEAREST)
+            qr_img.save(str(qr_path), format="PNG")
+            logs.append(f"qr_base={qr_path}")
 
         ip_adapter_image_path = None
         if p.use_ip_adapter:
@@ -208,6 +243,7 @@ async def qr_art_run(p: QrArtParams) -> OperationResult:
 
         job = {
             "output_path": str(out),
+            "mode": p.mode,
             "prompt": p.prompt.strip(),
             "negative_prompt": p.negative_prompt or "",
             "qr_image_path": str(qr_path),
@@ -248,7 +284,7 @@ async def qr_art_run(p: QrArtParams) -> OperationResult:
             "--job",
             str(job_path),
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
             env=env,
         )
 
@@ -257,22 +293,39 @@ async def qr_art_run(p: QrArtParams) -> OperationResult:
 
         async def _pump_stdout() -> None:
             assert proc.stdout is not None
+            buf = b""
             while True:
-                line = await proc.stdout.readline()
-                if not line:
+                chunk = await proc.stdout.read(4096)
+                if not chunk:
                     break
-                stdout_chunks.append(line)
-                text = line.decode(errors="replace").strip()
-                if text.startswith("PROGRESS ") or text.startswith("DONE "):
-                    job_control.report_progress(
-                        f"qr_art 1/1",
-                        phase="qr_art",
-                        current=1,
-                        total=1,
-                        unit="images",
-                        token=token,
-                        latest_frame=str(out),
-                    )
+                buf += chunk
+                while True:
+                    nl = buf.find(b"\n")
+                    cr = buf.find(b"\r")
+                    if nl == -1 and cr == -1:
+                        break
+                    if nl == -1:
+                        sep = cr
+                    elif cr == -1:
+                        sep = nl
+                    else:
+                        sep = nl if nl < cr else cr
+                    line = buf[:sep]
+                    buf = buf[sep + 1:]
+                    stdout_chunks.append(line + b"\n")
+                    text = line.decode(errors="replace").strip()
+                    if text.startswith("PROGRESS ") or text.startswith("DONE "):
+                        job_control.report_progress(
+                            f"qr_art 1/1",
+                            phase="qr_art",
+                            current=1,
+                            total=1,
+                            unit="images",
+                            token=token,
+                            latest_frame=str(out),
+                        )
+            if buf:
+                stdout_chunks.append(buf)
 
         wait_task = asyncio.create_task(proc.wait())
         pump = asyncio.create_task(_pump_stdout())
@@ -309,6 +362,8 @@ async def qr_art_run(p: QrArtParams) -> OperationResult:
                     p, ws, out, py, logs, token, device="CPU",
                     qr_path=qr_path,
                     ip_adapter_image_path=ip_adapter_image_path,
+                    mode=p.mode,
+                    pattern_image=p.pattern_image,
                 )
                 success = bool(fallback_result.ok)
                 return fallback_result
@@ -332,24 +387,25 @@ async def qr_art_run(p: QrArtParams) -> OperationResult:
         scannable = False
         decoded_data = ""
         scan_error = ""
-        try:
-            from pyzbar.pyzbar import decode as zbardecode
-            from PIL import Image as PILImage
+        if p.mode == "qr":
+            try:
+                from pyzbar.pyzbar import decode as zbardecode
+                from PIL import Image as PILImage
 
-            with PILImage.open(out) as im:
-                decoded = zbardecode(im)
-                if decoded:
-                    scannable = True
-                    decoded_data = decoded[0].data.decode("utf-8", errors="ignore")
-                else:
-                    gray = im.convert("L")
-                    decoded2 = zbardecode(gray)
-                    if decoded2:
+                with PILImage.open(out) as im:
+                    decoded = zbardecode(im)
+                    if decoded:
                         scannable = True
-                        decoded_data = decoded2[0].data.decode("utf-8", errors="ignore")
-        except Exception as e:
-            scan_error = str(e)
-            logs.append(f"pyzbar check failed: {e}")
+                        decoded_data = decoded[0].data.decode("utf-8", errors="ignore")
+                    else:
+                        gray = im.convert("L")
+                        decoded2 = zbardecode(gray)
+                        if decoded2:
+                            scannable = True
+                            decoded_data = decoded2[0].data.decode("utf-8", errors="ignore")
+            except Exception as e:
+                scan_error = str(e)
+                logs.append(f"pyzbar check failed: {e}")
 
         logs.append(
             f"scannable={'yes' if scannable else 'no'}"
@@ -398,10 +454,13 @@ async def _qr_art_run_with_device(
     p: QrArtParams, ws: JobWorkspace, out: Path, py: str,
     logs: list[str], token: str, device: str, qr_path: Path,
     ip_adapter_image_path: str | None = None,
+    mode: str = "qr",
+    pattern_image: str = "",
 ) -> OperationResult:
     job_path = ws.frames_in / "_qr_art_job_cpu.json"
     job = {
         "output_path": str(out),
+        "mode": mode,
         "prompt": p.prompt.strip(),
         "negative_prompt": p.negative_prompt or "",
         "qr_image_path": str(qr_path),
@@ -432,7 +491,7 @@ async def _qr_art_run_with_device(
         "--job",
         str(job_path),
         stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
         env=env,
     )
 
@@ -441,11 +500,28 @@ async def _qr_art_run_with_device(
 
     async def _pump() -> None:
         assert proc.stdout is not None
+        buf = b""
         while True:
-            line = await proc.stdout.readline()
-            if not line:
+            chunk = await proc.stdout.read(4096)
+            if not chunk:
                 break
-            stdout_chunks.append(line)
+            buf += chunk
+            while True:
+                nl = buf.find(b"\n")
+                cr = buf.find(b"\r")
+                if nl == -1 and cr == -1:
+                    break
+                if nl == -1:
+                    sep = cr
+                elif cr == -1:
+                    sep = nl
+                else:
+                    sep = nl if nl < cr else cr
+                line = buf[:sep]
+                buf = buf[sep + 1:]
+                stdout_chunks.append(line + b"\n")
+        if buf:
+            stdout_chunks.append(buf)
 
     wait_task = asyncio.create_task(proc.wait())
     pump = asyncio.create_task(_pump())
@@ -529,7 +605,8 @@ register(OperationSpec(
         "StableDiffusionControlNetImg2ImgPipeline with ControlNet QR Monster "
         "(structure) + IP-Adapter (appearance) dual conditioning, "
         "enforcing 512x512 max resolution to keep RAM <12GB. "
-        "Falls back to CPU on iGPU OOM. Validates scannability with pyzbar."
+        "Falls back to CPU on iGPU OOM. Validates scannability with pyzbar. "
+        "Illusion mode uses a user pattern + appearance still instead of a generated QR."
     ),
     params_model=QrArtParams,
     handler=qr_art_run,
