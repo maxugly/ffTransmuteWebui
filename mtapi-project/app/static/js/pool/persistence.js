@@ -879,8 +879,11 @@ async function stitchPoolSequence() {
     aspect,
     durations: anyTimed ? durations : null,
     target: state.pool.target || null,
-    use_rife: !!state.pool.useRife,
-    target_fps: state.pool.targetFps || null,
+    // RIFE is an import-time per-clip step: input_paths already carry the
+    // `_rifed` variants (see recoverSequenceVariants / selectedVariantPaths).
+    // The stitch just muxes those fixed-fps clips — never re-RIFE at join.
+    use_rife: false,
+    target_fps: null,
     audio_engine: state.pool.audioEngine || 'rubberband',
     output_path,
     dry_run: false,

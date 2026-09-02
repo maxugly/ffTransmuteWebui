@@ -541,7 +541,10 @@ async def _join_with_preset(
         ws.cleanup(keep_on_failure=not success)
 
 
-async def _join_legacy(p: JoinParams) -> OperationResult:
+async def _join_legacy(
+    p: JoinParams,
+    processed_paths: list[str] | None = None,
+) -> OperationResult:
     """Legacy target-less join: pure-Python concat → remux to default H.264 MP4.
 
     Replaces the old bash `transmute -j` path, which comma-joined the input
@@ -553,7 +556,7 @@ async def _join_legacy(p: JoinParams) -> OperationResult:
     from ..job_workspace import JobWorkspace
     from ..pathutil import unique_output_path
 
-    inputs = list(p.input_paths)
+    inputs = list(processed_paths if processed_paths is not None else p.input_paths)
 
     # Resolve the output path. Auto-named next to the first clip, mirroring the
     # bash CLI's join-<mode>_<W>x<H>.mp4 convention once we know the canvas.
@@ -635,26 +638,28 @@ async def _join_legacy(p: JoinParams) -> OperationResult:
 
 async def join(p: JoinParams) -> OperationResult:
     if p.use_rife:
-        if not p.target:
-            return OperationResult(
-                ok=False,
-                operation="join",
-                error=(
-                    "use_rife requires a target preset (the legacy bash H.264 "
-                    "path cannot consume RIFEd inputs)"
-                ),
+        if p.target:
+            try:
+                processed_paths, target_fps = await _rife_preprocess(
+                    p.input_paths, p.durations, p.target_fps
+                )
+            except Exception as e:
+                return OperationResult(ok=False, operation="join", error=str(e))
+            return await _join_with_preset(
+                p,
+                processed_paths=processed_paths,
+                rife_target_fps=target_fps,
             )
+        # RIFE without a target preset: preprocess to the requested fps, then
+        # concat + remux the (already H.264) intermediates — the same default
+        # delivery the legacy path uses.
         try:
-            processed_paths, target_fps = await _rife_preprocess(
+            processed_paths, _target_fps = await _rife_preprocess(
                 p.input_paths, p.durations, p.target_fps
             )
         except Exception as e:
             return OperationResult(ok=False, operation="join", error=str(e))
-        return await _join_with_preset(
-            p,
-            processed_paths=processed_paths,
-            rife_target_fps=target_fps,
-        )
+        return await _join_legacy(p, processed_paths=processed_paths)
     if p.target:
         return await _join_with_preset(p)
     return await _join_legacy(p)

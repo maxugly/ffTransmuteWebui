@@ -93,6 +93,51 @@ class JoinCommaTest(unittest.TestCase):
         self.assertTrue(result.dry_run)
         self.assertTrue(result.output_path.endswith(".mp4"))
 
+    def test_join_rife_no_target_routes_to_legacy(self) -> None:
+        # use_rife=True with no target preset previously hard-errored
+        # ("use_rife requires a target preset"). It must now RIFE-preprocess and
+        # fall through to the concat+remux legacy path — tested by mocking the
+        # two async boundaries so we don't need the RIFE binary.
+        import app.operations.transmute_ops as t_ops
+
+        captured: dict = {}
+
+        async def fake_preprocess(inputs, durations, target_fps):
+            captured["inputs"] = list(inputs)
+            captured["target_fps"] = target_fps
+            return [f"{i}_rifed.mov" for i in inputs], 60.0
+
+        async def fake_legacy(p, processed_paths=None):
+            captured["processed_paths"] = (
+                None if processed_paths is None else list(processed_paths)
+            )
+            return t_ops.OperationResult(
+                ok=True, operation="join",
+                output_path="/tmp/fake_out.mp4",
+                command="fake",
+            )
+
+        orig_rife = t_ops._rife_preprocess
+        orig_legacy = t_ops._join_legacy
+        t_ops._rife_preprocess = fake_preprocess
+        t_ops._join_legacy = fake_legacy
+        try:
+            p = JoinParams(
+                input_paths=[str(self.comma_clip), str(self.plain_clip)],
+                use_rife=True,
+                target_fps=60,
+            )
+            result = asyncio.run(join(p))
+        finally:
+            t_ops._rife_preprocess = orig_rife
+            t_ops._join_legacy = orig_legacy
+
+        self.assertTrue(result.ok, result.error)
+        self.assertEqual(captured["target_fps"], 60)
+        # _join_legacy received the RIFE'd paths (not the originals).
+        self.assertEqual(len(captured["processed_paths"]), 2)
+        self.assertTrue(all(x.endswith("_rifed.mov") for x in captured["processed_paths"]))
+
 
 class GridCommaTest(unittest.TestCase):
     """/ops/grid must tolerate comma-filenames via the pure-Python helper."""
