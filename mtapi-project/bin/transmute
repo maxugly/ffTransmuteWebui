@@ -288,7 +288,37 @@ collect_inputs() {
   local -n arr_ref=$2
   arr_ref=()
   if [[ "$src" == *","* ]]; then
-    IFS=',' read -ra arr_ref <<< "$src"
+    local -a token_arr
+    IFS=',' read -ra token_arr <<< "$src"
+    local i
+    for ((i = 0; i < ${#token_arr[@]}; i++)); do
+      local cand="${token_arr[$i]}"
+      if [[ -e "$cand" ]]; then
+        arr_ref+=("$cand")
+        continue
+      fi
+      # The candidate doesn't exist. It may have been truncated at an internal
+      # comma that is really part of THIS path. Re-join with following tokens to
+      # see whether a longer combined path exists — if so, reject loudly instead
+      # of silently turning one path into two bogus ones.
+      local joined="$cand"
+      local j
+      local matched=""
+      for ((j = i + 1; j < ${#token_arr[@]}; j++)); do
+        joined="${joined},${token_arr[$j]}"
+        if [[ -e "$joined" ]]; then
+          matched="$joined"
+          break
+        fi
+      done
+      if [[ -n "$matched" ]]; then
+        echo "Error: input contains a comma inside a pathname: '$matched'" >&2
+        echo "  Comma can't safely delimit multi-input paths here. Supply this" >&2
+        echo "  path on its own, or rename it to remove the comma." >&2
+        exit 1
+      fi
+      arr_ref+=("$cand")
+    done
   elif [[ -d "$src" ]]; then
     for f in "$src"/*; do
       [[ -f "$f" ]] || continue

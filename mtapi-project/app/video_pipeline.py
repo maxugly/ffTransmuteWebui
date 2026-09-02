@@ -344,6 +344,7 @@ async def encode(
     silence_on_no_audio: bool = False,
     even_floor: bool = False,
     extra_vf: str | None = None,
+    clamp_to_audio: bool = False,
 ) -> str:
     """Encode frames to output video. Muxes audio if available.
 
@@ -365,6 +366,13 @@ async def encode(
                              instead of dropping audio. Used by Convert/Export.
         even_floor: Force even width/height by applying pad filter. Used for
                     yuv420p delivery encodes where dimensions must be even.
+                    For legacy encodes with a chroma-subsampled pix_fmt this is
+                    forced on automatically (ffmpeg requires even dims).
+        clamp_to_audio: If true (and legacy audio is muxed), trim the video to
+                        the audio length with `-shortest`. Keep false for
+                        frame-op encodes whose video duration is *generated*
+                        (RIFE, recohere, slow-mo) — otherwise `-shortest` cuts
+                        off the freshly added frames. Default false.
 
     Returns the output_path as a string.
     """
@@ -389,6 +397,7 @@ async def encode(
         even_floor=even_floor,
         encode_preset=encode_preset,
         extra_vf=extra_vf,
+        clamp_to_audio=clamp_to_audio,
     )
 
     from . import job_control
@@ -405,6 +414,8 @@ async def encode(
             f"ffmpeg encode failed (exit {code}): {stderr.strip() or 'no stderr'}"
         )
 
+    _ensure_output_file(Path(out_path))
+
     if token:
         job_control.report_progress(
             f"encode done",
@@ -413,6 +424,18 @@ async def encode(
 
 
     return out_path
+
+
+def _ensure_output_file(out_path: Path) -> None:
+    """Raise if ffmpeg exited 0 but produced no (or empty) output.
+
+    guard the common silent-failure: encode returning success while writing
+    nothing (wrong container/codec combos, zero frames, path hiccups).
+    """
+    if not out_path.is_file():
+        raise RuntimeError(f"ffmpeg encode produced no output file: {out_path}")
+    if out_path.stat().st_size < 32:
+        raise RuntimeError(f"ffmpeg encode produced empty output: {out_path}")
 
 
 def _build_encode_argv(
@@ -430,6 +453,7 @@ def _build_encode_argv(
     even_floor: bool,
     encode_preset: Any | None,
     extra_vf: str | None = None,
+    clamp_to_audio: bool = False,
 ) -> list[str]:
     """Build ffmpeg argv for encode from either legacy kwargs or EncodePreset."""
     if encode_preset is not None:
@@ -471,9 +495,13 @@ def _build_encode_argv(
         argv.extend(["-f", "lavfi", "-i", "anullsrc"])
         argv.extend(["-map", "0:v:0", "-map", "1:a:0"])
 
-    # Video filter for even dimensions
+    # Video filter for even dimensions. yuv42x/4:2:0 subsampled pix_fmts require
+    # even width AND height — ffmpeg errors ("width not divisible by 2") on odd
+    # native dimensions. When not forced explicitly (legacy mode), pad anyway for
+    # any chroma-subsampled format so odd-sized sources encode instead of crash.
     video_filter: str | None = None
-    if even_floor:
+    subsampled = pix_fmt in ("yuv420p", "yuv420p10le", "yuv422p", "yuv422p10le")
+    if even_floor or (encode_preset is None and subsampled):
         video_filter = "pad=ceil(iw/2)*2:ceil(ih/2)*2"
 
     if encode_preset is not None:
@@ -540,8 +568,14 @@ def _build_encode_argv(
             argv.extend([
                 "-c:v", codec, "-preset", preset, "-crf", str(crf),
                 "-pix_fmt", pix_fmt,
-                "-c:a", "aac", "-b:a", "192k", "-shortest",
+                "-c:a", "aac", "-b:a", "192k",
             ])
+            # Frame-op encodes (RIFE, slow-mo, recohere) may legitimately produce
+            # video longer than the source audio. `-shortest` would silently trim
+            # the freshly-generated frames to the audio length, so clamp only when
+            # the caller explicitly asks for an audio-length-matched mux (e.g. cut).
+            if clamp_to_audio:
+                argv.append("-shortest")
         else:
             argv.extend([
                 "-c:v", codec, "-preset", preset, "-crf", str(crf),
@@ -876,6 +910,100 @@ async def concat_clips(
         )
     if not out_path.is_file():
         raise RuntimeError(f"concat join produced no output file: {out_path}")
+
+    info = await probe(out_path)
+    return {
+        "output_path": str(out_path),
+        "fps": info["fps"],
+        "duration": info["duration"],
+        "frame_count": info["frame_count"],
+        "width": info["width"],
+        "height": info["height"],
+        "has_audio": info["has_audio"],
+    }
+
+
+# ── D3. Grid (2x2 tile) — pure-Python mirror of `transmute -g` ────────────
+# Mirrors the bash grid (transmute: GRID MODE): reconcile all 4 clips to a
+# common tile canvas (grows to max content size snapped to target AR), xstack
+# into a 2x2 grid, mix audio only when every clip has an audio track. Inputs
+# are a real Python list — a filename containing a comma is never split.
+
+
+async def grid_clips(
+    workspace: JobWorkspace,
+    inputs: list[str | Path],
+    output_path: str | Path,
+    *,
+    mode: str = "pad",
+    aspect: str = "auto",
+) -> dict[str, Any]:
+    """Tile exactly 4 clips into a 2x2 grid via ffmpeg xstack.
+
+    Produces a neutral near-lossless libx264 intermediate inside `workspace`,
+    mirroring `transmute -g MODE -A ASPECT`. Returns the same metadata dict as
+    :func:`concat_clips` (output_path, fps, duration, frame_count, width,
+    height, has_audio). Audio is mixed only if all 4 inputs have a track.
+    """
+    if len(inputs) != 4:
+        raise ValueError("grid_clips needs exactly 4 inputs")
+    srcs = [Path(p).expanduser() for p in inputs]
+    for sp in srcs:
+        if not sp.is_file():
+            raise RuntimeError(f"grid input not found: {sp}")
+
+    infos = await asyncio.gather(*(probe(sp) for sp in srcs))
+    dims = [(int(info["width"]), int(info["height"])) for info in infos]
+    max_w = max(w for w, _ in dims)
+    max_h = max(h for _, h in dims)
+
+    # Tile canvas = max content snapped to target AR (mirrors bash grid).
+    rw, rh = _resolve_target_ratio(aspect, dims)
+    tile_w, tile_h = _snap_canvas_to_ar(max_w, max_h, rw, rh)
+    final_w = tile_w * 2
+    final_h = tile_h * 2
+
+    has_audio = all(bool(info["has_audio"]) for info in infos)
+
+    parts: list[str] = []
+    for i in range(4):
+        parts.append(_join_vf_fragment(mode, i, tile_w, tile_h, 1))
+    if has_audio:
+        for i in range(4):
+            parts.append(
+                f"[{i}:a]aformat=sample_fmts=fltp:channel_layouts=stereo,"
+                f"aresample=async=1[a{i}]"
+            )
+        parts.append(
+            f"[v0][v1][v2][v3]xstack=inputs=4:layout=0_0|w0_0|0_h0|w0_h0"
+            f":fill=black:shortest=1[v];"
+            f"[a0][a1][a2][a3]amix=inputs=4:duration=longest:"
+            f"dropout_transition=0:normalize=0[a]"
+        )
+        vmap = ["-map", "[v]", "-map", "[a]", "-c:a", "aac", "-b:a", "192k"]
+    else:
+        parts.append(
+            f"[v0][v1][v2][v3]xstack=inputs=4:layout=0_0|w0_0|0_h0|w0_h0"
+            f":fill=black:shortest=1[v]"
+        )
+        vmap = ["-map", "[v]", "-an"]
+
+    out_path = Path(output_path).resolve()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    argv: list[str] = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
+    for sp in srcs:
+        argv.extend(["-i", str(sp)])
+    argv.extend(["-filter_complex", ";".join(parts)])
+    argv.extend(vmap)
+    argv.extend(["-c:v", "libx264", "-crf", "18", "-preset", "medium", str(out_path)])
+
+    code, _, stderr = await run_command(argv)
+    if code != 0:
+        raise RuntimeError(
+            f"ffmpeg grid failed (exit {code}): {stderr.strip() or 'no stderr'}"
+        )
+    if not out_path.is_file():
+        raise RuntimeError(f"grid produced no output file: {out_path}")
 
     info = await probe(out_path)
     return {

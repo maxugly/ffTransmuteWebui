@@ -541,6 +541,98 @@ async def _join_with_preset(
         ws.cleanup(keep_on_failure=not success)
 
 
+async def _join_legacy(p: JoinParams) -> OperationResult:
+    """Legacy target-less join: pure-Python concat → remux to default H.264 MP4.
+
+    Replaces the old bash `transmute -j` path, which comma-joined the input
+    list and truncated any clip whose own filename contained a comma. Uses
+    the same Python concat engine as `_join_with_preset` and remuxes the
+    (already libx264-CRF18) intermediate to .mp4 via stream copy.
+    """
+    from ..convert_presets import VIDEO_EXTS
+    from ..job_workspace import JobWorkspace
+    from ..pathutil import unique_output_path
+
+    inputs = list(p.input_paths)
+
+    # Resolve the output path. Auto-named next to the first clip, mirroring the
+    # bash CLI's join-<mode>_<W>x<H>.mp4 convention once we know the canvas.
+    if p.output_path:
+        suggested = Path(p.output_path).expanduser()
+        if not suggested.suffix or suggested.suffix.lower() not in VIDEO_EXTS:
+            suggested = suggested.with_suffix(".mp4")
+    else:
+        first = Path(inputs[0]).expanduser()
+        suggested = first.parent / f"join_{p.mode}.mp4"
+    out = unique_output_path(suggested)
+
+    summary = f"join {len(inputs)} clips (default H.264)"
+    if p.dry_run:
+        return OperationResult(
+            ok=True, operation="join", output_path=str(out), dry_run=True,
+            command=summary,
+            stdout=f"Command: {summary}\nOutput: {out}\n(dry run — no files written)",
+        )
+
+    from ..video_pipeline import concat_clips
+
+    ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="join_")
+    success = False
+    logs: list[str] = [summary]
+    try:
+        ws.create()
+        intermediate = ws.root / "joined_tmp.mkv"
+        stitched = await concat_clips(
+            ws, inputs, intermediate,
+            mode=p.mode, aspect=p.aspect, durations=p.durations,
+            audio_engine=p.audio_engine,
+        )
+
+        # Canonical auto-name with the actual canvas dims (join-<mode>_<W>x<H>.mp4)
+        if not p.output_path:
+            out = unique_output_path(
+                first.parent
+                / f"join_{p.mode}_{stitched['width']}x{stitched['height']}.mp4"
+            )
+
+        # Remux (stream copy) the already-H.264 intermediate into the .mp4
+        # container — faithful to the legacy default delivery, no re-encode.
+        argv = [
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-i", str(intermediate),
+            "-c:v", "copy", "-c:a", "copy",
+            "-movflags", "+faststart",
+            str(out),
+        ]
+        code, _, err = await run_command(argv)
+        if code != 0:
+            raise RuntimeError(
+                f"ffmpeg join remux failed (exit {code}): {err.strip() or 'no stderr'}"
+            )
+        if not out.is_file() or out.stat().st_size < 32:
+            raise RuntimeError(f"join remux produced empty output: {out}")
+
+        success = True
+        fps = stitched.get("fps")
+        logs.append(f"Stitched {len(inputs)} clips → intermediate (no PNG dump)")
+        logs.append(
+            f"Canvas {stitched['width']}x{stitched['height']}"
+            + (f" @ {fps} fps" if fps else "")
+            + f" → {out}"
+        )
+        return OperationResult(
+            ok=True, operation="join", output_path=str(out),
+            command=summary, stdout="\n".join(logs),
+        )
+    except Exception as e:
+        return OperationResult(
+            ok=False, operation="join", error=str(e),
+            command=summary, stdout="\n".join(logs), stderr=str(e),
+        )
+    finally:
+        ws.cleanup(keep_on_failure=not success)
+
+
 async def join(p: JoinParams) -> OperationResult:
     if p.use_rife:
         if not p.target:
@@ -565,20 +657,7 @@ async def join(p: JoinParams) -> OperationResult:
         )
     if p.target:
         return await _join_with_preset(p)
-    flags = ["-j", p.mode, "-A", p.aspect or "auto"]
-    if p.durations and any(d is not None for d in p.durations):
-        # -T 3.0,,5.5  (empty = native)
-        parts: list[str] = []
-        for d in p.durations:
-            if d is None:
-                parts.append("")
-            else:
-                parts.append(str(float(d)))
-        # pad length to match inputs
-        while len(parts) < len(p.input_paths):
-            parts.append("")
-        flags.extend(["-T", ",".join(parts[: len(p.input_paths)])])
-    return await _run_transmute("join", ",".join(p.input_paths), flags, p.output_path, p.dry_run)
+    return await _join_legacy(p)
 
 
 register(OperationSpec(
@@ -639,8 +718,75 @@ class GridParams(BaseModel):
 
 
 async def grid(p: GridParams) -> OperationResult:
-    flags = ["-g", p.mode, "-A", p.aspect or "auto"]
-    return await _run_transmute("grid", ",".join(p.input_paths), flags, p.output_path, p.dry_run)
+    """2x2 grid via pure-Python xstack — comma-safe (no bash comma-joining)."""
+    from ..job_workspace import JobWorkspace
+    from ..pathutil import unique_output_path
+
+    inputs = list(p.input_paths)
+
+    if p.output_path:
+        suggested = Path(p.output_path).expanduser()
+        if not suggested.suffix or suggested.suffix.lower() not in ("mp4", "m4v", "mov", "mkv", "webm", "avi"):
+            suggested = suggested.with_suffix(".mp4")
+    else:
+        suggested = Path(inputs[0]).expanduser().parent / f"grid_{p.mode}.mp4"
+    out = unique_output_path(suggested)
+
+    summary = f"grid {len(inputs)} clips {p.mode}"
+    if p.dry_run:
+        return OperationResult(
+            ok=True, operation="grid", output_path=str(out), dry_run=True,
+            command=summary,
+            stdout=f"Command: {summary}\nOutput: {out}\n(dry run — no files written)",
+        )
+
+    from ..video_pipeline import grid_clips
+
+    ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="grid_")
+    success = False
+    logs: list[str] = [summary]
+    try:
+        ws.create()
+        intermediate = ws.root / "grid_tmp.mkv"
+        grid_info = await grid_clips(
+            ws, inputs, intermediate,
+            mode=p.mode, aspect=p.aspect or "auto",
+        )
+
+        if not p.output_path:
+            out = unique_output_path(
+                Path(inputs[0]).expanduser().parent
+                / f"grid_{p.mode}_{grid_info['width']}x{grid_info['height']}.mp4"
+            )
+
+        argv = [
+            "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-i", str(intermediate),
+            "-c:v", "copy", "-c:a", "copy",
+            "-movflags", "+faststart",
+            str(out),
+        ]
+        code, _, err = await run_command(argv)
+        if code != 0:
+            raise RuntimeError(
+                f"ffmpeg grid remux failed (exit {code}): {err.strip() or 'no stderr'}"
+            )
+        if not out.is_file() or out.stat().st_size < 32:
+            raise RuntimeError(f"grid remux produced empty output: {out}")
+
+        success = True
+        logs.append(f"Tiled {len(inputs)} clips → {out} ({grid_info['width']}x{grid_info['height']})")
+        return OperationResult(
+            ok=True, operation="grid", output_path=str(out),
+            command=summary, stdout="\n".join(logs),
+        )
+    except Exception as e:
+        return OperationResult(
+            ok=False, operation="grid", error=str(e),
+            command=summary, stdout="\n".join(logs), stderr=str(e),
+        )
+    finally:
+        ws.cleanup(keep_on_failure=not success)
 
 
 register(OperationSpec(

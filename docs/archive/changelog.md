@@ -1,5 +1,15 @@
 > **Archive — not law. STATUS.md is where we are now.**
 
+### 000.000.8.002 — Comma-safe join/grid
+- Fixed a delimiter-collision bug where `/ops/join` and `/ops/grid` built multi-input as a single comma-joined string, and bash `transmute`/`bin/transmute` `collect_inputs()` split on `IFS=','`. A clip whose **own filename contained a comma** (`…yellow spots, camera slowly pulls b.mp4`) was silently truncated at its internal comma → `No such file or directory`. **1)** `/ops/join` target-less path now runs the pure-Python `concat_clips` (inputs as a real list, never comma-joined) and remuxes the already-H.264 intermediate to `.mp4` via stream copy (`_join_legacy`). **2)** New full pure-Python `grid_clips` helper (ffmpeg `xstack` 2×2, mirrors `transmute -g`) — `/ops/grid` routes through it, so grid is comma-safe too. **3)** Both bash `transmute` and `bin/transmute` `collect_inputs()` now detect a path truncated at an internal comma and exit loudly with a clear message instead of silently producing a bogus path. New `tests/test_join_comma.py` (6 tests: real join + grid with comma-filenames produce valid output, dry-run, bash hardening rejects comma-in-path, genuine multi-input still works). Full suite now 70 tests green.
+
+---
+
+### 000.000.8.001 — Final-encode fixes
+- Hardened the shared final-render engine (`app/video_pipeline.py` `encode()` / `_build_encode_argv()`), fixing three "renders but makes nothing / fails depending on settings" failure modes. **1)** `encode()` now verifies ffmpeg actually wrote a non-empty output file via new `_ensure_output_file()` — a silent exit-0 that writes nothing (or a zero-byte file) is now a `RuntimeError` instead of a bogus `ok=True`. **2)** Legacy frame-op encodes (RIFE, speed, recohere, cut) auto-apply `pad=ceil(iw/2)*2:ceil(ih/2)*2` whenever the pix_fmt is chroma-subsampled (`yuv420p`/`yuv422*`), so odd native resolutions (e.g. 321×241) encode instead of crashing with "width not divisible by 2"; explicit `even_floor` still wins. **3)** `-shortest` no longer trims generated (RIFE'd / slow-mo) frames down to the source-audio length by default — that was silently discarding the whole point of interpolation; a new `clamp_to_audio` opt-in restores exact length-matched muxing for `cut` (`cut_ops.py` passes it). Full suite now 64 tests green (9 new in `tests/test_encode.py`: argv `-shortest`/pad/an behavior, `_ensure_output_file` missing/empty/non-empty, and a real-ffmpeg odd-dimension dump→encode integration test).
+
+---
+
 ## Shipped History (from old §3)
 
 ## Shipped History (from old §3)

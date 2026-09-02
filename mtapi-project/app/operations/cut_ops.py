@@ -47,7 +47,7 @@ async def cut_run(p: CutParams) -> OperationResult:
         dry_run=p.dry_run,
         dump_kwargs={"start_frame": p.start_frame, "end_frame": p.end_frame},
         stages=[],  # dump → encode only
-        encode_kwargs={"crf": 18, "mux_audio": True},
+        encode_kwargs={"crf": 18, "mux_audio": True, "clamp_to_audio": True},
         summary=f"cut {inp.name} frames {p.start_frame}–{p.end_frame}",
     )
 
