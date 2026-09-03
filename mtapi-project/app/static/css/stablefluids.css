@@ -1,0 +1,86 @@
+/* ═══════════════════════════════════════════
+   Stable Fluids sim — bare workspace (nav only)
+   Same chrome-hide pattern as Notes / Settings.
+   ═══════════════════════════════════════════ */
+
+/* Only the canvas stage + form; no global path bars, no header, no preview/console. */
+body.sf-sim-tab-active header {
+  display: none !important;
+}
+body.sf-sim-tab-active .global-inputs-panel {
+  display: none !important;
+}
+body.sf-sim-tab-active .app-content {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+body.sf-sim-tab-active .app-content .preview-panel {
+  display: none !important;
+}
+body.sf-sim-tab-active .action-panel {
+  flex: 1 1 100%;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 14px 18px 18px;
+  display: flex;
+  flex-direction: column;
+}
+body.sf-sim-tab-active .action-panel-form {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+body.sf-sim-tab-active .tool-input-preview {
+  display: none !important;
+}
+
+/* ── Resizable paint area ──────────────────────────────────────────────── */
+/* One shared box for the native WebGPU canvas and the WebGL iframe.
+   Explicit width+height (no aspect-ratio) so both resize directions work;
+   max-width/max-height only bound the upper range. */
+.sf-canvas-wrap {
+  width: min(640px, 100%);
+  height: min(640px, calc(100vh - 200px));
+  max-width: 100%;
+  max-height: calc(100vh - 150px);
+  min-width: 240px;
+  min-height: 200px;
+  resize: both;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid #444;
+  background: #000;
+  position: relative;
+  margin: 0 auto;
+}
+/* Sim backing store stays 512²; letterbox (contain) instead of stretching on
+   non-square manual resize. Recording captures the backing store regardless. */
+.sf-canvas-wrap > canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  touch-action: none;
+}
+.sf-canvas-wrap > iframe {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border: none;
+}
+
+body.sf-sim-tab-active #sfNativeStatus {
+  margin-top: 8px;
+  font-size: .85em;
+  color: #aaa;
+  min-height: 1.2em;
+  text-align: center;
+}

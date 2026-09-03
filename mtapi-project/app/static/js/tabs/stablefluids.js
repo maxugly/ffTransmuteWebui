@@ -127,7 +127,9 @@ function renderIframeStage() {
   if (!stage) return;
   state.stableFluids.buildPresent = true;
   stage.innerHTML = `
-    <iframe id="sfIframe" src="/stablefluids/" style="width:100%; height:70vh; border:none; background:#000;"></iframe>
+    <div class="sf-canvas-wrap">
+      <iframe id="sfIframe" src="/stablefluids/"></iframe>
+    </div>
   `;
   setRecording(false);
 }
@@ -186,8 +188,10 @@ function initWebGpuStage() {
     return;
   }
   stage.innerHTML = `
-    <canvas id="sfCanvas" style="width:100%; max-width:560px; aspect-ratio:1; background:#000; border:1px solid #444; touch-action:none;"></canvas>
-    <div id="sfNativeStatus" style="margin-top:8px; font-size:.85em; color:#aaa; min-height:1.2em;"></div>`;
+    <div class="sf-canvas-wrap">
+      <canvas id="sfCanvas" style="touch-action:none;"></canvas>
+    </div>
+    <div id="sfNativeStatus"></div>`;
   state.stableFluids.buildPresent = true;
   const token = ++stageToken;
   const canvas = document.getElementById('sfCanvas');
@@ -305,20 +309,24 @@ function renderStableFluidsForm() {
       }
     });
   }
-  // seed change → apply persisted value to state + restart native sim with it
+  // seed change → apply persisted value to state + restart native sim with it.
+  // Listen to BOTH 'input' and 'change': the shared file browser populates the
+  // field and dispatches only 'input', so picking a seed must refresh right away.
   const seedInput = document.getElementById('sfSeedImage');
   let seedLastSeen = seedInput ? seedInput.value.trim() : '';
   let seedTimer = 0;
+  const onSeedChange = () => {
+    const val = seedInput.value.trim();
+    state.stableFluids.seedPath = val;
+    if (val === seedLastSeen) return; // redundant restore/echo change
+    seedLastSeen = val;
+    if (currentMode() !== 'webgpu') return;
+    clearTimeout(seedTimer);
+    seedTimer = setTimeout(() => initWebGpuStage(), 150);
+  };
   if (seedInput) {
-    seedInput.addEventListener('change', () => {
-      const val = seedInput.value.trim();
-      state.stableFluids.seedPath = val;
-      if (val === seedLastSeen) return; // redundant restore/echo change
-      seedLastSeen = val;
-      if (currentMode() !== 'webgpu') return;
-      clearTimeout(seedTimer);
-      seedTimer = setTimeout(() => initWebGpuStage(), 150);
-    });
+    seedInput.addEventListener('change', onSeedChange);
+    seedInput.addEventListener('input', onSeedChange);
   }
 
   // record

@@ -948,6 +948,17 @@ function switchTab(tab) {
   document.body.classList.toggle('notes-tab-active', tab === 'notes');
   document.body.classList.toggle('settings-tab-active', tab === 'settings');
 
+  // Non-clip tabs (library / workspace / compare) have no use for the global
+  // input quick buttons + path panel — hide them (matches the hideRun list).
+  const noGlobalInputs = (
+    tab === 'pool' || tab === 'sequence' || tab === 'images'
+    || tab === 'quick' || tab === 'watcher' || tab === 'agent' || tab === 'jobs'
+    || tab === 'imgcompare'
+  );
+  document.body.classList.toggle('no-global-inputs', noGlobalInputs);
+  // Stable Fluids: bare workspace too (sidebar + paint panel only)
+  document.body.classList.toggle('sf-sim-tab-active', tab === 'stablefluids');
+
   // Render Form for the Tab
   renderTabForm(tab);
   updateStatusIndicators();

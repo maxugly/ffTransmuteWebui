@@ -677,6 +677,13 @@ header {
   margin-left: auto;
 }
 
+/* Tabs that do no clip work (library / workspace / compare): the global
+   input quick buttons + panel are pointless — hide them. */
+body.no-global-inputs header .global-quick-btns,
+body.no-global-inputs .global-inputs-panel {
+  display: none !important;
+}
+
 /* ── Global shared path input bar ───────────────────────────────────────── */
 
 .global-inputs-panel {

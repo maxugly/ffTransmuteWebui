@@ -32,7 +32,7 @@ const DYE_DISSIPATION = 1.0;      // 1.0 = seed/injected dye persists until smea
 const PRESSURE_ITERS = 20;
 const SPRAY_K = 7;              // odd spray window width (cells)
 const SPRAY_SIGMA = 1.4;        // gaussian sigma of the window (cells)
-const VEL_GAIN = 0.15;          // pointer speed → velocity field strength
+const VEL_GAIN = 0.6;           // pointer speed → velocity field strength
 const DYE_GAIN = 0.08;          // paint amount per frame while injecting
 
 const PRESENT_FRAG = /* wgsl */ `
@@ -44,7 +44,9 @@ const PRESENT_FRAG = /* wgsl */ `
     if (vid == 0u) { pos = vec2<f32>(-1.0, -1.0); }
     else if (vid == 1u) { pos = vec2<f32>(3.0, -1.0); }
     else { pos = vec2<f32>(-1.0, 3.0); }
-    return VsOut(vec4<f32>(pos, 0.0, 1.0), pos * 0.5 + 0.5);
+    // Flip V so texture row 0 (image top) renders at the top of the screen.
+    let uv = vec2<f32>(pos.x * 0.5 + 0.5, 0.5 - pos.y * 0.5);
+    return VsOut(vec4<f32>(pos, 0.0, 1.0), uv);
   }
   @fragment fn fs(in: VsOut) -> @location(0) vec4<f32> {
     let c = textureSampleLevel(dye, samp, in.uv, 0.0);
@@ -54,30 +56,36 @@ const PRESENT_FRAG = /* wgsl */ `
 
 const SPRAY = /* wgsl */ `
   const K = ${SPRAY_K}u;
-  struct Spray { origin: vec2<f32>, flag: u32, _pad: u32 }
+  const SIGMA = ${SPRAY_SIGMA};
+  struct Spray {
+    origin: vec2<f32>,   // top-left cell of the K x K spray window
+    vel: vec2<f32>,      // pointer delta, pre-scaled to velocity units
+    color: vec4<f32>,    // rgbo payload (rgb already * DYE_GAIN)
+    flag: u32,           // 1 = inject, 0 = passthrough
+  }
   @group(0) @binding(0) var<uniform> u: Spray;
   @group(0) @binding(1) var velSrc: texture_2d<f32>;
   @group(0) @binding(2) var velDst: texture_storage_2d<rgba16float, write>;
   @group(0) @binding(3) var dyeSrc: texture_2d<f32>;
   @group(0) @binding(4) var dyeDst: texture_storage_2d<rgba8unorm, write>;
-  @group(0) @binding(5) var velSpray: texture_2d<f32>;
-  @group(0) @binding(6) var dyeSpray: texture_2d<f32>;
-  @group(0) @binding(7) var samp: sampler;
+  @group(0) @binding(5) var samp: sampler;
   @compute @workgroup_size(8, 8, 1)
   fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+    // Gaussian weight evaluated per cell here keeps the spray fully on-GPU.
+    // (A prior version baked the window into rgba16float textures uploaded
+    // via writeTexture, which corrupts channels — rgba16float host layout is
+    // packed half-floats, not 4 x f32 — so velocity/dye never landed.)
     let puv = (vec2<f32>(gid.xy) + 0.5) / vec2<f32>(${SIZE}.0, ${SIZE}.0);
     let v = textureSampleLevel(velSrc, samp, puv, 0.0);
     let d = textureSampleLevel(dyeSrc, samp, puv, 0.0);
     if (u.flag == 1u) {
       let k = vec2<i32>(gid.xy) - vec2<i32>(u.origin);
       if (k.x >= 0 && k.y >= 0 && k.x < i32(K) && k.y < i32(K)) {
-        let kuv = (vec2<f32>(k) + 0.5) / vec2<f32>(f32(K), f32(K));
-        let vk = textureSampleLevel(velSpray, samp, kuv, 0.0).xy;
-        var vv = v;
-        if (vk.x != 0.0 || vk.y != 0.0) { vv = vec4<f32>(v.xy + vk, 0.0, 1.0); }
-        textureStore(velDst, gid.xy, vv);
-        let dk = textureSampleLevel(dyeSpray, samp, kuv, 0.0);
-        textureStore(dyeDst, gid.xy, clamp(d + dk, vec4<f32>(0.0), vec4<f32>(1.0)));
+        let c = vec2<f32>(f32(K) * 0.5, f32(K) * 0.5);
+        let kd = vec2<f32>(k) - c;
+        let w = exp(-dot(kd, kd) / (2.0 * SIGMA * SIGMA));
+        textureStore(velDst, gid.xy, vec4<f32>(v.xy + u.vel * w, 0.0, 1.0));
+        textureStore(dyeDst, gid.xy, clamp(d + vec4<f32>(u.color.xyz, 0.0) * w, vec4<f32>(0.0), vec4<f32>(1.0)));
         return;
       }
     }
@@ -245,8 +253,6 @@ export async function createStableFluidsSim({ canvas, seedUrl, onError }) {
     const presA = mkTex('sf-presA', size, size, 'r32float', ss);
     const presB = mkTex('sf-presB', size, size, 'r32float', ss);
     const div = mkTex('sf-div', size, size, 'r32float', ss);
-    const sprayVel = mkTex('sf-sprayVel', SPRAY_K, SPRAY_K, 'rgba16float', GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST);
-    const sprayDye = mkTex('sf-sprayDye', SPRAY_K, SPRAY_K, 'rgba16float', GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST);
 
     const linear = device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
     const nearest = device.createSampler({ magFilter: 'nearest', minFilter: 'nearest' });
@@ -295,21 +301,19 @@ export async function createStableFluidsSim({ canvas, seedUrl, onError }) {
     // ---- spray ----
     const sprayShader = module('sf-spray', SPRAY);
     const sprayLayout = device.createPipelineLayout({ bindGroupLayouts: [bgl([
-      row(0), ttex(1), stex(2, 'rgba16float'), ttex(3), stex(4, 'rgba8unorm'), ttex(5), ttex(6), smp(7),
+      row(0), ttex(1), stex(2, 'rgba16float'), ttex(3), stex(4, 'rgba8unorm'), smp(5),
     ])] });
     const sprayPipeline = device.createComputePipeline({
       layout: sprayLayout, compute: { module: sprayShader, entryPoint: 'main' },
     });
-    const sprayUniform = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    const sprayUniform = device.createBuffer({ size: 48, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const sprayBG = bgFrom(sprayPipeline.getBindGroupLayout(0), [
       bindBuf(0, sprayUniform),
       bindTex(1, velA.createView()),
       bindTex(2, velB.createView()),
       bindTex(3, dyeA.createView()),
       bindTex(4, dyeB.createView()),
-      bindTex(5, sprayVel.createView()),
-      bindTex(6, sprayDye.createView()),
-      bindSmp(7, linear),
+      bindSmp(5, linear),
     ]);
 
     // ---- advect ----
@@ -368,14 +372,25 @@ export async function createStableFluidsSim({ canvas, seedUrl, onError }) {
     const pfinishBG1 = bgFrom(fl, [bindTex(0, velC.createView()), bindTex(1, presB.createView()), bindTex(2, velA.createView()), bindSmp(3, linear2), bindSmp(4, nearest)]);
 
     // ---- seed injection (Phase 3): initial dye = user still ----
+    // Decode to pixels and upload with writeTexture: copyExternalImageToTexture
+    // is silently broken on several stacks, and this path also gives us exact
+    // control of orientation (2D canvas row 0 = image top = texture row 0).
     if (seedUrl) {
       try {
         const resp = await fetch(seedUrl);
         if (resp.ok) {
           const bmp = await createImageBitmap(await resp.blob());
-          device.queue.copyExternalImageToTexture(
-            { source: bmp, flipY: false },
+          const cnv = document.createElement('canvas');
+          cnv.width = size;
+          cnv.height = size;
+          const ctx2d = cnv.getContext('2d', { willReadFrequently: true });
+          if (!ctx2d) throw new Error('no 2d context for seed');
+          ctx2d.drawImage(bmp, 0, 0, size, size);
+          const imgData = ctx2d.getImageData(0, 0, size, size);
+          device.queue.writeTexture(
             { texture: dyeA },
+            imgData.data,
+            { bytesPerRow: size * 4, rowsPerImage: size },
             { width: size, height: size },
           );
         } else if (onError) onError(`Seed fetch failed (${resp.status})`);
@@ -400,18 +415,14 @@ export async function createStableFluidsSim({ canvas, seedUrl, onError }) {
     canvas.addEventListener('pointerup', onUp);
     canvas.addEventListener('pointercancel', onUp);
 
-    // ---- spray buffer building ----
-    const velSprayData = new Float32Array(SPRAY_K * SPRAY_K * 4); // rgba16float = 4 f32 / texel
-    const dyeSprayData = new Float32Array(SPRAY_K * SPRAY_K * 4);
-    const uniformBuf = new ArrayBuffer(16);
+    // ---- spray uniform building (injection happens in the compute shader) ----
+    const uniformBuf = new ArrayBuffer(48); // Spray struct: origin, vel, color, flag
     const uniformF32 = new Float32Array(uniformBuf);
     const uniformU32 = new Uint32Array(uniformBuf);
     const cx = (SPRAY_K >> 1);
-    const cy = (SPRAY_K >> 1);
     let paintHue = 0;
 
     function buildSpray(now) {
-      const wts = 1 / (2 * SPRAY_SIGMA * SPRAY_SIGMA);
       const dx = pointer.pos.x - pointer.last.x;
       const dy = pointer.pos.y - pointer.last.y;
       pointer.last.x = pointer.pos.x;
@@ -419,33 +430,16 @@ export async function createStableFluidsSim({ canvas, seedUrl, onError }) {
       paintHue = (paintHue + 0.002) % 1;
       const rgb = hsvToRgb(paintHue, 0.85, 1.0);
       const active = pointer.down ? 1 : 0;
-      if (active) {
-        for (let j = 0; j < SPRAY_K; j++) {
-          for (let i = 0; i < SPRAY_K; i++) {
-            const kdx = i - cx, kdy = j - cx;
-            const w = Math.exp(-(kdx * kdx + kdy * kdy) * wts);
-            const o = (j * SPRAY_K + i) * 4;
-            const velScale = (1 / size) * (1 / DT) * VEL_GAIN;
-            velSprayData[o] = dx * velScale * w;
-            velSprayData[o + 1] = dy * velScale * w;
-            velSprayData[o + 2] = 0;
-            velSprayData[o + 3] = 1;
-            dyeSprayData[o] = rgb[0] * DYE_GAIN * w;
-            dyeSprayData[o + 1] = rgb[1] * DYE_GAIN * w;
-            dyeSprayData[o + 2] = rgb[2] * DYE_GAIN * w;
-            dyeSprayData[o + 3] = 1;
-          }
-        }
-      } else {
-        velSprayData.fill(0);
-        dyeSprayData.fill(0);
-      }
-      uniformF32[0] = Math.round(pointer.pos.x) - cx;
-      uniformF32[1] = Math.round(pointer.pos.y) - cy;
-      uniformU32[2] = active;
-      uniformU32[3] = 0;
-      device.queue.writeTexture({ texture: sprayVel }, velSprayData, { bytesPerRow: SPRAY_K * 8, rowsPerImage: SPRAY_K }, { width: SPRAY_K, height: SPRAY_K });
-      device.queue.writeTexture({ texture: sprayDye }, dyeSprayData, { bytesPerRow: SPRAY_K * 8, rowsPerImage: SPRAY_K }, { width: SPRAY_K, height: SPRAY_K });
+      uniformF32[0] = Math.round(pointer.pos.x) - cx;   // origin
+      uniformF32[1] = Math.round(pointer.pos.y) - cx;
+      const velScale = (1 / size) * (1 / DT) * VEL_GAIN;
+      uniformF32[2] = dx * velScale;                     // vel (velocity units)
+      uniformF32[3] = dy * velScale;
+      uniformF32[4] = rgb[0] * DYE_GAIN;                 // color payload
+      uniformF32[5] = rgb[1] * DYE_GAIN;
+      uniformF32[6] = rgb[2] * DYE_GAIN;
+      uniformF32[7] = 1;
+      uniformU32[8] = active;                            // flag
       device.queue.writeBuffer(sprayUniform, 0, uniformBuf);
     }
 
