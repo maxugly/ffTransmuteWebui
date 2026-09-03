@@ -287,22 +287,34 @@ function imageModelRow(r) {
    Coding Models for OpenCode — same treatment, 6 cols
    ═══════════════════════════════════════════════ */
 const CODE_MODELS_ROWS = [
-  { model: 'Muse Spark 1.3 Free', provider: 'Meta (Contributor Free tier)', context: '~1M', strengths: 'Strongest overall free option right now for agentic + coding. Improved long-horizon coherence, fewer unnecessary tool calls, cleaner code style vs prior version. Competitive with frontier models on coding/agent benchmarks. Multimodal (text + image/video). Fast.', weaknesses: 'Contributor tier (data may be used for training). Newer release (early Sep 2026).', bestfor: 'Primary daily driver / complex multi-file work', highlight: true },
-  { model: 'Big Pickle Free', provider: 'OpenCode stealth (likely GLM-4.6 or similar; identity not officially confirmed)', context: '200K', strengths: 'Optimized for coding agents. Solid tool use + reasoning. Community benchmarks show respectable SWE-style scores. Zero cost, good for agent loops.', weaknesses: 'Stealth model — underlying backend can change. Smaller context than some. Text-only.', bestfor: 'Reliable coding agent work, general use' },
-  { model: 'MiMo V2.5 Free', provider: 'Xiaomi', context: '~200K–1M (depending on variant)', strengths: 'Strong agentic + coding performance. Native multimodal (text/image/video/audio). Efficient sparse MoE. Good at everyday coding and tool use.', weaknesses: 'Free version may have reduced context vs full.', bestfor: 'Multimodal tasks, balanced agent work' },
-  { model: 'Nemotron 3 Ultra Free', provider: 'NVIDIA', context: 'Up to 1M', strengths: 'Large open-weight model (550B total / ~55B active). Excellent for long-context agentic workflows, planning, and high-throughput. Strong open-model reasoning.', weaknesses: 'Heavier; can be slower than smaller models in some setups.', bestfor: 'Long-context / complex planning + coding' },
-  { model: 'Nemotron 3.5 Lightning Free', provider: 'NVIDIA', context: 'Up to 1M (often listed ~262K in free)', strengths: 'Very fast + efficient (small active params ~3–3.6B). Built for high-volume agent execution (tool calls, sub-tasks). Great speed/accuracy tradeoff for specialized steps.', weaknesses: 'Not the absolute strongest on hard reasoning vs Ultra or Muse.', bestfor: 'Fast execution layer, high-volume tool loops' },
-  { model: 'Ling 3.0 Flash Fin Free', provider: 'InclusionAI / Ant Group', context: '~262K', strengths: 'Finance-tuned version of Ling-3.0-Flash (124B total / ~5.1B active). Strong long-context + agentic + reasoning. Good general coding/math retained.', weaknesses: 'Domain bias toward finance/investment workflows. Not the top pure coding specialist.', bestfor: 'Finance-related code, analysis, or general agent use' },
-  { model: 'DeepSeek (likely V4 Flash Free)', provider: 'DeepSeek', context: '~200K', strengths: 'Fast, solid coding + tool use. Often a strong free daily driver when available.', weaknesses: 'Free tier is frequently limited-time.', bestfor: 'Quick coding tasks, reliable baseline' },
+  { model: 'Muse Spark 1.3 Free', provider: 'Meta (Contributor)', context: '~1M', strengths: 'Strongest free option for long-horizon agents & coding; fewer tool calls, cleaner style, competitive with frontier models', availability: '*', bestfor: 'Top overall free pick right now', highlight: true },
+  { model: 'MiniMax M3 (free)', provider: 'MiniMax', context: 'Up to 1M', strengths: 'Frontier coding + agentic (SWE-Bench Pro ~59%); native multimodal (image/video); excellent tool use & long sessions', availability: '+', bestfor: 'Complex multi-file work, multimodal' },
+  { model: 'Big Pickle Free', provider: 'OpenCode (stealth, likely GLM-family)', context: '200K', strengths: 'Optimized for coding agents; solid reasoning + tool calling', availability: '*', bestfor: 'Reliable daily coding agent' },
+  { model: 'Laguna S 2.1 (free)', provider: 'Poolside', context: 'Up to 1M (often 256K free)', strengths: 'Strong agentic coding (Terminal-Bench ~70%); built for long-horizon software engineering', availability: '+', bestfor: 'Long-running coding agents' },
+  { model: 'Nemotron 3 Ultra Free', provider: 'NVIDIA', context: 'Up to 1M', strengths: 'Excellent long-context reasoning, planning & agentic workflows; high throughput', availability: '*+', bestfor: 'Complex planning + coding' },
+  { model: 'MiMo V2.5 Free', provider: 'Xiaomi', context: '200K–1M', strengths: 'Strong agentic + coding; native multimodal (text/image/video/audio); efficient sparse MoE', availability: '*+', bestfor: 'Balanced multimodal agent work' },
+  { model: 'Nemotron 3.5 Lightning Free', provider: 'NVIDIA', context: 'Up to 1M', strengths: 'Extremely fast & efficient; optimized for high-volume tool calls / execution layer', availability: '*+', bestfor: 'Fast execution, pair with stronger planner' },
+  { model: 'Step 3.7 Flash (free)', provider: 'StepFun', context: '~256K', strengths: 'Fast multimodal (image/video); tunable reasoning effort; good tool use & coding', availability: '+', bestfor: 'Speed + vision + code' },
+  { model: 'Ling 3.0 Flash Fin Free', provider: 'InclusionAI / Ant Group', context: '~262K', strengths: 'Finance-tuned but retains strong general reasoning, coding & long-context ability', availability: '*+', bestfor: 'Finance code/analysis or general use' },
+  { model: 'North Mini Code (free)', provider: 'Cohere', context: '256K', strengths: 'Purpose-built for agentic coding & terminal tasks; competitive in size class', availability: '+', bestfor: 'Terminal / software-engineering agents' },
+  { model: 'Inkling (free)', provider: 'Thinking Machines', context: 'Up to 1M', strengths: 'Large multimodal (text/image/audio); competitive agentic coding + controllable thinking', availability: '+', bestfor: 'Complex multimodal agents' },
+  { model: 'Inkling Small (free)', provider: 'Thinking Machines', context: 'Up to 1M', strengths: 'Efficient sibling of Inkling; strong performance at lower cost/latency', availability: '+', bestfor: 'Efficient multimodal agents' },
+  { model: 'Laguna XS 2.1 (free)', provider: 'Poolside', context: '256K', strengths: 'Compact local-friendly agentic coding model; native reasoning', availability: '+', bestfor: 'Resource-constrained or local agents' },
+  { model: 'Nemotron 3 Super Free', provider: 'NVIDIA', context: 'Up to 1M', strengths: 'Efficient hybrid architecture; good for multi-agent / high-volume workloads', availability: '+', bestfor: 'Collaborative / high-throughput agents' },
+  { model: 'MiniMax M2.7 (free)', provider: 'MiniMax', context: '~200K', strengths: 'Solid coding + agentic tool use (predecessor to M3)', availability: '+', bestfor: 'Everyday coding tasks' },
+  { model: 'Dots3-Note Preview (free)', provider: 'Dots Studio', context: '512K', strengths: 'Multimodal long-horizon agency; tool use & adaptive real-world tasks', availability: '+', bestfor: 'Multimodal long-horizon agents' },
+  { model: 'Nemotron 3 Nano Omni (free)', provider: 'NVIDIA', context: '~256K', strengths: 'Omnimodal (vision + audio/video); efficient for documents, GUI, computer use', availability: '+', bestfor: 'Document / GUI / multimodal agents' },
+  { model: 'LFM2.5-2.6B (free)', provider: 'LiquidAI', context: '~128K', strengths: 'Tiny on-device model; native tool calling; surprisingly capable for size', availability: '+', bestfor: 'Edge / local / high-volume simple tasks' },
+  { model: 'DeepSeek V4 Flash Free', provider: 'DeepSeek', context: '~200K', strengths: 'Fast, solid coding + tool use; often a strong free baseline', availability: '*', bestfor: 'Quick coding tasks, reliable daily driver' },
 ];
 
 const CODE_MODELS_COLS = [
   { key: 'model', label: 'Model' },
-  { key: 'provider', label: 'Provider / Base' },
+  { key: 'provider', label: 'Provider' },
   { key: 'context', label: 'Context' },
-  { key: 'strengths', label: 'Strengths for OpenCode' },
-  { key: 'weaknesses', label: 'Weaknesses / Notes' },
-  { key: 'bestfor', label: 'Best For' },
+  { key: 'strengths', label: 'Key Strengths (Coding / Agentic)' },
+  { key: 'availability', label: 'Avail.' },
+  { key: 'bestfor', label: 'Notes / Best For' },
 ];
 
 function codeModelsSortValue(r, key) {
@@ -325,7 +337,7 @@ function buildCodeModelsSection() {
     <div class="ref-card">
       <div class="ref-card-head">
         <div class="ref-card-head-icon">${SVG_UPRIGHT}</div>
-        <h2>Coding Models<span class="ref-sub">Free OpenCode picks — strengths, caveats, best use</span></h2>
+        <h2>Coding Models<span class="ref-sub">Combined free comparison for OpenCode / Kilo use</span></h2>
       </div>
       <div class="ref-card-body ref-table-scroll">
         <table class="ref-table ref-models-table" data-mtable="code">
@@ -336,6 +348,30 @@ function buildCodeModelsSection() {
             ${sortRows(CODE_MODELS_ROWS, codeModelsSort, codeModelsSortValue, codeTableCfg().tieFn).map(codeModelRow).join('')}
           </tbody>
         </table>
+        <div class="ref-legend">
+          <span class="ref-status"><span class="ref-badge ref-badge-green">${SVG_CHECK} *</span> Free in OpenCode Zen</span>
+          <span class="ref-status"><span class="ref-badge ref-badge-amber">${SVG_CHECK} +</span> Free via Kilo Gateway / OpenRouter free router</span>
+          <span class="ref-status"><span class="ref-badge ref-badge-gray">${SVG_CHECK} *+</span> Available in both</span>
+        </div>
+      </div>
+    </div>
+    <div class="ref-card">
+      <div class="ref-card-head">
+        <div class="ref-card-head-icon">${SVG_CHECK}</div>
+        <h2>Quick Recommendations<span class="ref-sub">Where to start</span></h2>
+      </div>
+      <div class="ref-card-body">
+        <ul class="ref-checklist">
+          ${checkItem('green', SVG_CHECK, 'Best overall free right now:', 'Muse Spark 1.3 Free (*) or MiniMax M3 (+)')}
+          ${checkItem('green', SVG_CHECK, 'Best pure coding agents:', 'Laguna S 2.1, Big Pickle, North Mini Code, or Nemotron 3 Ultra')}
+          ${checkItem('green', SVG_CHECK, 'Best speed / high-volume:', 'Nemotron 3.5 Lightning')}
+          ${checkItem('green', SVG_CHECK, 'Best multimodal:', 'MiniMax M3, MiMo V2.5, Step 3.7 Flash, or Inkling')}
+          ${checkItem('green', SVG_CHECK, 'Best tiny / local:', 'LFM2.5-2.6B or Laguna XS 2.1')}
+        </ul>
+        <div class="ref-callout">
+          ${SVG_INFO}
+          <p>All currently free (often limited-time promotions) with tool calling for OpenCode/Kilo agent loops. Free tiers may have reduced context, rate limits, or “may train” data usage — check current terms. Real agent-loop performance can differ from benchmarks, so test a couple on your own repo. Extend later with the same * / + / *+ markers.</p>
+        </div>
       </div>
     </div>`;
 }
@@ -349,7 +385,7 @@ function codeModelRow(r) {
     <td><span class="ref-cell">${esc(r.provider)}</span></td>
     <td><span class="ref-cell">${esc(r.context)}</span></td>
     <td><span class="ref-cell">${esc(r.strengths)}</span></td>
-    <td><span class="ref-cell">${esc(r.weaknesses)}</span></td>
+    <td class="ref-col-center"><span class="ref-cell">${esc(r.availability)}</span></td>
     <td>${bestfor}</td>
   </tr>`;
 }
