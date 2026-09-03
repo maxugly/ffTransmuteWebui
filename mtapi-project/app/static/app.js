@@ -911,7 +911,7 @@ function switchTab(tab) {
   if (tab === 'settings') title = 'Settings';
   if (tab === 'stablefluids') title = 'Stable Fluids · Sim';
   // References tab: no big header (sidebar already shows active item)
-  if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images') title = '';
+  if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code') title = '';
   // Library tabs: drop the big header title (sidebar already shows active item)
   if (tab === 'pool' || tab === 'sequence' || tab === 'images') title = '';
   if (elements.tabTitle) elements.tabTitle.textContent = title;
@@ -923,7 +923,7 @@ function switchTab(tab) {
     || tab === 'agent' || tab === 'jobs'
     || tab === 'imgcompare'
     || tab === 'stablefluids'
-    || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images'
+    || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code'
   );
   if (elements.btnRun) {
     elements.btnRun.style.display = hideRun ? 'none' : '';
@@ -959,12 +959,12 @@ function switchTab(tab) {
     tab === 'pool' || tab === 'sequence' || tab === 'images'
     || tab === 'quick' || tab === 'watcher' || tab === 'agent' || tab === 'jobs'
     || tab === 'imgcompare'
-    || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images'
+    || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code'
   );
   document.body.classList.toggle('no-global-inputs', noGlobalInputs);
   document.body.classList.toggle('sf-sim-tab-active', tab === 'stablefluids');
   // References: bare workspace (sidebar + reference card only)
-  document.body.classList.toggle('references-tab-active', tab === 'refs' || tab === 'refs-models' || tab === 'refs-images');
+  document.body.classList.toggle('references-tab-active', tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code');
 
   // Render Form for the Tab
   renderTabForm(tab);
@@ -1060,7 +1060,7 @@ function renderTabForm(tab) {
     renderStableFluidsForm();
   } else if (tab === 'settings') {
     renderSettingsForm();
-  } else if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images') {
+  } else if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code') {
     renderReferencesForm();
   }
 

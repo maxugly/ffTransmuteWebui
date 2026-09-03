@@ -21,16 +21,18 @@ const SVG_FILM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 
 function renderReferencesForm() {
   const sub = state.activeTab === 'refs-models' ? 'models'
-    : state.activeTab === 'refs-images' ? 'imgmodels' : 'yt';
-  const wide = sub === 'models' || sub === 'imgmodels';
+    : state.activeTab === 'refs-images' ? 'imgmodels'
+    : state.activeTab === 'refs-code' ? 'code' : 'yt';
+  const wide = sub !== 'yt';
   const html = `
     <div class="ref-workspace${wide ? ' ref-workspace-wide' : ''}">
       <div class="ref-subtabs" id="refSubtabs">
         <button class="ref-subtab${sub === 'yt' ? ' active' : ''}" data-ref-tab="refs">YT Footage</button>
         <button class="ref-subtab${sub === 'models' ? ' active' : ''}" data-ref-tab="refs-models">Video Models</button>
         <button class="ref-subtab${sub === 'imgmodels' ? ' active' : ''}" data-ref-tab="refs-images">Image Models</button>
+        <button class="ref-subtab${sub === 'code' ? ' active' : ''}" data-ref-tab="refs-code">Coding Models</button>
       </div>
-      ${sub === 'models' ? buildModelsSection() : sub === 'imgmodels' ? buildImageModelsSection() : buildYtSections()}
+      ${sub === 'models' ? buildModelsSection() : sub === 'imgmodels' ? buildImageModelsSection() : sub === 'code' ? buildCodeModelsSection() : buildYtSections()}
     </div>
   `;
   elements.actionPanel.innerHTML = html;
@@ -115,7 +117,9 @@ function paintSortableTable(table, cfg) {
 function bindSortableTables() {
   const table = elements.actionPanel.querySelector('.ref-models-table');
   if (!table) return;
-  const cfg = table.getAttribute('data-mtable') === 'image' ? imageTableCfg() : videoTableCfg();
+  const cfg = table.getAttribute('data-mtable') === 'image' ? imageTableCfg()
+    : table.getAttribute('data-mtable') === 'code' ? codeTableCfg()
+    : videoTableCfg();
   table.querySelectorAll('th[data-sort]').forEach((th) => {
     th.addEventListener('click', () => {
       const key = th.getAttribute('data-sort');
@@ -130,9 +134,10 @@ function bindSortableTables() {
   });
 }
 
-/* Sort state — defaults: Video = Model A→Z, Image = Company A→Z */
+/* Sort state — defaults: Video = Model A→Z, Image = Company A→Z, Code = Model A→Z */
 let modelsSort = { key: 'model', dir: 1 };
 let imageModelsSort = { key: 'company', dir: 1 };
+let codeModelsSort = { key: 'model', dir: 1 };
 
 const MODELS_COLS = [
   { key: 'model', label: 'Model' },
@@ -275,6 +280,77 @@ function imageModelRow(r) {
     <td><span class="ref-cell">${esc(r.optimal)}</span></td>
     <td><span class="ref-cell">${esc(r.buckets)}</span></td>
     <td>${notes}</td>
+  </tr>`;
+}
+
+/* ═══════════════════════════════════════════════
+   Coding Models for OpenCode — same treatment, 6 cols
+   ═══════════════════════════════════════════════ */
+const CODE_MODELS_ROWS = [
+  { model: 'Muse Spark 1.3 Free', provider: 'Meta (Contributor Free tier)', context: '~1M', strengths: 'Strongest overall free option right now for agentic + coding. Improved long-horizon coherence, fewer unnecessary tool calls, cleaner code style vs prior version. Competitive with frontier models on coding/agent benchmarks. Multimodal (text + image/video). Fast.', weaknesses: 'Contributor tier (data may be used for training). Newer release (early Sep 2026).', bestfor: 'Primary daily driver / complex multi-file work', highlight: true },
+  { model: 'Big Pickle Free', provider: 'OpenCode stealth (likely GLM-4.6 or similar; identity not officially confirmed)', context: '200K', strengths: 'Optimized for coding agents. Solid tool use + reasoning. Community benchmarks show respectable SWE-style scores. Zero cost, good for agent loops.', weaknesses: 'Stealth model — underlying backend can change. Smaller context than some. Text-only.', bestfor: 'Reliable coding agent work, general use' },
+  { model: 'MiMo V2.5 Free', provider: 'Xiaomi', context: '~200K–1M (depending on variant)', strengths: 'Strong agentic + coding performance. Native multimodal (text/image/video/audio). Efficient sparse MoE. Good at everyday coding and tool use.', weaknesses: 'Free version may have reduced context vs full.', bestfor: 'Multimodal tasks, balanced agent work' },
+  { model: 'Nemotron 3 Ultra Free', provider: 'NVIDIA', context: 'Up to 1M', strengths: 'Large open-weight model (550B total / ~55B active). Excellent for long-context agentic workflows, planning, and high-throughput. Strong open-model reasoning.', weaknesses: 'Heavier; can be slower than smaller models in some setups.', bestfor: 'Long-context / complex planning + coding' },
+  { model: 'Nemotron 3.5 Lightning Free', provider: 'NVIDIA', context: 'Up to 1M (often listed ~262K in free)', strengths: 'Very fast + efficient (small active params ~3–3.6B). Built for high-volume agent execution (tool calls, sub-tasks). Great speed/accuracy tradeoff for specialized steps.', weaknesses: 'Not the absolute strongest on hard reasoning vs Ultra or Muse.', bestfor: 'Fast execution layer, high-volume tool loops' },
+  { model: 'Ling 3.0 Flash Fin Free', provider: 'InclusionAI / Ant Group', context: '~262K', strengths: 'Finance-tuned version of Ling-3.0-Flash (124B total / ~5.1B active). Strong long-context + agentic + reasoning. Good general coding/math retained.', weaknesses: 'Domain bias toward finance/investment workflows. Not the top pure coding specialist.', bestfor: 'Finance-related code, analysis, or general agent use' },
+  { model: 'DeepSeek (likely V4 Flash Free)', provider: 'DeepSeek', context: '~200K', strengths: 'Fast, solid coding + tool use. Often a strong free daily driver when available.', weaknesses: 'Free tier is frequently limited-time.', bestfor: 'Quick coding tasks, reliable baseline' },
+];
+
+const CODE_MODELS_COLS = [
+  { key: 'model', label: 'Model' },
+  { key: 'provider', label: 'Provider / Base' },
+  { key: 'context', label: 'Context' },
+  { key: 'strengths', label: 'Strengths for OpenCode' },
+  { key: 'weaknesses', label: 'Weaknesses / Notes' },
+  { key: 'bestfor', label: 'Best For' },
+];
+
+function codeModelsSortValue(r, key) {
+  const v = r[key] || '';
+  return v === '—' ? '' : v;
+}
+
+function codeTableCfg() {
+  return {
+    rows: CODE_MODELS_ROWS,
+    sort: codeModelsSort,
+    valueFn: codeModelsSortValue,
+    tieFn: (a, b) => String(a.provider || '').localeCompare(String(b.provider || ''), undefined, { numeric: true, sensitivity: 'base' }),
+    rowFn: codeModelRow,
+  };
+}
+
+function buildCodeModelsSection() {
+  return `
+    <div class="ref-card">
+      <div class="ref-card-head">
+        <div class="ref-card-head-icon">${SVG_UPRIGHT}</div>
+        <h2>Coding Models<span class="ref-sub">Free OpenCode picks — strengths, caveats, best use</span></h2>
+      </div>
+      <div class="ref-card-body ref-table-scroll">
+        <table class="ref-table ref-models-table" data-mtable="code">
+          <thead><tr>
+            ${sortHeaders(CODE_MODELS_COLS, codeModelsSort)}
+          </tr></thead>
+          <tbody>
+            ${sortRows(CODE_MODELS_ROWS, codeModelsSort, codeModelsSortValue, codeTableCfg().tieFn).map(codeModelRow).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function codeModelRow(r) {
+  const bestfor = r.highlight
+    ? `<span class="ref-badge ref-badge-green">${SVG_CHECK} ${esc(r.bestfor)}</span>`
+    : `<span class="ref-cell">${esc(r.bestfor)}</span>`;
+  return `<tr${r.highlight ? ' class="ref-highlight"' : ''}>
+    <td><span class="ref-lic-name">${esc(r.model)}</span></td>
+    <td><span class="ref-cell">${esc(r.provider)}</span></td>
+    <td><span class="ref-cell">${esc(r.context)}</span></td>
+    <td><span class="ref-cell">${esc(r.strengths)}</span></td>
+    <td><span class="ref-cell">${esc(r.weaknesses)}</span></td>
+    <td>${bestfor}</td>
   </tr>`;
 }
 
