@@ -49,6 +49,7 @@ import { renderNotesForm } from '/js/tabs/notes.js';
 import { renderStableFluidsForm } from '/js/tabs/stablefluids.js';
 import { renderSettingsForm, applyUiTweaks, readStoredScrollbarWidth } from '/js/tabs/settings.js';
 import { renderJobsForm, stopJobsPoll } from '/js/tabs/jobs.js';
+import { renderReferencesForm } from '/js/tabs/references.js';
 import { renderImageEditForm, collectImageEditBody } from '/js/tabs/imageedit.js';
 import { refreshInputPreview, bindInputPreviewListeners } from '/js/ui/input-preview.js';
 import { makeClearable, bindClearables } from '/js/ui/clearable.js';
@@ -434,6 +435,7 @@ const TAB_ACCEPTS = {
   notes:       'none',
   settings:    'none',
   stablefluids:'none',
+  refs:        'none',
 };
 
 /** Tabs that show the global frame-range row (video pipeline / mosh / convert). */
@@ -908,6 +910,8 @@ function switchTab(tab) {
   if (tab === 'notes') title = 'Notes';
   if (tab === 'settings') title = 'Settings';
   if (tab === 'stablefluids') title = 'Stable Fluids · Sim';
+  // References tab: no big header (sidebar already shows active item)
+  if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images') title = '';
   // Library tabs: drop the big header title (sidebar already shows active item)
   if (tab === 'pool' || tab === 'sequence' || tab === 'images') title = '';
   if (elements.tabTitle) elements.tabTitle.textContent = title;
@@ -919,6 +923,7 @@ function switchTab(tab) {
     || tab === 'agent' || tab === 'jobs'
     || tab === 'imgcompare'
     || tab === 'stablefluids'
+    || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images'
   );
   if (elements.btnRun) {
     elements.btnRun.style.display = hideRun ? 'none' : '';
@@ -954,10 +959,12 @@ function switchTab(tab) {
     tab === 'pool' || tab === 'sequence' || tab === 'images'
     || tab === 'quick' || tab === 'watcher' || tab === 'agent' || tab === 'jobs'
     || tab === 'imgcompare'
+    || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images'
   );
   document.body.classList.toggle('no-global-inputs', noGlobalInputs);
-  // Stable Fluids: bare workspace too (sidebar + paint panel only)
   document.body.classList.toggle('sf-sim-tab-active', tab === 'stablefluids');
+  // References: bare workspace (sidebar + reference card only)
+  document.body.classList.toggle('references-tab-active', tab === 'refs' || tab === 'refs-models' || tab === 'refs-images');
 
   // Render Form for the Tab
   renderTabForm(tab);
@@ -1053,6 +1060,8 @@ function renderTabForm(tab) {
     renderStableFluidsForm();
   } else if (tab === 'settings') {
     renderSettingsForm();
+  } else if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images') {
+    renderReferencesForm();
   }
 
   // Bottom input preview (after form chrome; survives form-only re-renders)
