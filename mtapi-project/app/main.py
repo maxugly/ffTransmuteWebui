@@ -207,6 +207,9 @@ pool.register(app, is_video_fn=_is_video_file)
 from .routes import picker
 picker.register(app)
 
+from .routes import skills
+skills.register(app)
+
 def _make_endpoint(spec):
     async def endpoint(
         params: spec.params_model,  # type: ignore[name-defined]

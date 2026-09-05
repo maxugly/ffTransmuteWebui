@@ -31,4 +31,5 @@ from . import (  # noqa: F401
     fastsam_ops,
     imageedit_ops,
     qr_ops,
+    skills_ops,
 )

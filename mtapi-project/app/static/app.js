@@ -46,6 +46,7 @@ import { renderZoompanForm, collectZoompanBody } from '/js/tabs/zoompan.js';
 import { renderImageSortForm, collectImageSortBody } from '/js/tabs/imagesort.js';
 import { renderImgCompareForm } from '/js/tabs/imgcompare.js';
 import { renderNotesForm } from '/js/tabs/notes.js';
+import { renderSkillsForm } from '/js/tabs/skills.js';
 import { renderStableFluidsForm } from '/js/tabs/stablefluids.js';
 import { renderSettingsForm, applyUiTweaks, readStoredScrollbarWidth } from '/js/tabs/settings.js';
 import { renderJobsForm, stopJobsPoll } from '/js/tabs/jobs.js';
@@ -918,6 +919,7 @@ function switchTab(tab) {
   if (tab === 'zoompan') title = 'Pan & Zoom';
   if (tab === 'jobs') title = 'Jobs · Queue';
   if (tab === 'notes') title = 'Notes';
+  if (tab === 'skills') title = 'Skills · AI model skills';
   if (tab === 'settings') title = 'Settings';
   if (tab === 'stablefluids') title = 'Stable Fluids · Sim';
   // References tab: no big header (sidebar already shows active item)
@@ -931,6 +933,7 @@ function switchTab(tab) {
     tab === 'pool' || tab === 'sequence' || tab === 'images'
     || tab === 'quick' || tab === 'watcher' || tab === 'notes' || tab === 'settings'
     || tab === 'agent' || tab === 'jobs'
+    || tab === 'skills'
     || tab === 'imgcompare'
     || tab === 'stablefluids'
     || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code'
@@ -968,6 +971,7 @@ function switchTab(tab) {
   const noGlobalInputs = (
     tab === 'pool' || tab === 'sequence' || tab === 'images'
     || tab === 'quick' || tab === 'watcher' || tab === 'agent' || tab === 'jobs'
+    || tab === 'skills'
     || tab === 'imgcompare'
     || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code'
   );
@@ -1068,6 +1072,8 @@ function renderTabForm(tab) {
     renderJobsForm();
   } else if (tab === 'notes') {
     renderNotesForm();
+  } else if (tab === 'skills') {
+    renderSkillsForm();
   } else if (tab === 'stablefluids') {
     renderStableFluidsForm();
   } else if (tab === 'settings') {

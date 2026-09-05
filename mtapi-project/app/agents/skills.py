@@ -17,6 +17,43 @@ CAPTION_SYSTEM = """Describe the image clearly in 2–4 short sentences.
 Focus on subject, materials, lighting, and palette. No markdown."""
 
 
+SKILL_INSTALL_NORMALIZE_SYSTEM = """You are a skill packager for AI-model skills (SKILL.md format).
+Given raw skill text, return:
+(1) YAML frontmatter with `name` (kebab-case, max 64 chars) and `description`
+(one line, max 160 chars), then (2) the cleaned body.
+Fix headings, remove redundancy, do NOT change semantics or drop sections.
+Output the full SKILL.md only, no preamble, no explanation."""
+
+SKILL_INSTALL_CUSTOM_SYSTEM = """You are a skill packager for AI-model skills (SKILL.md format).
+Given raw skill text, return:
+(1) YAML frontmatter with `name` (kebab-case, max 64 chars) and `description`
+(one line, max 160 chars), then (2) the reworked body.
+Output the full SKILL.md only, no preamble, no explanation.
+Additionally follow this user direction:
+"""
+
+
+def build_skill_install_messages(
+    mode: str,
+    *,
+    text: str,
+    custom_prompt: str = "",
+) -> tuple[str, str]:
+    """Return (system, user) for the model-assisted skill install step."""
+    mode = (mode or "normalize").lower().strip()
+    body = (text or "").strip()
+    if not body:
+        raise ValueError("Skill text is empty — upload a file or paste text first")
+    if mode == "custom":
+        extra = (custom_prompt or "").strip()
+        if not extra:
+            raise ValueError("Custom mode needs a custom instruction for the model")
+        return SKILL_INSTALL_CUSTOM_SYSTEM, f"{extra}\n\n---\n\n{body}"
+    if mode != "normalize":
+        raise ValueError(f"Unknown install mode: {mode!r} (use normalize | custom)")
+    return SKILL_INSTALL_NORMALIZE_SYSTEM, body
+
+
 def build_messages(
     skill: str,
     *,
