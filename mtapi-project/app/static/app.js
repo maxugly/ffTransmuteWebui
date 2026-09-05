@@ -867,7 +867,7 @@ function switchTab(tab) {
   // DOM forms are destroyed on tab changes. Capture their controls before the
   // next renderer replaces the panel so inactive tabs remain serializable.
   try { captureCurrentFormState(); } catch (_) { /* best effort */ }
-  // Session-only scroll memory: remember where we were on the tab we leave.
+  // Per-tab scroll memory (localStorage-backed): remember where we were on the tab we leave.
   try { saveTabScroll(state.activeTab); } catch (_) { /* best effort */ }
   state.activeTab = tab;
   
@@ -978,7 +978,7 @@ function switchTab(tab) {
   if (framesRow) framesRow.style.display = tabUsesFrameRange(tab) ? '' : 'none';
   // Re-sync probe when switching onto a range-aware tab
   _syncTabInputFromGlobal();
-  // Session-only scroll memory: jump back to where this tab was left.
+  // Per-tab scroll memory (localStorage-backed): jump back to where this tab was left.
   try { restoreTabScroll(tab); } catch (_) { /* best effort */ }
 }
 

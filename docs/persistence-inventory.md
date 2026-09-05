@@ -99,6 +99,7 @@ A single line containing the absolute path of the most recently opened or saved 
 | `fftransmute.quick` | JSON | `{reconcile, aspect, aspectCustom}` |
 | `mtapi.notes.v1` | JSON | `{left: string, right: string}` |
 | `mtapi_prompt_library` | JSON | Prompt Library ± pairs (if present) |
+| `mtapi_tab_scroll` | JSON | per-tab scroll memory — `{ v, tabs: { tab: { outer, form, grid } } }` (`js/ui/tab-scroll.js`) · `8.014` |
 
 ---
 

@@ -1,16 +1,83 @@
 /**
- * Session-only per-tab scroll memory.
+ * Per-tab scroll memory, persisted across sessions.
  *
  * Tab switches wipe #actionPanelForm innerHTML, which collapses content
  * height and resets the scroll container to 0. Remember the outer
  * #actionPanel scrollTop plus the inner pool grid scroller
  * (#poolGridWrap / #imgPoolGridWrap) per tab id, and restore after render.
  *
- * Runtime-only (Map). Nothing persisted to server or localStorage.
+ * Browser-only: an in-memory Map fronted by localStorage (`mtapi_tab_scroll`).
+ * Never written into named projects or the server session snapshot (same
+ * class as prompt library / nav-section collapse).
  */
 
-const _mem = new Map(); // tabId -> { outer: number, grid: number }
+const STORAGE_KEY = 'mtapi_tab_scroll';
+const STORAGE_VERSION = 1;
+const MAX_TABS = 60;
+const MAX_SCROLL = 100000;
+
+const _mem = new Map(); // tabId -> { outer: number, form: number, grid: number }
 let _raf = 0;
+let _persistTimer = 0;
+
+function _num(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(Math.max(0, n), MAX_SCROLL) : 0;
+}
+
+function _loadStored() {
+  let raw = null;
+  try {
+    raw = localStorage.getItem(STORAGE_KEY);
+  } catch (_) {
+    return;
+  }
+  if (!raw) return;
+  let parsed = null;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (_) {
+    return;
+  }
+  const tabs = parsed && typeof parsed === 'object' ? parsed.tabs : null;
+  if (!tabs || typeof tabs !== 'object') return;
+  try {
+    for (const k of Object.keys(tabs)) {
+      if (_mem.size >= MAX_TABS) break;
+      const e = tabs[k];
+      if (!e || typeof e !== 'object') continue;
+      const entry = { outer: _num(e.outer), form: _num(e.form), grid: _num(e.grid) };
+      if (entry.outer > 0 || entry.form > 0 || entry.grid > 0) _mem.set(k, entry);
+    }
+  } catch (_) { /* ignore */ }
+}
+
+function _flushStored() {
+  _persistTimer = 0;
+  let tabs = null;
+  try {
+    tabs = Object.fromEntries(_mem);
+  } catch (_) {
+    return;
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: STORAGE_VERSION, tabs }));
+  } catch (_) { /* quota / private mode — memory still works for the session */ }
+}
+
+function _schedulePersist() {
+  if (_persistTimer) return;
+  try {
+    _persistTimer = setTimeout(_flushStored, 400);
+  } catch (_) {
+    _flushStored();
+  }
+}
+
+// Seed memory from the previous session before the first switchTab runs.
+try {
+  _loadStored();
+} catch (_) { /* ignore */ }
 
 function _outerEl() {
   return document.getElementById('actionPanel') || null;
@@ -49,6 +116,11 @@ function saveTabScroll(tab) {
   if (!tab || typeof tab !== 'string') return;
   try {
     _mem.set(tab, _read());
+    if (_mem.size > MAX_TABS) {
+      const oldest = _mem.keys().next();
+      if (!oldest.done) _mem.delete(oldest.value);
+    }
+    _schedulePersist();
   } catch (_) { /* ignore */ }
 }
 
@@ -61,33 +133,35 @@ function peekTabScroll(tab) {
   }
 }
 
-function _apply(tab, entry) {
-  const outerEl = _outerEl();
-  const formEl = _formEl();
-  const gridEl = _gridEl();
-  if (outerEl && Number.isFinite(entry.outer)) {
-    try {
-      const max = Math.max(0, outerEl.scrollHeight - outerEl.clientHeight);
-      outerEl.scrollTop = Math.min(Math.max(0, entry.outer), max);
-    } catch (_) { /* ignore */ }
-  }
-  if (formEl && Number.isFinite(entry.form)) {
-    try {
-      const max = Math.max(0, formEl.scrollHeight - formEl.clientHeight);
-      formEl.scrollTop = Math.min(Math.max(0, entry.form), max);
-    } catch (_) { /* ignore */ }
-  }
-  if (gridEl && Number.isFinite(entry.grid) && entry.grid > 0) {
-    try {
-      const max = Math.max(0, gridEl.scrollHeight - gridEl.clientHeight);
-      gridEl.scrollTop = Math.min(Math.max(0, entry.grid), max);
-    } catch (_) { /* ignore */ }
+function _applyPane(el, want) {
+  if (!el || !Number.isFinite(want) || want <= 0) return true;
+  try {
+    const max = Math.max(0, el.scrollHeight - el.clientHeight);
+    el.scrollTop = Math.min(Math.max(0, want), max);
+    return el.scrollTop >= Math.min(want, max) - 1;
+  } catch (_) {
+    return false;
   }
 }
 
 /**
+ * Apply `entry` to the live panes. Returns true when every pane with a
+ * nonzero target reached it (or has no room to scroll). Late layout
+ * (virtual-grid sync, images, fonts) can leave scrollHeight short on the
+ * first pass, so callers retry until this returns true.
+ */
+function _apply(tab, entry) {
+  const okOuter = _applyPane(_outerEl(), entry.outer);
+  const okForm = _applyPane(_formEl(), entry.form);
+  const okGrid = _applyPane(_gridEl(), entry.grid);
+  return okOuter && okForm && okGrid;
+}
+
+/**
  * Restore saved scroll for `tab` after the new form has laid out.
- * Double rAF so the virtual grid sync + images settle first.
+ * Retries (double-rAF, then +200ms / +600ms) so late layout — virtual-grid
+ * sync, images, fonts — that leaves scrollHeight short on the first pass
+ * still converges on the saved position instead of clamping to 0.
  * Falls back to state.pool.gridScrollTop for pool tabs on first visit.
  */
 function restoreTabScroll(tab) {
@@ -98,7 +172,7 @@ function restoreTabScroll(tab) {
   } catch (_) { /* ignore */ }
   if (!entry) {
     // First visit to a pool tab after reload: reuse the desk-restored
-    // grid offset instead of starting at 0. Session map wins afterwards.
+    // grid offset instead of starting at 0. Stored map wins afterwards.
     try {
       const g = Number(window.state?.pool?.gridScrollTop) || 0;
       if (g > 0 && (tab === 'pool' || tab === 'sequence' || tab === 'images')) {
@@ -107,10 +181,18 @@ function restoreTabScroll(tab) {
     } catch (_) { /* ignore */ }
   }
   if (!entry || (entry.outer <= 0 && entry.form <= 0 && entry.grid <= 0)) return;
+  let attempts = 0;
   const run = () => {
+    attempts += 1;
+    let done = false;
     try {
-      _apply(tab, entry);
+      done = _apply(tab, entry);
     } catch (_) { /* ignore */ }
+    if (!done && attempts < 3) {
+      try {
+        setTimeout(run, attempts === 1 ? 200 : 600);
+      } catch (_) { /* ignore */ }
+    }
   };
   try {
     requestAnimationFrame(() => requestAnimationFrame(run));
@@ -157,6 +239,35 @@ function initTabScroll(getActiveTab) {
         schedule();
       }
     }, { capture: true, passive: true });
+  } catch (_) { /* ignore */ }
+  // Flush the latest position before the page goes away so it survives
+  // reload / browser restart. The trailing persist timer alone may not
+  // fire on a fast tab close.
+  const flush = () => {
+    try {
+      let tab = null;
+      try {
+        tab = typeof getActiveTab === 'function'
+          ? getActiveTab()
+          : (window.state?.activeTab || null);
+      } catch (_) { /* ignore */ }
+      if (tab) saveTabScroll(tab);
+    } catch (_) { /* ignore */ }
+    try {
+      if (_persistTimer) {
+        clearTimeout(_persistTimer);
+        _persistTimer = 0;
+      }
+    } catch (_) { /* ignore */ }
+    _flushStored();
+  };
+  try {
+    window.addEventListener('pagehide', flush);
+  } catch (_) { /* ignore */ }
+  try {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') flush();
+    });
   } catch (_) { /* ignore */ }
 }
 
