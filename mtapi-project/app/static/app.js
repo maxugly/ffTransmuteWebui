@@ -261,6 +261,8 @@ let state = {
     viewportLazyThumbnails: true,
     scrollbarWidth: 6,
     autoAddToSequence: false,
+    autoFirstLast: false,
+    autoFirstLastMode: 'import',
     muteVideos: true,
     warmModels: { deepdream: false, styletransfer: false, fastsam: false },
   },
@@ -282,6 +284,8 @@ const SETTINGS_DEFAULTS = {
   viewportLazyThumbnails: true,
   scrollbarWidth: 6,
   autoAddToSequence: false,
+  autoFirstLast: false,
+  autoFirstLastMode: 'import',
   muteVideos: true,
   warmModels: { deepdream: false, styletransfer: false, fastsam: false },
 };
@@ -295,6 +299,8 @@ function mapServerSettings(data) {
   if (data.autosave_interval != null) mapped.autosaveInterval = data.autosave_interval;
   if (data.scrollbar_width != null) mapped.scrollbarWidth = data.scrollbar_width;
   if (data.auto_add_to_sequence != null) mapped.autoAddToSequence = !!data.auto_add_to_sequence;
+  if (data.auto_first_last != null) mapped.autoFirstLast = !!data.auto_first_last;
+  if (data.auto_first_last_mode != null) mapped.autoFirstLastMode = data.auto_first_last_mode === 'sequence' ? 'sequence' : 'import';
   if (data.mute_videos != null) mapped.muteVideos = !!data.mute_videos;
   if (data.warm_models && typeof data.warm_models === 'object') {
     mapped.warmModels = { ...SETTINGS_DEFAULTS.warmModels, ...data.warm_models };
@@ -332,6 +338,10 @@ async function applySettingsPrecedence() {
       ...(local.warmModels || {}),
     },
   };
+  if (state.settings.autoFirstLastMode !== 'sequence' && state.settings.autoFirstLastMode !== 'import') {
+    state.settings.autoFirstLastMode = 'import';
+  }
+  state.settings.autoFirstLast = !!state.settings.autoFirstLast;
   state.settings.scrollbarWidth = readStoredScrollbarWidth();
   applyUiTweaks(state.settings.scrollbarWidth);
 }

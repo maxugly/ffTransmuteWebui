@@ -529,22 +529,58 @@ async def export_frame_png(
     source_path: Path,
     which: str = "first",
     output_path: Path | None = None,
+    *,
+    skip_if_exists: bool = False,
 ) -> dict[str, Any]:
-    """Extract full-resolution first/last frame as PNG to disk (never overwrites)."""
+    """Extract full-resolution first/last frame as PNG to disk (never overwrites).
+
+    ``skip_if_exists=True`` targets the exact ``{stem}_{which}.png`` sibling
+    and returns ``{ok: True, skipped: True}`` when it already exists — the
+    Auto first/last fast path. All writes go to ``.tmp`` + atomic replace so
+    a crash never leaves a truncated PNG at the final name.
+    """
     which = which if which in ("first", "last") else "first"
     source_path = source_path.resolve()
     if not source_path.is_file():
         return {"ok": False, "error": "Source file not found"}
 
-    from ..pathutil import finalize_output_path
+    from ..pathutil import default_next_to_source, finalize_output_path
 
-    output_path = finalize_output_path(
-        output_path,
-        source=source_path,
-        default_suffix=f"_{which}",
-        default_ext=".png",
-        allowed_exts={".png"},
-    )
+    if skip_if_exists:
+        if output_path is None:
+            final = default_next_to_source(
+                source_path, suffix=f"_{which}", ext=".png"
+            )
+        else:
+            final = Path(output_path).expanduser()
+            if not final.suffix or final.suffix.lower() != ".png":
+                final = final.with_suffix(".png")
+        final.parent.mkdir(parents=True, exist_ok=True)
+        if final.exists() and final.stat().st_size > 0:
+            return {
+                "ok": True,
+                "skipped": True,
+                "which": which,
+                "input_path": str(source_path),
+                "output_path": str(final),
+                "size": final.stat().st_size,
+            }
+        output_final = final
+    else:
+        output_final = finalize_output_path(
+            output_path,
+            source=source_path,
+            default_suffix=f"_{which}",
+            default_ext=".png",
+            allowed_exts={".png"},
+        )
+
+    tmp_path = output_final.with_name(output_final.stem + ".tmp.png")
+    try:
+        if tmp_path.exists():
+            tmp_path.unlink()
+    except OSError:
+        pass
 
     async def _run(cmd: list[str]) -> tuple[bool, str]:
         proc = await asyncio.create_subprocess_exec(
@@ -553,29 +589,38 @@ async def export_frame_png(
             stderr=asyncio.subprocess.PIPE,
         )
         _, err = await proc.communicate()
-        ok = proc.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0
+        ok = proc.returncode == 0 and tmp_path.exists() and tmp_path.stat().st_size > 0
         return ok, err.decode(errors="replace").strip()
 
     if which == "last":
-        attempts = _last_frame_ffmpeg_cmds(source_path, output_path, scale=None, q=2)
+        attempts = _last_frame_ffmpeg_cmds(source_path, tmp_path, scale=None, q=2)
     else:
         attempts = [
             [
                 "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
                 "-i", str(source_path),
-                "-frames:v", "1", "-update", "1", str(output_path),
+                "-frames:v", "1", "-update", "1", str(tmp_path),
             ],
         ]
 
     last_err = ""
     for cmd in attempts:
-        if output_path.exists():
+        if tmp_path.exists():
             try:
-                output_path.unlink()
+                tmp_path.unlink()
             except OSError:
                 pass
         ok, last_err = await _run(cmd)
         if ok:
+            try:
+                tmp_path.replace(output_final)
+            except OSError as e:
+                last_err = str(e) or last_err
+                try:
+                    tmp_path.unlink()
+                except OSError:
+                    pass
+                continue
             try:
                 content_hash, _ = await resolve_hash(source_path)
                 append_history(
@@ -583,7 +628,7 @@ async def export_frame_png(
                     "export_frame",
                     detail={
                         "which": which,
-                        "output_path": str(output_path),
+                        "output_path": str(output_final),
                         "format": "png",
                         "extract_version": FRAME_EXTRACT_VERSION if which == "last" else 1,
                     },
@@ -594,10 +639,15 @@ async def export_frame_png(
                 "ok": True,
                 "which": which,
                 "input_path": str(source_path),
-                "output_path": str(output_path),
-                "size": output_path.stat().st_size,
+                "output_path": str(output_final),
+                "size": output_final.stat().st_size,
             }
 
+    try:
+        if tmp_path.exists():
+            tmp_path.unlink()
+    except OSError:
+        pass
     return {
         "ok": False,
         "error": last_err or f"Failed to extract {which} frame as PNG",

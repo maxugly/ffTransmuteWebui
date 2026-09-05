@@ -95,6 +95,11 @@ function addPathToSequence(path, insertAt = null) {
   updateSeqTransportUI();
   scheduleSavePoolState();
   _maybeAutoRifeEntry(entry);
+  try {
+    import('/js/pool/auto-firstlast.js').then((m) => {
+      try { m.maybeAutoFLForSequence([path]); } catch (_) { /* ignore */ }
+    }).catch(() => {});
+  } catch (_) { /* auto F/L must not break sequence */ }
 }
 
 /**
@@ -134,6 +139,11 @@ function addPathsToSequence(paths) {
   for (const entry of fresh) {
     try { _maybeAutoRifeEntry(entry); } catch (_) { /* ignore */ }
   }
+  try {
+    import('/js/pool/auto-firstlast.js').then((m) => {
+      try { m.maybeAutoFLForSequence(fresh.map((e) => e.path)); } catch (_) { /* ignore */ }
+    }).catch(() => {});
+  } catch (_) { /* auto F/L must not break sequence */ }
   return fresh.length;
 }
 

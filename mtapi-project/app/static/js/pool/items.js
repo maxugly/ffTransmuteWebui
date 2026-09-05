@@ -226,6 +226,13 @@ function addPathsToPool(paths) {
   if (newPaths.length > 0 && state.settings?.autoAddToSequence) {
     try { addPathsToSequence(newPaths); } catch (_) { /* sequence render must not break import */ }
   }
+  if (newPaths.length > 0) {
+    try {
+      import('/js/pool/auto-firstlast.js').then((m) => {
+        try { m.maybeAutoFLForImport(newPaths); } catch (_) { /* ignore */ }
+      }).catch(() => {});
+    } catch (_) { /* auto F/L must not break import */ }
+  }
   return { added, firstNew };
 }
 

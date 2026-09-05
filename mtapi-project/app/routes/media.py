@@ -360,6 +360,7 @@ def register(app: FastAPI, probe_fn) -> None:
         path = (body or {}).get("path")
         which = ((body or {}).get("which") or "first").lower()
         output_path = (body or {}).get("output_path") or None
+        skip_if_exists = bool((body or {}).get("skip_if_exists", False))
         if not path:
             raise HTTPException(status_code=400, detail="path is required")
         if which not in ("first", "last"):
@@ -368,7 +369,7 @@ def register(app: FastAPI, probe_fn) -> None:
         if not path_obj.exists() or not path_obj.is_file():
             raise HTTPException(status_code=404, detail="Source file not found")
         out = Path(output_path).resolve() if output_path else None
-        return await media.export_frame_png(path_obj, which=which, output_path=out)
+        return await media.export_frame_png(path_obj, which=which, output_path=out, skip_if_exists=skip_if_exists)
 
     @app.get("/api/media_cache", tags=["meta"])
     async def media_cache_info():

@@ -61,6 +61,8 @@ function settingsSnapshot() {
     wallStyle: state.settings.wallStyle === 'first' ? 'first' : 'pair',
     scrollbarWidth: clampScrollbarWidth(state.settings.scrollbarWidth),
     autoAddToSequence: !!state.settings.autoAddToSequence,
+    autoFirstLast: !!state.settings.autoFirstLast,
+    autoFirstLastMode: state.settings.autoFirstLastMode === 'sequence' ? 'sequence' : 'import',
     muteVideos: state.settings.muteVideos !== false,
     warmModels: { ...(state.settings.warmModels || {}) },
   };
@@ -86,6 +88,8 @@ async function saveSettings(patch = {}) {
         autosave_interval: payload.autosaveInterval,
         scrollbar_width: payload.scrollbarWidth,
         auto_add_to_sequence: payload.autoAddToSequence,
+        auto_first_last: payload.autoFirstLast,
+        auto_first_last_mode: payload.autoFirstLastMode,
         mute_videos: payload.muteVideos,
         warm_models: payload.warmModels,
       }),
@@ -152,10 +156,18 @@ export function renderSettingsForm() {
             ${switchHtml('settingsPhashRam', 'Keep hashes in RAM', state.settings.phashToRam)}
             ${switchHtml('settingsWallPair', 'First + last wall', state.settings.wallStyle !== 'first')}
             ${switchHtml('settingsAutoSeq', 'Auto-add imports to Sequence', !!state.settings.autoAddToSequence)}
+            ${switchHtml('settingsAutoFL', 'Auto first/last', !!state.settings.autoFirstLast)}
+            <div class="settings-autofl-sub" id="settingsAutoFLSub" ${state.settings.autoFirstLast ? '' : 'hidden'}>
+              <div class="settings-autofl-mode" role="radiogroup" aria-label="Auto first/last trigger">
+                <label><input type="radio" name="autoFLMode" value="import" ${state.settings.autoFirstLastMode !== 'sequence' ? 'checked' : ''}> On pool import</label>
+                <label><input type="radio" name="autoFLMode" value="sequence" ${state.settings.autoFirstLastMode === 'sequence' ? 'checked' : ''}> On added to sequence</label>
+              </div>
+              <button type="button" class="btn" id="btnAutoFLBatch">Batch process existing</button>
+            </div>
             ${switchHtml('settingsMuteVideos', 'Mute videos', state.settings.muteVideos !== false)}
           </div>
         </div>
-        <p class="settings-card-desc">Wall default is one JPEG: first|last side by side at 120px each.<br>Off shows the single first-frame preview. L/M/H is match-size only.<br>Auto-add appends imported videos to the Sequence (deduped). Images are skipped — Sequence is video-only.<br>Mute videos keeps preview playback silent (autoplay-safe). Off = previews play audio.</p>
+        <p class="settings-card-desc">Wall default is one JPEG: first|last side by side at 120px each.<br>Off shows the single first-frame preview. L/M/H is match-size only.<br>Auto-add appends imported videos to the Sequence (deduped). Images are skipped — Sequence is video-only.<br>Auto first/last saves {stem}_first/_last.png next to each video; skips if present. Left-behind PNGs stay where they are if a video moves.<br>Mute videos keeps preview playback silent (autoplay-safe). Off = previews play audio.</p>
       </section>
       <section class="settings-card settings-warm" aria-labelledby="settingsWarmTitle">
         <div class="settings-card-head">
@@ -235,6 +247,31 @@ export function renderSettingsForm() {
   bindSwitch('settingsPhashRam', 'phashToRam');
   bindSwitch('settingsAutoSeq', 'autoAddToSequence');
   bindSwitch('settingsMuteVideos', 'muteVideos');
+  document.getElementById('settingsAutoFL')?.addEventListener('change', (e) => {
+    saveSettings({ autoFirstLast: e.target.checked });
+    document.getElementById('settingsAutoFLSub')?.toggleAttribute('hidden', !e.target.checked);
+  });
+  document.querySelectorAll('input[name="autoFLMode"]')?.forEach((el) => {
+    el.addEventListener('change', (e) => {
+      if (e.target.checked) saveSettings({ autoFirstLastMode: e.target.value === 'sequence' ? 'sequence' : 'import' });
+    });
+  });
+  document.getElementById('btnAutoFLBatch')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    if (btn.disabled) return;
+    btn.disabled = true;
+    try {
+      const m = await import('/js/pool/auto-firstlast.js');
+      await m.batchAutoFirstLast();
+    } catch (err) {
+      try {
+        const { logConsole } = await import('/app.js');
+        logConsole(`[AUTO F/L ERROR]: ${err.message}`, 'error');
+      } catch (_) { /* ignore */ }
+    } finally {
+      btn.disabled = false;
+    }
+  });
   document.getElementById('settingsWallPair')?.addEventListener('change', (e) => {
     saveSettings({ wallStyle: e.target.checked ? 'pair' : 'first' });
   });

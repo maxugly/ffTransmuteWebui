@@ -17,6 +17,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "autosave_interval": 30,
     "scrollbar_width": 6,
     "auto_add_to_sequence": False,
+    "auto_first_last": False,
+    "auto_first_last_mode": "import",
     "mute_videos": True,
     "warm_models": {"deepdream": False, "styletransfer": False, "fastsam": False},
 }
@@ -43,6 +45,8 @@ def _normalize_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
         "autosave_interval": max(5, min(3600, interval)),
         "scrollbar_width": bar,
         "auto_add_to_sequence": bool(raw.get("auto_add_to_sequence", False)),
+        "auto_first_last": bool(raw.get("auto_first_last", False)),
+        "auto_first_last_mode": "sequence" if str(raw.get("auto_first_last_mode", "import")).lower() == "sequence" else "import",
         "mute_videos": bool(raw.get("mute_videos", True)),
         "warm_models": {
             name: bool(warm.get(name, False))
