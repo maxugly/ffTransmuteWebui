@@ -64,24 +64,24 @@ function buildYtSections() {
    Video Models — The Big Chart (one card, one table)
    ═══════════════════════════════════════════════ */
 const MODELS_ROWS = [
-  { model: 'LTX-Video 2B / 13B', native: '512x768 — trained solely on 512x768', sweet: '768x512 / 640x640', warn: 'larger outputs may not improve quality', max: '768x768', dur: '5s', fl2v: 'no', notes: 'Super cheap, super coherent at low res' },
-  { model: 'LTX 2.0', native: '720p base', sweet: '768x448', max: '1280x704', dur: '5-6s', fl2v: '?', notes: '' },
-  { model: 'LTX 2.3', native: '1080p (4K support)', sweet: '960x960', max: '4K', dur: '5-8s', fl2v: '?', notes: "First LTX that's true 1080p native" },
-  { model: 'Wan 2.1 1.3B', native: '480p', sweet: '480p — 720p possible but less stable than 480p', max: '720p', dur: '5s', fl2v: 'no', notes: '' },
-  { model: 'Wan 2.1 14B / 2.2', native: '480p + 720p', sweet: '720p', max: '720p', dur: '5s', fl2v: '?', notes: '' },
-  { model: 'Seedance 1.0 Lite', native: '480p-720p', sweet: '480p rapid iteration, 720p balanced', max: '720p', dur: '5s', fl2v: '?', notes: '' },
-  { model: 'Seedance 1.0 Pro / Pro Fast', native: '1080p max but trained 720p', sweet: '720p / 640x640 — 1080p is final polish tier', max: '1080p', dur: '5-6s', fl2v: 'yes', notes: 'Your current model', highlight: true },
-  { model: 'Seedance 2.0', native: '1080p+', sweet: '720p — outputs 480p/720p/1080p/4K, Fast only 480p/720p', max: '4K / 1080p', dur: '5-10s multi-shot', fl2v: 'yes', notes: 'Native audio now' },
-  { model: 'Seedance 2.5 / 3.0', native: '1080p/4K', sweet: '720p for physics, 1080p for final', max: '4K', dur: '10-15s', fl2v: 'yes', notes: 'Same family' },
-  { model: 'Hailuo 2.3 / 02', native: '768p / 1080p', sweet: '768p — tier is 512p/768p/1080p, 768p is default physics', max: '1080p (6s only at 1080p)', dur: '6s', fl2v: '?', notes: '' },
-  { model: 'Vidu 1.0 / 1.5 / 2.0', native: '1080p', sweet: '540p drafts, 720p default, 1080p final', max: '1080p', dur: '4s or 8s', fl2v: '?', notes: '' },
-  { model: 'Vidu Q1 / Q3-Pro / S1', native: '540p / 1080p', sweet: '720p default', max: '1080p up to 16s', dur: 'Flexible 1-16s', fl2v: '?', notes: 'Q3 = best audio' },
-  { model: 'Kling 2.0 / 2.1 / 2.5 Turbo / 2.6', native: '1080p', sweet: '720p Standard (~1300x708), 1080p Pro', max: '1080p', dur: '5-10s', fl2v: 'yes', notes: 'Standard = 720p, Pro = 1080p' },
-  { model: 'Kling 3.0 / O3', native: 'Native 4K — 3840x2160 native rendering, no upscaling', sweet: '1080p Pro for physics, 4K for final — max 4K (3840x2160)', max: '4K 60fps', dur: '10-15s', fl2v: 'yes', notes: 'First true native 4K model' },
-  { model: 'Luma Ray2', native: '540p/720p', sweet: '720p', max: '720p', dur: '5-9s', fl2v: 'yes', notes: '' },
-  { model: 'Luma Ray3 / Ray3.14', native: 'Native 1080p — delivering native 1080p', sweet: '1080p — architecture scaled to produce crisp 1080p natively', max: '1080p + 4K upscaler', dur: '5-10s', fl2v: 'yes', notes: 'Your best for wall crash debris', highlight: true },
-  { model: 'Veo 3 / Veo 3 Fast / Veo 3.1', native: '720p/1080p/4K', sweet: '720p default, 1080p or 4K for final', max: '4K', dur: '8s', fl2v: '?', notes: 'Fast = double speed at 720p, Standard = HQ' },
-  { model: 'Pixverse 6.0 / Real Motion 3.5 Turbo / Motion 2.0', native: '720p', sweet: '640x640 / 720p', max: '1080p', dur: '—', fl2v: '?', notes: '' },
+  { model: 'LTX-Video 2B / 13B', native: '512x768 — trained solely on 512x768', sweet: '768x512 / 640x640', warn: 'larger outputs may not improve quality', max: '768x768', dur: '5s', fl2v: 'no', audio: 'no', notes: 'Super cheap, super coherent at low res', strengths: 'Cheap, stable, punches above its weight at low res', weaknesses: "Stuck at low res — upscaling won't save you" },
+  { model: 'LTX 2.0', native: '720p base', sweet: '768x448', max: '1280x704', dur: '5-6s', fl2v: '?', audio: '?', notes: '', strengths: 'Fast iteration, cheap to burn through drafts', weaknesses: "Ceiling's low, detail thins out past 720p" },
+  { model: 'LTX 2.3', native: '1080p (4K support)', sweet: '960x960', max: '4K', dur: '5-8s', fl2v: '?', audio: '?', notes: "First LTX that's true 1080p native", strengths: 'Speed plus a real 1080p base now', weaknesses: 'Tooling/ecosystem still catching up to the spec sheet' },
+  { model: 'Wan 2.1 1.3B', native: '480p', sweet: '480p — 720p possible but less stable than 480p', max: '720p', dur: '5s', fl2v: 'no', audio: 'no', notes: '', strengths: 'Tiny, runs local, cheap as dirt', weaknesses: '480p ceiling, no audio, nothing fancy' },
+  { model: 'Wan 2.1 14B / 2.2', native: '480p + 720p', sweet: '720p', max: '720p', dur: '5s', fl2v: '?', audio: '?', notes: '', strengths: 'Open weights, good for self-hosted pipelines', weaknesses: '720p ceiling, audio support unconfirmed' },
+  { model: 'Seedance 1.0 Lite', native: '480p-720p', sweet: '480p rapid iteration, 720p balanced', max: '720p', dur: '5s', fl2v: '?', audio: '?', notes: '', strengths: 'Quick, cheap iteration', weaknesses: "Ceiling's 720p, not built for final polish" },
+  { model: 'Seedance 1.0 Pro / Pro Fast', native: '1080p max but trained 720p', sweet: '720p / 640x640 — 1080p is final polish tier', max: '1080p', dur: '5-6s', fl2v: 'yes', audio: 'yes', notes: 'Your current model', highlight: true, strengths: 'Dependable middle ground, good cost-to-quality', weaknesses: '1080p is upscaled polish, not native — trained ceiling is 720p' },
+  { model: 'Seedance 2.0', native: '1080p+', sweet: '720p — outputs 480p/720p/1080p/4K, Fast only 480p/720p', max: '4K / 1080p', dur: '5-10s multi-shot', fl2v: 'yes', audio: 'yes', notes: 'Native audio now', strengths: 'Multi-shot support, native audio is new territory', weaknesses: 'Audio sync still rough around the edges' },
+  { model: 'Seedance 2.5 / 3.0', native: '1080p/4K', sweet: '720p for physics, 1080p for final', max: '4K', dur: '10-15s', fl2v: 'yes', audio: 'yes', notes: 'Same family', strengths: 'Scaled-up duration and resolution, same reliable bones', weaknesses: 'Compute cost rises with the ambition, less field-tested' },
+  { model: 'Hailuo 2.3 / 02', native: '768p / 1080p', sweet: '768p — tier is 512p/768p/1080p, 768p is default physics', max: '1080p (6s only at 1080p)', dur: '6s', fl2v: '?', audio: '?', notes: '', strengths: 'Solid motion & camera work for the price, good character consistency', weaknesses: 'Hard 6s ceiling, 1080p only unlocks at max length' },
+  { model: 'Vidu 1.0 / 1.5 / 2.0', native: '1080p', sweet: '540p drafts, 720p default, 1080p final', max: '1080p', dur: '4s or 8s', fl2v: '?', audio: '?', notes: '', strengths: 'Good subject consistency, flexible tiers for drafting', weaknesses: 'Mid-pack resolution, nothing to write home about' },
+  { model: 'Vidu Q1 / Q3-Pro / S1', native: '540p / 1080p', sweet: '720p default', max: '1080p up to 16s', dur: 'Flexible 1-16s', fl2v: '?', audio: '?', notes: 'Q3 = best audio', strengths: 'Best audio sync in the lineup, long flexible duration', weaknesses: 'Resolution can drop to 540p depending on tier' },
+  { model: 'Kling 2.0 / 2.1 / 2.5 Turbo / 2.6', native: '1080p', sweet: '720p Standard (~1300x708), 1080p Pro', max: '1080p', dur: '5-10s', fl2v: 'yes', audio: 'yes', notes: 'Standard = 720p, Pro = 1080p', strengths: 'Strong prompt adherence, industry workhorse, reliable motion', weaknesses: 'Credit-hungry, Pro tier costs stack up fast' },
+  { model: 'Kling 3.0 / O3', native: 'Native 4K — 3840x2160 native rendering, no upscaling', sweet: '1080p Pro for physics, 4K for final — max 4K (3840x2160)', max: '4K 60fps', dur: '10-15s', fl2v: 'yes', audio: 'yes', notes: 'First true native 4K model', strengths: 'Best-in-class detail and framerate, no upscale softness', weaknesses: 'Slow, expensive, still shaking off the new-car smell' },
+  { model: 'Luma Ray2', native: '540p/720p', sweet: '720p', max: '720p', dur: '5-9s', fl2v: 'yes', audio: 'yes', notes: '', strengths: 'Good lighting and physics feel', weaknesses: 'Capped at 720p, showing its age next to Ray3' },
+  { model: 'Luma Ray3 / Ray3.14', native: 'Native 1080p — delivering native 1080p', sweet: '1080p — architecture scaled to produce crisp 1080p natively', max: '1080p + 4K upscaler', dur: '5-10s', fl2v: 'yes', audio: 'yes', notes: 'Your best for wall crash debris', highlight: true, strengths: 'Physics and particle chaos — your demolition derby model', weaknesses: 'Cost and render time climb with the upscale pass' },
+  { model: 'Veo 3 / Veo 3 Fast / Veo 3.1', native: '720p/1080p/4K', sweet: '720p default, 1080p or 4K for final', max: '4K', dur: '8s', fl2v: '?', audio: '?', notes: 'Fast = double speed at 720p, Standard = HQ', strengths: 'Best cinematic/prompt adherence, native dialogue and audio', weaknesses: 'Hard 8s cap, gated access, priced like it' },
+  { model: 'Pixverse 6.0 / Real Motion 3.5 Turbo / Motion 2.0', native: '720p', sweet: '640x640 / 720p', max: '1080p', dur: '—', fl2v: '?', audio: '?', notes: '', strengths: 'Fast, stylized, good for social-cut content', weaknesses: 'Realism takes a back seat to style, resolution modest' },
 ];
 
 /* ── Generic sortable-table helpers (Video + Image models) ── */
@@ -146,12 +146,15 @@ const MODELS_COLS = [
   { key: 'max', label: 'Max Output' },
   { key: 'dur', label: 'Duration Sweet Spot' },
   { key: 'fl2v', label: 'True FL2V', cls: 'ref-col-center' },
+  { key: 'audio', label: 'Audio', cls: 'ref-col-center' },
+  { key: 'strengths', label: 'Strengths' },
+  { key: 'weaknesses', label: 'Weaknesses' },
   { key: 'notes', label: 'Notes' },
 ];
 
 function modelsSortValue(r, key) {
   if (key === 'sweet') return [r.sweet, r.warn || ''].filter((v) => v && v !== '—').join(' — ');
-  if (key === 'fl2v') return { yes: '0', '?': '1', no: '2' }[r.fl2v] || '1';
+  if (key === 'fl2v' || key === 'audio') return { yes: '0', '?': '1', no: '2' }[r[key]] || '1';
   const v = r[key] || '';
   return v === '—' ? '' : v;
 }
@@ -177,8 +180,8 @@ function buildModelsSection() {
           </tbody>
         </table>
         <div class="ref-legend">
-          <span class="ref-status"><span class="ref-badge ref-badge-green">${SVG_CHECK} Yes</span> True FL2V (start + end frame)</span>
-          <span class="ref-status"><span class="ref-badge ref-badge-gray">${SVG_X} No</span> Start-frame / T2V only</span>
+          <span class="ref-status"><span class="ref-badge ref-badge-green">${SVG_CHECK} Yes</span> True FL2V (start + end frame) / Audio (native audio out)</span>
+          <span class="ref-status"><span class="ref-badge ref-badge-gray">${SVG_X} No</span> Start-frame / T2V only / silent</span>
           <span class="ref-status"><span class="ref-badge ref-badge-amber">${SVG_WARN} ?</span> Unconfirmed — tell me and I'll fix it</span>
         </div>
       </div>
@@ -200,6 +203,8 @@ function modelRow(r) {
       ? `<span class="ref-badge ref-badge-green">${SVG_CHECK} ${esc(r.notes)}</span>`
       : `<span class="ref-cell">${esc(r.notes)}</span>`)
     : '<span class="ref-muted">—</span>';
+  const strengths = r.strengths ? `<span class="ref-cell">${esc(r.strengths)}</span>` : '<span class="ref-muted">—</span>';
+  const weaknesses = r.weaknesses ? `<span class="ref-cell">${esc(r.weaknesses)}</span>` : '<span class="ref-muted">—</span>';
   return `<tr${r.highlight ? ' class="ref-highlight"' : ''}>
     <td><span class="ref-lic-name">${esc(r.model)}</span></td>
     <td><span class="ref-cell">${esc(r.native)}</span></td>
@@ -207,6 +212,9 @@ function modelRow(r) {
     <td><span class="ref-cell">${esc(r.max)}</span></td>
     <td><span class="ref-cell">${esc(r.dur)}</span></td>
     <td class="ref-col-center">${fl2vBadge(r.fl2v)}</td>
+    <td class="ref-col-center">${fl2vBadge(r.audio)}</td>
+    <td>${strengths}</td>
+    <td>${weaknesses}</td>
     <td>${notes}</td>
   </tr>`;
 }
