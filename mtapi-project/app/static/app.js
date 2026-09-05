@@ -263,6 +263,9 @@ let state = {
     autoAddToSequence: false,
     autoFirstLast: false,
     autoFirstLastMode: 'import',
+    autoAddOpOutputs: false,
+    autoAddOpOutputsToSequence: false,
+    autoAddOpImageOutputs: false,
     muteVideos: true,
     warmModels: { deepdream: false, styletransfer: false, fastsam: false },
   },
@@ -286,6 +289,9 @@ const SETTINGS_DEFAULTS = {
   autoAddToSequence: false,
   autoFirstLast: false,
   autoFirstLastMode: 'import',
+  autoAddOpOutputs: false,
+  autoAddOpOutputsToSequence: false,
+  autoAddOpImageOutputs: false,
   muteVideos: true,
   warmModels: { deepdream: false, styletransfer: false, fastsam: false },
 };
@@ -301,6 +307,9 @@ function mapServerSettings(data) {
   if (data.auto_add_to_sequence != null) mapped.autoAddToSequence = !!data.auto_add_to_sequence;
   if (data.auto_first_last != null) mapped.autoFirstLast = !!data.auto_first_last;
   if (data.auto_first_last_mode != null) mapped.autoFirstLastMode = data.auto_first_last_mode === 'sequence' ? 'sequence' : 'import';
+  if (data.auto_add_op_outputs != null) mapped.autoAddOpOutputs = !!data.auto_add_op_outputs;
+  if (data.auto_add_op_outputs_to_sequence != null) mapped.autoAddOpOutputsToSequence = !!data.auto_add_op_outputs_to_sequence;
+  if (data.auto_add_op_image_outputs != null) mapped.autoAddOpImageOutputs = !!data.auto_add_op_image_outputs;
   if (data.mute_videos != null) mapped.muteVideos = !!data.mute_videos;
   if (data.warm_models && typeof data.warm_models === 'object') {
     mapped.warmModels = { ...SETTINGS_DEFAULTS.warmModels, ...data.warm_models };

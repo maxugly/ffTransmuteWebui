@@ -63,6 +63,9 @@ function settingsSnapshot() {
     autoAddToSequence: !!state.settings.autoAddToSequence,
     autoFirstLast: !!state.settings.autoFirstLast,
     autoFirstLastMode: state.settings.autoFirstLastMode === 'sequence' ? 'sequence' : 'import',
+    autoAddOpOutputs: !!state.settings.autoAddOpOutputs,
+    autoAddOpOutputsToSequence: !!state.settings.autoAddOpOutputsToSequence,
+    autoAddOpImageOutputs: !!state.settings.autoAddOpImageOutputs,
     muteVideos: state.settings.muteVideos !== false,
     warmModels: { ...(state.settings.warmModels || {}) },
   };
@@ -90,6 +93,9 @@ async function saveSettings(patch = {}) {
         auto_add_to_sequence: payload.autoAddToSequence,
         auto_first_last: payload.autoFirstLast,
         auto_first_last_mode: payload.autoFirstLastMode,
+        auto_add_op_outputs: payload.autoAddOpOutputs,
+        auto_add_op_outputs_to_sequence: payload.autoAddOpOutputsToSequence,
+        auto_add_op_image_outputs: payload.autoAddOpImageOutputs,
         mute_videos: payload.muteVideos,
         warm_models: payload.warmModels,
       }),
@@ -168,6 +174,20 @@ export function renderSettingsForm() {
           </div>
         </div>
         <p class="settings-card-desc">Wall default is one JPEG: first|last side by side at 120px each.<br>Off shows the single first-frame preview. L/M/H is match-size only.<br>Auto-add appends imported videos to the Sequence (deduped). Images are skipped — Sequence is video-only.<br>Auto first/last saves {stem}_first/_last.png next to each video; skips if present. Left-behind PNGs stay where they are if a video moves.<br>Mute videos keeps preview playback silent (autoplay-safe). Off = previews play audio.</p>
+      </section>
+      <section class="settings-card settings-outputs" aria-labelledby="settingsOutputsTitle">
+        <div class="settings-card-head">
+          <span class="settings-card-kicker">Pools</span>
+          <h4 class="settings-card-name" id="settingsOutputsTitle">Op outputs</h4>
+        </div>
+        <div class="settings-switches">
+          ${switchHtml('settingsAutoAddOutputs', 'Auto-add op outputs to Pool', !!state.settings.autoAddOpOutputs)}
+          <div class="settings-autofl-sub" id="settingsAutoAddOutputsSub" ${state.settings.autoAddOpOutputs ? '' : 'hidden'}>
+            ${switchHtml('settingsAutoAddOutputsSeq', 'Also add to Sequence', !!state.settings.autoAddOpOutputsToSequence)}
+            ${switchHtml('settingsAutoAddOpImages', 'Auto-add image outputs to Image Pool', !!state.settings.autoAddOpImageOutputs)}
+          </div>
+        </div>
+        <p class="settings-card-desc">Covers Run results: Single-Clip Ops, Cut, Datamosh, Speed / RIFE, Convert, and batch items.<br>Videos go to the Video pool (+ optional Sequence, deduped, video-only). Stills go to the Image pool.<br>Stitch Sequence and Quick Transmute always add — they are explicit pool builders.<br>Dry runs and failures never add.</p>
       </section>
       <section class="settings-card settings-warm" aria-labelledby="settingsWarmTitle">
         <div class="settings-card-head">
@@ -251,6 +271,12 @@ export function renderSettingsForm() {
     saveSettings({ autoFirstLast: e.target.checked });
     document.getElementById('settingsAutoFLSub')?.toggleAttribute('hidden', !e.target.checked);
   });
+  document.getElementById('settingsAutoAddOutputs')?.addEventListener('change', (e) => {
+    saveSettings({ autoAddOpOutputs: e.target.checked });
+    document.getElementById('settingsAutoAddOutputsSub')?.toggleAttribute('hidden', !e.target.checked);
+  });
+  bindSwitch('settingsAutoAddOutputsSeq', 'autoAddOpOutputsToSequence');
+  bindSwitch('settingsAutoAddOpImages', 'autoAddOpImageOutputs');
   document.querySelectorAll('input[name="autoFLMode"]')?.forEach((el) => {
     el.addEventListener('change', (e) => {
       if (e.target.checked) saveSettings({ autoFirstLastMode: e.target.value === 'sequence' ? 'sequence' : 'import' });

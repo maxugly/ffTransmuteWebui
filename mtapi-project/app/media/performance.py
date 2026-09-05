@@ -19,6 +19,9 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "auto_add_to_sequence": False,
     "auto_first_last": False,
     "auto_first_last_mode": "import",
+    "auto_add_op_outputs": False,
+    "auto_add_op_outputs_to_sequence": False,
+    "auto_add_op_image_outputs": False,
     "mute_videos": True,
     "warm_models": {"deepdream": False, "styletransfer": False, "fastsam": False},
 }
@@ -47,6 +50,9 @@ def _normalize_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
         "auto_add_to_sequence": bool(raw.get("auto_add_to_sequence", False)),
         "auto_first_last": bool(raw.get("auto_first_last", False)),
         "auto_first_last_mode": "sequence" if str(raw.get("auto_first_last_mode", "import")).lower() == "sequence" else "import",
+        "auto_add_op_outputs": bool(raw.get("auto_add_op_outputs", False)),
+        "auto_add_op_outputs_to_sequence": bool(raw.get("auto_add_op_outputs_to_sequence", False)),
+        "auto_add_op_image_outputs": bool(raw.get("auto_add_op_image_outputs", False)),
         "mute_videos": bool(raw.get("mute_videos", True)),
         "warm_models": {
             name: bool(warm.get(name, False))

@@ -987,6 +987,11 @@ function displayOpResult(res) {
   // Preview the output if not a dry run and output path exists
   if (!res.dry_run && res.output_path) {
     showPreview(res.output_path);
+    try {
+      import('/js/pool/auto-add-outputs.js').then((m) => {
+        try { m.maybeAutoAddOpOutput(res.output_path); } catch (_) { /* ignore */ }
+      }).catch(() => {});
+    } catch (_) { /* auto-add must not break results */ }
   } else if (res.dry_run) {
     logConsole(`[DRY RUN]: Complete. No files written.`);
     elements.mediaViewer.innerHTML = `
