@@ -676,6 +676,46 @@ function resolveActiveOpAndBody() {
         end_frame: window.globalInputs.frameEnd || 999999,
       };
     }
+    if (activeTransmuteOp === 'zoom') {
+      const sizeSel = document.getElementById('zoomOutSize')?.value || 'source';
+      let ow = null, oh = null;
+      if (sizeSel === 'custom') {
+        ow = parseInt(document.getElementById('zoomWidth')?.value || '960', 10);
+        oh = parseInt(document.getElementById('zoomHeight')?.value || '960', 10);
+      } else if (sizeSel !== 'source') {
+        const m = sizeSel.match(/(\d+)x(\d+)/);
+        if (m) { ow = parseInt(m[1], 10); oh = parseInt(m[2], 10); }
+      }
+      const txRaw = document.getElementById('zoomTargetX')?.value.trim();
+      const tyRaw = document.getElementById('zoomTargetY')?.value.trim();
+      body = {
+        input_path: input, output_path: output, dry_run: dryRun,
+        engine: document.getElementById('zoomEngine')?.value || 'stable',
+        preset: document.getElementById('zoomPreset')?.value || 'zoom_in',
+        duration_sec: parseFloat(document.getElementById('zoomDuration')?.value) || 3.0,
+        fps: parseFloat(document.getElementById('zoomFps')?.value) || 24,
+        output_width: ow, output_height: oh,
+        zoom_rate: parseFloat(document.getElementById('zoomRate')?.value) || 0.02,
+        direction: document.getElementById('zoomDirection')?.value || 'in',
+        zoom_cap: parseFloat(document.getElementById('zoomCap')?.value ?? '3.0'),
+        prescale: parseInt(document.getElementById('zoomPrescale')?.value || '4', 10),
+        pan_x: parseFloat(document.getElementById('zoomPanX')?.value) || 0,
+        pan_y: parseFloat(document.getElementById('zoomPanY')?.value) || 0,
+        target_x: txRaw ? parseFloat(txRaw) : null,
+        target_y: tyRaw ? parseFloat(tyRaw) : null,
+        osc_amp: parseFloat(document.getElementById('zoomOscAmp')?.value) || 0,
+        osc_freq: parseFloat(document.getElementById('zoomOscFreq')?.value) || 10,
+        rotate_rate: parseFloat(document.getElementById('zoomRotate')?.value) || 0,
+        easing: document.getElementById('zoomEasing')?.value || 'none',
+        punch_frame: parseInt(document.getElementById('zoomPunchFrame')?.value || '20', 10),
+        glitch_amt: parseFloat(document.getElementById('zoomGlitch')?.value) || 0,
+        hue_cycle: document.getElementById('zoomHue')?.value === '1',
+        hue_rate: parseFloat(document.getElementById('zoomHueRate')?.value) || 2.0,
+        frame_d: parseInt(document.getElementById('zoomFrameD')?.value || '1', 10),
+        start_frame: window.globalInputs.frameStart || 1,
+        end_frame: window.globalInputs.frameEnd || 999999,
+      };
+    }
 
   } else if (tab === 'multi') {
     const mode = activeMultiMode;

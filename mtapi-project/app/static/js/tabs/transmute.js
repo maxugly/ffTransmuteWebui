@@ -16,7 +16,8 @@ const transmuteOpsDetails = {
   crop_exact: { summary: "Center-crop to exact resolution", fields: ['width', 'height'] },
   stretch_exact: { summary: "Stretch to exact resolution", fields: ['width', 'height'] },
   flip_rotate: { summary: "Flip / rotate (lossless geometry)", fields: ['flip_rotate'] },
-  speed_ramp: { summary: "Speed ramp (spin-up / spin-down)", fields: ['speed_ramp'] }
+  speed_ramp: { summary: "Speed ramp (spin-up / spin-down)", fields: ['speed_ramp'] },
+  zoom: { summary: "Zoom / pan (still → video or video → video)", fields: ['zoom'] }
 };
 
 let activeTransmuteOp = 'first_frame';
@@ -162,6 +163,117 @@ function updateTransmuteExtras() {
   `;
   }
 
+  if (fields.includes('zoom')) {
+    html += `
+    <div class="form-row">
+      <label for="zoomEngine">Engine</label>
+      <select id="zoomEngine">
+        <option value="stable" selected>Stable (Pillow lerp)</option>
+        <option value="raw">Raw (ffmpeg zoompan)</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label for="zoomPreset">Preset</label>
+      <select id="zoomPreset">
+        <option value="zoom_in" selected>Zoom in</option>
+        <option value="zoom_out">Zoom out</option>
+        <option value="targeted">Targeted zoom</option>
+        <option value="kenburns">Ken Burns</option>
+        <option value="ease_in">Ease in (accel)</option>
+        <option value="ease_out">Ease out (decel)</option>
+        <option value="punch">Punch zoom</option>
+        <option value="spiral">Spiral zoom</option>
+        <option value="glitch">Glitch zoom</option>
+        <option value="hue_cycle">Hue cycle</option>
+        <option value="custom">Custom</option>
+      </select>
+    </div>
+    <div class="knob-row">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'zoomDuration', label: 'Duration (s)', value: '3.0' })}
+        ${knobUnitHtml({ id: 'zoomFps', label: 'FPS', value: '24' })}
+        ${knobUnitHtml({ id: 'zoomFrameD', label: 'Frame d', value: '1' })}
+      </div>
+      <p class="knob-row-legend" id="zoomInfoLine">Set knobs to see frame plan.</p>
+    </div>
+    <div class="form-row">
+      <label for="zoomOutSize">Output size</label>
+      <select id="zoomOutSize">
+        <option value="source" selected>Source size</option>
+        <option value="960x960">960×960</option>
+        <option value="1080x1080">1080×1080</option>
+        <option value="1920x1080">1920×1080</option>
+        <option value="720x1280">720×1280</option>
+        <option value="custom">Custom…</option>
+      </select>
+    </div>
+    <div class="knob-row" id="zoomCustomSizeRow" style="display:none;">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'zoomWidth', label: 'Width', value: '960' })}
+        ${knobUnitHtml({ id: 'zoomHeight', label: 'Height', value: '960' })}
+      </div>
+      <p class="knob-row-legend">Pixels (forced even).</p>
+    </div>
+    <div class="knob-row">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'zoomRate', label: 'Zoom rate', value: '0.02' })}
+        ${knobUnitHtml({ id: 'zoomCap', label: 'Max zoom', value: '3.0' })}
+        ${knobUnitHtml({ id: 'zoomPanX', label: 'Pan X', value: '0' })}
+        ${knobUnitHtml({ id: 'zoomPanY', label: 'Pan Y', value: '0' })}
+      </div>
+      <p class="knob-row-legend">Rate = zoom/frame. Cap 0 = none. Pan = px drift/frame.</p>
+    </div>
+    <div class="form-row">
+      <label for="zoomDirection">Direction</label>
+      <select id="zoomDirection">
+        <option value="in" selected>Zoom in</option>
+        <option value="out">Zoom out</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label for="zoomPrescale">Pre-scale (raw stills)</label>
+      <select id="zoomPrescale">
+        <option value="2">2×</option>
+        <option value="4" selected>4×</option>
+        <option value="8">8×</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label for="zoomTargetX">Target X / Y</label>
+      <div class="input-row">
+        <input type="text" id="zoomTargetX" placeholder="200">
+        <input type="text" id="zoomTargetY" placeholder="300">
+      </div>
+    </div>
+    <div class="knob-row">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'zoomOscAmp', label: 'Osc amp', value: '0' })}
+        ${knobUnitHtml({ id: 'zoomOscFreq', label: 'Osc freq', value: '10' })}
+        ${knobUnitHtml({ id: 'zoomRotate', label: 'Rotate/f', value: '0' })}
+        ${knobUnitHtml({ id: 'zoomGlitch', label: 'Glitch', value: '0' })}
+      </div>
+      <p class="knob-row-legend">Osc = sin drift. Rotate/glitch/hue need raw engine.</p>
+    </div>
+    <div class="form-row">
+      <label for="zoomEasing">Easing</label>
+      <select id="zoomEasing">
+        <option value="none" selected>None (linear)</option>
+        <option value="accel">Accel (^1.5)</option>
+        <option value="decel">Decel (sqrt)</option>
+        <option value="punch">Punch (freeze + burst)</option>
+      </select>
+    </div>
+    <div class="knob-row">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'zoomPunchFrame', label: 'Punch frame', value: '20' })}
+        ${knobUnitHtml({ id: 'zoomHueRate', label: 'Hue rate', value: '2.0' })}
+        ${knobUnitHtml({ id: 'zoomHue', label: 'Hue cycle', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+      </div>
+      <p class="knob-row-legend">Raw ffmpeg zoompan can jitter on slow zooms — stable stays Pillow. d&gt;1 looks choppy.</p>
+    </div>
+  `;
+  }
+
   extrasContainer.innerHTML = html;
 
   if (fields.includes('quality')) {
@@ -262,6 +374,115 @@ function updateTransmuteExtras() {
       }
     });
   }
+
+  if (fields.includes('zoom')) {
+    setupContinuousKnob({
+      knobId: 'zoomDurationKnob', indicatorId: 'zoomDurationKnobInd',
+      valueId: 'zoomDurationVal', hiddenId: 'zoomDuration',
+      min: 0.5, max: 60, step: 0.1, decimals: 1,
+    });
+    setupContinuousKnob({
+      knobId: 'zoomFpsKnob', indicatorId: 'zoomFpsKnobInd',
+      valueId: 'zoomFpsVal', hiddenId: 'zoomFps',
+      min: 1, max: 120, step: 1, decimals: 0,
+    });
+    setupContinuousKnob({
+      knobId: 'zoomFrameDKnob', indicatorId: 'zoomFrameDKnobInd',
+      valueId: 'zoomFrameDVal', hiddenId: 'zoomFrameD',
+      min: 1, max: 5, step: 1, decimals: 0,
+    });
+    setupContinuousKnob({
+      knobId: 'zoomRateKnob', indicatorId: 'zoomRateKnobInd',
+      valueId: 'zoomRateVal', hiddenId: 'zoomRate',
+      min: 0.001, max: 0.1, step: 0.001, decimals: 3,
+    });
+    setupContinuousKnob({
+      knobId: 'zoomCapKnob', indicatorId: 'zoomCapKnobInd',
+      valueId: 'zoomCapVal', hiddenId: 'zoomCap',
+      min: 0, max: 10, step: 0.1, decimals: 1,
+    });
+    setupContinuousKnob({
+      knobId: 'zoomPanXKnob', indicatorId: 'zoomPanXKnobInd',
+      valueId: 'zoomPanXVal', hiddenId: 'zoomPanX',
+      min: -20, max: 20, step: 0.5, decimals: 1,
+    });
+    setupContinuousKnob({
+      knobId: 'zoomPanYKnob', indicatorId: 'zoomPanYKnobInd',
+      valueId: 'zoomPanYVal', hiddenId: 'zoomPanY',
+      min: -20, max: 20, step: 0.5, decimals: 1,
+    });
+    setupContinuousKnob({
+      knobId: 'zoomWidthKnob', indicatorId: 'zoomWidthKnobInd',
+      valueId: 'zoomWidthVal', hiddenId: 'zoomWidth',
+      min: 16, max: 7680, step: 2, decimals: 0, sensitivity: 220,
+    });
+    setupContinuousKnob({
+      knobId: 'zoomHeightKnob', indicatorId: 'zoomHeightKnobInd',
+      valueId: 'zoomHeightVal', hiddenId: 'zoomHeight',
+      min: 16, max: 4320, step: 2, decimals: 0, sensitivity: 220,
+    });
+    setupContinuousKnob({
+      knobId: 'zoomOscAmpKnob', indicatorId: 'zoomOscAmpKnobInd',
+      valueId: 'zoomOscAmpVal', hiddenId: 'zoomOscAmp',
+      min: 0, max: 200, step: 1, decimals: 0,
+    });
+    setupContinuousKnob({
+      knobId: 'zoomOscFreqKnob', indicatorId: 'zoomOscFreqKnobInd',
+      valueId: 'zoomOscFreqVal', hiddenId: 'zoomOscFreq',
+      min: 1, max: 240, step: 1, decimals: 0,
+    });
+    setupContinuousKnob({
+      knobId: 'zoomRotateKnob', indicatorId: 'zoomRotateKnobInd',
+      valueId: 'zoomRotateVal', hiddenId: 'zoomRotate',
+      min: 0, max: 1, step: 0.01, decimals: 2,
+    });
+    setupContinuousKnob({
+      knobId: 'zoomGlitchKnob', indicatorId: 'zoomGlitchKnobInd',
+      valueId: 'zoomGlitchVal', hiddenId: 'zoomGlitch',
+      min: 0, max: 0.5, step: 0.01, decimals: 2,
+    });
+    setupContinuousKnob({
+      knobId: 'zoomPunchFrameKnob', indicatorId: 'zoomPunchFrameKnobInd',
+      valueId: 'zoomPunchFrameVal', hiddenId: 'zoomPunchFrame',
+      min: 1, max: 240, step: 1, decimals: 0,
+    });
+    setupContinuousKnob({
+      knobId: 'zoomHueRateKnob', indicatorId: 'zoomHueRateKnobInd',
+      valueId: 'zoomHueRateVal', hiddenId: 'zoomHueRate',
+      min: 0.5, max: 20, step: 0.5, decimals: 1,
+    });
+    setupBinaryKnob({
+      knobId: 'zoomHueKnob', indicatorId: 'zoomHueKnobInd', hiddenId: 'zoomHue',
+      leftValue: '0', rightValue: '1', initial: '0',
+    });
+
+    const sizeSel = document.getElementById('zoomOutSize');
+    const customRow = document.getElementById('zoomCustomSizeRow');
+    const syncSizeRow = () => {
+      if (customRow) customRow.style.display = (sizeSel && sizeSel.value === 'custom') ? '' : 'none';
+      updateZoomInfoLine();
+    };
+    if (sizeSel) sizeSel.addEventListener('change', syncSizeRow);
+
+    const presetSel = document.getElementById('zoomPreset');
+    if (presetSel) presetSel.addEventListener('change', () => {
+      applyZoomPreset(presetSel.value);
+      updateZoomInfoLine();
+    });
+    // Any manual knob edit flips preset to custom.
+    ['zoomRate', 'zoomPanX', 'zoomPanY', 'zoomRotate', 'zoomGlitch', 'zoomEasing'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', () => {
+        if (presetSel && presetSel.value !== 'custom') presetSel.value = 'custom';
+        updateZoomInfoLine();
+      });
+    });
+    ['zoomDuration', 'zoomFps'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', updateZoomInfoLine);
+    });
+    updateZoomInfoLine();
+  }
 }
 
 function updateRampInfoLine() {
@@ -279,6 +500,47 @@ function updateRampInfoLine() {
   const T_needed = Math.log(ratio) * Math.min(S, E) * dur / (ratio - 1);
   line.textContent = `Source needed: ${T_needed.toFixed(1)}s  →  output ~${dur.toFixed(1)}s  ` +
     `(start ${S.toFixed(2)}× → end ${E.toFixed(2)}×)`;
+}
+
+function applyZoomPreset(preset) {
+  const set = (id, v) => { const el = document.getElementById(id); if (el) { el.value = String(v); el.dispatchEvent(new Event('input', { bubbles: true })); } };
+  const setSel = (id, v) => { const el = document.getElementById(id); if (el) { el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); } };
+  switch (preset) {
+    case 'zoom_in':
+      set('zoomRate', '0.02'); setSel('zoomDirection', 'in'); set('zoomCap', '3.0');
+      set('zoomPanX', '0'); set('zoomPanY', '0'); setSel('zoomEasing', 'none');
+      set('zoomRotate', '0'); set('zoomGlitch', '0'); break;
+    case 'zoom_out':
+      set('zoomRate', '0.02'); setSel('zoomDirection', 'out'); set('zoomCap', '2.5');
+      set('zoomPanX', '0'); set('zoomPanY', '0'); setSel('zoomEasing', 'none'); break;
+    case 'targeted':
+      set('zoomRate', '0.02'); setSel('zoomDirection', 'in');
+      set('zoomTargetX', '200'); set('zoomTargetY', '300'); break;
+    case 'kenburns':
+      set('zoomRate', '0.005'); set('zoomPanX', '2'); set('zoomPanY', '1'); break;
+    case 'ease_in': setSel('zoomEasing', 'accel'); break;
+    case 'ease_out': setSel('zoomEasing', 'decel'); break;
+    case 'punch':
+      setSel('zoomEasing', 'punch'); set('zoomPunchFrame', '20'); break;
+    case 'spiral':
+      set('zoomRate', '0.02'); set('zoomRotate', '0.01'); setSel('zoomEngine', 'raw'); break;
+    case 'glitch':
+      set('zoomRate', '0.02'); set('zoomGlitch', '0.1'); setSel('zoomEngine', 'raw'); break;
+    case 'hue_cycle':
+      setSel('zoomEngine', 'raw'); break;
+    default: break;
+  }
+}
+
+function updateZoomInfoLine() {
+  const line = document.getElementById('zoomInfoLine');
+  if (!line) return;
+  const dur = parseFloat(document.getElementById('zoomDuration')?.value) || 3;
+  const fps = parseFloat(document.getElementById('zoomFps')?.value) || 24;
+  const engine = document.getElementById('zoomEngine')?.value || 'stable';
+  const preset = document.getElementById('zoomPreset')?.value || 'zoom_in';
+  const n = Math.max(2, Math.round(dur * fps));
+  line.textContent = `${n} frames · @${fps}fps · ~${(n / fps).toFixed(2)}s · ${engine} · ${preset}`;
 }
 
 // Multi-clip Join/Grid Form
@@ -489,6 +751,8 @@ export {
   renderTransmuteForm,
   updateTransmuteExtras,
   updateRampInfoLine,
+  applyZoomPreset,
+  updateZoomInfoLine,
   renderMultiForm,
   renderMultiClipsList,
   addMultiClipPath,

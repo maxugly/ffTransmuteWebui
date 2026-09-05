@@ -532,6 +532,13 @@
     "summary": "Create a video from a single fixed image by panning and zooming between two defined viewports (Start Frame and Last Frame)."
   },
   {
+    "file": "singleclip-zoom-spec.md",
+    "path": "docs/singleclip-zoom-spec.md",
+    "category": "Operation",
+    "status": "Implemented",
+    "summary": "Single-Clip Ops zoom/pan dropdown op + POST /ops/zoom: stable Pillow lerp or raw ffmpeg zoompan, 11 presets, auto image/video detect."
+  },
+  {
     "file": "qr-illusion-art-spec.md",
     "path": "docs/qr-illusion-art-spec.md",
     "category": "Operation",

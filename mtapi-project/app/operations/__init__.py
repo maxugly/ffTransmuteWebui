@@ -21,6 +21,7 @@ from . import (  # noqa: F401
     styletransfer_ops,
     convert_ops,
     zoompan_ops,
+    zoom_ops,
     img2img_ops,
     txt2img_ops,
     agent_ops,
