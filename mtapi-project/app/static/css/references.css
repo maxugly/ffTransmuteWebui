@@ -57,6 +57,7 @@ body.references-tab-active .tool-input-preview {
   min-height: 0;
   box-sizing: border-box;
   gap: 12px;
+  overflow-y: auto;
 }
 
 /* ── Sub-tab bar ─────────────────────────── */
@@ -460,6 +461,23 @@ body.references-tab-active .tool-input-preview {
 .ref-workspace-wide {
   max-width: 1280px;
 }
+/* Wide (models) cards fill the workspace column and scroll their
+   body internally: the card is height-capped by the flex chain, so
+   without this the 76-row table is clipped by .ref-card{overflow:hidden}
+   with no scroll container engaging. Header stays pinned. */
+.ref-workspace-wide .ref-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.ref-workspace-wide .ref-card-head {
+  flex-shrink: 0;
+}
+.ref-workspace-wide .ref-card-body.ref-table-scroll {
+  overflow-y: auto;
+  min-height: 0;
+}
 .ref-table-scroll {
   overflow-x: auto;
 }
@@ -469,6 +487,10 @@ body.references-tab-active .tool-input-preview {
 }
 .ref-models-table thead th {
   white-space: normal;
+  position: sticky;
+  top: 0;
+  background: rgba(12, 18, 28, 0.97);
+  z-index: 1;
 }
 .ref-models-table thead th:nth-child(3) {
   min-width: 220px;
