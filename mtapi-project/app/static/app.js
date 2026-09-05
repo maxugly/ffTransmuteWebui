@@ -54,6 +54,7 @@ import { renderImageEditForm, collectImageEditBody } from '/js/tabs/imageedit.js
 import { refreshInputPreview, bindInputPreviewListeners } from '/js/ui/input-preview.js';
 import { makeClearable, bindClearables } from '/js/ui/clearable.js';
 import { setupNavSectionCollapse, ensureNavSectionForTab } from '/js/ui/nav-sections.js';
+import { saveTabScroll, restoreTabScroll, initTabScroll } from '/js/ui/tab-scroll.js';
 import { globalMediaIndex } from '/js/media-index.js';
 import '/js/repair-queue.js';
 import {
@@ -651,6 +652,7 @@ async function init() {
   setupGlobalTimeline();
   setupFrameScrubber();
   setupListKeys();
+  try { initTabScroll(() => state.activeTab); } catch (_) { /* ignore */ }
   setupEventListeners();
   setupPreviewConsoleResize();
   setupAllPanelResize();
@@ -865,6 +867,8 @@ function switchTab(tab) {
   // DOM forms are destroyed on tab changes. Capture their controls before the
   // next renderer replaces the panel so inactive tabs remain serializable.
   try { captureCurrentFormState(); } catch (_) { /* best effort */ }
+  // Session-only scroll memory: remember where we were on the tab we leave.
+  try { saveTabScroll(state.activeTab); } catch (_) { /* best effort */ }
   state.activeTab = tab;
   
   // Update Active Link UI
@@ -974,6 +978,8 @@ function switchTab(tab) {
   if (framesRow) framesRow.style.display = tabUsesFrameRange(tab) ? '' : 'none';
   // Re-sync probe when switching onto a range-aware tab
   _syncTabInputFromGlobal();
+  // Session-only scroll memory: jump back to where this tab was left.
+  try { restoreTabScroll(tab); } catch (_) { /* best effort */ }
 }
 
 // Render Specific Tab Forms
