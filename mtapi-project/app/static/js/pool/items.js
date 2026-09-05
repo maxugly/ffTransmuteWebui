@@ -3,7 +3,7 @@ import { isVideoPath, basename, formatDurationExact } from '/js/utils.js';
 import { shortHash, buildPoolMetaHtml, scheduleSavePoolState } from '/js/pool/persistence.js';
 import { attachWallTenant, prepareWallTenants } from '/js/pool/wall-thumbs.js';
 import { repairItem } from '/js/repair-queue.js';
-import { applySeqTokenTimeStyles, updateSeqClipSettings, displayFocusPath, updatePoolFocusFrame, setPoolFocus, updateSelectionHighlights, updateSeqTransportUI, seqStop, addPathToSequence } from '/js/pool/sequence.js';
+import { applySeqTokenTimeStyles, updateSeqClipSettings, displayFocusPath, updatePoolFocusFrame, setPoolFocus, updateSelectionHighlights, updateSeqTransportUI, seqStop, addPathToSequence, addPathsToSequence } from '/js/pool/sequence.js';
 import { runQuickTransmute } from '/js/tabs/quick.js';
 import { addMultiClipPath } from '/js/tabs/transmute.js';
 
@@ -190,6 +190,7 @@ function addPathsToPool(paths) {
   let added = 0;
   let skipped = 0;
   const existingPaths = new Set(state.pool.items.map(i => i.path));
+  const newPaths = [];
   let firstNew = null;
 
   for (const raw of paths) {
@@ -213,6 +214,7 @@ function addPathsToPool(paths) {
       hash: null,
     };
     state.pool.items.push(addedItem);
+    newPaths.push(path);
     try { window.globalMediaIndex?.put(addedItem); } catch (_) { /* ignore */ }
     try { repairItem(addedItem, { force: true }); } catch (_) { /* ignore */ }
     if (!firstNew) firstNew = path;
@@ -221,6 +223,9 @@ function addPathsToPool(paths) {
 
   logConsole(`[POOL]: +${added} video(s)${skipped ? `, skipped ${skipped}` : ''}`);
   if (added > 0) scheduleSavePoolState();
+  if (newPaths.length > 0 && state.settings?.autoAddToSequence) {
+    try { addPathsToSequence(newPaths); } catch (_) { /* sequence render must not break import */ }
+  }
   return { added, firstNew };
 }
 

@@ -15,6 +15,7 @@ import { validateItemSignature, metaRetryHtml, hasRestoredIdentity } from '/js/p
 import { globalMediaIndex } from '/js/media-index.js';
 import { installPoolScrollPaint } from '/js/pool/layout.js';
 import { repairItem } from '/js/repair-queue.js';
+import { addPathsToSequence } from '/js/pool/sequence-composer.js';
 import { createVirtualGrid } from '/js/pool/virtual-grid.js';
 import { prepareWallTenants, attachWallTenant, detachWallTenant } from '/js/pool/wall-thumbs.js';
 
@@ -223,6 +224,7 @@ function addPathsToImagePool(paths) {
   let added = 0;
   let skipped = 0;
   const existing = new Set(ip.items.map(i => i.path));
+  const newPaths = [];
   let firstNew = null;
 
   for (const raw of paths) {
@@ -246,6 +248,7 @@ function addPathsToImagePool(paths) {
       hash: null,
     };
     ip.items.push(item);
+    newPaths.push(path);
     try { globalMediaIndex.put(item); } catch (_) { /* ignore */ }
     try { repairItem(item, { force: true }); } catch (_) { /* ignore */ }
     if (!firstNew) firstNew = path;
@@ -254,6 +257,12 @@ function addPathsToImagePool(paths) {
 
   logConsole(`[IMAGE POOL]: +${added} image(s)${skipped ? `, skipped ${skipped}` : ''}`);
   if (added > 0) scheduleSavePoolState();
+  // Shared auto-add switch. No-op today: addPathsToSequence keeps the
+  // video-only invariant (isVideoPath gate), so stills are skipped until
+  // Sequence learns image entries (sequence-images-spec).
+  if (newPaths.length > 0 && state.settings?.autoAddToSequence) {
+    try { addPathsToSequence(newPaths); } catch (_) { /* sequence render must not break import */ }
+  }
   return { added, firstNew };
 }
 

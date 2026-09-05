@@ -97,6 +97,46 @@ function addPathToSequence(path, insertAt = null) {
   _maybeAutoRifeEntry(entry);
 }
 
+/**
+ * Batch-append paths to the Sequence with a single render + save.
+ * Used by pool auto-add on import (see settings `autoAddToSequence`).
+ * Skips duplicates, non-video paths (Sequence is video-only), and blanks.
+ * @returns {number} entries appended.
+ */
+function addPathsToSequence(paths) {
+  if (!Array.isArray(paths) || paths.length === 0) return 0;
+  const seen = new Set((state.pool.sequence || []).map(s => s.path));
+  const fresh = [];
+  for (const raw of paths) {
+    const path = typeof raw === 'string' ? raw.trim() : '';
+    if (!path || !isVideoPath(path) || seen.has(path)) continue;
+    seen.add(path);
+    const item = findPoolItem(path);
+    fresh.push({
+      id: nextSeqId(),
+      path,
+      name: item?.name || basename(path),
+      targetDuration: null, // seconds; null = native length
+      _hadTarget: false,
+      variantPath: (state.pool.selectedVariantPaths || {})[path] || null,
+      _rifeStatus: null, // null | 'pending' | 'running' | 'done' | 'skipped'
+    });
+  }
+  if (fresh.length === 0) return 0;
+  state.pool.sequence.push(...fresh);
+  logConsole(`[SEQ]: +${fresh.length} (auto-add on import)`);
+  renderSequenceBox();
+  try { renderPoolGrid(); } catch (_) { /* grid may be absent */ }
+  try { selectPoolItem(fresh[fresh.length - 1].path); } catch (_) { /* ignore */ }
+  refreshPoolToolbarCounts();
+  updateSeqTransportUI();
+  scheduleSavePoolState();
+  for (const entry of fresh) {
+    try { _maybeAutoRifeEntry(entry); } catch (_) { /* ignore */ }
+  }
+  return fresh.length;
+}
+
 function removeSequenceAt(idx) {
   if (idx < 0 || idx >= state.pool.sequence.length) return;
   const [removed] = state.pool.sequence.splice(idx, 1);
@@ -419,4 +459,4 @@ async function _updateSeqVariantBadges() {
   }
 }
 
-export { setupSequenceDropZone, addPathToSequence, removeSequenceAt, clearSequence, applySeqTokenSize, setSeqTokenSize, renderSequenceBox };
+export { setupSequenceDropZone, addPathToSequence, addPathsToSequence, removeSequenceAt, clearSequence, applySeqTokenSize, setSeqTokenSize, renderSequenceBox };

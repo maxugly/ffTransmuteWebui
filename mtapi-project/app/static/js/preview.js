@@ -129,7 +129,8 @@ function showPreview(filePath) {
     video.controls = true;
     video.autoplay = true;
     video.loop = true;
-    video.muted = true;
+    // Global "Mute videos" switch (default on = today's silent autoplay).
+    video.muted = state.settings?.muteVideos !== false;
     
     // If previewing a sequence item, apply its target playback speed
     if (state.pool.selectedSeqId != null) {

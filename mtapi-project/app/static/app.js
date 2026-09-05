@@ -259,6 +259,8 @@ let state = {
     autosaveInterval: 30,
     viewportLazyThumbnails: true,
     scrollbarWidth: 6,
+    autoAddToSequence: false,
+    muteVideos: true,
     warmModels: { deepdream: false, styletransfer: false, fastsam: false },
   },
   formState: {},
@@ -278,6 +280,8 @@ const SETTINGS_DEFAULTS = {
   autosaveInterval: 30,
   viewportLazyThumbnails: true,
   scrollbarWidth: 6,
+  autoAddToSequence: false,
+  muteVideos: true,
   warmModels: { deepdream: false, styletransfer: false, fastsam: false },
 };
 
@@ -289,6 +293,8 @@ function mapServerSettings(data) {
   if (data.phash_to_ram != null) mapped.phashToRam = !!data.phash_to_ram;
   if (data.autosave_interval != null) mapped.autosaveInterval = data.autosave_interval;
   if (data.scrollbar_width != null) mapped.scrollbarWidth = data.scrollbar_width;
+  if (data.auto_add_to_sequence != null) mapped.autoAddToSequence = !!data.auto_add_to_sequence;
+  if (data.mute_videos != null) mapped.muteVideos = !!data.mute_videos;
   if (data.warm_models && typeof data.warm_models === 'object') {
     mapped.warmModels = { ...SETTINGS_DEFAULTS.warmModels, ...data.warm_models };
   }

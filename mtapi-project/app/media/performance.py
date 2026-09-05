@@ -16,6 +16,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "phash_to_ram": False,
     "autosave_interval": 30,
     "scrollbar_width": 6,
+    "auto_add_to_sequence": False,
+    "mute_videos": True,
     "warm_models": {"deepdream": False, "styletransfer": False, "fastsam": False},
 }
 _settings_lock = asyncio.Lock()
@@ -40,6 +42,8 @@ def _normalize_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
         "phash_to_ram": bool(raw.get("phash_to_ram", False)),
         "autosave_interval": max(5, min(3600, interval)),
         "scrollbar_width": bar,
+        "auto_add_to_sequence": bool(raw.get("auto_add_to_sequence", False)),
+        "mute_videos": bool(raw.get("mute_videos", True)),
         "warm_models": {
             name: bool(warm.get(name, False))
             for name in ("deepdream", "styletransfer", "fastsam")

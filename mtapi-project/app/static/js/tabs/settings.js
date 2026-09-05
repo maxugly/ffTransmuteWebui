@@ -60,6 +60,8 @@ function settingsSnapshot() {
     phashToRam: !!state.settings.phashToRam,
     wallStyle: state.settings.wallStyle === 'first' ? 'first' : 'pair',
     scrollbarWidth: clampScrollbarWidth(state.settings.scrollbarWidth),
+    autoAddToSequence: !!state.settings.autoAddToSequence,
+    muteVideos: state.settings.muteVideos !== false,
     warmModels: { ...(state.settings.warmModels || {}) },
   };
 }
@@ -83,6 +85,8 @@ async function saveSettings(patch = {}) {
         phash_to_ram: payload.phashToRam,
         autosave_interval: payload.autosaveInterval,
         scrollbar_width: payload.scrollbarWidth,
+        auto_add_to_sequence: payload.autoAddToSequence,
+        mute_videos: payload.muteVideos,
         warm_models: payload.warmModels,
       }),
     });
@@ -147,9 +151,11 @@ export function renderSettingsForm() {
             ${switchHtml('settingsThumbRam', 'Keep thumbnails in RAM', state.settings.thumbnailsToRam)}
             ${switchHtml('settingsPhashRam', 'Keep hashes in RAM', state.settings.phashToRam)}
             ${switchHtml('settingsWallPair', 'First + last wall', state.settings.wallStyle !== 'first')}
+            ${switchHtml('settingsAutoSeq', 'Auto-add imports to Sequence', !!state.settings.autoAddToSequence)}
+            ${switchHtml('settingsMuteVideos', 'Mute videos', state.settings.muteVideos !== false)}
           </div>
         </div>
-        <p class="settings-card-desc">Wall default is one JPEG: first|last side by side at 120px each.<br>Off shows the single first-frame preview. L/M/H is match-size only.</p>
+        <p class="settings-card-desc">Wall default is one JPEG: first|last side by side at 120px each.<br>Off shows the single first-frame preview. L/M/H is match-size only.<br>Auto-add appends imported videos to the Sequence (deduped). Images are skipped — Sequence is video-only.<br>Mute videos keeps preview playback silent (autoplay-safe). Off = previews play audio.</p>
       </section>
       <section class="settings-card settings-warm" aria-labelledby="settingsWarmTitle">
         <div class="settings-card-head">
@@ -227,6 +233,8 @@ export function renderSettingsForm() {
   const bindSwitch = (id, patch) => document.getElementById(id)?.addEventListener('change', (e) => saveSettings({ [patch]: e.target.checked }));
   bindSwitch('settingsThumbRam', 'thumbnailsToRam');
   bindSwitch('settingsPhashRam', 'phashToRam');
+  bindSwitch('settingsAutoSeq', 'autoAddToSequence');
+  bindSwitch('settingsMuteVideos', 'muteVideos');
   document.getElementById('settingsWallPair')?.addEventListener('change', (e) => {
     saveSettings({ wallStyle: e.target.checked ? 'pair' : 'first' });
   });
