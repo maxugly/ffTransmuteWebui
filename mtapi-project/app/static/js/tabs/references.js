@@ -100,7 +100,7 @@ const MODELS_ROWS = [
   { model: 'Real Motion 3.2 Remix', native: '1080p', sweet: '720p default', max: '1080p', dur: '5-8s', fl2v: '?', audio: 'yes', notes: 'Use for Van Gogh + Real Motion combo pass. Free tier available.', strengths: 'Remix mode - can restyle motion while keeping physics, audio', weaknesses: 'Remix can warp your tiny sailor if strength too high' },
   { model: 'Real Motion 2.6 Remix', native: '720p', sweet: '540p default', max: '720p', dur: '5s', fl2v: '?', audio: 'no', notes: 'Only for style tests. Free tier available.', strengths: 'Remix on old 2.6 base, Free style experiments', weaknesses: 'No audio, 720p only, least stable' },
   { model: 'Wan 3.0', native: '1080p', sweet: '-', max: '1080p', dur: '30s', fl2v: '-', audio: 'yes', notes: 'Unified multimodal, 20 references', strengths: '-', weaknesses: '-' },
-  { model: 'Wan 3.0 Prime', native: '-', sweet: '-', max: '-', dur: '-', fl2v: '-', audio: '-', notes: '-', strengths: '-', weaknesses: '-' },
+  { model: 'Wan 3.0 Prime', category: 'Precision / Control', released: '2026-08', native: '1080p API model (480P/720P/1080P @30fps)', sweet: '720p drafts, 1080p finals', max: '1080p @30fps', dur: '2-30s (smart duration -1)', fl2v: 'yes', audio: 'yes', notes: 'Prime = speed tier of Wan 3.0 (~1.4x standard price)', strengths: 'Unified T2V+I2V+R2V in one model; refs span images, video, audio, even docs (.pptx/.pdf/.xls)', weaknesses: 'Hard 1080p ceiling, no 4K; invite-gated regional API; no open weights', tips: 'Set delivery (res/ratio/duration) before writing the prompt; 720p test, 1080p final; keep prompt-expansion ON; thinking mode for multi-beat; write the clip not the image — timecode, camera path, sound, constraints; exclusions as plain text, no negative field' },
   { model: 'Wan 2.7', native: '-', sweet: '-', max: '-', dur: '-', fl2v: '-', audio: '-', notes: '-', strengths: '-', weaknesses: '-' },
   { model: 'Wan 2.6', native: '-', sweet: '-', max: '-', dur: '-', fl2v: '-', audio: '-', notes: '-', strengths: '-', weaknesses: '-' },
   { model: 'Happy Horse 1.1', native: '720p/1080p', sweet: '-', max: '1080p', dur: '15s', fl2v: '-', audio: 'yes', notes: 'Multilingual lip-sync, joint audio-video', strengths: '-', weaknesses: '-' },
@@ -110,12 +110,12 @@ const MODELS_ROWS = [
   { model: 'Minimax H3 Max Turbo', native: '-', sweet: '-', max: '-', dur: '-', fl2v: '-', audio: '-', notes: '-', strengths: '-', weaknesses: '-' },
   { model: 'MiniMax Hailuo 2.3', native: '-', sweet: '-', max: '-', dur: '-', fl2v: '-', audio: '-', notes: '-', strengths: '-', weaknesses: '-' },
   { model: 'MiniMax Live Illustrations', native: '-', sweet: '-', max: '-', dur: '-', fl2v: '-', audio: '-', notes: '-', strengths: '-', weaknesses: '-' },
-  { model: 'Seedance 2.5 Lite', native: '-', sweet: '-', max: '-', dur: '30s', fl2v: '-', audio: 'yes', notes: 'Up to 50 multimodal references', strengths: '-', weaknesses: '-' },
+  { model: 'Seedance 2.5 Lite', category: 'Precision / Control', released: '2026-07', native: '720p class (native 480p/720p; announced 4K unverified on API)', sweet: '720p drafts — cheap 30s volume', max: '30s single pass (4K announced, API native 480p/720p)', dur: '4-30s (Ultra-Long 180s beta on Jimeng)', fl2v: '?', audio: 'yes', notes: 'Lite = fast/cheap tier of 2.5 family (announced Jun 23, shipped Jul 31)', strengths: '30s native single shot; 50 multimodal refs (image+video+audio); local in-scene edit without re-roll; ~$0.10-0.30/s', weaknesses: 'Announced 4K unverified on API tiers; 30s wanders without beat structure; region-gated rollout', tips: 'Write 30s in beats with explicit transitions; 9 refs usually beat 40; build a character-sheet reference image; chain past the limit via last frame; fix details with local edit instead of re-rolling' },
   { model: 'Seedance 2.0 Mini', native: '-', sweet: '-', max: '4K', dur: '15s', fl2v: '-', audio: 'yes', notes: 'High realism, production-ready', strengths: '-', weaknesses: '-' },
   { model: 'Seedance 1.0 Pro Fast', native: '-', sweet: '-', max: '-', dur: '-', fl2v: '-', audio: '-', notes: '-', strengths: '-', weaknesses: '-' },
   { model: 'Seedance 1 Lite', native: '-', sweet: '-', max: '-', dur: '-', fl2v: '-', audio: '-', notes: '-', strengths: '-', weaknesses: '-' },
   { model: 'Omni Human 1.5', native: '-', sweet: '-', max: '-', dur: '-', fl2v: '-', audio: '-', notes: '-', strengths: '-', weaknesses: '-' },
-  { model: 'Kling 3.0 Omni', native: '-', sweet: '-', max: '4K', dur: '15s', fl2v: '-', audio: 'yes', notes: 'Unified architecture, multilingual speech', strengths: '-', weaknesses: '-' },
+  { model: 'Kling 3.0 Omni', category: 'Precision / Control', released: '2026-02', native: '1080p (base 3.0 renders native 4K/60)', sweet: '720p Standard drafts ($0.08/s), 1080p/4K Pro finals', max: '4K/60fps on base 3.0; Omni 1080p', dur: '3-15s, multi-shot up to 6 cuts', fl2v: '?', audio: 'yes', notes: 'Omni = unified engine (T2V+I2V+extend+storyboard)', strengths: 'Per-shot storyboard control; voice binds to character; Character Identity 3.0; Canvas Agent spatial control', weaknesses: 'Pro 4K costs 2x and renders slow; consistency frays past ~10s single takes', tips: 'Think director not photographer — Shot, Character, Action, Lighting, Extra; lead with camera language; small edits beat full rewrites; 1080p-min clean references; name light setups explicitly' },
   { model: 'Kling 3.0 Motion Control', native: '-', sweet: '-', max: '-', dur: '-', fl2v: '-', audio: '-', notes: '-', strengths: '-', weaknesses: '-' },
   { model: 'Kling 01', native: '-', sweet: '-', max: '-', dur: '-', fl2v: '-', audio: '-', notes: '-', strengths: '-', weaknesses: '-' },
   { model: 'Grok Imagine Video 1.5', native: '-', sweet: '-', max: '-', dur: '-', fl2v: '-', audio: 'yes', notes: 'Improved motion physics, faster', strengths: '-', weaknesses: '-' },
@@ -199,6 +199,8 @@ let codeModelsSort = { key: 'model', dir: 1 };
 
 const MODELS_COLS = [
   { key: 'model', label: 'Model' },
+  { key: 'category', label: 'Category' },
+  { key: 'released', label: 'Released' },
   { key: 'native', label: 'Native Training Res' },
   { key: 'sweet', label: 'Sweet Spot for Physics / Coherence — Cheap' },
   { key: 'max', label: 'Max Output' },
@@ -207,6 +209,7 @@ const MODELS_COLS = [
   { key: 'audio', label: 'Audio', cls: 'ref-col-center' },
   { key: 'strengths', label: 'Strengths' },
   { key: 'weaknesses', label: 'Weaknesses' },
+  { key: 'tips', label: 'Use / Prompt Tips' },
   { key: 'notes', label: 'Notes' },
 ];
 
@@ -263,8 +266,13 @@ function modelRow(r) {
     : '<span class="ref-muted">—</span>';
   const strengths = r.strengths ? `<span class="ref-cell">${esc(r.strengths)}</span>` : '<span class="ref-muted">—</span>';
   const weaknesses = r.weaknesses ? `<span class="ref-cell">${esc(r.weaknesses)}</span>` : '<span class="ref-muted">—</span>';
+  const category = r.category ? `<span class="ref-cell">${esc(r.category)}</span>` : '<span class="ref-muted">—</span>';
+  const released = r.released ? `<span class="ref-cell">${esc(r.released)}</span>` : '<span class="ref-muted">—</span>';
+  const tips = r.tips ? `<span class="ref-cell">${esc(r.tips)}</span>` : '<span class="ref-muted">—</span>';
   return `<tr${r.highlight ? ' class="ref-highlight"' : ''}>
     <td><span class="ref-lic-name">${esc(r.model)}</span></td>
+    <td>${category}</td>
+    <td>${released}</td>
     <td><span class="ref-cell">${esc(r.native)}</span></td>
     <td>${sweet}</td>
     <td><span class="ref-cell">${esc(r.max)}</span></td>
@@ -273,6 +281,7 @@ function modelRow(r) {
     <td class="ref-col-center">${fl2vBadge(r.audio)}</td>
     <td>${strengths}</td>
     <td>${weaknesses}</td>
+    <td>${tips}</td>
     <td>${notes}</td>
   </tr>`;
 }
