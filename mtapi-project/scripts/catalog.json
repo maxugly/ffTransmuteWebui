@@ -1,0 +1,80 @@
+{
+  "scripts": [
+    {
+      "id": "digicam_2000s",
+      "label": "Digicam 2000s · cheap-camera photo",
+      "description": "Early-2000s cheap-camera look: VGA squish, soft plastic lens, CCD color, grain, on-camera flash + vignette, JPEG blocks. Works on video and image.",
+      "category": "Photo look",
+      "input_mode": "single",
+      "accepts": "any",
+      "uses_frame_range": true,
+      "op": "digicam_2000s",
+      "endpoint": "/ops/digicam_2000s",
+      "method": "POST",
+      "dry_run_param": "dry_run",
+      "groups": [
+        { "id": "resolution", "label": "1 · Resolution — sensor size" },
+        { "id": "lens", "label": "2 · Lens — cheap plastic" },
+        { "id": "color", "label": "3 · Color & CCD — squashed dynamic range" },
+        { "id": "grain", "label": "4 · Noise & Grain — high ISO" },
+        { "id": "flash", "label": "5 · Flash — direct on-camera blowout" },
+        { "id": "defects", "label": "6 · CCD defects — extra lore" },
+        { "id": "jpeg", "label": "7 · JPEG — block artifacts" },
+        { "id": "extras", "label": "8 · Extras — timestamp & interlace" }
+      ],
+      "parameters": [
+        { "name": "preset", "type": "select", "label": "Preset", "group": "resolution", "options": ["custom", "144p", "240p", "320p", "vga", "1mp", "720p"], "default": "vga", "legend": "Preset fills Width/Height. Custom keeps manual values." },
+        { "name": "width", "type": "knob", "label": "Width", "group": "resolution", "min": 32, "max": 1280, "step": 1, "decimals": 0, "default": 640 },
+        { "name": "height", "type": "knob", "label": "Height", "group": "resolution", "min": 32, "max": 1024, "step": 1, "decimals": 0, "default": 480 },
+        { "name": "downscale_method", "type": "select", "label": "Downscale method", "group": "resolution", "options": ["LANCZOS", "BILINEAR", "NEAREST", "BICUBIC"], "default": "LANCZOS", "legend": "NEAREST = extra pixelated." },
+        { "name": "pixelate", "type": "knob", "label": "Pixelate block", "group": "resolution", "min": 0, "max": 16, "step": 1, "decimals": 0, "default": 0, "legend": "0 = off. Extra crust on top of the resize." },
+
+        { "name": "blur_type", "type": "select", "label": "Blur type", "group": "lens", "options": ["gaussian", "box", "none"], "default": "gaussian" },
+        { "name": "blur_radius", "type": "knob", "label": "Blur radius", "group": "lens", "min": 0, "max": 5, "step": 0.1, "decimals": 1, "default": 0.7, "legend": "Cheap-lens softness." },
+        { "name": "focus_jitter", "type": "knob", "label": "AF miss jitter", "group": "lens", "min": 0, "max": 3, "step": 0.1, "decimals": 1, "default": 0 },
+
+        { "name": "contrast", "type": "knob", "label": "Contrast", "group": "color", "min": 0.2, "max": 2, "step": 0.01, "decimals": 2, "default": 0.65, "legend": "<1 squashes dynamic range." },
+        { "name": "brightness", "type": "knob", "label": "Brightness", "group": "color", "min": 0.5, "max": 2, "step": 0.01, "decimals": 2, "default": 1.12 },
+        { "name": "saturation", "type": "knob", "label": "Saturation", "group": "color", "min": 0, "max": 2, "step": 0.01, "decimals": 2, "default": 0.8 },
+        { "name": "gamma", "type": "knob", "label": "Gamma", "group": "color", "min": 0.5, "max": 2.5, "step": 0.05, "decimals": 2, "default": 1.0 },
+        { "name": "warm_r", "type": "knob", "label": "Warm R", "group": "color", "min": -50, "max": 50, "step": 1, "decimals": 0, "default": 22 },
+        { "name": "warm_g", "type": "knob", "label": "Warm G", "group": "color", "min": -50, "max": 50, "step": 1, "decimals": 0, "default": 12 },
+        { "name": "warm_b", "type": "knob", "label": "Warm B", "group": "color", "min": -50, "max": 50, "step": 1, "decimals": 0, "default": -8, "legend": "Negative B = yellow cast." },
+        { "name": "tint_strength", "type": "knob", "label": "Yellow tint", "group": "color", "min": 0, "max": 1, "step": 0.05, "decimals": 2, "default": 0 },
+
+        { "name": "noise_enabled", "type": "binary", "label": "Enable noise", "group": "grain", "default": true },
+        { "name": "noise_amount", "type": "knob", "label": "Luma noise", "group": "grain", "min": 0, "max": 60, "step": 0.5, "decimals": 1, "default": 22 },
+        { "name": "chroma_r_amount", "type": "knob", "label": "Chroma R", "group": "grain", "min": 0, "max": 30, "step": 0.5, "decimals": 1, "default": 10 },
+        { "name": "chroma_b_amount", "type": "knob", "label": "Chroma B", "group": "grain", "min": -20, "max": 30, "step": 0.5, "decimals": 1, "default": 8 },
+        { "name": "grain_type", "type": "select", "label": "Grain type", "group": "grain", "options": ["gaussian", "uniform", "luma_only"], "default": "gaussian", "legend": "luma_only = no chroma speckle." },
+        { "name": "deterministic", "type": "binary", "label": "Deterministic", "group": "grain", "default": true, "legend": "On: frame i seeds seed+i (repeatable). Off: fresh entropy." },
+        { "name": "noise_seed", "type": "knob", "label": "Noise seed", "group": "grain", "min": 0, "max": 999999, "step": 1, "decimals": 0, "default": 2003 },
+
+        { "name": "flash_enabled", "type": "binary", "label": "Enable flash", "group": "flash", "default": true },
+        { "name": "flash_strength", "type": "knob", "label": "Flash strength", "group": "flash", "min": 0, "max": 200, "step": 1, "decimals": 0, "default": 95, "legend": "Overexposed highlight." },
+        { "name": "flash_x", "type": "knob", "label": "Flash X", "group": "flash", "min": 0, "max": 1, "step": 0.01, "decimals": 2, "default": 0.48 },
+        { "name": "flash_y", "type": "knob", "label": "Flash Y", "group": "flash", "min": 0, "max": 1, "step": 0.01, "decimals": 2, "default": 0.32 },
+        { "name": "flash_radius", "type": "knob", "label": "Flash radius", "group": "flash", "min": 0.2, "max": 3, "step": 0.1, "decimals": 1, "default": 1.4 },
+        { "name": "flash_falloff", "type": "knob", "label": "Flash falloff", "group": "flash", "min": 0.5, "max": 4, "step": 0.1, "decimals": 1, "default": 1.8 },
+        { "name": "shadow_strength", "type": "knob", "label": "Shadow", "group": "flash", "min": 0, "max": 120, "step": 1, "decimals": 0, "default": 42 },
+        { "name": "vignette_strength", "type": "knob", "label": "Vignette", "group": "flash", "min": 0, "max": 1.5, "step": 0.05, "decimals": 2, "default": 0.6 },
+
+        { "name": "chroma_aberration", "type": "knob", "label": "Chroma aberration", "group": "defects", "min": 0, "max": 5, "step": 0.1, "decimals": 1, "default": 0 },
+        { "name": "barrel_distortion", "type": "knob", "label": "Barrel distortion", "group": "defects", "min": 0, "max": 0.5, "step": 0.01, "decimals": 2, "default": 0 },
+        { "name": "stuck_pixels", "type": "knob", "label": "Stuck pixels", "group": "defects", "min": 0, "max": 20, "step": 1, "decimals": 0, "default": 0 },
+        { "name": "vertical_banding", "type": "knob", "label": "Vertical banding", "group": "defects", "min": 0, "max": 5, "step": 0.1, "decimals": 1, "default": 0 },
+
+        { "name": "jpeg_passes", "type": "knob", "label": "JPEG passes", "group": "jpeg", "min": 1, "max": 5, "step": 1, "decimals": 0, "default": 2, "legend": "Multi-save = more blocks." },
+        { "name": "final_quality", "type": "knob", "label": "Final quality", "group": "jpeg", "min": 5, "max": 95, "step": 1, "decimals": 0, "default": 38, "legend": "30–50 = 2000s." },
+        { "name": "subsampling", "type": "select", "label": "Subsampling", "group": "jpeg", "options": [0, 1, 2], "default": 0, "legend": "0 = 4:4:4, best blocks." },
+
+        { "name": "timestamp_enabled", "type": "binary", "label": "Timestamp", "group": "extras", "default": false },
+        { "name": "timestamp_text", "type": "text", "label": "Timestamp text", "group": "extras", "default": "2003/10/12 21:42" },
+        { "name": "timestamp_pos", "type": "select", "label": "Timestamp pos", "group": "extras", "options": ["bottom_left", "bottom_right", "top_left"], "default": "bottom_left" },
+        { "name": "timestamp_color", "type": "text", "label": "Timestamp color", "group": "extras", "default": "#FFE600" },
+        { "name": "interlace", "type": "binary", "label": "Scanlines", "group": "extras", "default": false },
+        { "name": "scanline_strength", "type": "knob", "label": "Scanline darkness", "group": "extras", "min": 0, "max": 0.5, "step": 0.01, "decimals": 2, "default": 0.15 }
+      ]
+    }
+  ]
+}

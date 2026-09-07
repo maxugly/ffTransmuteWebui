@@ -47,6 +47,7 @@ import { renderImageSortForm, collectImageSortBody } from '/js/tabs/imagesort.js
 import { renderImgCompareForm } from '/js/tabs/imgcompare.js';
 import { renderNotesForm } from '/js/tabs/notes.js';
 import { renderSkillsForm } from '/js/tabs/skills.js';
+import { renderScriptsForm } from '/js/tabs/scripts.js';
 import { renderStableFluidsForm } from '/js/tabs/stablefluids.js';
 import { renderSettingsForm, applyUiTweaks, readStoredScrollbarWidth } from '/js/tabs/settings.js';
 import { renderJobsForm, stopJobsPoll } from '/js/tabs/jobs.js';
@@ -461,6 +462,7 @@ const TAB_ACCEPTS = {
   zoompan:     'image',
   notes:       'none',
   settings:    'none',
+  scripts:     'any',
   stablefluids:'none',
   refs:        'none',
 };
@@ -939,6 +941,7 @@ function switchTab(tab) {
   if (tab === 'jobs') title = 'Jobs · Queue';
   if (tab === 'notes') title = 'Notes';
   if (tab === 'skills') title = 'Skills · AI model skills';
+  if (tab === 'scripts') title = 'Script Runner';
   if (tab === 'settings') title = 'Settings';
   if (tab === 'stablefluids') title = 'Stable Fluids · Sim';
   // References tab: no big header (sidebar already shows active item)
@@ -1093,6 +1096,8 @@ function renderTabForm(tab) {
     renderNotesForm();
   } else if (tab === 'skills') {
     renderSkillsForm();
+  } else if (tab === 'scripts') {
+    renderScriptsForm();
   } else if (tab === 'stablefluids') {
     renderStableFluidsForm();
   } else if (tab === 'settings') {

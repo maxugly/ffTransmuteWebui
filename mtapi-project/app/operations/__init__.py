@@ -32,4 +32,5 @@ from . import (  # noqa: F401
     imageedit_ops,
     qr_ops,
     skills_ops,
+    digicam_ops,
 )

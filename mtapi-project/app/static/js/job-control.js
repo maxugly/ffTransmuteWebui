@@ -26,6 +26,7 @@ import { collectImageEditBody } from '/js/tabs/imageedit.js';
 import { activeTransmuteOp, transmuteOpsDetails, activeMultiMode } from '/js/tabs/transmute.js';
 import { collectDeepDreamBody } from '/js/tabs/deepdream.js';
 import { collectQrBody } from '/js/tabs/qr.js';
+import { collectScriptBody as collectScriptsBody, activeScriptOp } from '/js/tabs/scripts.js';
 // ── Job run / cooperative stop ────────────────────────────────────────────
 // Stop is cooperative: we abort the fetch + POST /api/cancel so DeepDream
 // loops exit soon. ffmpeg/transmute mid-process may still finish the current
@@ -823,6 +824,13 @@ function resolveActiveOpAndBody() {
     const bb = collectImageEditBody();
     if (!bb) { error = "Please provide valid input for Image Edit."; return { opId: '', body: null, error }; }
     opId = 'imageedit';
+    body = bb;
+  } else if (tab === 'scripts') {
+    const bb = collectScriptsBody();
+    if (!bb) { error = "Select a script first."; return { opId: '', body: null, error }; }
+    const sop = activeScriptOp();
+    if (!sop) { error = "Select a script first."; return { opId: '', body: null, error }; }
+    opId = sop;
     body = bb;
   } else if (tab === 'advanced') {
     const input = bestInput('advInput');
