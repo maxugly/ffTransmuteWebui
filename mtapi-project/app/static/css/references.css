@@ -59,6 +59,12 @@ body.references-tab-active .tool-input-preview {
   gap: 12px;
   overflow-y: auto;
 }
+/* Non-wide (YT) workspace scrolls as a whole: children keep their natural
+   height instead of flex-shrinking under overflow:hidden cards (which would
+   silently clip table rows). Wide model tables manage their own inner scroll. */
+.ref-workspace:not(.ref-workspace-wide) > * {
+  flex-shrink: 0;
+}
 
 /* ── Sub-tab bar ─────────────────────────── */
 .ref-subtabs {
@@ -492,9 +498,6 @@ body.references-tab-active .tool-input-preview {
   background: rgba(12, 18, 28, 0.97);
   z-index: 1;
 }
-.ref-models-table thead th:nth-child(3) {
-  min-width: 220px;
-}
 .ref-models-table tbody td {
   vertical-align: top;
   font-size: 0.72rem;
@@ -530,6 +533,109 @@ body.references-tab-active .tool-input-preview {
   font-size: 0.6rem;
   white-space: nowrap;
 }
+/* Inactive sortable headers keep a dim ⇅ so sortability is discoverable */
+.ref-sort-arrow.dim {
+  opacity: 0.35;
+}
+
+/* ── Model-table headers: always vertical (matrix-style) ──
+   Every column label reads bottom-to-top (90° counter-clockwise) with the
+   checkbox + sort arrow in a compact top row. Header text never forces
+   column width, so columns size to their body content and toggling a
+   column never changes header height. Labels longer than the cap clip
+   with ellipsis; the full name is always on the label's title tooltip. */
+.ref-models-table .ref-col-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.ref-models-table .ref-col-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 14px;
+}
+.ref-models-table .ref-col-label {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+  max-height: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* ── Column toggle checkboxes ── */
+.ref-col-toggle {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  margin: 0;
+}
+.ref-col-toggle input[type="checkbox"] {
+  width: 12px;
+  height: 12px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+  margin: 0;
+  flex-shrink: 0;
+}
+.ref-models-table th.sortable:hover .ref-col-label {
+  color: var(--text-main, #e8eef8);
+}
+.ref-models-table th.sorted .ref-col-label {
+  color: #60a5fa;
+}
+
+/* ── Sortable headers on plain ref tables (YT License / Watermarks) ── */
+.ref-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.ref-table th.sortable:hover {
+  color: var(--text-main, #e8eef8);
+}
+.ref-table th.sorted {
+  color: #60a5fa;
+}
+
+/* ── Collapsed columns: shrink to a checkbox-wide strip, never vanish ──
+   Same vertical label (dimmed), body cells hold the strip with a tint.
+   Re-check the box to restore. */
+.ref-models-table thead th.ref-col-collapsed {
+  width: 26px;
+  min-width: 26px;
+  max-width: 26px;
+  padding-left: 2px;
+  padding-right: 2px;
+  vertical-align: top;
+}
+.ref-models-table thead th.ref-col-collapsed .ref-sort-arrow {
+  display: none;
+}
+.ref-models-table thead th.ref-col-collapsed .ref-col-label {
+  opacity: 0.55;
+}
+.ref-models-table tbody td.ref-col-collapsed-cell {
+  width: 26px;
+  min-width: 26px;
+  max-width: 26px;
+  padding-left: 0;
+  padding-right: 0;
+  overflow: hidden;
+  background: rgba(148, 163, 184, 0.05);
+}
+.ref-models-table tbody td.ref-col-collapsed-cell > * {
+  display: none;
+}
+
 .ref-muted {
   color: var(--text-muted, #9ca3af);
 }
