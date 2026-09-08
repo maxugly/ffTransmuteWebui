@@ -290,9 +290,16 @@ function updateTransmuteExtras() {
           ${knobUnitHtml({ id: 'cfrRifeMult', label: 'Frame ×', value: '2' })}
           ${knobUnitHtml({ id: 'cfrRifeTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
           ${knobUnitHtml({ id: 'cfrRifeUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+          ${knobUnitHtml({ id: 'cfrPtsAware', label: 'PTS-aware', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
+          ${knobUnitHtml({ id: 'cfrTStep', label: 't step', value: '0.25' })}
+        </div>
+        <p class="knob-row-legend">PTS-aware = true-timestamp interpolation (bracket + RIFE −s t) — the correct VFR path. t step quantizes the timestep (0.25 → 5 grid points, error ≤ step/2 × frame gap; 0 = exact). Timing stays exact regardless.</p>
+      </div>
+      <div class="knob-row">
+        <div class="knob-bank">
           ${knobUnitHtml({ id: 'cfrCfrFirst', label: '→ CFR First', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
         </div>
-        <p class="knob-row-legend">Normalize uneven phone timestamps to CFR before interpolation — fixes fast-pan wobble. Off = legacy direct-RIFE on source timestamps.</p>
+        <p class="knob-row-legend">Legacy compare only (ignored while PTS-aware is on): normalize uneven phone timestamps to CFR before interpolation. Off = legacy direct-RIFE on source timestamps.</p>
       </div>
       ${rifeModelSelectHtml('cfrRifeModel')}
     </div>
@@ -431,6 +438,16 @@ function updateTransmuteExtras() {
       knobId: 'cfrCfrFirstKnob', indicatorId: 'cfrCfrFirstKnobInd',
       hiddenId: 'cfrCfrFirst',
       leftValue: '0', rightValue: '1', initial: '1',
+    });
+    setupBinaryKnob({
+      knobId: 'cfrPtsAwareKnob', indicatorId: 'cfrPtsAwareKnobInd',
+      hiddenId: 'cfrPtsAware',
+      leftValue: '0', rightValue: '1', initial: '1',
+    });
+    setupContinuousKnob({
+      knobId: 'cfrTStepKnob', indicatorId: 'cfrTStepKnobInd',
+      valueId: 'cfrTStepVal', hiddenId: 'cfrTStep',
+      min: 0, max: 1, step: 0.05, decimals: 2,
     });
 
     // Row 2 visible only when RIFE is on (same pattern as zoomCustomSizeRow).

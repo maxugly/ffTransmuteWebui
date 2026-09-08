@@ -35,6 +35,18 @@ class CfrParams(BaseModel):
         description="CFR rate. Blank/null = Auto (avg_frame_rate, fallback r_frame_rate).",
     )
     use_rife: bool = Field(False, description="Interpolate with RIFE after CFR normalize")
+    pts_aware: bool = Field(
+        True,
+        description="True-timestamp interpolation (bracket + RIFE -s t). "
+                    "Default RIFE path. Off = legacy CFR-first / direct switch. "
+                    "Meaningless without RIFE — coerced to False.",
+    )
+    t_step: float = Field(
+        0.25, ge=0.0, le=1.0,
+        description="Quantize the RIFE timestep to this grid (0 = exact). "
+                    "Timing stays exact regardless; only the motion-path "
+                    "sample position is quantized.",
+    )
     cfr_first: bool = Field(
         True,
         description="Normalize to CFR before RIFE (fixes fast-pan wobble). "
@@ -103,6 +115,11 @@ def _effective_cfr_first(use_rife: bool, cfr_first: bool) -> bool:
     return bool(cfr_first) if use_rife else False
 
 
+def _effective_pts_aware(use_rife: bool, pts_aware: bool) -> bool:
+    """`pts_aware` without RIFE is meaningless — coerce to False."""
+    return bool(pts_aware) if use_rife else False
+
+
 async def cfr_normalize(p: CfrParams) -> OperationResult:
     """VFR → CFR fast path, or dump → [CFR] → RIFE → encode."""
     from ..filters.cfr import make_cfr_directory_fn
@@ -118,6 +135,7 @@ async def cfr_normalize(p: CfrParams) -> OperationResult:
 
     use_rife = bool(p.use_rife)
     cfr_first = _effective_cfr_first(use_rife, p.cfr_first)
+    pts_aware = _effective_pts_aware(use_rife, p.pts_aware)
 
     if use_rife:
         try:
@@ -150,7 +168,7 @@ async def cfr_normalize(p: CfrParams) -> OperationResult:
         src_fps = fps
     has_audio = bool(info.get("has_audio"))
 
-    suffix = "_cfr_rife" if use_rife else "_cfr"
+    suffix = "_cfr_pts" if (use_rife and pts_aware) else ("_cfr_rife" if use_rife else "_cfr")
     out = finalize_output_path(
         p.output_path, source=input_path, default_suffix=suffix,
         default_ext=".mp4", allowed_exts=VIDEO_EXTS,
@@ -173,6 +191,8 @@ async def cfr_normalize(p: CfrParams) -> OperationResult:
         "target_fps": fps,
         "auto": p.target_fps is None,
         "use_rife": use_rife,
+        "pts_aware": pts_aware,
+        "t_step": float(p.t_step),
         "cfr_first": cfr_first,
         "is_vfr_guess": bool(info.get("is_vfr_guess")),
         "fps_avg": info.get("fps_avg"),
@@ -249,7 +269,85 @@ async def cfr_normalize(p: CfrParams) -> OperationResult:
             meta=dict(meta),
         )
 
-    # ── Paths B/C — staged: dump → [CFR] → RIFE → encode ─────────────────
+    # ── Path D — PTS-aware RIFE (default RIFE path) ────────────────────
+    if use_rife and pts_aware:
+        from ..filters.rife_pts import make_rife_pts_directory_fn, plan_rife_pts
+        from ..video_pipeline import pts_map as vp_pts_map
+
+        meta["path"] = "D"
+        meta["multiplier_unused"] = True  # output count comes from the timeline
+
+        try:
+            pts_info = await vp_pts_map(str(input_path), start_frame=sf, end_frame=ef)
+        except Exception as e:
+            return OperationResult(
+                ok=False, operation="cfr",
+                error=f"Could not read PTS map: {e}", dry_run=p.dry_run,
+                meta=dict(meta),
+            )
+        pts_list = [float(v) for v in (pts_info.get("pts") or [])]
+        if not pts_list:
+            return OperationResult(
+                ok=False, operation="cfr",
+                error="PTS map is empty — no timestamped frames found",
+                dry_run=p.dry_run, meta=dict(meta),
+            )
+        try:
+            pts_plan = plan_rife_pts(pts_list, fps, float(p.t_step))
+        except ValueError as e:
+            return OperationResult(
+                ok=False, operation="cfr", error=str(e),
+                dry_run=p.dry_run, meta=dict(meta),
+            )
+
+        summary = (
+            f"cfr {input_path.name} → {fps:.6g}fps "
+            f"(PTS-aware RIFE ×~{pts_plan['num_targets'] / max(len(pts_list), 1):.2g} "
+            f"{p.model}, t_step={float(p.t_step):.6g})"
+        )
+        plan_text = (
+            f"{summary}\n"
+            f"Input: VFR-guess={meta['is_vfr_guess']} "
+            f"(avg={info.get('fps_avg')}, r={info.get('fps_r')})\n"
+            f"Path D: {len(pts_list)} PTS → {pts_plan['num_targets']} targets "
+            f"({pts_plan['inferences']} inferred, {pts_plan['copies']} copied, "
+            f"t_step={float(p.t_step):.6g})\n"
+            f"Range: {'full clip' if full_clip else f'frames {sf}–{ef}'}\n"
+            f"Output: {out}\n"
+        )
+        if p.dry_run:
+            return OperationResult(
+                ok=True, operation="cfr", output_path=str(out),
+                dry_run=True, command=summary, stdout=plan_text,
+                meta=dict(meta),
+            )
+
+        result = await run_staged_job(
+            op_id="cfr",
+            prefix="cfr_",
+            input_path=input_path,
+            output_path=out,
+            dry_run=False,
+            dump_kwargs={"start_frame": sf, "end_frame": ef},
+            stages=[
+                StageSpec(
+                    "rife_pts", "directory",
+                    make_rife_pts_directory_fn(
+                        target_fps=fps, pts=pts_list, model=p.model,
+                        tta=p.tta, uhd=p.uhd, t_step=float(p.t_step),
+                    ),
+                ),
+            ],
+            encode_fps=fps,
+            encode_kwargs={"mux_audio": True},
+            summary=summary,
+        )
+        extra = dict(result.meta or {})
+        extra.update(meta)
+        result.meta = extra
+        return result
+
+    # ── Paths B/C — staged legacy: dump → [CFR] → RIFE → encode ──────────
     stages: list[StageSpec] = []
     if cfr_first:
         meta["path"] = "B"
@@ -295,9 +393,9 @@ register(OperationSpec(
     description=(
         "Normalize uneven phone/screen-capture VFR timestamps to CFR. "
         "Base = fast single ffmpeg pass (no PNG dump). "
-        "Optional RIFE interpolation runs after an explicit CFR-first "
-        "resample stage (default ON) so RIFE sees even-spaced input; "
-        "off = legacy direct-RIFE on source timestamps. "
+        "Default RIFE path is PTS-aware (true-timestamp bracketing + "
+        "per-pair -s t, t_step-quantized); legacy CFR-first / direct-RIFE "
+        "kept as compare switches. "
         "Auto rate uses avg_frame_rate, falling back to r_frame_rate."
     ),
     params_model=CfrParams,

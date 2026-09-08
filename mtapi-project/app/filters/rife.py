@@ -177,6 +177,84 @@ async def run_rife_directory(
     }
 
 
+async def run_rife_single_pair(
+    img_a: Path | str,
+    img_b: Path | str,
+    out_path: Path | str,
+    *,
+    timestep: float = 0.5,
+    model: str = "rife-v4.6",
+    tta: bool = False,
+    uhd: bool = False,
+) -> dict[str, Any]:
+    """Interpolate ONE frame between two images at fractional timestep.
+
+    Primitive for PTS-aware stages (`rife_pts`): the caller picks the
+    bracketing pair and the true `timestep` in [0,1]; the model places the
+    output along the motion path. Uses the same GPU single-flight lock as
+    directory mode — never run two densifies at once.
+    Returns {command, timestep, model}.
+    """
+    t = float(timestep)
+    if not 0.0 <= t <= 1.0:
+        raise ValueError(f"timestep must be in [0,1], got {timestep!r}")
+
+    rife_bin = resolve_rife_bin()
+    argv = [
+        rife_bin,
+        "-0", str(img_a),
+        "-1", str(img_b),
+        "-o", str(out_path),
+        "-s", f"{t:.4g}",
+        "-m", model,
+    ]
+    if tta:
+        argv.append("-x")
+    if uhd:
+        argv.append("-u")
+
+    job_control.check_cancelled()
+    token = job_control.current_token()
+
+    async with _get_rife_lock():
+        job_control.check_cancelled()
+        proc = await asyncio.create_subprocess_exec(
+            *argv,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            while proc.returncode is None:
+                job_control.check_cancelled()
+                await asyncio.sleep(0.5)
+            _out_b, err_b = await proc.communicate()
+        except (asyncio.CancelledError, job_control.JobCancelled):
+            proc.kill()
+            await proc.wait()
+            raise
+
+        if proc.returncode != 0:
+            err = (err_b or b"").decode(errors="replace")[-500:]
+            raise RuntimeError(
+                f"rife-ncnn-vulkan single-pair failed (exit {proc.returncode}): "
+                f"{err or 'no stderr'}"
+            )
+
+    out = Path(out_path)
+    # Single-pair mode writes exactly one image; normalize its name when the
+    # binary numbers it (e.g. out/000000.png vs the requested stem).
+    if not out.is_file():
+        siblings = sorted(out.parent.glob(f"{out.stem}*.png"))
+        siblings = [p for p in siblings if p.is_file()]
+        if len(siblings) == 1:
+            siblings[0].rename(out)
+    if not out.is_file() or out.stat().st_size <= 0:
+        raise RuntimeError(f"rife single-pair produced no output: {out}")
+    _ = token
+
+    return {"command": " ".join(argv), "timestep": t, "model": model}
+
+
 def make_rife_directory_fn(
     *,
     multiplier: int = 2,

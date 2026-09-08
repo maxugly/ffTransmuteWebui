@@ -679,10 +679,13 @@ function resolveActiveOpAndBody() {
     }
     if (activeTransmuteOp === 'cfr') {
       const cfrFpsRaw = parseFloat(document.getElementById('cfrFps')?.value || '0');
+      const cfrTStepRaw = parseFloat(document.getElementById('cfrTStep')?.value || '0.25');
       body = {
         input_path: input, output_path: output, dry_run: dryRun,
         target_fps: (!cfrFpsRaw || cfrFpsRaw <= 0) ? null : cfrFpsRaw,
         use_rife: document.getElementById('cfrUseRife')?.value === '1',
+        pts_aware: document.getElementById('cfrPtsAware')?.value === '1',
+        t_step: (!isFinite(cfrTStepRaw) || cfrTStepRaw < 0) ? 0.25 : Math.min(1, cfrTStepRaw),
         cfr_first: document.getElementById('cfrCfrFirst')?.value === '1',
         multiplier: parseInt(document.getElementById('cfrRifeMult')?.value || '2', 10),
         model: document.getElementById('cfrRifeModel')?.value || 'rife-v4.6',

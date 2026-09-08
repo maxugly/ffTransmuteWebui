@@ -130,6 +130,65 @@ async def _probe_has_audio(input_path: str) -> bool:
     return code == 0 and bool(out.strip())
 
 
+async def pts_map(
+    input_path: str | Path,
+    *,
+    start_frame: int = 1,
+    end_frame: int = 999999,
+) -> dict[str, Any]:
+    """Per-frame presentation timestamps for PTS-aware stages.
+
+    Reads real container PTS (`ffprobe -show_frames`), sorts ascending
+    (presentation order — never trust container order with B-frames), and
+    applies the same 1-based inclusive [start_frame, end_frame] slice
+    `dump` uses. Does NOT dump frames; pairs with `dump` output by index
+    (caller asserts count equality).
+
+    Returns {"pts": [seconds...], "unit": "s", "count": N}.
+    See docs/pts-aware-rife-spec.md §3.
+    """
+    sp = str(Path(input_path).resolve())
+    cmd = [
+        "ffprobe", "-v", "error",
+        "-select_streams", "v:0",
+        "-show_frames",
+        "-show_entries", "frame=pts_time",
+        "-of", "json",
+        sp,
+    ]
+    code, out, stderr = await run_command(cmd)
+    if code != 0:
+        raise RuntimeError(f"ffprobe show_frames failed on {sp}: {(stderr or '').strip()[-200:]}")
+
+    try:
+        data = json.loads(out)
+    except json.JSONDecodeError:
+        raise RuntimeError(f"ffprobe show_frames produced invalid JSON for {sp}")
+
+    pts: list[float] = []
+    for fr in data.get("frames") or []:
+        try:
+            t = float(fr.get("pts_time"))
+        except (TypeError, ValueError):
+            continue
+        if t >= 0:
+            pts.append(t)
+    pts.sort()
+
+    sf = int(start_frame) if start_frame is not None else 1
+    ef = int(end_frame) if end_frame is not None else 999999
+    if sf < 1:
+        sf = 1
+    if ef < sf:
+        ef = sf
+    if ef >= 999999:
+        sel = pts[max(0, sf - 1):]
+    else:
+        sel = pts[max(0, sf - 1):ef]
+
+    return {"pts": sel, "unit": "s", "count": len(sel)}
+
+
 # ── B. Dump ────────────────────────────────────────────────────────────────
 
 async def dump(
