@@ -38,3 +38,4 @@ from . import upscale as _upscale  # noqa: E402, F401
 from . import fastsam as _fastsam  # noqa: E402, F401
 from . import visualhijack as _visualhijack  # noqa: E402, F401
 from . import digicam as _digicam  # noqa: E402, F401
+from . import cfr as _cfr  # noqa: E402, F401

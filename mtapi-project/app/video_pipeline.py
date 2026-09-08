@@ -37,7 +37,7 @@ async def probe(input_path: str | Path) -> dict[str, Any]:
     cmd = [
         "ffprobe", "-v", "error",
         "-select_streams", "v:0",
-        "-show_entries", "stream=width,height,r_frame_rate,nb_frames",
+        "-show_entries", "stream=width,height,r_frame_rate,avg_frame_rate,nb_frames",
         "-show_entries", "format=duration",
         "-of", "json",
         sp,
@@ -69,6 +69,27 @@ async def probe(input_path: str | Path) -> dict[str, Any]:
     except Exception:
         fps = 25.0
 
+    # avg_frame_rate may be "0/0" (unknown) — parse defensively, never crash.
+    fps_avg = 0.0
+    avg_raw = s0.get("avg_frame_rate") or ""
+    try:
+        if "/" in avg_raw:
+            a, b = avg_raw.split("/", 1)
+            denom = float(b)
+            fps_avg = float(a) / denom if denom > 0 else 0.0
+        elif avg_raw:
+            fps_avg = float(avg_raw)
+    except Exception:
+        fps_avg = 0.0
+
+    # VFR guess: r and avg disagree beyond 1% relative (both must be sane).
+    is_vfr_guess = False
+    try:
+        if fps > 0 and fps_avg > 0:
+            is_vfr_guess = abs(fps_avg - fps) / max(fps, 1e-9) > 0.01
+    except Exception:
+        is_vfr_guess = False
+
     duration = float(fmt.get("duration") or 0)
 
     frame_count = 0
@@ -86,6 +107,9 @@ async def probe(input_path: str | Path) -> dict[str, Any]:
     return {
         "ok": True,
         "fps": round(fps, 3),
+        "fps_avg": round(fps_avg, 3),
+        "fps_r": round(fps, 3),
+        "is_vfr_guess": is_vfr_guess,
         "duration": round(duration, 3),
         "frame_count": frame_count,
         "width": width,

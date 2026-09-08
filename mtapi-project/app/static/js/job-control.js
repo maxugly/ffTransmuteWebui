@@ -677,6 +677,21 @@ function resolveActiveOpAndBody() {
         end_frame: window.globalInputs.frameEnd || 999999,
       };
     }
+    if (activeTransmuteOp === 'cfr') {
+      const cfrFpsRaw = parseFloat(document.getElementById('cfrFps')?.value || '0');
+      body = {
+        input_path: input, output_path: output, dry_run: dryRun,
+        target_fps: (!cfrFpsRaw || cfrFpsRaw <= 0) ? null : cfrFpsRaw,
+        use_rife: document.getElementById('cfrUseRife')?.value === '1',
+        cfr_first: document.getElementById('cfrCfrFirst')?.value === '1',
+        multiplier: parseInt(document.getElementById('cfrRifeMult')?.value || '2', 10),
+        model: document.getElementById('cfrRifeModel')?.value || 'rife-v4.6',
+        tta: document.getElementById('cfrRifeTta')?.value === '1',
+        uhd: document.getElementById('cfrRifeUhd')?.value === '1',
+        start_frame: window.globalInputs.frameStart || 1,
+        end_frame: window.globalInputs.frameEnd || 999999,
+      };
+    }
     if (activeTransmuteOp === 'zoom') {
       const sizeSel = document.getElementById('zoomOutSize')?.value || 'source';
       let ow = null, oh = null;

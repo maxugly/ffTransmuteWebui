@@ -17,7 +17,8 @@ const transmuteOpsDetails = {
   stretch_exact: { summary: "Stretch to exact resolution", fields: ['width', 'height'] },
   flip_rotate: { summary: "Flip / rotate (lossless geometry)", fields: ['flip_rotate'] },
   speed_ramp: { summary: "Speed ramp (spin-up / spin-down)", fields: ['speed_ramp'] },
-  zoom: { summary: "Zoom / pan (still → video or video → video)", fields: ['zoom'] }
+  zoom: { summary: "Zoom / pan (still → video or video → video)", fields: ['zoom'] },
+  cfr: { summary: "VFR → CFR (+ optional RIFE)", fields: ['cfr'] }
 };
 
 let activeTransmuteOp = 'first_frame';
@@ -274,6 +275,31 @@ function updateTransmuteExtras() {
   `;
   }
 
+  if (fields.includes('cfr')) {
+    html += `
+    <div class="knob-row">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'cfrFps', label: 'FPS', value: '0' })}
+        ${knobUnitHtml({ id: 'cfrUseRife', label: 'Use RIFE', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+      </div>
+      <p class="knob-row-legend">0 = Auto (avg_frame_rate, fallback r_frame_rate). Set an explicit rate to force it.</p>
+    </div>
+    <div id="cfrRifeRow" style="display:none;">
+      <div class="knob-row">
+        <div class="knob-bank">
+          ${knobUnitHtml({ id: 'cfrRifeMult', label: 'Frame ×', value: '2' })}
+          ${knobUnitHtml({ id: 'cfrRifeTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+          ${knobUnitHtml({ id: 'cfrRifeUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+          ${knobUnitHtml({ id: 'cfrCfrFirst', label: '→ CFR First', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        </div>
+        <p class="knob-row-legend">Normalize uneven phone timestamps to CFR before interpolation — fixes fast-pan wobble. Off = legacy direct-RIFE on source timestamps.</p>
+      </div>
+      ${rifeModelSelectHtml('cfrRifeModel')}
+    </div>
+    <p class="dream-hint">Phone / screen-capture footage is often VFR (uneven frame timing) — RIFE assumes even-spaced input, so normalize to CFR first.</p>
+  `;
+  }
+
   extrasContainer.innerHTML = html;
 
   if (fields.includes('quality')) {
@@ -373,6 +399,48 @@ function updateTransmuteExtras() {
         el.addEventListener('input', updateRampInfoLine);
       }
     });
+  }
+
+  if (fields.includes('cfr')) {
+    setupContinuousKnob({
+      knobId: 'cfrFpsKnob', indicatorId: 'cfrFpsKnobInd',
+      valueId: 'cfrFpsVal', hiddenId: 'cfrFps',
+      min: 0, max: 120, step: 1, decimals: 0,
+    });
+    setupBinaryKnob({
+      knobId: 'cfrUseRifeKnob', indicatorId: 'cfrUseRifeKnobInd',
+      hiddenId: 'cfrUseRife',
+      leftValue: '0', rightValue: '1', initial: '0',
+    });
+    setupContinuousKnob({
+      knobId: 'cfrRifeMultKnob', indicatorId: 'cfrRifeMultKnobInd',
+      valueId: 'cfrRifeMultVal', hiddenId: 'cfrRifeMult',
+      min: 2, max: 128, step: 1, decimals: 0,
+    });
+    setupBinaryKnob({
+      knobId: 'cfrRifeTtaKnob', indicatorId: 'cfrRifeTtaKnobInd',
+      hiddenId: 'cfrRifeTta',
+      leftValue: '0', rightValue: '1', initial: '0',
+    });
+    setupBinaryKnob({
+      knobId: 'cfrRifeUhdKnob', indicatorId: 'cfrRifeUhdKnobInd',
+      hiddenId: 'cfrRifeUhd',
+      leftValue: '0', rightValue: '1', initial: '0',
+    });
+    setupBinaryKnob({
+      knobId: 'cfrCfrFirstKnob', indicatorId: 'cfrCfrFirstKnobInd',
+      hiddenId: 'cfrCfrFirst',
+      leftValue: '0', rightValue: '1', initial: '1',
+    });
+
+    // Row 2 visible only when RIFE is on (same pattern as zoomCustomSizeRow).
+    const cfrRifeEl = document.getElementById('cfrUseRife');
+    const cfrRifeRow = document.getElementById('cfrRifeRow');
+    const syncCfrRow = () => {
+      if (cfrRifeRow) cfrRifeRow.style.display = (cfrRifeEl && cfrRifeEl.value === '1') ? '' : 'none';
+    };
+    if (cfrRifeEl) cfrRifeEl.addEventListener('change', syncCfrRow);
+    syncCfrRow();
   }
 
   if (fields.includes('zoom')) {
