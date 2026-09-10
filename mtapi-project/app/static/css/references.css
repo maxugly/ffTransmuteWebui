@@ -463,7 +463,7 @@ body.references-tab-active .tool-input-preview {
   white-space: nowrap;
 }
 
-/* ── Video Models Big Chart (one card, one table, no h-scroll) ── */
+/* ── Video Models Big Chart (one card, one table, h-scroll expected) ── */
 .ref-workspace-wide {
   max-width: 1280px;
 }
@@ -645,4 +645,27 @@ body.references-tab-active .tool-input-preview {
   .ref-split { grid-template-columns: 1fr; }
   .ref-grid-2col { grid-template-columns: 1fr; }
   .ref-subtabs { overflow-x: auto; }
+}
+
+/* ── Big Chart: wide columns + max-3-line rows ──
+    Columns get room to breathe (horizontal scroll is expected; column
+    toggles handle the width). No body row may exceed three text lines.
+    Every body cell holds exactly one child, so clamping each direct
+    child to 3 lines caps every row. Collapsed strips are untouched
+    (their display:none rule is more specific and always wins). */
+.ref-models-table tbody td:not(.ref-col-collapsed-cell) {
+  min-width: 210px;
+}
+.ref-models-table tbody td:first-child:not(.ref-col-collapsed-cell) {
+  min-width: 240px;
+}
+.ref-models-table tbody td.ref-col-center:not(.ref-col-collapsed-cell) {
+  min-width: 96px;
+}
+.ref-models-table tbody td > * {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  line-clamp: 3;
+  overflow: hidden;
 }
