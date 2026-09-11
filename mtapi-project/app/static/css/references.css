@@ -465,7 +465,12 @@ body.references-tab-active .tool-input-preview {
 
 /* ── Video Models Big Chart (one card, one table, h-scroll expected) ── */
 .ref-workspace-wide {
-  max-width: 1280px;
+  /* Wide model tables take every pixel the action panel offers: the panel
+     itself is already uncapped on refs tabs, so centering at 1280px just
+     stranded ~300px of dead space and forced needless h-scroll. YT (non-wide)
+     workspace keeps its 880px reading width. */
+  max-width: none;
+  margin: 0;
 }
 /* Wide (models) cards fill the workspace column and scroll their
    body internally: the card is height-capped by the flex chain, so
@@ -668,4 +673,98 @@ body.references-tab-active .tool-input-preview {
   -webkit-box-orient: vertical;
   line-clamp: 3;
   overflow: hidden;
+}
+
+/* ── Expanded header labels wrap into side-by-side vertical runs ──
+    Vertical labels were single-line + ellipsis, so long names clipped
+    while their columns sat on empty horizontal space. In vertical-rl,
+    normal wrapping stacks runs horizontally: the kept 110px max-height
+    provides the wrap pressure (header height never moves) and a 6em
+    cap bounds the widest label to ~60px — nothing next to 210px body
+    columns. Collapsed stubs keep their dimmed single-line look. */
+.ref-models-table thead th:not(.ref-col-collapsed) .ref-col-label {
+  white-space: normal;
+  overflow-wrap: break-word;
+  max-width: 6em;
+}
+
+/* ── Tight rows + vertical grid lines ──
+    Body padding drops 8px → 3px top/bottom (horizontal 8px stays for
+    readability): a 3-line row carries barely any dead space. Vertical
+    dividers reuse the exact horizontal-divider color so the chart reads
+    as one grid; first column skips the left edge. Collapsed strips keep
+    their zero side-padding (more specific rules win). */
+.ref-models-table tbody td {
+  padding-top: 1.5px;
+  padding-bottom: 1.5px;
+  border-left: 1px solid rgba(255, 255, 255, 0.04);
+}
+.ref-models-table tbody td:first-child {
+  border-left: none;
+}
+.ref-models-table thead th {
+  border-left: 1px solid rgba(255, 255, 255, 0.04);
+}
+.ref-models-table thead th:first-child {
+  border-left: none;
+}
+
+/* ── Model column: 2-line names, narrow, frozen ──
+    Names wrap to max 2 lines so the column can drop 240px → 150px.
+    First column is sticky-left (header corner z-3, body cells z-2,
+    opaque bg so scrolled columns slide underneath) with a slightly
+    stronger right edge as the frozen anchor. Collapsed strip keeps
+    its 26px look (its own rules stay more specific). */
+.ref-models-table tbody td:first-child:not(.ref-col-collapsed-cell) {
+  min-width: 150px;
+}
+.ref-models-table tbody td:first-child > * {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.ref-models-table thead th:first-child,
+.ref-models-table tbody td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: rgba(12, 18, 28, 0.97);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+.ref-models-table thead th:first-child {
+  z-index: 3;
+}
+
+/* ── Light row banding ──
+    Even rows get a whisper of white; highlighted rows keep their own
+    tint (excluded). The frozen Model cell is opaque by necessity, so it
+    gets a pre-mixed band shade (white 2.5% over #0c121c ≈ #121822). */
+.ref-models-table tbody tr:nth-child(even):not(.ref-highlight) {
+  background: rgba(255, 255, 255, 0.025);
+}
+.ref-models-table tbody tr:nth-child(even):not(.ref-highlight) td:first-child {
+  background: rgba(18, 24, 34, 0.97);
+}
+
+/* ── Hover crosshair + click-copy flash (video Big Chart) ──
+    Hovered cell burns bright, its row + column glow faint. !important is
+    load-bearing: hover must win over banding, highlight rows, and the
+    opaque frozen Model cells. Green flash confirms a click-copy. */
+.ref-models-table tbody td {
+  cursor: cell;
+}
+.ref-models-table tbody td.ref-hot {
+  background: rgba(96, 165, 250, 0.22) !important;
+}
+.ref-models-table tbody tr:hover {
+  background: rgba(96, 165, 250, 0.07) !important;
+}
+.ref-models-table tbody tr:hover td:first-child {
+  background: rgba(18, 28, 44, 0.97) !important;
+}
+.ref-models-table tbody td.ref-colhot {
+  background: rgba(96, 165, 250, 0.07) !important;
+}
+.ref-models-table tbody td.ref-copied {
+  background: rgba(16, 185, 129, 0.30) !important;
+  transition: background 0.6s;
 }

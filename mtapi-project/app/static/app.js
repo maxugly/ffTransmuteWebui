@@ -410,6 +410,8 @@ const elements = {
   consoleBody: document.getElementById('consoleBody'),
   btnClearConsole: document.getElementById('btnClearConsole'),
   btnOpenFolder: document.getElementById('btnOpenFolder'),
+  btnPreviewToVIn: document.getElementById('btnPreviewToVIn'),
+  btnPreviewToIIn: document.getElementById('btnPreviewToIIn'),
   
   // Modal File Browser
   fbModal: document.getElementById('fbModal'),
@@ -745,6 +747,29 @@ function setupEventListeners() {
       }
     }
   });
+
+  // Preview → global inputs (append-if-missing; same funnel as pool send-targets:
+  // set textarea + dispatch input so updateGlobalInputs syncs probe/visibility/preview)
+  function sendPreviewToGlobal(kind) {
+    var giId = kind === 'video' ? 'giVideo' : 'giImage';
+    var label = kind === 'video' ? 'V-in' : 'I-in';
+    // Only act on a real preview — mediaInfo stays hidden until showPreview runs.
+    if (!elements.mediaInfo || elements.mediaInfo.style.display === 'none') return;
+    var path = (elements.mediaPath.textContent || '').trim();
+    if (!path) return;
+    var gi = document.getElementById(giId);
+    if (!gi) return;
+    var lines = (gi.value || '').split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+    if (lines.indexOf(path) !== -1) {
+      logConsole('[PREVIEW]: Already in ' + label + ' → ' + path);
+      return;
+    }
+    gi.value = lines.length ? lines.join('\n') + '\n' + path : path;
+    gi.dispatchEvent(new Event('input'));
+    logConsole('[PREVIEW]: Sent to ' + label + ' → ' + path);
+  }
+  elements.btnPreviewToVIn?.addEventListener('click', function() { sendPreviewToGlobal('video'); });
+  elements.btnPreviewToIIn?.addEventListener('click', function() { sendPreviewToGlobal('image'); });
 
   // File Browser Modal Buttons
   elements.btnCloseFb.addEventListener('click', closeFbModal);

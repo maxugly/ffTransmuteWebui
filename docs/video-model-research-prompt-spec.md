@@ -17,11 +17,14 @@ entry carrying exactly these fields (no more, no fewer):
 `released` · `category` · `good-at` · `do-not` · `personality` · `tips` (exactly 3)
 · `vs` (competitor comparisons) · `sources` (links, not bare names)
 
-That brief then maps 1:1 onto the Big Chart 13-col schema in
+That brief then maps 1:1 onto the Big Chart schema in
 `mtapi-project/app/static/js/tabs/references.js` (`MODELS_COLS`): Model /
-Category / Released / Native Training Res / Sweet Spot / Max Output /
-Duration Sweet Spot / True FL2V (`yes`/`?`/`no`) / Audio (`yes`/`?`/`no`) /
-Strengths / Weaknesses / Use-Prompt Tips / Notes.
+Category / Released (+ Rel Date / Rel Note) / Native Training Res (+ Native
+W / H / Note) / Sweet Spot (+ Sweet W / H / Note) / Max Output (+ Max W / H /
+FPS / Note, Upscaled) / tier badges 480p / 540p / 720p / 1080p / 2K / 4K /
+Duration Sweet Spot (+ Dur Min / Max / Note) / True FL2V (`yes`/`?`/`no`) /
+Audio (`yes`/`?`/`no`) / Strengths / Weaknesses / Use-Prompt Tips / Notes.
+Full column list: `docs/video-table-split-spec.md` §2.
 
 ---
 
@@ -48,6 +51,19 @@ summarized away):
   (e.g. flux_3_video, viduq1-start-end).
 - Training resolution if published; if NOT published, say "never published"
   and report what resolution early evaluations actually ran at.
+- RESOLUTION REPORTING (feeds the split columns — be mechanical about this):
+  report width and height as SEPARATE numbers for native-train, working
+  sweet-spot, and max output (e.g. "native 768x512" → W 768 / H 512, never
+  "768x512" as one blob). State tier coverage explicitly (480p / 540p /
+  720p / 1080p / 2K / 4K — which tiers does it natively train or directly
+  output?). Report upscaled figures SEPARATELY with the path
+  (e.g. "4K via external upscaler" — never mixed into max-output numbers).
+  Report max FPS and duration range as min–max seconds (keep frames/fps
+  detail alongside). For EVERY resolution figure cite TWO provenances where
+  possible: (1) manufacturer/vendor docs, (2) a third-party generation-site
+  listing (fal / Replicate / Segmind / API catalog) — link both. If only an
+  assumption is possible (bare "1080p" with no dimensions), state the
+  assumption explicitly ("assumed landscape 1920x1080") — never silently.
 - Sweet spot: cheap-draft tier vs full tier with BOTH prices in $/sec AND
   credits/sec (collect every conflicting figure you find — list them all,
   don't average them). Best duration + resolution + subject count + motion
@@ -99,7 +115,8 @@ RULES:
 - [ ] Endpoint/model IDs spelled exactly as catalogs list them.
 - [ ] Unconfirmed FL2V/Audio cells are `?` + verify-note, not guesses.
 - [ ] `sources` are links, covering primary + street + benchmark.
-- [ ] Entry maps cleanly onto all 13 Big Chart columns with no information left homeless.
+- [ ] Entry maps cleanly onto all Big Chart columns with no information left homeless.
+- [ ] Resolutions reported as split W/H per context + explicit tier coverage + upscaled figures separated with path; manufacturer AND third-party gen-site refs present per figure (or assumption explicitly stated).
 
 ---
 

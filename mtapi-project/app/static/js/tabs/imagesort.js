@@ -94,6 +94,79 @@ function _syncOrderButtons() {
   }
 }
 
+  // Whole-list reorder (name/date sorts): new base = first in new order.
+  function _applyFullReorder(orderedPaths) {
+    var imgs = state.imageSort.images || [];
+    var selectedPath = imgs[state.imageSort.selected | 0] && imgs[state.imageSort.selected | 0].path;
+    var byPath = {};
+    imgs.forEach(function(x) { byPath[x.path] = x; });
+    state.imageSort.images = orderedPaths.map(function(p) {
+      var existing = byPath[p];
+      return { path: p, name: existing ? existing.name : basename(p), score: null };
+    });
+    var newSel = 0;
+    if (selectedPath) {
+      var found = state.imageSort.images.findIndex(function(x) { return x.path === selectedPath; });
+      if (found >= 0) newSel = found;
+    }
+    state.imageSort.selected = newSel;
+    renderImageSortForm();
+  }
+
+  function _sortByName(dir) {
+    var imgs = state.imageSort.images || [];
+    if (imgs.length < 2) { alert('Need at least 2 images to sort.'); return; }
+    var ordered = imgs.map(function(x) { return x.path; }).sort(function(a, b) {
+      var na = (byPathName(a) || a);
+      var nb = (byPathName(b) || b);
+      var cmp = na.localeCompare(nb, undefined, { numeric: true, sensitivity: 'base' });
+      if (cmp !== 0) return dir === 'desc' ? -cmp : cmp;
+      if (a < b) return dir === 'desc' ? 1 : -1;
+      if (a > b) return dir === 'desc' ? -1 : 1;
+      return 0;
+    });
+    function byPathName(p) {
+      var it = imgs.find(function(x) { return x.path === p; });
+      return it ? (it.name || basename(it.path)) : p;
+    }
+    logConsole('[IMAGESORT]: name ' + dir + ' → ' + ordered.length + ' images');
+    _applyFullReorder(ordered);
+  }
+
+  async function _sortByDate(dir) {
+    var imgs = state.imageSort.images || [];
+    if (imgs.length < 2) { alert('Need at least 2 images to sort.'); return; }
+    var paths = imgs.map(function(x) { return x.path; });
+    logConsole('[IMAGESORT]: date ' + dir + ' — reading mtimes for ' + paths.length + ' images…');
+    var sigs = {};
+    try {
+      var res = await fetch('/api/media_signatures', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ paths: paths }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      sigs = await res.json();
+    } catch (err) {
+      alert('Date sort failed: ' + err.message);
+      return;
+    }
+    var missing = paths.filter(function(p) { return !sigs[p]; });
+    if (missing.length) logConsole('[IMAGESORT]: date sort — no mtime for ' + missing.length + ' file(s), they go last', 'error');
+    var ordered = paths.slice().sort(function(a, b) {
+      var ma = sigs[a] && sigs[a].mtime_ns;
+      var mb = sigs[b] && sigs[b].mtime_ns;
+      if (ma == null && mb == null) return a < b ? -1 : (a > b ? 1 : 0);
+      if (ma == null) return 1;
+      if (mb == null) return -1;
+      if (ma === mb) return a < b ? -1 : (a > b ? 1 : 0);
+      var cmp = ma < mb ? -1 : 1;
+      return dir === 'desc' ? -cmp : cmp;
+    });
+    logConsole('[IMAGESORT]: date ' + dir + ' → ' + ordered.length + ' images');
+    _applyFullReorder(ordered);
+  }
+
 function _moveSelected(action) {
   var imgs = state.imageSort.images || [];
   var i = state.imageSort.selected | 0;
@@ -175,9 +248,13 @@ function renderImageSortForm() {
           <button type="button" class="btn btn-primary" id="btnIsAddFiles">+ Images</button>
           <button type="button" class="btn" id="btnIsAddFolder">+ Folder</button>
           <button type="button" class="btn" id="btnIsSort" ${images.length < 2 ? 'disabled' : ''}>Sort</button>
+          <button type="button" class="btn" id="btnIsNameAsc" title="Sort all by filename A→Z (natural: frame_2 before frame_10). New base = first." ${images.length < 2 ? 'disabled' : ''}>Name ↑</button>
+          <button type="button" class="btn" id="btnIsNameDesc" title="Sort all by filename Z→A (natural). New base = first." ${images.length < 2 ? 'disabled' : ''}>Name ↓</button>
+          <button type="button" class="btn" id="btnIsDateAsc" title="Sort all oldest→newest by file mtime. For frame-by-frame sets made in order. New base = first." ${images.length < 2 ? 'disabled' : ''}>Date ↑</button>
+          <button type="button" class="btn" id="btnIsDateDesc" title="Sort all newest→oldest by file mtime. New base = first." ${images.length < 2 ? 'disabled' : ''}>Date ↓</button>
           <button type="button" class="btn" id="btnIsClear" ${images.length ? '' : 'disabled'}>Clear</button>
         </div>
-        <p class="form-row-hint">Click row = select + preview · Sort re-ranks #2…N only</p>
+        <p class="form-row-hint">Click row = select + preview · Sort re-ranks #2…N only · Name/Date reorder all (new #1 = base)</p>
       </div>
       <div class="fm-list" id="isList" role="listbox">${listHtml}</div>
       <div class="is-order-bar" id="isOrderBar">
@@ -279,6 +356,9 @@ function renderImageSortForm() {
         <dt>Farthest first</dt>
         <dd>Prefer large distance → contrast / jump-cut energy.</dd>
       </dl>
+
+      <h5 class="tool-docs-h">Name / Date sorts</h5>
+      <p><strong>Name ↑↓</strong> sorts the whole list by filename (natural order: <kbd>frame_2</kbd> before <kbd>frame_10</kbd>, case-insensitive) — no image analysis. <strong>Date ↑↓</strong> sorts oldest→newest (↑) or newest→oldest (↓) by file modification time, via a cheap stat call. Both reorder <strong>all</strong> rows including #1, so the new first row becomes the base — made for frame-by-frame sets: as long as you created them in order, Date ↑ gives you playback order even with sloppy names. Content <strong>Sort</strong> instead keeps #1 pinned and re-ranks #2…N only.</p>
 
       <h5 class="tool-docs-h">RIFE models</h5>
       <dl class="tool-docs-dl">
@@ -424,6 +504,12 @@ function renderImageSortForm() {
       alert('Sort request failed: ' + err.message);
     }
   });
+
+  // Name / Date sorts (whole list — new #1 becomes base)
+  document.getElementById('btnIsNameAsc')?.addEventListener('click', function() { _sortByName('asc'); });
+  document.getElementById('btnIsNameDesc')?.addEventListener('click', function() { _sortByName('desc'); });
+  document.getElementById('btnIsDateAsc')?.addEventListener('click', function() { _sortByDate('asc'); });
+  document.getElementById('btnIsDateDesc')?.addEventListener('click', function() { _sortByDate('desc'); });
 
   // + Images
   document.getElementById('btnIsAddFiles')?.addEventListener('click', async function() {
