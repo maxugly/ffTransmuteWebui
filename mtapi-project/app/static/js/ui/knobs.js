@@ -130,6 +130,11 @@ function setupBinaryKnob(opts) {
   const indicator = document.getElementById(opts.indicatorId);
   const hiddenInput = document.getElementById(opts.hiddenId);
   if (!knob || !indicator || !hiddenInput) return;
+  // Re-renders replace these nodes; a new setup on live nodes must retire
+  // the old wiring, or leaked window listeners toggle detached knobs whose
+  // change handlers still POST (ghost un-toggles).
+  const epoch = (Number(knob._binaryEpoch) || 0) + 1;
+  knob._binaryEpoch = epoch;
 
   const leftVal = String(opts.leftValue);
   const rightVal = String(opts.rightValue);
@@ -180,6 +185,7 @@ function setupBinaryKnob(opts) {
     knob.classList.remove('active');
     window.removeEventListener('mousemove', onMouseMove);
     window.removeEventListener('mouseup', onMouseUp);
+    if (knob._binaryEpoch !== epoch || !knob.isConnected) return;
     if (!dragged) {
       toggle();
     } else {
@@ -193,6 +199,7 @@ function setupBinaryKnob(opts) {
   function onWheel(e) {
     e.preventDefault();
     e.stopPropagation();
+    if (knob._binaryEpoch !== epoch || !knob.isConnected) return;
     const wantRight = e.deltaY < 0; // scroll up → right/On
     const next = wantRight ? rightVal : leftVal;
     if (String(hiddenInput.value) === String(next)) return;

@@ -165,10 +165,13 @@ async function attachCachedRifeVariants() {
   let already = 0;
   for (const e of seq) {
     if (!e.path) continue;
-    if (e.rifeNeed === 'rifed' || e.rifeNeed === 'noRifeNeeded'
+    // Recompute need live (see ensure scan): stale persisted rifeNeed must
+    // not skip variant hydration or need detection.
+    const rk = refreshRifeNeed(e);
+    if (rk === 'rifed' || rk === 'noRifeNeeded'
         || (e.variantPath && e.variantPath !== e.path && _bestHaveM(e) >= 2)) {
-      if (e.rifeNeed !== 'noRifeNeeded') e.rifeNeed = e.rifeNeed || 'rifed';
-      e._rifeStatus = e.rifeNeed === 'rifed' ? 'done' : e._rifeStatus;
+      if (rk !== 'noRifeNeeded') e.rifeNeed = rk;
+      e._rifeStatus = rk === 'rifed' ? 'done' : e._rifeStatus;
       already += 1;
       continue;
     }
@@ -184,7 +187,8 @@ async function attachCachedRifeVariants() {
     for (const e of seq) {
       if (e.variantPath && e.variantPath !== e.path && _bestHaveM(e) >= 2) continue;
       const variants = map.get(_normVariantKey(e.path)) || peekVariants(e.path);
-      const best = _pickBestRifed(variants);
+      const dens = _densityInfoForEntry(e);
+      const best = _pickBestRifed(variants, dens?.needed ? dens.multiplier : 0);
       if (!best) continue;
       e.variantPath = best.path;
       e._rifeMultiplier = best.multiplier;
@@ -551,24 +555,66 @@ async function _gcLowerDensityAfterPromote(entry, _prevPath, _prevM, _prevHash) 
 }
 
 /**
- * Pick densest existing rifed variant from /api/variants map.
- * @returns {{ path: string, multiplier: number } | null}
+ * Best mezzanine interpolation source for an entry: newest existing `dnxhr`
+ * proxy, else null (caller falls back to entry.path). Intra-frame mezzanine
+ * footage interpolates cleaner than Long-GOP originals, and the output
+ * co-registers on the original — so the picker offers rifed-DNxHR directly.
+ * @returns {Promise<{ path: string, kind: string } | null>}
  */
-function _pickBestRifed(variants) {
+async function _mezzanineForEntry(entry) {
+  if (!entry || !entry.path) return null;
+  let variants = null;
+  try {
+    variants = peekVariants(entry.path) || await _fetchVariants(entry.path);
+  } catch (_) {
+    return null;
+  }
+  const list = (variants && variants.dnxhr) || [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    const v = list[i];
+    if (!v || !v.path || v.path === entry.path) continue;
+    try {
+      if (await _pathExistsCheap(v.path)) return { path: v.path, kind: 'dnxhr' };
+    } catch (_) { /* try older */ }
+  }
+  return null;
+}
+
+/**
+ * Pick the winning rifed variant from /api/variants map.
+ * Rank: project-match first (meets the density need), then dnxhr-derived
+ * source (rifed-DNxHR wins ties and sufficient candidates), then higher
+ * multiplier, then newer. Anything unmet re-encodes from mezzanine via
+ * Instant, so the choice converges instead of sticking.
+ * @returns {{ path: string, multiplier: number, hash: string | null } | null}
+ */
+function _pickBestRifed(variants, needM = 0) {
   const list = (variants && variants.rifed) || [];
-  let best = null;
-  let bestM = -1;
+  const need = Number(needM) >= 2 ? Number(needM) : 0;
+  const pool = [];
   for (const v of list) {
     if (!v || !v.path) continue;
     // detail.multiplier is set by register_variant; missing → treat as ×2 (legacy)
     const m = Number(v.detail && v.detail.multiplier);
-    const score = Number.isFinite(m) && m >= 2 ? m : 2;
-    if (score > bestM) {
-      bestM = score;
-      best = { path: v.path, multiplier: score, hash: v.hash || null };
-    }
+    const mult = Number.isFinite(m) && m >= 2 ? m : 2;
+    pool.push({
+      path: v.path,
+      multiplier: mult,
+      hash: v.hash || null,
+      created: Number(v.created_at) || 0,
+      dnxhr: !!(v.detail && v.detail.source_kind === 'dnxhr'),
+    });
   }
-  return best;
+  if (!pool.length) return null;
+  const sat = need > 0 ? pool.filter((c) => c.multiplier >= need) : [];
+  const consid = sat.length ? sat : pool;
+  consid.sort((a, b) => {
+    if (!!b.dnxhr !== !!a.dnxhr) return (b.dnxhr ? 1 : 0) - (a.dnxhr ? 1 : 0);
+    if (b.multiplier !== a.multiplier) return b.multiplier - a.multiplier;
+    return b.created - a.created;
+  });
+  const best = consid[0];
+  return { path: best.path, multiplier: best.multiplier, hash: best.hash };
 }
 
 /**
@@ -586,7 +632,8 @@ async function _hydrateEntryFromVariants(entry) {
       : null;
   }
   const variants = await _fetchVariants(entry.path);
-  const best = _pickBestRifed(variants);
+  const dh = _densityInfoForEntry(entry);
+  const best = _pickBestRifed(variants, dh?.needed ? dh.multiplier : 0);
 
   // Session already points at a densify file — fill missing M from registry
   if (entry.variantPath && entry.variantPath !== entry.path) {
@@ -843,16 +890,21 @@ async function _drainInstantRifeQueue() {
       entry._rifeRunningMultiplier = runM;
       _instantRifeRunningId = entry.id;
       renderSequenceBox({ skipInstantKick: true });
-      logConsole(`[SEQ RIFE]: start ${entry.name} — ×${runM} (${remaining} more in queue)`);
+      // Mezzanine upgrade: interpolate from the DNxHR proxy when one exists.
+      // Output co-registers on the original (source_kind/parent_path), so the
+      // picker offers rifed-DNxHR directly and smart-pick prefers it.
+      const mez = await _mezzanineForEntry(entry);
+      logConsole(`[SEQ RIFE]: start ${entry.name} — ×${runM} (${remaining} more in queue)${mez ? ' from dnxhr' : ''}`);
 
       try {
         const body = {
-          input_path: entry.path,
+          input_path: mez ? mez.path : entry.path,
           multiplier: runM,
           // Native×M timeline; join setpts applies stretch. Keep densest; drop later if needed.
           target_fps: null,
           register_as_variant: true,
           dry_run: false,
+          ...(mez ? { source_kind: mez.kind, parent_path: entry.path } : {}),
         };
         // allowDuringClientBusy: we hold the batch lock ourselves
         const data = await runOpWithCancel('rife', body, {
@@ -1075,7 +1127,10 @@ async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
     let queued = 0;
     let already = 0;
     for (const entry of seq) {
-      const kind = entry.rifeNeed || refreshRifeNeed(entry);
+      // Always recompute: a persisted rifeNeed may predate the current
+      // target_fps / meta (e.g. scanned before the probe landed). The math
+      // is pure — trusting stale need bricks Instant until a manual touch.
+      const kind = refreshRifeNeed(entry);
       if (kind !== 'needsRife') {
         if (kind === 'rifed') {
           already += 1;

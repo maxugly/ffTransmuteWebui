@@ -30,7 +30,8 @@ const DESK_TAB_DEFAULTS = {
   styleTransfer: { contents: [], stylePath: null, selected: 0 },
   quick: { reconcile: 'pad', aspect: 'auto', aspectCustom: '' },
   watcher: {
-    enabled: false, in_dir: '', out_dir: '',
+    enabled: false, pool_ingest: false, pool_add_sequence: false,
+    in_dir: '', out_dir: '',
     resize_mode: 'letterbox', target_width: 1920, target_height: 1080,
   },
   imageSort: {
@@ -207,6 +208,8 @@ function buildDeskSnapshot() {
       quick: state.quick,
       watcher: {
         enabled: !!state.watcher?.enabled,
+        pool_ingest: !!state.watcher?.pool_ingest,
+        pool_add_sequence: !!state.watcher?.pool_add_sequence,
         in_dir: state.watcher?.in_dir || '',
         out_dir: state.watcher?.out_dir || '',
         resize_mode: state.watcher?.resize_mode || 'letterbox',
@@ -280,6 +283,10 @@ function buildPoolStatePayload() {
 
   return {
     version: 2,
+    // Save basis for stale-merge: the server unions in membership rows that
+    // arrived after this client loaded (watcher ingest), instead of letting
+    // a stale autosave wipe them. Absent/null = explicit replace.
+    _basis_updated_at: state.pool.serverUpdatedAt ?? null,
     items: state.pool.items.map(serializePoolItem),
     images: (state.imagePool?.items || []).map(serializePoolItem),
     sequence: state.pool.sequence.map(s => {
@@ -367,6 +374,8 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
   const items = data.items || [];
   const sequence = data.sequence || [];
   const images = data.images || [];
+  const basis = Number(data.updated_at);
+  state.pool.serverUpdatedAt = Number.isFinite(basis) ? basis : null;
 
   state.pool.items = items.map(hydratePoolItem);
   state.pool.sequence = sequence.map(s => {
@@ -714,6 +723,12 @@ async function savePoolStateNow() {
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(await res.text());
+    try {
+      const data = await res.json();
+      if (data && Number.isFinite(Number(data.updated_at))) {
+        state.pool.serverUpdatedAt = Number(data.updated_at);
+      }
+    } catch (_) { /* basis refresh is best-effort */ }
     // Do NOT clear dirty — only explicit projectSave does.
     // Do NOT POST /api/project/save here.
   } catch (err) {

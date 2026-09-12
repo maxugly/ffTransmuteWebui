@@ -88,17 +88,29 @@ when the target path already exists (related withoutBG files share one number).
 **Jobs** — send `X-Job-Token` on long `POST /ops/*`; poll
 `GET /api/job/{token}`; stop with `POST /api/cancel`.
 
-### Folder Watcher (ingest → DNxHR)
+### Folder Watcher (DNxHR ingest + hot-folder → Pool)
 
-Background polling service that watches an input directory for new video
-files, stabilizes (waits for file size to stop changing), then transcodes
-each to DNxHR-LB `.mov` — Resolve-friendly intermediate format. Processed
-originals are moved to a `dun/` subfolder so they don't get picked up
-again.
+Background polling service with **two independent jobs** sharing one poll
+loop (either, both, or neither — one tab, no new tabs):
+
+1. **DNxHR ingest** (`enabled`) — watches the input directory for new video
+   files, stabilizes (waits for file size to stop changing), then transcodes
+   each to DNxHR-LB `.mov` — Resolve-friendly intermediate format. Every
+   output is registered as a `dnxhr` proxy **variant** of the original, so
+   the Sequence file picker lists Original / dnxhr (/ rifed) from one record.
+2. **Pool import** (`pool_ingest`) — every stabilized arrival is appended to
+   the Video Pool (`items[]`, optionally `sequence[]` via
+   `pool_add_sequence`) straight from the server, so it works with the
+   browser closed. RIFE never runs here — Sequence Instant-RIFE, auto
+   first/last, and VFR→CFR fire through the normal import funnel once the
+   clip lands. Canonical pool path is always the original.
+
+Processed originals are moved to a `dun/` subfolder (collision-safe
+`stem_1.ext`) so they don't get picked up again.
 
 Controlled at `GET /api/watcher` (status) and `POST /api/watcher` (config).
-Defaults to **off** at boot — never auto-starts, even if `enabled` was true
-last run. The UI has a dedicated tab.
+Both toggles default to **off** at boot — never auto-starts, even if they
+were on last run. The UI has a dedicated tab with one knob per job.
 
 **Status** (`GET /api/watcher`):
 
@@ -110,6 +122,8 @@ curl -s http://localhost:24590/api/watcher | jq .
 {
   "ok": true,
   "enabled": false,
+  "pool_ingest": false,
+  "pool_add_sequence": false,
   "running": false,
   "in_dir": "/home/m/incoming",
   "out_dir": "/home/m/transcoded",
@@ -123,6 +137,7 @@ curl -s http://localhost:24590/api/watcher | jq .
   "processing": null,
   "processed_count": 7,
   "failed_count": 1,
+  "pool_ingested_count": 2,
   "log_lines": ["14:32:01 watcher started", "14:32:05 done → myclip_resolve.mov", ...]
 }
 ```
@@ -134,6 +149,8 @@ curl -X POST http://localhost:24590/api/watcher \
   -H "Content-Type: application/json" \
   -d '{
     "enabled": true,
+    "pool_ingest": true,
+    "pool_add_sequence": true,
     "in_dir": "/home/m/incoming",
     "out_dir": "/home/m/transcoded",
     "target_width": 1920,
@@ -144,16 +161,18 @@ curl -X POST http://localhost:24590/api/watcher \
 
 | field | type | default | notes |
 |---|---|---|---|
-| `enabled` | bool \| null | — | `true` to start, `false` to stop. Omit to leave as-is. |
-| `in_dir` | string \| null | — | absolute path to watched folder |
-| `out_dir` | string \| null | — | absolute path for DNxHR `.mov` outputs |
+| `enabled` | bool \| null | — | DNxHR job: `true` to start, `false` to stop. Omit to leave as-is. |
+| `pool_ingest` | bool \| null | — | Pool job: `true` to start, `false` to stop. Independent of `enabled`; the thread runs while either is on. |
+| `pool_add_sequence` | bool \| null | `false` | Pool imports also append to `sequence[]` |
+| `in_dir` | string \| null | — | absolute path to watched folder (both jobs) |
+| `out_dir` | string \| null | — | absolute path for DNxHR `.mov` outputs (DNxHR job only) |
 | `target_width` | int \| null | 1920 | AR reference width (min 2) |
 | `target_height` | int \| null | 1080 | AR reference height (min 2) |
 | `resize_mode` | string \| null | `"letterbox"` | `"letterbox"` pads to AR with black bars; `"crop"` scales up then center-crops |
 
-All fields except `enabled` persist to `data/watcher.json` on disk (paths
-survive restarts). `enabled` is intentionally NOT persisted — the watcher
-always boots off.
+All fields except the two enables persist to `data/watcher.json` on disk
+(paths survive restarts). Both enables are intentionally NOT persisted —
+the watcher always boots off.
 
 **How it works:**
 
@@ -161,12 +180,19 @@ always boots off.
 - Detects new files by extension (`.mp4`, `.mov`, `.mkv`, etc.)
 - Waits for file size to remain unchanged for 1.5 seconds (stabilization —
   avoids grabbing files still being copied)
-- Transcodes: ffprobe → letterbox/crop to target AR → DNxHR-LB (`dnxhd`
+- Pool job: appends the original to the server pool file (`items[]`, plus
+  `sequence[]` when `pool_add_sequence`), then moves it to `dun/`
+- DNxHR job: ffprobe → letterbox/crop to target AR → DNxHR-LB (`dnxhd`
   codec, `yuv422p` pixel format) with PCM 16-bit audio (silent audio track
-  added if source has none)
-- Moves original to `in_dir/dun/` on success
-- Keeps up to 80 log lines; counts processed and failed
-- If `in_dir` and `out_dir` resolve to the same path, it refuses to start
+  added if source has none); output registered as a `dnxhr` proxy variant
+  of the original (Sequence picker lists Original / dnxhr / rifed).
+  Sequence Instant RIFE interpolates from the DNxHR proxy when one exists
+  and co-registers the result on the original (`source_kind: dnxhr`); the
+  picker prefers project-sufficient dnxhr-derived files (rifed-DNxHR wins).
+- Moves original to `in_dir/dun/` on success (collision-safe `stem_1.ext`)
+- Keeps up to 80 log lines; counts processed, failed, and pool-imported
+- DNxHR start requires `out_dir` (created if missing) and refuses
+  `in_dir == out_dir`; pool-only start needs just `in_dir`
 
 Every response is the same shape:
 ```json

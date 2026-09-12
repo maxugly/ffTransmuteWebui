@@ -123,9 +123,11 @@ let state = {
     aspect: 'auto',     // auto|1:1|16:9|…|custom
     aspectCustom: '',
   },
-  // Folder watcher (ingest → DNxHR); server defaults enabled=false
+  // Folder watcher (DNxHR ingest + hot-folder → pool); server defaults both off
   watcher: {
     enabled: false,
+    pool_ingest: false,
+    pool_add_sequence: false,
     in_dir: '',
     out_dir: '',
     resize_mode: 'letterbox',
@@ -145,6 +147,7 @@ let state = {
     gridScrollTop: 0,
     hoverPath: null,    // temporary hover only (does not change selection)
     loading: false,
+    serverUpdatedAt: null, // save basis: server updated_at at last load/save
     // Sequence composer: ordered clips to stitch
     sequence: [], // { id, path, name, targetDuration? }
     focusPath: null, // deprecated alias; display uses hoverPath || selectedPath

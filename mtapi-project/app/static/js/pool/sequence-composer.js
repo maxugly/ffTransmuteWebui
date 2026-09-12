@@ -412,7 +412,8 @@ function renderSequenceBox(opts) {
           || e._rifeStatus === 'failed' || _findQueuedRife(e.id)) {
         return false;
       }
-      return (e.rifeNeed || refreshRifeNeed(e)) === 'needsRife';
+      // Always recompute: persisted rifeNeed may predate target/meta.
+      return refreshRifeNeed(e) === 'needsRife';
     });
     if (hasIdleNeed) _scheduleInstantRifeKick();
   }

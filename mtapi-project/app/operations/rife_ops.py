@@ -34,6 +34,74 @@ class RifeParams(BaseModel):
     end_frame: int = end_frame_field()
     dry_run: bool = Field(False, description="Print command only")
     register_as_variant: bool = Field(False, description="Register output as 'rifed' variant of input")
+    source_kind: str | None = Field(
+        None,
+        description="What kind of file the input is (e.g. 'dnxhr' when "
+                    "interpolating from a mezzanine proxy). Stored in variant "
+                    "detail so the picker can prefer rifed-DNxHR.",
+    )
+    parent_path: str | None = Field(
+        None,
+        description="Ultimate original to co-register the output on (when the "
+                    "input is itself a variant, e.g. a dnxhr proxy). Lets the "
+                    "original's picker offer rifed-DNxHR directly.",
+    )
+
+
+async def register_rifed_output(
+    input_path: str | Path,
+    out: str | Path,
+    *,
+    multiplier: int,
+    target_fps: float | None,
+    has_audio: bool,
+    source_kind: str | None = None,
+    parent_path: str | Path | None = None,
+) -> str | None:
+    """Register a RIFE output as a ``rifed`` variant; return its variant hash.
+
+    Always registers on the interpolation input. When the input was itself a
+    proxy (``parent_path`` = ultimate original), co-registers there too with
+    ``source_kind``/``derived_from`` detail, so the original's picker offers
+    rifed-DNxHR directly. The returned hash is from the parent record when
+    co-registered (frontend recovery looks parents up by hash), else the
+    input's. Never raises — failure only skips the picker row.
+    """
+    from ..media import register_variant
+
+    src = Path(str(input_path)).expanduser().resolve()
+    dst = Path(str(out)).expanduser().resolve()
+    detail: dict = {
+        "multiplier": multiplier,
+        "target_fps": target_fps,
+        "has_audio": bool(has_audio),
+    }
+    if source_kind:
+        detail["source_kind"] = str(source_kind)
+    rec = await register_variant(str(src), kind="rifed",
+                                 variant_path=str(dst), detail=detail)
+    variant_hash = None
+    if rec:
+        for v in reversed((rec.get("variants") or {}).get("rifed") or []):
+            if v.get("path") == str(dst):
+                variant_hash = v.get("hash")
+                break
+    if parent_path:
+        try:
+            parent = Path(str(parent_path)).expanduser().resolve()
+            if parent.is_file() and parent != src:
+                pdetail = {**detail, "derived_from": str(src)}
+                rec2 = await register_variant(str(parent), kind="rifed",
+                                              variant_path=str(dst),
+                                              detail=pdetail)
+                if rec2:
+                    for v in reversed((rec2.get("variants") or {}).get("rifed") or []):
+                        if v.get("path") == str(dst):
+                            variant_hash = v.get("hash")
+                            break
+        except OSError:
+            pass
+    return variant_hash
 
 
 async def rife_interpolate(p: RifeParams) -> OperationResult:
@@ -79,25 +147,16 @@ async def rife_interpolate(p: RifeParams) -> OperationResult:
 
     if result.ok and p.register_as_variant and not p.dry_run:
         try:
-            from ..media import register_variant
             from ..video_pipeline import probe
             info = await probe(str(input_path))
-            rec = await register_variant(
-                str(input_path),
-                kind="rifed",
-                variant_path=str(out),
-                detail={
-                    "multiplier": p.multiplier,
-                    "target_fps": p.target_fps,
-                    "has_audio": bool(info.get("has_audio")),
-                },
+            variant_hash = await register_rifed_output(
+                str(input_path), str(out),
+                multiplier=p.multiplier,
+                target_fps=p.target_fps,
+                has_audio=bool(info.get("has_audio")),
+                source_kind=p.source_kind,
+                parent_path=p.parent_path,
             )
-            variant_hash = None
-            if rec:
-                for v in reversed((rec.get("variants") or {}).get("rifed") or []):
-                    if v.get("path") == str(out):
-                        variant_hash = v.get("hash")
-                        break
             extra = dict(result.meta or {})
             extra["variant_hash"] = variant_hash
             extra["multiplier"] = p.multiplier

@@ -15,17 +15,21 @@ def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY
 
     @app.post("/api/watcher", tags=["meta"])
     async def watcher_configure(body: dict):
+        body = body or {}
         st = folder_watcher.apply_config(
             enabled=body.get("enabled"),
+            pool_ingest=body.get("pool_ingest"),
+            pool_add_sequence=body.get("pool_add_sequence"),
             in_dir=body.get("in_dir"),
             out_dir=body.get("out_dir"),
             target_width=body.get("target_width"),
             target_height=body.get("target_height"),
             resize_mode=body.get("resize_mode"),
         )
-        ok = not st.get("last_error") or not st.get("enabled")
         if body.get("enabled") is True and not st.get("enabled"):
             return {"ok": False, "error": st.get("last_error") or "could not enable watcher", **st}
+        if body.get("pool_ingest") is True and not st.get("pool_ingest"):
+            return {"ok": False, "error": st.get("last_error") or "could not enable pool ingest", **st}
         return {"ok": True, **st}
 
     @app.post("/api/cancel", tags=["meta"])

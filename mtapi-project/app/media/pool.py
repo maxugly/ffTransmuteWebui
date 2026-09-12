@@ -38,6 +38,8 @@ DESK_TAB_DEFAULTS: dict[str, dict[str, Any]] = {
     "quick": {"reconcile": "pad", "aspect": "auto", "aspectCustom": ""},
     "watcher": {
         "enabled": False,
+        "pool_ingest": False,
+        "pool_add_sequence": False,
         "in_dir": "",
         "out_dir": "",
         "resize_mode": "letterbox",
@@ -554,17 +556,116 @@ def load_pool_state() -> dict[str, Any]:
     }
 
 
+def _save_basis_of(payload: dict[str, Any]) -> float | None:
+    """The ``updated_at`` the saver loaded, or None (explicit replace)."""
+    try:
+        b = payload.get("_basis_updated_at")
+    except AttributeError:
+        return None
+    if b is None:
+        return None
+    try:
+        return float(b)
+    except (TypeError, ValueError):
+        return None
+
+
+def _union_membership_entries(
+    current: list, incoming: list | None
+) -> list:
+    """Union by path: incoming wins field-level, current-only rows survive.
+
+    Protects server-side appends (watcher ingest) from being wiped by a
+    browser autosave that loaded before they arrived.
+    """
+    out = [e for e in (incoming or [])]
+    have = {e.get("path") for e in out if isinstance(e, dict)}
+    for e in current or []:
+        if isinstance(e, dict) and e.get("path") not in have:
+            out.append(e)
+            have.add(e.get("path"))
+    return out
+
+
+def _current_membership_snapshot() -> tuple[list, list, float | None]:
+    """Live items/sequence/updated_at: catalog memory when ready, else file."""
+    from .catalog import catalog_if_ready
+    cat = catalog_if_ready()
+    if cat is not None:
+        with cat._global_lock:
+            raw = cat.membership.get("raw") or {}
+            return (
+                list(cat.membership.get("items") or []),
+                list(cat.membership.get("sequence") or []),
+                raw.get("updated_at"),
+            )
+    try:
+        raw = json.loads(POOL_STATE_PATH.read_text(encoding="utf-8"))
+        if not isinstance(raw, dict):
+            raw = {}
+    except Exception:
+        raw = {}
+    items = raw.get("items") if isinstance(raw.get("items"), list) else []
+    seq = raw.get("sequence") if isinstance(raw.get("sequence"), list) else []
+    updated = raw.get("updated_at")
+    try:
+        updated = float(updated) if updated is not None else None
+    except (TypeError, ValueError):
+        updated = None
+    return items, seq, updated
+
+
 async def save_pool_state(payload: dict[str, Any]) -> dict[str, Any]:
     async with _pool_state_lock:
-        POOL_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        data = _normalize_pool_payload(payload)
-        tmp = POOL_STATE_PATH.with_suffix(".tmp")
-        tmp.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
-        tmp.replace(POOL_STATE_PATH)
+        payload = dict(payload or {})
+        basis = _save_basis_of(payload)
+        payload.pop("_basis_updated_at", None)
         from .catalog import catalog_if_ready
         cat = catalog_if_ready()
         if cat is not None:
-            cat.apply_membership_snapshot(data)
+            # Hold the catalog lock across read-normalize-persist so a
+            # watcher ingest cannot slip between (thread-safe, sync only).
+            with cat._global_lock:
+                raw = cat.membership.get("raw") or {}
+                try:
+                    cur_updated = raw.get("updated_at")
+                    cur_updated = float(cur_updated) if cur_updated is not None else None
+                except (TypeError, ValueError):
+                    cur_updated = None
+                merged = False
+                if basis is not None and cur_updated is not None and cur_updated > basis:
+                    payload = dict(payload)
+                    payload["items"] = _union_membership_entries(
+                        cat.membership.get("items"), payload.get("items"))
+                    payload["sequence"] = _union_membership_entries(
+                        cat.membership.get("sequence"), payload.get("sequence"))
+                    merged = True
+                before_items = {it.get("path") for it in cat.membership.get("items") or [] if isinstance(it, dict)}
+                before_seq = {e.get("path") for e in cat.membership.get("sequence") or [] if isinstance(e, dict)}
+                POOL_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+                data = _normalize_pool_payload(payload)
+                tmp = POOL_STATE_PATH.with_suffix(".tmp")
+                tmp.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+                tmp.replace(POOL_STATE_PATH)
+                cat.apply_membership_snapshot(data)
+                after_items = {it.get("path") for it in data.get("items") or []}
+                after_seq = {e.get("path") for e in data.get("sequence") or []}
+                dropped = sorted((before_items - after_items) | (before_seq - after_seq))
+                if dropped:
+                    log.info("pool save %s basis=%s cur=%s dropped %d: %s",
+                             "merged" if merged else "replaced",
+                             basis, cur_updated, len(dropped), dropped[:8])
+        else:
+            cur_items, cur_seq, cur_updated = _current_membership_snapshot()
+            if basis is not None and cur_updated is not None and cur_updated > basis:
+                payload = dict(payload)
+                payload["items"] = _union_membership_entries(cur_items, payload.get("items"))
+                payload["sequence"] = _union_membership_entries(cur_seq, payload.get("sequence"))
+            POOL_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            data = _normalize_pool_payload(payload)
+            tmp = POOL_STATE_PATH.with_suffix(".tmp")
+            tmp.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+            tmp.replace(POOL_STATE_PATH)
         return {
             "ok": True,
             "path": str(POOL_STATE_PATH),
