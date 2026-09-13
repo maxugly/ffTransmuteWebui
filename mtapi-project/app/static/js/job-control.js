@@ -86,6 +86,60 @@ function clearClientBusy() {
   }
 }
 
+/**
+ * Server-side busy seen while THIS client is idle (spec §8.5). Display only:
+ * never sets clientBusyLabel / activeJob, never fights the local holder.
+ * Covers Instant drain, queue worker, or another tab holding the single slot,
+ * so Run shows busy instead of failing later with "A job is already running".
+ */
+let remoteBusyLabel = null;
+let _remotePollTimer = null;
+
+function _serverBusyLabel(data) {
+  try {
+    const live = (data && data.live_ops) || [];
+    if (live.length && live[0]) {
+      const l = live[0].label || live[0].op_id || '';
+      if (l) return `Server busy — ${l}`;
+    }
+    const run = data && data.running;
+    if (run && (run.label || run.op_id)) return `Server busy — queue: ${run.label || run.op_id}`;
+    if (data && data.pending_count > 0) return `Server busy — queue (${data.pending_count} waiting)`;
+    if (data && data.direct_busy) return 'Server busy — direct op';
+  } catch (_) { /* fall through to generic */ }
+  return 'Server busy';
+}
+
+function _setRemoteBusy(label) {
+  if (!label) {
+    if (remoteBusyLabel == null) return;
+    remoteBusyLabel = null;
+    // Only restore Run if no local work took over meanwhile.
+    if (!isMainJobBusy()) setRunUiBusy(false);
+    return;
+  }
+  remoteBusyLabel = label;
+  if (isMainJobBusy()) return; // local holder owns the buttons
+  if (elements.btnRun) {
+    elements.btnRun.disabled = true;
+    elements.btnRun.classList.toggle('is-job-busy', true);
+    elements.btnRun.innerHTML = '<span class="job-pulse-dot" aria-hidden="true">●</span> Server busy';
+    elements.btnRun.title = `${label} — see the Jobs tab (server work from another tab/queue)`;
+  }
+  if (elements.statusDot) elements.statusDot.className = 'status-dot loading';
+}
+
+async function _pollRemoteBusy() {
+  if (isMainJobBusy()) return; // local work (or its batch hold) owns the UI
+  try {
+    const res = await fetch('/api/queue');
+    if (!res.ok) { _setRemoteBusy(null); return; }
+    const data = await res.json();
+    if (data && data.busy) _setRemoteBusy(_serverBusyLabel(data));
+    else _setRemoteBusy(null);
+  } catch (_) { _setRemoteBusy(null); }
+}
+
 let activeJob = {
   token: null,
   controller: null,
@@ -1107,6 +1161,9 @@ export {
 
 // ── Module init: wire static UI elements ──────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
+  // Idle server-slot watch (spec §8.5): cheap GET, display only, skips while
+  // any local work holds the buttons.
+  if (!_remotePollTimer) _remotePollTimer = setInterval(_pollRemoteBusy, 3000);
   var btn = document.getElementById('btnPreviewLive');
   if (btn) btn.addEventListener('click', togglePreviewLive);
 });

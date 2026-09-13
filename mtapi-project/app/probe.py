@@ -36,10 +36,17 @@ async def probe_fps(path: str, default: float = 0.0) -> float:
         "-of", "csv=p=0", path,
     ])
     try:
+        fps = default
         if code == 0 and "/" in out:
             num, den = out.strip().split("/", 1)
-            return float(num) / float(den)
-        return float(out.strip()) if code == 0 else default
+            fps = float(num) / float(den)
+        elif code == 0:
+            fps = float(out.strip())
+        # Broken containers report insane r_frame_rate (e.g. 16000 fps):
+        # refuse it here so garbage never enters cached meta.
+        if fps <= 0 or fps > 1000:
+            return default
+        return fps
     except (ValueError, ZeroDivisionError):
         return default
 
@@ -103,10 +110,17 @@ def probe_duration_sync(path: str, default: float = 0.0) -> float:
 def probe_fps_sync(path: str, default: float = 0.0) -> float:
     try:
         raw = _ffprobe_sync(path, "r_frame_rate")
+        fps = default
         if "/" in raw:
             num, den = raw.split("/", 1)
-            return float(num) / float(den) if float(den) != 0 else default
-        return float(raw) if raw else default
+            fps = float(num) / float(den) if float(den) != 0 else default
+        elif raw:
+            fps = float(raw)
+        # Broken containers report insane r_frame_rate (e.g. 16000 fps):
+        # refuse it here so garbage never enters cached meta.
+        if fps <= 0 or fps > 1000:
+            return default
+        return fps
     except (ValueError, ZeroDivisionError, subprocess.SubprocessError):
         return default
 

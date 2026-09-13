@@ -8,7 +8,7 @@ import {
 import {
   projectNew, projectOpen, projectSave, savePoolStateNow,
   scheduleSavePoolState, stitchPoolSequence, refreshPoolToolbarCounts,
-  projectLabel, shortHash, buildPoolMetaHtml,
+  projectLabel, shortHash, buildPoolMetaHtml, isApplyingFormState,
 } from '/js/pool/persistence.js';
 import {
   findPoolItem, displayFocusPath, setPoolHover, clearPoolHover,
@@ -438,6 +438,9 @@ function _bindSequencePanel() {
   });
   document.getElementById('poolInstantRife')?.addEventListener('change', (e) => {
     state.pool.instantRife = e.target.checked;
+    // Tab-switch form restore replays saved values as change events — setting
+    // state is its job, but only a real gesture may start Instant work.
+    if (isApplyingFormState()) return;
     // Instant implies RIFE interpolate — turn both on together
     if (e.target.checked) {
       state.pool.useRife = true;
@@ -461,6 +464,8 @@ function _bindSequencePanel() {
   document.getElementById('poolTargetFps')?.addEventListener('change', (e) => {
     const v = parseFloat(e.target.value);
     state.pool.targetFps = (v > 0) ? v : null;
+    // Form restore replays the saved value — not a user edit, never a start.
+    if (isApplyingFormState()) return;
     scheduleSavePoolState();
     if (state.pool.instantRife && state.pool.useRife) _maybeAutoRifeAll();
   });

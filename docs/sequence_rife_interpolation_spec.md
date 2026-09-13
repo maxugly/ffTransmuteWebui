@@ -215,3 +215,24 @@ backend rule (§2: explicit `target_fps`, else max native) is unchanged.
    RIFE-fps change (`armInstantRife()`). Project/session restore disarms
    (`applyPoolData`), user Stop disarms. While on-but-unstarted the strip reads
    "paused after load … toggle Instant off/on or edit Time to start".
+3. **Opening a project performs no media reads.** Restore renders badges from the
+   persisted records only (`rife_need`, `rife_multiplier`, `variant_path`,
+   `variant_hash`, cached pool `meta` fps/duration). No need recompute, no
+   `/api/variants` batch (single or batched), no signature/existence checks, no
+   recovery POSTs, no probes on open — including inside the composer render kick
+   (`renderSequenceBox`) and the badge-polish pass (`_updateSeqVariantBadges`),
+   which both require the armed flag. Verifying/linking is work: it happens only
+   on the armed gestures in (2), whose scan (`ensureSequenceMetaAndInstantScan`)
+   is the single place that may hydrate from the registry.
+4. **Missing media stays in the project (offline, never dropped).** Load paths keep
+   entries whose files are absent and report them in `missing` (console line +
+   payload field); save paths never prune them. A missing entry renders from its
+   cached record; only a missing entry may be hash-matched against the global
+   variant/media DB (moved-path relink). Present files are never re-checked on
+   open.
+5. **Run reflects the real server slot.** The Run button's busy state also follows
+   `GET /api/queue` (`busy`/`direct_busy`/live ops) when the local client is
+   otherwise idle, so server-side work (Instant drain, queue worker, another tab)
+   disables Run with the owning task's label instead of failing later with
+   "A job is already running" on an idle-looking button. Display only: no new
+   queue, no new cancel path (Jobs tab keeps its existing controls).

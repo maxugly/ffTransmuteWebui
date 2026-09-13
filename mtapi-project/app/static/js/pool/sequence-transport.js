@@ -2,7 +2,7 @@
 import { state, elements, logConsole, setPreviewAspect, clearPreviewAspect } from '/app.js';
 import { selectPoolItem } from '/js/pool/items.js';
 import { basename, formatDurationExact } from '/js/utils.js';
-import { scheduleSavePoolState, savePoolStateNow } from '/js/pool/persistence.js';
+import { scheduleSavePoolState, savePoolStateNow, isApplyingFormState } from '/js/pool/persistence.js';
 import { registerListKeys } from '/js/ui/list-keys.js';
 import { findPoolItem, updateSeqTotalTime } from '/js/pool/sequence-model.js';
 import { updateSelectionHighlights, displayFocusPath, updatePoolFocusFrame } from '/js/pool/sequence-select.js';
@@ -153,6 +153,10 @@ function updateSeqClipSettings() {
 }
 
 function onSeqClipDurationChange() {
+  // Tab-switch form restore replays the saved Time value as a change event —
+  // the input already mirrors the entry, so there is nothing to commit and
+  // nothing to start. Only a real edit arms Instant.
+  if (isApplyingFormState()) return;
   const idx = findSelectedSeqIndex();
   if (idx < 0) {
     logConsole('[SEQ]: No sequence clip selected \u2014 click a token first', 'error');

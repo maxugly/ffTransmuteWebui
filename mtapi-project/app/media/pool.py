@@ -404,6 +404,44 @@ def _existing_path_or_none(value: Any) -> str | None:
         return None
 
 
+def _collect_missing(data: dict[str, Any]) -> list[str]:
+    """Paths in items/images/sequence whose files are absent.
+
+    Load keeps these entries (offline, never dropped); this only reports them
+    so the desk can log/badge them. No normalization, no pruning.
+    """
+    miss: list[str] = []
+    for key in ("items", "images"):
+        rows = data.get(key)
+        if not isinstance(rows, list):
+            continue
+        for it in rows:
+            if not isinstance(it, dict):
+                continue
+            p = it.get("path")
+            if not p:
+                continue
+            try:
+                if not Path(str(p)).expanduser().is_file():
+                    miss.append(str(p))
+            except OSError:
+                miss.append(str(p))
+    seq = data.get("sequence")
+    if isinstance(seq, list):
+        for e in seq:
+            if not isinstance(e, dict):
+                continue
+            p = e.get("path")
+            if not p:
+                continue
+            try:
+                if not Path(str(p)).expanduser().is_file():
+                    miss.append(str(p))
+            except OSError:
+                miss.append(str(p))
+    return miss
+
+
 def _clamp_token(value: Any, default: int = 2) -> int:
     n = _opt_int(value)
     if n is None:
@@ -537,10 +575,12 @@ def load_pool_state() -> dict[str, Any]:
     if not isinstance(raw, dict):
         return {**state, "ok": False, "error": "Invalid pool state", "restored": False}
 
-    missing: list[str] = []
+    # File fallback (catalog not ready): keep missing entries offline, never
+    # drop them — a load must not delete media (spec §8.4). Only report.
     data = _normalize_pool_payload(
-        raw, require_exists=True, drop_settings=False, missing=missing,
+        raw, require_exists=False, drop_settings=False,
     )
+    missing = _collect_missing(data)
     selected = _existing_path_or_none(data.get("selected_path"))
     selected_image = _existing_path_or_none(data.get("selected_image_path"))
     enrich_items_from_records(data)

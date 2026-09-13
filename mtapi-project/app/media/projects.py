@@ -15,6 +15,7 @@ from typing import Any
 from .config import MEDIA_ROOT
 from .pool import (
     POOL_SCHEMA_VERSION,
+    _collect_missing,
     _existing_path_or_none,
     _normalize_pool_payload,
     _schema_version,
@@ -111,11 +112,13 @@ def load_project_file(project_path: str | Path) -> dict[str, Any]:
     if isinstance(desk_raw, dict) and "desk" not in pool_raw:
         pool_raw["desk"] = desk_raw
 
-    missing: list[str] = []
+    # File fallback (catalog not ready): keep missing entries offline, never
+    # drop them — a load must not delete media (spec §8.4). Only report.
     # Named project loads must drop desk.settings so they cannot overwrite globals.
     pool = _normalize_pool_payload(
-        pool_raw, require_exists=True, drop_settings=True, missing=missing,
+        pool_raw, require_exists=False, drop_settings=True,
     )
+    missing = _collect_missing(pool)
 
     try:
         LAST_PROJECT_PATH.parent.mkdir(parents=True, exist_ok=True)

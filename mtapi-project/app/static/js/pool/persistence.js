@@ -4,7 +4,7 @@ import {
   renderPoolForm, renderPoolGrid, defaultTileInfo,
   checkHealth, switchTab, formatBytes, addPathsToPool,
 } from '/app.js';
-import { seqStop, _maybeAutoRifeAll, recoverSequenceVariants, attachCachedRifeVariants, setInstantHydrationGate, disarmInstantRife } from '/js/pool/sequence.js';
+import { seqStop, _maybeAutoRifeAll, recoverSequenceVariants, setInstantHydrationGate, disarmInstantRife } from '/js/pool/sequence.js';
 import { ensurePoolLayout } from '/js/pool/layout.js';
 import { ensureTileInfo } from '/app.js';
 import { basename, escapeHtml, formatDurationExact } from '/js/utils.js';
@@ -597,7 +597,8 @@ async function projectOpen() {
       projectPath: data.path,
       projectName: data.name,
     });
-    await attachCachedRifeVariants();
+    // Open renders from persisted records only (spec §8.3): no registry
+    // hydration, no probes, no reads. The armed scan hydrates on gesture.
     setInstantHydrationGate(true);
     // Session mirrors the opened desk so F5 prefers session (not a stale dual-write).
     _poolPersistReady = true;
@@ -751,7 +752,7 @@ async function restorePoolState() {
       data = await res.json();
       if (data.ok) {
         applyPoolData(data, { asProject: false });
-        await attachCachedRifeVariants();
+        // Restore renders persisted records only (spec §8.3) — no reads on open.
         setInstantHydrationGate(true);
         if (data.project_path) {
           state.project.path = data.project_path;
@@ -789,7 +790,7 @@ async function restorePoolState() {
                 projectPath: data.path,
                 projectName: data.name,
               });
-              await attachCachedRifeVariants();
+              // Restore renders persisted records only (spec §8.3) — no reads on open.
               setInstantHydrationGate(true);
               _poolPersistReady = true;
               await savePoolStateNow();

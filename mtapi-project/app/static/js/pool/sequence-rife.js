@@ -59,11 +59,15 @@ function _resolvedTargetFps() {
 
 /**
  * Density after time-stretch (ignores RIFE master switch — used for badges + Instant).
+ * @param {number} [targetOverride] pre-resolved target fps for render passes —
+ *   resolving once per pass keeps badge math O(n) instead of O(n²).
  * @returns {{ needed: boolean, reason?: string, effFps?: number, targetFps?: number,
  *             multiplier?: number, nativeFps?: number, stretch?: number }}
  */
-function _densityInfoForEntry(entry) {
-  const targetFps = _resolvedTargetFps();
+function _densityInfoForEntry(entry, targetOverride) {
+  const targetFps = (targetOverride != null && targetOverride > 0)
+    ? targetOverride
+    : _resolvedTargetFps();
   if (!targetFps) {
     return { needed: false, reason: 'no target fps (set RIFE fps or load clip meta)' };
   }
@@ -134,9 +138,9 @@ function refreshRifeNeed(entry) {
   return need;
 }
 
-function _rifeInfoForEntry(entry) {
+function _rifeInfoForEntry(entry, targetOverride) {
   if (!state.pool.useRife) return { needed: false, reason: 'RIFE interpolate off' };
-  const dens = _densityInfoForEntry(entry);
+  const dens = _densityInfoForEntry(entry, targetOverride);
   const haveM = _bestHaveM(entry);
   if (_alreadyHasUsableRife(entry)) {
     if (!dens.needed || haveM >= (dens.multiplier || 2)) {
@@ -176,6 +180,9 @@ let _instantUserStarted = false;
 
 function armInstantRife() {
   _instantUserStarted = true;
+  // Every arming gesture must own a Stop hook: Stop disarms even when the
+  // scan found nothing to queue (no drain ever bound it). Idempotent.
+  _bindInstantRifeStopHook();
 }
 
 function disarmInstantRife() {
@@ -255,12 +262,12 @@ let _instantRifeRestart = null; // { entryId, info }
  * One badge per clip describing Instant/join RIFE state. Hover title is the full story.
  * @returns {{ text: string, cls: string, title: string } | null}
  */
-function _rifeBadgeForEntry(entry) {
+function _rifeBadgeForEntry(entry, targetOverride) {
   const useRife = !!state.pool.useRife;
   const instant = !!state.pool.instantRife;
   // Raw stretch math (for titles) + Instant-aware need (honors haveM)
-  const dens = _densityInfoForEntry(entry);
-  const info = useRife ? _rifeInfoForEntry(entry) : dens;
+  const dens = _densityInfoForEntry(entry, targetOverride);
+  const info = useRife ? _rifeInfoForEntry(entry, targetOverride) : dens;
   const qIdx = _instantRifeQueue.findIndex((j) => j.entryId === entry.id);
   const st = entry._rifeStatus;
   const hasVar = !!(entry.variantPath && entry.variantPath !== entry.path);
@@ -421,13 +428,15 @@ function _updateInstantRifeStrip() {
   const useRife = !!state.pool.useRife;
   const instant = !!state.pool.instantRife;
   const q = _instantRifeQueue.length;
+  // One target resolution per strip paint — not one per entry (O(n²)).
+  const _stripTarget = _resolvedTargetFps();
   const running = state.pool.sequence.find((e) => e.id === _instantRifeRunningId)
     || state.pool.sequence.find((e) => e._rifeStatus === 'running');
   const doneN = state.pool.sequence.filter(
     (e) => e._rifeStatus === 'done' || (e.variantPath && e.variantPath !== e.path),
   ).length;
   const needN = state.pool.sequence.filter((e) => {
-    const d = _densityInfoForEntry(e);
+    const d = _densityInfoForEntry(e, _stripTarget);
     if (!d?.needed) return false;
     const mHave = e._rifeMultiplier || 0;
     // Already densified enough for this stretch
@@ -842,6 +851,9 @@ function _queueInstantRife(entry, info, opts) {
 async function _kickInstantRifeScan() {
   if (!state.pool.instantRife || !state.pool.useRife) return;
   if (!state.pool.sequence?.length) return;
+  // Restore renders are never a start gesture (spec §8.3): without an armed
+  // user start this scan must not even read (batch fetch is work too).
+  if (!isInstantArmed()) return;
 
   let changed = 0;
   let reused = 0;

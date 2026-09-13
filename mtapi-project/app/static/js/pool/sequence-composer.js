@@ -6,7 +6,7 @@ import { poolThumbUrl, itemShowsThumb, shortHash, nextSeqId, scheduleSavePoolSta
 import { installPoolScrollPaint } from '/js/pool/layout.js';
 import { findPoolItem, seqEntryPlayDuration, updateSeqTotalTime } from '/js/pool/sequence-model.js';
 import { setPoolHover, applyPoolHoverAtPoint, clearPoolHover, displayFocusPath, updateSelectionHighlights, updatePoolFocusFrame } from '/js/pool/sequence-select.js';
-import { refreshRifeNeed, _rifeBadgeForEntry, _scheduleInstantRifeKick, _entrySatisfiesNeed, _updateInstantRifeStrip, _findQueuedRife, _maybeAutoRifeEntry, isHydrationComplete } from '/js/pool/sequence-rife.js';
+import { refreshRifeNeed, _resolvedTargetFps, _rifeBadgeForEntry, _scheduleInstantRifeKick, _entrySatisfiesNeed, _updateInstantRifeStrip, _findQueuedRife, _maybeAutoRifeEntry, isHydrationComplete, isInstantArmed } from '/js/pool/sequence-rife.js';
 import { peekVariants, _fetchVariants, _fetchVariantsBatch, _normVariantKey, _showSeqVariantMenu } from '/js/pool/sequence-variants.js';
 import { updateSeqTransportUI, updateSeqClipSettings, seqClipSpeedInfo, seqClipTokenTitle, seqStop } from '/js/pool/sequence-transport.js';
 
@@ -254,6 +254,10 @@ function renderSequenceBox(opts) {
   const playIdx = state.pool.playback.playing || state.pool.playback.index >= 0
     ? state.pool.playback.index
     : -1;
+  // One target resolution + one style read per render — per-token repeats of
+  // either turn this loop O(n²) (347 tokens ≈ seconds of forced reflow).
+  const _renderTarget = _resolvedTargetFps();
+  const _tokenMinW = getComputedStyle(box).getPropertyValue('--seq-token-min-w').trim() || '152px';
 
   state.pool.sequence.forEach((entry, idx) => {
     const tok = document.createElement('span');
@@ -313,7 +317,7 @@ function renderSequenceBox(opts) {
     }
 
     // Single state badge (NEED / Q# / RUN / OK / FAIL) — hover for full explanation
-    const badge = _rifeBadgeForEntry(entry);
+    const badge = _rifeBadgeForEntry(entry, _renderTarget);
     const host = tok.querySelector('.seq-token-rife-host');
     if (badge && host) {
       if (badge.cls.includes('is-need') || badge.cls.includes('is-queued') || badge.cls.includes('is-running')) {
@@ -331,7 +335,7 @@ function renderSequenceBox(opts) {
     const ratio = totalDuration > 0
       ? (durations[idx] / totalDuration) * 100
       : (100 / state.pool.sequence.length);
-    const minW = getComputedStyle(box).getPropertyValue('--seq-token-min-w').trim() || '152px';
+    const minW = _tokenMinW;
     tok.style.flex = `1 1 max(${minW}, ${ratio.toFixed(2)}%)`;
     tok.style.minWidth = minW;
     tok.style.maxWidth = '100%';
@@ -406,7 +410,9 @@ function renderSequenceBox(opts) {
   _updateInstantRifeStrip();
   updateSeqTransportUI();
   updateSeqTotalTime();
-  if (!opts.skipInstantKick && isHydrationComplete() && state.pool.instantRife && state.pool.useRife) {
+  // Restore renders are never a start gesture (spec §8.3): the kick needs an
+  // armed user start (toggle/Time/add/RIFE-fps), not just a hydrated open.
+  if (!opts.skipInstantKick && isHydrationComplete() && isInstantArmed() && state.pool.instantRife && state.pool.useRife) {
     const hasIdleNeed = (state.pool.sequence || []).some((e) => {
       if (e._rifeStatus === 'pending' || e._rifeStatus === 'running'
           || e._rifeStatus === 'failed' || _findQueuedRife(e.id)) {
@@ -453,6 +459,9 @@ async function _updateSeqVariantBadges() {
       needFetch.push(path);
     }
     if (!needFetch.length) return;
+    // Badge polish is a read (spec §8.3): cached labels only until an armed
+    // gesture starts the scan that hydrates the registry view.
+    if (!isInstantArmed()) return;
     const map = await _fetchVariantsBatch(needFetch);
     for (const tok of tokens) {
       const path = tok.dataset.path;
