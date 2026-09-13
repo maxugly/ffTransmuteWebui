@@ -86,3 +86,33 @@ def test_raw_fx_need_raw_in_stable(tmp_path):
                    rotate_rate=0.01, dry_run=True)
     res = asyncio.run(zoom_run(p))
     assert not res.ok and "raw-engine only" in (res.error or "")
+
+
+def test_stretch_stable_renders(tmp_path):
+    img = tmp_path / "in.png"
+    Image.new("RGB", (64, 48), (30, 200, 30)).save(img)
+    out = tmp_path / "out.mp4"
+    p = ZoomParams(input_path=str(img), output_path=str(out), engine="stable",
+                   preset="stretch", stretch_x=2.0, stretch_y=1.0,
+                   duration_sec=0.5, fps=8)
+    res = asyncio.run(zoom_run(p))
+    assert res.ok, res.error
+    assert out.is_file() and out.stat().st_size > 32
+
+
+def test_stretch_raw_rejected(tmp_path):
+    img = tmp_path / "in.png"
+    Image.new("RGB", (32, 32)).save(img)
+    p = ZoomParams(input_path=str(img), engine="raw", preset="stretch",
+                   stretch_x=2.0, stretch_y=1.0, dry_run=True)
+    res = asyncio.run(zoom_run(p))
+    assert not res.ok and "stable-engine only" in (res.error or "")
+
+
+def test_stretch_both_one_rejected(tmp_path):
+    img = tmp_path / "in.png"
+    Image.new("RGB", (32, 32)).save(img)
+    p = ZoomParams(input_path=str(img), engine="stable", preset="stretch",
+                   stretch_x=1.0, stretch_y=1.0, dry_run=True)
+    res = asyncio.run(zoom_run(p))
+    assert not res.ok and "nothing to stretch" in (res.error or "")

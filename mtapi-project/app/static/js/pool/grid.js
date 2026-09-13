@@ -549,49 +549,30 @@ function _bindSequencePanel() {
   const durInput = document.getElementById('seqClipDuration');
   durInput?.addEventListener('change', onSeqClipDurationChange);
   durInput?.addEventListener('blur', onSeqClipDurationChange);
-  let _durInputSaveTimer = null;
-  let _durRifeTimer = null;
+  // Typing is a preview only: the hint reflects the raw text, but the entry
+  // is not touched (no save, no render, no RIFE kick) until the value is
+  // committed via change / blur / Enter. Typing "20" must not start work
+  // for the intermediate "2".
   durInput?.addEventListener('input', () => {
     const idx = findSelectedSeqIndex();
     if (idx < 0) return;
     const raw = durInput.value.trim();
     const v = parseFloat(raw);
-    if (Number.isFinite(v) && v > 0) {
-      state.pool.sequence[idx].targetDuration = v;
-      state.pool.sequence[idx]._hadTarget = true;
-      state.pool.selectedSeqId = state.pool.sequence[idx].id;
-    } else if (!raw) {
-      state.pool.sequence[idx].targetDuration = null;
-    }
-    applySeqTokenTimeStyles();
-    const hint = document.getElementById('seqClipDurHint');
     const entry = state.pool.sequence[idx];
     const meta = findPoolItem(entry.path)?.meta;
     const native = meta?.duration;
+    const hint = document.getElementById('seqClipDurHint');
     if (hint) {
-      if (entry.targetDuration != null && entry.targetDuration > 0 && native > 0) {
-        const factor = entry.targetDuration / native;
-        const pct = Math.round((native / entry.targetDuration) * 100);
-        hint.textContent = `native ${formatDurationExact(native)} → ${formatDurationExact(entry.targetDuration)} (${pct}% speed ${factor >= 1 ? 'slower' : 'faster'})`;
+      if (Number.isFinite(v) && v > 0 && native > 0) {
+        const factor = v / native;
+        const pct = Math.round((native / v) * 100);
+        hint.textContent = `native ${formatDurationExact(native)} → ${formatDurationExact(v)} (${pct}% speed ${factor >= 1 ? 'slower' : 'faster'})`;
       } else if (native > 0) {
         hint.textContent = `native ${formatDurationExact(native)} (no stretch)`;
       } else {
         hint.textContent = 'set target length to stretch in time';
       }
     }
-    if (_durInputSaveTimer) clearTimeout(_durInputSaveTimer);
-    _durInputSaveTimer = setTimeout(() => scheduleSavePoolState(), 300);
-    // Auto Instant RIFE while typing Time — supersedes in-flight densify if need rises
-    if (_durRifeTimer) clearTimeout(_durRifeTimer);
-    _durRifeTimer = setTimeout(() => {
-      if (entry && state.pool.instantRife && state.pool.useRife) {
-        // Do NOT clear _rifeStatus when running — queue path will soft-abort & restart denser
-        renderSequenceBox(); // kick + supersede
-        _maybeAutoRifeAll({ quiet: true });
-      } else {
-        renderSequenceBox();
-      }
-    }, 250);
   });
   durInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -718,8 +699,8 @@ function _composeHtml() {
               <label class="checkbox-label" title="Queue RIFE for clips that need it. Uses main Run busy state + Stop (one encode at a time; long clips allowed).">
                 <input type="checkbox" id="poolInstantRife"> Instant RIFE
               </label>
-              <label class="pool-opt-label" title="Sequence content fps target. Empty = max native fps in sequence. Slowed clips need denser frames to stay smooth at this rate.">RIFE fps
-                <input type="number" id="poolTargetFps" min="1" step="1" placeholder="auto = max native" class="seq-clip-dur-input">
+              <label class="pool-opt-label" title="Sequence content fps target. Empty = most common clip fps in sequence (ignores odd/slow-mo outliers). Slowed clips need denser frames to stay smooth at this rate.">RIFE fps
+                <input type="number" id="poolTargetFps" min="1" step="1" placeholder="auto = common fps" class="seq-clip-dur-input">
               </label>
               <label class="pool-opt-label" title="Audio time-stretching engine for sequence join">Audio
                 <select id="poolAudioEngine" class="pool-engine-select">

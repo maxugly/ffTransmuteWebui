@@ -37,6 +37,7 @@ VIDEO_EXTS = {".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi"}
 Preset = Literal[
     "custom", "zoom_in", "zoom_out", "targeted", "kenburns",
     "ease_in", "ease_out", "punch", "spiral", "glitch", "hue_cycle",
+    "stretch",
 ]
 Engine = Literal["stable", "raw"]
 Direction = Literal["in", "out"]
@@ -75,6 +76,8 @@ class ZoomParams(BaseModel):
     hue_cycle: bool = Field(False)
     hue_rate: float = Field(2.0, gt=0, le=60)
     frame_d: int = Field(1, ge=1, le=5)
+    stretch_x: float = Field(1.0, ge=0.25, le=8.0, description="Stretch preset: how much wider (1 = stay)")
+    stretch_y: float = Field(1.0, ge=0.25, le=8.0, description="Stretch preset: how much taller (1 = stay)")
     dry_run: bool = Field(False)
 
 
@@ -104,6 +107,8 @@ def _centered_xy(pan_x: float, pan_y: float, osc_amp: float, osc_freq: float) ->
 
 def build_raw_expressions(p: ZoomParams) -> tuple[str, str, str, str]:
     """Return (z, x, y, extra_vf) for the zoompan graph. Preset wins; custom uses knobs."""
+    if p.preset == "stretch":
+        raise ValueError("stretch is stable-engine only in v1 — keep Engine on Stable")
     r = float(p.zoom_rate)
     fps = float(p.fps)
     cx, cy = _centered_xy(float(p.pan_x), float(p.pan_y), float(p.osc_amp), float(p.osc_freq))
@@ -242,6 +247,12 @@ async def zoom_run(p: ZoomParams) -> OperationResult:
                 ok=False, operation="zoom", dry_run=p.dry_run, command=summary,
                 error="stable engine is still-image only in v1 — switch Engine to raw for video clips",
             )
+        if p.preset == "stretch":
+            if float(p.stretch_x) == 1.0 and float(p.stretch_y) == 1.0:
+                return OperationResult(
+                    ok=False, operation="zoom", dry_run=p.dry_run, command=summary,
+                    error="stretch_x and stretch_y are both 1 — nothing to stretch",
+                )
         if p.rotate_rate > 0 or p.glitch_amt > 0 or p.hue_cycle or p.preset in ("spiral", "glitch", "hue_cycle"):
             return OperationResult(
                 ok=False, operation="zoom", dry_run=p.dry_run, command=summary,
@@ -249,6 +260,8 @@ async def zoom_run(p: ZoomParams) -> OperationResult:
             )
         # Box-lerp plan (import shared math, don't duplicate zoompan_ops).
         plan = f"# stable Pillow lerp {p.preset} over {n_frames} frames\n{summary}"
+        if p.preset == "stretch":
+            plan += f"\nstretch X={float(p.stretch_x):g} Y={float(p.stretch_y):g} (picture size = video size)"
         if p.dry_run:
             return OperationResult(ok=True, operation="zoom", output_path=str(out), dry_run=True, command=summary, stdout=plan)
         try:
@@ -265,7 +278,14 @@ async def zoom_run(p: ZoomParams) -> OperationResult:
                 img = im0.convert("RGB")
                 fiw, fih = img.size
             cap = float(p.zoom_cap) or 2.0
-            if p.preset == "zoom_out" or p.direction == "out":
+            if p.preset == "stretch":
+                # Each axis on its own: full picture → centered (W/sx, H/sy) crop,
+                # resized back to output dims so the picture grows past the edges.
+                sx, sy = max(0.25, float(p.stretch_x)), max(0.25, float(p.stretch_y))
+                start = _clamp_box(ZBox(x=0, y=0, w=float(fiw), h=float(fih)), fiw, fih)
+                ew, eh = max(2.0, fiw / sx), max(2.0, fih / sy)
+                end = _clamp_box(ZBox(x=fiw / 2 - ew / 2, y=fih / 2 - eh / 2, w=ew, h=eh), fiw, fih)
+            elif p.preset == "zoom_out" or p.direction == "out":
                 start = _clamp_box(ZBox(x=fiw / 2 - fiw / cap / 2, y=fih / 2 - fih / cap / 2, w=fiw / cap, h=fih / cap), fiw, fih)
                 end = _clamp_box(ZBox(x=0, y=0, w=float(fiw), h=float(fih)), fiw, fih)
             elif p.preset == "targeted" and p.target_x is not None and p.target_y is not None:

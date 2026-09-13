@@ -1,4 +1,4 @@
-import { state, elements } from '/app.js';
+import { state, elements, updateStatusIndicators } from '/app.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
 import { rifeModelSelectHtml } from '/js/ui/evolve-rife.js';
 import { flipRotateOptionsHtml } from '/js/utils.js';
@@ -71,6 +71,8 @@ function renderTransmuteForm() {
   select.addEventListener('change', (e) => {
     activeTransmuteOp = e.target.value;
     updateTransmuteExtras();
+    // Zoom accepts the global image box; other ops don't — refresh badges.
+    try { updateStatusIndicators(); } catch (_) { /* ignore */ }
   });
 
   setupBinaryKnob({
@@ -186,6 +188,7 @@ function updateTransmuteExtras() {
         <option value="spiral">Spiral zoom</option>
         <option value="glitch">Glitch zoom</option>
         <option value="hue_cycle">Hue cycle</option>
+        <option value="stretch">Stretch X / Y</option>
         <option value="custom">Custom</option>
       </select>
     </div>
@@ -196,6 +199,7 @@ function updateTransmuteExtras() {
         ${knobUnitHtml({ id: 'zoomFrameD', label: 'Frame d', value: '1' })}
       </div>
       <p class="knob-row-legend" id="zoomInfoLine">Set knobs to see frame plan.</p>
+      <p class="knob-row-legend">Frame d (raw only, hidden on Stable): 1 = smooth, higher = choppier but faster.</p>
     </div>
     <div class="form-row">
       <label for="zoomOutSize">Output size</label>
@@ -217,12 +221,19 @@ function updateTransmuteExtras() {
     </div>
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'zoomRate', label: 'Zoom rate', value: '0.02' })}
-        ${knobUnitHtml({ id: 'zoomCap', label: 'Max zoom', value: '3.0' })}
+        ${knobUnitHtml({ id: 'zoomRate', label: 'Rate +×/frame', value: '0.02' })}
+        ${knobUnitHtml({ id: 'zoomCap', label: 'End zoom (×)', value: '3.0' })}
         ${knobUnitHtml({ id: 'zoomPanX', label: 'Pan X', value: '0' })}
         ${knobUnitHtml({ id: 'zoomPanY', label: 'Pan Y', value: '0' })}
       </div>
-      <p class="knob-row-legend">Rate = zoom/frame. Cap 0 = none. Pan = px drift/frame.</p>
+      <p class="knob-row-legend" id="zoomOpticsLegend">End zoom = size at the last frame (3 = 3× bigger).</p>
+    </div>
+    <div class="knob-row" id="zoomStretchRow" style="display:none;">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'zoomStretchX', label: 'Wider (X)', value: '1' })}
+        ${knobUnitHtml({ id: 'zoomStretchY', label: 'Taller (Y)', value: '1' })}
+      </div>
+      <p class="knob-row-legend">Picture size = video size. X = how much wider, Y = how much taller, both if both.</p>
     </div>
     <div class="form-row">
       <label for="zoomDirection">Direction</label>
@@ -231,6 +242,7 @@ function updateTransmuteExtras() {
         <option value="out">Zoom out</option>
       </select>
     </div>
+    <p class="knob-row-legend">In = picture grows toward you. Out = it shrinks away.</p>
     <div class="form-row">
       <label for="zoomPrescale">Pre-scale (raw stills)</label>
       <select id="zoomPrescale">
@@ -239,6 +251,7 @@ function updateTransmuteExtras() {
         <option value="8">8×</option>
       </select>
     </div>
+    <p class="knob-row-legend">Bigger = smoother slow zooms but slower to render. Raw stills only — does nothing on Stable.</p>
     <div class="form-row">
       <label for="zoomTargetX">Target X / Y</label>
       <div class="input-row">
@@ -246,14 +259,15 @@ function updateTransmuteExtras() {
         <input type="text" id="zoomTargetY" placeholder="300">
       </div>
     </div>
+    <p class="knob-row-legend">Targeted preset only: the pixel the zoom moves toward. Ignored by every other preset.</p>
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'zoomOscAmp', label: 'Osc amp', value: '0' })}
-        ${knobUnitHtml({ id: 'zoomOscFreq', label: 'Osc freq', value: '10' })}
-        ${knobUnitHtml({ id: 'zoomRotate', label: 'Rotate/f', value: '0' })}
+        ${knobUnitHtml({ id: 'zoomOscAmp', label: 'Wobble amp', value: '0' })}
+        ${knobUnitHtml({ id: 'zoomOscFreq', label: 'Wobble speed', value: '10' })}
+        ${knobUnitHtml({ id: 'zoomRotate', label: 'Spin', value: '0' })}
         ${knobUnitHtml({ id: 'zoomGlitch', label: 'Glitch', value: '0' })}
       </div>
-      <p class="knob-row-legend">Osc = sin drift. Rotate/glitch/hue need raw engine.</p>
+      <p class="knob-row-legend">Wobble = side-to-side sway while zooming (amp = how far in pixels, 0 = off; speed = how fast). Spin = rotation while zooming. Glitch = random jumpiness (0 = smooth). All four need the Raw engine.</p>
     </div>
     <div class="form-row">
       <label for="zoomEasing">Easing</label>
@@ -264,13 +278,14 @@ function updateTransmuteExtras() {
         <option value="punch">Punch (freeze + burst)</option>
       </select>
     </div>
+    <p class="knob-row-legend">How the zoom speed changes: linear = steady; accel = starts slow, ends fast; decel = the opposite; punch = holds still, then bursts. Works on both engines.</p>
     <div class="knob-row">
       <div class="knob-bank">
         ${knobUnitHtml({ id: 'zoomPunchFrame', label: 'Punch frame', value: '20' })}
         ${knobUnitHtml({ id: 'zoomHueRate', label: 'Hue rate', value: '2.0' })}
         ${knobUnitHtml({ id: 'zoomHue', label: 'Hue cycle', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
       </div>
-      <p class="knob-row-legend">Raw ffmpeg zoompan can jitter on slow zooms — stable stays Pillow. d&gt;1 looks choppy.</p>
+      <p class="knob-row-legend">Punch frame = the frame the burst happens on (earlier = longer burst; works on both engines). Hue rate = how fast colors cycle while Hue is On (raw only). Raw zoompan can jitter on slow zooms — Stable stays smooth.</p>
     </div>
   `;
   }
@@ -527,6 +542,16 @@ function updateTransmuteExtras() {
       min: 0, max: 0.5, step: 0.01, decimals: 2,
     });
     setupContinuousKnob({
+      knobId: 'zoomStretchXKnob', indicatorId: 'zoomStretchXKnobInd',
+      valueId: 'zoomStretchXVal', hiddenId: 'zoomStretchX',
+      min: 1, max: 4, step: 0.05, decimals: 2,
+    });
+    setupContinuousKnob({
+      knobId: 'zoomStretchYKnob', indicatorId: 'zoomStretchYKnobInd',
+      valueId: 'zoomStretchYVal', hiddenId: 'zoomStretchY',
+      min: 1, max: 4, step: 0.05, decimals: 2,
+    });
+    setupContinuousKnob({
       knobId: 'zoomPunchFrameKnob', indicatorId: 'zoomPunchFrameKnobInd',
       valueId: 'zoomPunchFrameVal', hiddenId: 'zoomPunchFrame',
       min: 1, max: 240, step: 1, decimals: 0,
@@ -549,24 +574,58 @@ function updateTransmuteExtras() {
     };
     if (sizeSel) sizeSel.addEventListener('change', syncSizeRow);
 
+    // Rate and Frame d are raw-engine only — the backend never reads them on
+    // Stable, so showing them there is a lie. Hide them + say units plainly.
+    const engineSel = document.getElementById('zoomEngine');
+    const opticsLegend = document.getElementById('zoomOpticsLegend');
+    const syncZoomEngineRow = () => {
+      const raw = (engineSel && engineSel.value) === 'raw';
+      for (const knobId of ['zoomRateKnob', 'zoomFrameDKnob']) {
+        const unit = document.getElementById(knobId)?.closest('.knob-unit');
+        if (unit) unit.style.display = raw ? '' : 'none';
+      }
+      if (opticsLegend) {
+        opticsLegend.textContent = raw
+          ? 'Rate = how much bigger each frame (+0.02 = +2%/frame). Ends at End zoom (0 = no cap). Pan = px drift/frame.'
+          : 'End zoom = size at the last frame (3 = 3× bigger). Pan = px the center drifts per frame. (Rate is raw-engine only.)';
+      }
+      updateZoomInfoLine();
+    };
+    if (engineSel) engineSel.addEventListener('change', syncZoomEngineRow);
+
     const presetSel = document.getElementById('zoomPreset');
+    const stretchRow = document.getElementById('zoomStretchRow');
+    const syncStretchRow = () => {
+      if (stretchRow) stretchRow.style.display = (presetSel && presetSel.value === 'stretch') ? '' : 'none';
+      updateZoomInfoLine();
+    };
     if (presetSel) presetSel.addEventListener('change', () => {
       applyZoomPreset(presetSel.value);
-      updateZoomInfoLine();
+      syncStretchRow();
     });
-    // Any manual knob edit flips preset to custom.
-    ['zoomRate', 'zoomPanX', 'zoomPanY', 'zoomRotate', 'zoomGlitch', 'zoomEasing'].forEach(id => {
+    // Any manual knob edit flips preset to custom (except the stretch X/Y
+    // knobs, which tune the stretch preset itself, and duration/fps).
+    ['zoomRate', 'zoomCap', 'zoomPanX', 'zoomPanY', 'zoomRotate', 'zoomGlitch', 'zoomEasing'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.addEventListener('input', () => {
         if (presetSel && presetSel.value !== 'custom') presetSel.value = 'custom';
         updateZoomInfoLine();
       });
     });
-    ['zoomDuration', 'zoomFps'].forEach(id => {
+    for (const id of ['zoomDirection', 'zoomEngine', 'zoomPrescale']) {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('change', () => {
+        if (id === 'zoomDirection' && presetSel && presetSel.value !== 'custom') presetSel.value = 'custom';
+        if (id === 'zoomEngine') syncZoomEngineRow();
+        else updateZoomInfoLine();
+      });
+    }
+    ['zoomDuration', 'zoomFps', 'zoomStretchX', 'zoomStretchY'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.addEventListener('input', updateZoomInfoLine);
     });
-    updateZoomInfoLine();
+    syncStretchRow();
+    syncZoomEngineRow();
   }
 }
 
@@ -613,6 +672,8 @@ function applyZoomPreset(preset) {
       set('zoomRate', '0.02'); set('zoomGlitch', '0.1'); setSel('zoomEngine', 'raw'); break;
     case 'hue_cycle':
       setSel('zoomEngine', 'raw'); break;
+    case 'stretch':
+      setSel('zoomEngine', 'stable'); set('zoomStretchX', '2'); set('zoomStretchY', '1'); break;
     default: break;
   }
 }
@@ -625,7 +686,33 @@ function updateZoomInfoLine() {
   const engine = document.getElementById('zoomEngine')?.value || 'stable';
   const preset = document.getElementById('zoomPreset')?.value || 'zoom_in';
   const n = Math.max(2, Math.round(dur * fps));
-  line.textContent = `${n} frames · @${fps}fps · ~${(n / fps).toFixed(2)}s · ${engine} · ${preset}`;
+  const secs = (n / fps).toFixed(2);
+  const fmtX = (v) => `${parseFloat(v.toFixed(2))}×`;
+  if (preset === 'stretch') {
+    const sx = parseFloat(document.getElementById('zoomStretchX')?.value) || 1;
+    const sy = parseFloat(document.getElementById('zoomStretchY')?.value) || 1;
+    line.textContent = `${n} frames · ${secs}s @${fps}fps · picture grows to ${sx}× wider · ${sy}× taller`;
+    return;
+  }
+  const dir = document.getElementById('zoomDirection')?.value || 'in';
+  const cap = parseFloat(document.getElementById('zoomCap')?.value) || 0;
+  if (engine === 'stable') {
+    // Stable lerps full picture → centered 1/end box: it always lands on cap.
+    const end = cap > 0 ? fmtX(cap) : 'uncapped';
+    const trip = dir === 'in' ? `1× → ${end}` : `${end} → 1×`;
+    line.textContent = `${n} frames · ${secs}s @${fps}fps · stable · ${trip}`;
+    return;
+  }
+  const r = parseFloat(document.getElementById('zoomRate')?.value) || 0;
+  if (dir === 'in') {
+    const rawEnd = 1 + r * (n - 1);
+    const end = cap > 0 ? Math.min(cap, rawEnd) : rawEnd;
+    line.textContent = `${n} frames · ${secs}s @${fps}fps · raw · 1× → ${fmtX(end)} (+${r}/frame)`;
+  } else {
+    const start = cap > 0 ? cap : 2.5;
+    const end = Math.max(0.1, start - r * (n - 1));
+    line.textContent = `${n} frames · ${secs}s @${fps}fps · raw · ${fmtX(start)} → ${fmtX(end)} (−${r}/frame)`;
+  }
 }
 
 // Multi-clip Join/Grid Form

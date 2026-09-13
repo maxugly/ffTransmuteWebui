@@ -28,16 +28,33 @@ function _effectiveContentFps(nativeFps, nativeDur, reqDur) {
   return fps / stretch;
 }
 
-/** Target FPS for need-RIFE: explicit pool setting, else max native in sequence. */
+/**
+ * Target FPS for need-RIFE: explicit pool setting, else the sequence's own
+ * dominant (mode) native fps. Mode, not max: one high-fps clip (slow-mo
+ * phone footage, or an old RIFE byproduct sitting in the sequence) must not
+ * drag the target up and mark every 24fps clip as needing densify.
+ * Probes above 1000fps are bogus (broken avg_frame_rate) — ignored.
+ */
 function _resolvedTargetFps() {
   const t = state.pool.targetFps;
   if (t != null && t > 0) return t;
-  let max = 0;
+  const counts = new Map();
   for (const e of state.pool.sequence || []) {
-    const m = _getNativeMeta(e.path);
-    if (m?.fps > 0) max = Math.max(max, m.fps);
+    const f = _getNativeMeta(e.path)?.fps;
+    if (!(f > 0) || f > 1000) continue;
+    const k = Math.round(f * 100) / 100;
+    counts.set(k, (counts.get(k) || 0) + 1);
   }
-  return max > 0 ? max : null;
+  if (!counts.size) return null;
+  let best = null;
+  let bestN = 0;
+  for (const [f, n] of counts) {
+    if (n > bestN || (n === bestN && (best == null || f < best))) {
+      best = f;
+      bestN = n;
+    }
+  }
+  return best;
 }
 
 /**
@@ -147,6 +164,28 @@ let _instantRifeDraining = false;
 let _instantRifeStop = false;
 let _instantRifeStopHookBound = false;
 let _hydrationComplete = false;
+/**
+ * User-start gate: opening / restoring a project must never start encoding
+ * by itself (a 300-clip backlog wedges the single-flight server slot for
+ * hours while the Run button looks idle). Need math + NEED badges stay live,
+ * but queueing and draining only happen after an explicit gesture: Instant
+ * toggle ON, Time commit/clear, add-to-sequence, or target-FPS change.
+ * Project/session restore disarms; user Stop disarms.
+ */
+let _instantUserStarted = false;
+
+function armInstantRife() {
+  _instantUserStarted = true;
+}
+
+function disarmInstantRife() {
+  _instantUserStarted = false;
+}
+
+/** Read-only for Jobs tab / diagnostics: has an explicit gesture started Instant? */
+function isInstantArmed() {
+  return _instantUserStarted;
+}
 
 function setInstantHydrationGate(complete) {
   _hydrationComplete = !!complete;
@@ -350,9 +389,10 @@ function _rifeBadgeForEntry(entry) {
       text: `NEED×${m}`,
       cls: 'seq-rife-badge is-need',
       title: [
-        `STATE: NEED×${m} — will densify ×${m} (queued automatically).`,
+        `STATE: NEED×${m} — sparse after stretch, nothing queued yet.`,
         `Content ~${dens.effFps.toFixed(1)} fps < target ${dens.targetFps} fps.`,
         mHave ? `Have ×${mHave} — need higher.` : 'No densify on record yet.',
+        'Queues when Instant starts (toggle Instant off/on or edit Time).',
         stretchNote.trim(),
       ].filter(Boolean).join('\n'),
     };
@@ -425,14 +465,25 @@ function _updateInstantRifeStrip() {
     title = 'Queue is draining. Main Run/Stop control the batch.';
     cls += ' is-busy';
   } else if (instant) {
-    text = `Instant RIFE: idle · ${needN} need densify · ${doneN} OK · badges explain on hover`;
-    title = [
-      'Instant is ON and nothing is encoding right now.',
-      'NEED×N = sparse after stretch (should queue soon if Instant works).',
-      'Q# = waiting · RUN = encoding · OK = densified · FAIL = error.',
-      'ORIG/RIFED button = which file Stitch uses (hover for paths).',
-    ].join('\n');
-    cls += needN ? ' is-warn' : ' is-idle';
+    if (_instantUserStarted) {
+      text = `Instant RIFE: idle · ${needN} need densify · ${doneN} OK · badges explain on hover`;
+      title = [
+        'Instant is ON and nothing is encoding right now.',
+        'NEED×N = sparse after stretch (should queue soon if Instant works).',
+        'Q# = waiting · RUN = encoding · OK = densified · FAIL = error.',
+        'ORIG/RIFED button = which file Stitch uses (hover for paths).',
+      ].join('\n');
+      cls += needN ? ' is-warn' : ' is-idle';
+    } else {
+      text = `Instant RIFE: paused after load · ${needN} need densify · ${doneN} OK · toggle Instant off/on or edit Time to start`;
+      title = [
+        'Instant is ON but paused: opening this project queued nothing.',
+        'NEED×N = sparse after stretch (badges computed live, zero encodes started).',
+        'To densify: toggle Instant off/on, edit a clip Time, or add a clip.',
+        'Q# = waiting · RUN = encoding · OK = densified · FAIL = error.',
+      ].join('\n');
+      cls += needN ? ' is-warn' : ' is-idle';
+    }
   } else {
     text = 'RIFE: —';
     cls += ' is-off';
@@ -449,6 +500,9 @@ function _bindInstantRifeStopHook() {
   onStopRequest(() => {
     // User Stop — cancel restart intent and wipe queue
     _instantRifeRestart = null;
+    // ...and stay stopped: later renders recompute NEED badges but re-arm
+    // only on a fresh explicit gesture (toggle, Time edit, add clip).
+    disarmInstantRife();
     if (!_instantRifeDraining && _instantRifeQueue.length === 0) return;
     _instantRifeStop = true;
     const dropped = _instantRifeQueue.splice(0);
@@ -620,9 +674,12 @@ function _pickBestRifed(variants, needM = 0) {
 /**
  * Load registry densify for this source clip into entry.variantPath / _rifeMultiplier.
  * This is the memory Instant lost on reload — without it every clip is NEED forever.
+ * @param {object} entry sequence entry to hydrate
+ * @param {object|undefined} cachedVariants pre-fetched variants (batch path) —
+ *   when provided, no network request is made for this entry.
  * @returns {Promise<{ path: string, multiplier: number } | null>}
  */
-async function _hydrateEntryFromVariants(entry) {
+async function _hydrateEntryFromVariants(entry, cachedVariants) {
   if (!entry || !entry.path) return null;
   if (_entrySatisfiesNeed(entry)) {
     entry._rifeStatus = 'done';
@@ -631,7 +688,9 @@ async function _hydrateEntryFromVariants(entry) {
       ? { path: entry.variantPath, multiplier: _bestHaveM(entry) }
       : null;
   }
-  const variants = await _fetchVariants(entry.path);
+  const variants = (cachedVariants !== undefined)
+    ? (cachedVariants || {})
+    : await _fetchVariants(entry.path);
   const dh = _densityInfoForEntry(entry);
   const best = _pickBestRifed(variants, dh?.needed ? dh.multiplier : 0);
 
@@ -711,6 +770,10 @@ function _queueInstantRife(entry, info, opts) {
   opts = opts || {};
   _bindInstantRifeStopHook();
 
+  // Restore/hover renders compute need for badges but must not queue work:
+  // only an explicit user gesture (toggle ON, Time edit, add clip) starts it.
+  if (!_instantUserStarted) return false;
+
   const needM = info.multiplier || 2;
 
   // Policy: keep the densest variant we already have (can drop frames later)
@@ -773,7 +836,8 @@ function _queueInstantRife(entry, info, opts) {
  * Auto-enqueue every sequence clip that currently NEEDS densify.
  * Call only on real events (Instant ON, Time change, meta load, add clip) —
  * never from every renderSequenceBox (that caused an infinite re-render storm).
- * Always hydrate from /api/variants first so existing RIFED files are not re-done.
+ * Hydrates from /api/variants/batch in ONE request for all unresolved clips,
+ * so existing RIFED files are not re-done and large restores skip fast.
  */
 async function _kickInstantRifeScan() {
   if (!state.pool.instantRife || !state.pool.useRife) return;
@@ -781,10 +845,11 @@ async function _kickInstantRifeScan() {
 
   let changed = 0;
   let reused = 0;
+  // Pass 1 (sync, zero network): the project/session snapshot already carries
+  // the selected densified path and multiplier. If that saved variant covers
+  // the current need, trust it — no registry request during project restore.
+  const pendingHydrate = [];
   for (const entry of state.pool.sequence) {
-    // The project/session snapshot already carries the selected densified
-    // path and multiplier.  If that saved variant covers the current need,
-    // trust it and avoid a registry request during project restore.
     const before = _rifeInfoForEntry(entry);
     const haveBefore = _bestHaveM(entry);
     if (entry.variantPath && entry.variantPath !== entry.path
@@ -795,16 +860,31 @@ async function _kickInstantRifeScan() {
       reused += 1;
       continue;
     }
+    pendingHydrate.push(entry);
+  }
+  // Pass 2: ONE batched registry lookup for everything still unresolved.
+  // Never one request per clip — the old per-entry await serialized hundreds
+  // of GETs on project open, so already-done work drained slowly instead of
+  // skipping fast.
+  if (pendingHydrate.length) {
+    let batch = new Map();
     try {
-      await _hydrateEntryFromVariants(entry);
-    } catch (_) { /* ignore hydrate errors */ }
-    const info = _rifeInfoForEntry(entry);
-    if (!info?.needed) {
-      if (entry.variantPath && entry.variantPath !== entry.path) reused += 1;
-      continue;
+      batch = await _fetchVariantsBatch(pendingHydrate.map((e) => e.path).filter(Boolean));
+    } catch (_) { /* fall through with local cache only */ }
+    for (const entry of pendingHydrate) {
+      const key = _normVariantKey(entry.path);
+      const cached = batch.has(key) ? batch.get(key) : peekVariants(entry.path);
+      try {
+        await _hydrateEntryFromVariants(entry, cached || {});
+      } catch (_) { /* ignore hydrate errors */ }
+      const info = _rifeInfoForEntry(entry);
+      if (!info?.needed) {
+        if (entry.variantPath && entry.variantPath !== entry.path) reused += 1;
+        continue;
+      }
+      // Only true when queue membership or M actually changes
+      if (_queueInstantRife(entry, info, { skipRender: true })) changed += 1;
     }
-    // Only true when queue membership or M actually changes
-    if (_queueInstantRife(entry, info, { skipRender: true })) changed += 1;
   }
   if (reused > 0) {
     logConsole(`[SEQ RIFE]: reusing ${reused} existing densified clip(s) — not re-encoding`);
@@ -834,6 +914,9 @@ function _scheduleInstantRifeKick() {
 
 async function _drainInstantRifeQueue() {
   if (_instantRifeDraining) return;
+  // Belt and suspenders with the _queueInstantRife gate: a restore render
+  // must never start the server encode loop by itself.
+  if (!_instantUserStarted) return;
   _instantRifeDraining = true;
   _instantRifeStop = false;
   _bindInstantRifeStopHook();
@@ -1077,6 +1160,8 @@ async function _drainInstantRifeQueue() {
 function _maybeAutoRifeEntry(entry, { quiet = false } = {}) {
   if (!state.pool.instantRife) return;
   if (!state.pool.useRife) return;
+  // Explicit per-clip gesture (Time edit, add-to-sequence) — user started it.
+  armInstantRife();
 
   // If we already have a densified variant on record, never clear its status
   if (entry.variantPath && entry.variantPath !== entry.path && _bestHaveM(entry) > 0) {
@@ -1105,6 +1190,9 @@ function _maybeAutoRifeEntry(entry, { quiet = false } = {}) {
  */
 async function ensureSequenceMetaAndInstantScan({ force = false } = {}) {
   if (!state.pool.instantRife) return { queued: 0, reason: 'instant off' };
+  // Explicit gesture (Instant toggle ON, target-FPS change, Time clear):
+  // the user asked for densify — this is the start signal restore never gives.
+  armInstantRife();
   _hydrationComplete = false;
   state.pool.useRife = true;
   const ur = document.getElementById('poolUseRife');
@@ -1222,5 +1310,5 @@ function getInstantRifeQueueSnapshot() {
   };
 }
 
-export { _timeFactor, _effectiveContentFps, _resolvedTargetFps, _densityInfoForEntry, _alreadyHasUsableRife, refreshRifeNeed, _rifeInfoForEntry, setInstantHydrationGate, attachCachedRifeVariants, _rifeBadgeForEntry, _updateInstantRifeStrip, _findQueuedRife, _bestHaveM, _entrySatisfiesNeed, _recoverMissingVariant, recoverSequenceVariants, _hydrateEntryFromVariants, _queueInstantRife, _kickInstantRifeScan, _scheduleInstantRifeKick, _drainInstantRifeQueue, _maybeAutoRifeEntry, ensureSequenceMetaAndInstantScan, _maybeAutoRifeAll, getInstantRifeQueueSnapshot };
+export { _timeFactor, _effectiveContentFps, _resolvedTargetFps, _densityInfoForEntry, _alreadyHasUsableRife, refreshRifeNeed, _rifeInfoForEntry, setInstantHydrationGate, armInstantRife, disarmInstantRife, isInstantArmed, attachCachedRifeVariants, _rifeBadgeForEntry, _updateInstantRifeStrip, _findQueuedRife, _bestHaveM, _entrySatisfiesNeed, _recoverMissingVariant, recoverSequenceVariants, _hydrateEntryFromVariants, _queueInstantRife, _kickInstantRifeScan, _scheduleInstantRifeKick, _drainInstantRifeQueue, _maybeAutoRifeEntry, ensureSequenceMetaAndInstantScan, _maybeAutoRifeAll, getInstantRifeQueueSnapshot };
 export function isHydrationComplete() { return _hydrationComplete; }

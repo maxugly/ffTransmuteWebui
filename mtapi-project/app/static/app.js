@@ -597,9 +597,23 @@ function _syncTabInputFromGlobal() {
   }
 }
 
+/**
+ * What the active tab accepts right now. Tab-level except Single-Clip Ops,
+ * where the Zoom op takes stills or video and everything else is video-only.
+ * Read from the live Op dropdown (no cross-module import — keeps app.js leaf-free).
+ */
+function activeTabAccepts() {
+  const tab = state.activeTab;
+  if (tab === 'transmute'
+      && document.getElementById('transmuteOpSelect')?.value === 'zoom') {
+    return 'any';
+  }
+  return TAB_ACCEPTS[tab] || 'any';
+}
+
 function updateStatusIndicators() {
   const tab = state.activeTab;
-  const accepts = TAB_ACCEPTS[tab] || 'any';
+  const accepts = activeTabAccepts();
   const gi = window.globalInputs;
   var rows = [
     { key: 'video',   elId: 'giVideoStatus',   needs: (accepts === 'video' || accepts === 'any') },
@@ -629,7 +643,7 @@ function updateStatusIndicators() {
  */
 function allInputPaths(fieldId) {
   const tab = state.activeTab;
-  const accepts = TAB_ACCEPTS[tab] || 'any';
+  const accepts = activeTabAccepts();
   const gi = window.globalInputs;
   function splitLines(s) {
     return String(s || '').split('\n').map(function(l) { return l.trim(); }).filter(Boolean);

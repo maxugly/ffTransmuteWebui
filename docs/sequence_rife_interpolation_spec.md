@@ -195,3 +195,23 @@ is in scope; if not, return a clear error `"use_rife requires a target preset"`.
 
 **Backward compatibility:** `use_rife` defaults false ⇒ identical to today (codec-export
 v2.0 behavior, or legacy H.264). No existing flow changes.
+
+---
+
+## 8. Instant RIFE frontend rules (`8.059`; backend §§2–4 untouched)
+
+Two corrections to the **Instant** path only (`js/pool/sequence-rife.js`). The stitch-time
+backend rule (§2: explicit `target_fps`, else max native) is unchanged.
+
+1. **Fallback target = mode, not max.** When the RIFE-fps box is empty, Instant resolves
+   the target to the sequence's most common native fps (probes ≤ 0 or > 1000 fps are
+   bogus and ignored; ties break toward the lower rate). Rationale: one high-fps entry
+   (phone slow-mo, or an old `*_rife` byproduct sitting in the sequence) used to drag
+   the target to 384+ fps and mark every 24 fps clip `needsRife`. Explicit RIFE-fps
+   still wins. UI legend updated (`auto = common fps`).
+2. **Opening a project never starts encodes.** Need math + NEED badges stay live, but
+   queueing (`_queueInstantRife`) and draining (`_drainInstantRifeQueue`) require an
+   explicit user start: Instant toggle ON, Time commit/clear, add-to-sequence, or
+   RIFE-fps change (`armInstantRife()`). Project/session restore disarms
+   (`applyPoolData`), user Stop disarms. While on-but-unstarted the strip reads
+   "paused after load … toggle Instant off/on or edit Time to start".

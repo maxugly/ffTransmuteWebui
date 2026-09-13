@@ -731,6 +731,8 @@ function resolveActiveOpAndBody() {
         hue_cycle: document.getElementById('zoomHue')?.value === '1',
         hue_rate: parseFloat(document.getElementById('zoomHueRate')?.value) || 2.0,
         frame_d: parseInt(document.getElementById('zoomFrameD')?.value || '1', 10),
+        stretch_x: parseFloat(document.getElementById('zoomStretchX')?.value) || 1.0,
+        stretch_y: parseFloat(document.getElementById('zoomStretchY')?.value) || 1.0,
         start_frame: window.globalInputs.frameStart || 1,
         end_frame: window.globalInputs.frameEnd || 999999,
       };

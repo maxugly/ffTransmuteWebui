@@ -2,7 +2,7 @@
 import { state, elements, logConsole, setPreviewAspect, clearPreviewAspect } from '/app.js';
 import { selectPoolItem } from '/js/pool/items.js';
 import { basename, formatDurationExact } from '/js/utils.js';
-import { scheduleSavePoolState } from '/js/pool/persistence.js';
+import { scheduleSavePoolState, savePoolStateNow } from '/js/pool/persistence.js';
 import { registerListKeys } from '/js/ui/list-keys.js';
 import { findPoolItem, updateSeqTotalTime } from '/js/pool/sequence-model.js';
 import { updateSelectionHighlights, displayFocusPath, updatePoolFocusFrame } from '/js/pool/sequence-select.js';

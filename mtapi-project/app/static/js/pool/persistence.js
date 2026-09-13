@@ -4,7 +4,7 @@ import {
   renderPoolForm, renderPoolGrid, defaultTileInfo,
   checkHealth, switchTab, formatBytes, addPathsToPool,
 } from '/app.js';
-import { seqStop, _maybeAutoRifeAll, recoverSequenceVariants, attachCachedRifeVariants, setInstantHydrationGate } from '/js/pool/sequence.js';
+import { seqStop, _maybeAutoRifeAll, recoverSequenceVariants, attachCachedRifeVariants, setInstantHydrationGate, disarmInstantRife } from '/js/pool/sequence.js';
 import { ensurePoolLayout } from '/js/pool/layout.js';
 import { ensureTileInfo } from '/app.js';
 import { basename, escapeHtml, formatDurationExact } from '/js/utils.js';
@@ -368,6 +368,10 @@ function updateProjectNameUI() {
 /** Apply loaded project/session JSON into live pool state and re-render. */
 function applyPoolData(data, { asProject = false, projectPath = null, projectName = null } = {}) {
   setInstantHydrationGate(false);
+  // Loading state is not a start gesture: NEED badges recompute live, but no
+  // Instant encode may begin until the user toggles Instant, edits Time, or
+  // adds a clip (those arm it explicitly).
+  try { disarmInstantRife(); } catch (_) { /* ignore */ }
   data = migratePoolPayload(data);
   // Named projects must never overwrite global settings.
   applyDeskSnapshot(data.desk, { restoreSettings: !asProject });

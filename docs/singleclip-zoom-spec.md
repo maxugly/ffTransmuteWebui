@@ -23,10 +23,13 @@ zoom: { summary: "Zoom / pan (still → video or video → video)", fields: ['zo
 - Engine binary knob `zoomEngine`: `stable` (Pillow lerp, default) | `raw` (ffmpeg zoompan expressions).
 - Preset select `zoomPreset`: `custom|zoom_in|zoom_out|targeted|kenburns|ease_in|ease_out|punch|spiral|glitch|hue_cycle` (default `zoom_in`). Choosing a preset fills the knobs; any manual edit flips back to `custom`.
 - Timing: `zoomDuration` knob 0.5–60s (3.0), `zoomFps` knob 1–120 (24), `zoomOutSize` select `source|960x960|1080x1080|1920x1080|720x1280|custom` + `zoomWidth`/`zoomHeight` knobs (even steps, visible only on `custom`).
-- Optics: `zoomRate` 0.001–0.10 (0.02), `zoomDirection` binary in/out, `zoomCap` 0–10 (3.0, 0=none), `zoomPrescale` select 2/4/8 (4, raw stills only).
+- Optics: `zoomRate` 0.001–0.10 (0.02, **raw engine only** — Stable never reads it, the UI hides it there), `zoomCap` 0–10 (3.0, 0=none; labeled **End zoom (×)**, the size at the last frame), `zoomPanX`/`zoomPanY` −20…+20 px drift/frame (0), `zoomPrescale` select 2/4/8 (4, raw stills only).
+- Legends: every knob row carries a plain-English line (no jargon): direction (in = grows toward you), pre-scale (bigger = smoother but slower, raw-only), Target X/Y (targeted preset only), wobble/Spin/Glitch (units + raw-only), easing (all four modes + both engines), Punch frame (both engines) + Hue rate (raw-only) + jitter caveat, Frame d (raw-only choppy scale).
+- Readout `zoomInfoLine` states the trip, not the machinery: stable `72 frames · 3.00s @24fps · stable · 1× → 3×`; raw `… · raw · 1× → 2.42× (+0.02/frame)`; stretch `picture grows to 2× wider · 1× taller`. Any manual edit of rate/cap/pan/direction/engine flips the preset to `custom` (stretch X/Y tune the stretch preset itself).
 - Motion: `zoomPanX`/`zoomPanY` −20…+20 px/frame (0), `zoomTargetX`/`zoomTargetY` text (targeted preset), `zoomOscAmp`/`zoomOscFreq` knobs (0 / 10), `zoomFrameD` knob 1–5 step 1 (1, raw only — choppy above 1, legend warns).
 - FX (raw only, section hidden when stable): `zoomRotate` 0–1.0 (0), `zoomEasing` select none/accel/decel/punch, `zoomPunchFrame` knob 1–240 (20), `zoomGlitch` 0–0.5 (0), `zoomHue` binary off/on + `zoomHueRate` 0.5–20 (2.0).
-- Readout `zoomInfoLine`: `N frames · WxH @ FPS · engine` live (same pattern as `updateRampInfoLine`).
+- Stretch (preset `stretch` only): `zoomStretchX` knob 1–4 step 0.05 (1.0) + `zoomStretchY` knob 1–4 step 0.05 (1.0). Plain words: picture size = video size; X = how much wider, Y = how much taller, both if both. Row visible only when preset is `stretch`.
+- Readout `zoomInfoLine`: `N frames · WxH @ FPS · engine` live (same pattern as `updateRampInfoLine`). In `stretch` preset appends `→ X… × Y…`.
 - Raw zoompan jitter caveat in the legend (the Pan & Zoom tab stays Pillow for a reason).
 
 ### 2.3 Collector (`js/job-control.js`, `tab==='transmute'`, op `zoom`)
@@ -35,7 +38,7 @@ zoom: { summary: "Zoom / pan (still → video or video → video)", fields: ['zo
 
 ## 3. Backend (`app/operations/zoom_ops.py`, op id `zoom`)
 
-Params (pydantic): `input_path, output_path, engine(stable|raw), preset, duration_sec(>0,≤600), fps(>0,≤120), output_width/height|None(even, 16…7680/4320), zoom_rate, direction(in|out), zoom_cap(≥0), prescale(2|4|8), pan_x, pan_y, target_x/y|None, osc_amp, osc_freq, rotate_rate, easing(none|accel|decel|punch), punch_frame, glitch_amt(0…0.5), hue_cycle, hue_rate, frame_d(1…5), dry_run`.
+Params (pydantic): `input_path, output_path, engine(stable|raw), preset, duration_sec(>0,≤600), fps(>0,≤120), output_width/height|None(even, 16…7680/4320), zoom_rate, direction(in|out), zoom_cap(≥0), prescale(2|4|8), pan_x, pan_y, target_x/y|None, osc_amp, osc_freq, rotate_rate, easing(none|accel|decel|punch), punch_frame, glitch_amt(0…0.5), hue_cycle, hue_rate, frame_d(1…5), stretch_x(0.25…8, 1.0), stretch_y(0.25…8, 1.0), dry_run`.
 
 Behavior:
 
@@ -48,6 +51,7 @@ Behavior:
 - **Stable video:** v1 returns `ok:false` ("stable engine is still-image only in v1 — switch Engine to raw"). Honest, no silent wrong output.
 - Expression guard (raw): `z/x/y` may contain only `[0-9a-zA-Z_+\\-*/()., ]` + tokens `on in iw ih zoom random sin cos sqrt min max if lt`; anything else → `ok:false`.
 - Preset map: zoom_in `1+R*on` centered; zoom_out `CAP-R*on`; targeted `TX-(iw/zoom/2)`; kenburns `1+0.005*on`, `on*2/on*1`; ease `R*(on/FPS)^1.5` / `R*sqrt(on)`; punch `if(lt(on,P),1,1+(on-P)*0.1)`; spiral prepends `rotate=on*V,`; glitch appends `+(random(1)-0.5)*A`; hue appends `,hue=h=on*R:s=1`. Drift composes onto centered x/y.
+- **Stretch preset (stills-only v1):** `preset='stretch'` ignores zoom_rate/direction/pan/osc and lerps each axis on its own: frame 0 = picture as-is, last frame = X times wider and Y times taller, center-cropped so the overflow bleeds off the edges (picture size = video size, never any bars). Stable engine only — raw returns `ok:false` ("stretch is stable-engine only in v1"). Both knobs at 1.0 → `ok:false` (nothing to stretch). Raw-only FX (rotate/glitch/hue) with stretch → `ok:false`, same as other stable presets.
 
 ## 4. Verification
 
