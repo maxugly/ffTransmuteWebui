@@ -613,13 +613,27 @@ def _save_basis_of(payload: dict[str, Any]) -> float | None:
 def _union_membership_entries(
     current: list, incoming: list | None
 ) -> list:
-    """Union by path: incoming wins field-level, current-only rows survive.
+    """Union by path: conflicts resolve to CURRENT, incoming adds new paths.
 
     Protects server-side appends (watcher ingest) from being wiped by a
-    browser autosave that loaded before they arrived.
+    browser autosave that loaded before they arrived — without letting that
+    stale save clobber fresher rows (e.g. a Time committed from another
+    session mid-encode would otherwise be reverted row-wide). Symmetric with
+    the existing rule that stale deletes don't stick: on a stale basis only
+    brand-new paths are adopted; order follows the incoming list.
     """
-    out = [e for e in (incoming or [])]
-    have = {e.get("path") for e in out if isinstance(e, dict)}
+    cur_by_path = {
+        e.get("path"): e for e in (current or []) if isinstance(e, dict)
+    }
+    out = []
+    have = set()
+    for e in incoming or []:
+        if not isinstance(e, dict):
+            continue
+        p = e.get("path")
+        out.append(cur_by_path.get(p, e) if p else e)
+        if p:
+            have.add(p)
     for e in current or []:
         if isinstance(e, dict) and e.get("path") not in have:
             out.append(e)

@@ -18,6 +18,7 @@ import { repairItem } from '/js/repair-queue.js';
 import { addPathsToSequence } from '/js/pool/sequence-composer.js';
 import { createVirtualGrid } from '/js/pool/virtual-grid.js';
 import { prepareWallTenants, attachWallTenant, detachWallTenant } from '/js/pool/wall-thumbs.js';
+import { ensureTabRoot } from '/js/pool/tab-roots.js';
 
 let _imageVirtualGrid = null;
 let _imageVirtualCanvas = null;
@@ -588,8 +589,11 @@ function sendImagePathTo(path, target) {
 // ── UI ───────────────────────────────────────────────────────────────────
 
 function renderImagePoolForm() {
-  const existing = document.getElementById('imgPoolGrid');
-  if (existing && elements.actionPanel.contains(existing)) {
+  // Stateful tab: image pool mounts once into its permanent root.
+  // Fast path is root-scoped (same-tab pattern, generalized per §1.3).
+  const root = ensureTabRoot('images') || elements.actionPanel;
+  const existing = root.querySelector('#imgPoolGrid');
+  if (existing) {
     renderImagePoolGrid();
     return;
   }
@@ -653,19 +657,22 @@ function renderImagePoolForm() {
     </div>
   `;
 
-  elements.actionPanel.innerHTML = html;
+  root.innerHTML = html;
   (elements.actionPanelRoot || elements.actionPanel).classList.add('pool-active');
   installPoolScrollPaint();
 
-  document.getElementById('btnProjectNew')?.addEventListener('click', projectNew);
-  document.getElementById('btnProjectOpen')?.addEventListener('click', projectOpen);
-  document.getElementById('btnProjectSave')?.addEventListener('click', () => projectSave(false));
-  document.getElementById('btnProjectSaveAs')?.addEventListener('click', () => projectSave(true));
-  document.getElementById('btnImgPoolImportFiles')?.addEventListener('click', importImageFiles);
-  document.getElementById('btnImgPoolImportFolder')?.addEventListener('click', importImageFolder);
-  document.getElementById('btnImgPoolClear')?.addEventListener('click', clearImagePool);
-  document.getElementById('btnImgPoolUse')?.addEventListener('click', () => {
-    const target = document.getElementById('imgPoolUseTarget')?.value;
+  // Root-scoped binds: btnProject* ids also exist in the video pool toolbar,
+  // so document-wide lookups would bind the wrong (first-mounted) root.
+  const $ = (id) => root.querySelector(`#${id}`);
+  $('btnProjectNew')?.addEventListener('click', projectNew);
+  $('btnProjectOpen')?.addEventListener('click', projectOpen);
+  $('btnProjectSave')?.addEventListener('click', () => projectSave(false));
+  $('btnProjectSaveAs')?.addEventListener('click', () => projectSave(true));
+  $('btnImgPoolImportFiles')?.addEventListener('click', importImageFiles);
+  $('btnImgPoolImportFolder')?.addEventListener('click', importImageFolder);
+  $('btnImgPoolClear')?.addEventListener('click', clearImagePool);
+  $('btnImgPoolUse')?.addEventListener('click', () => {
+    const target = $('imgPoolUseTarget')?.value;
     if (!target) {
       alert('Choose a destination.');
       return;
@@ -673,7 +680,7 @@ function renderImagePoolForm() {
     sendImagePathTo(ip.selectedPath, target);
   });
 
-  const filterEl = document.getElementById('imgPoolFilterInput');
+  const filterEl = $('imgPoolFilterInput');
   if (filterEl) {
     filterEl.addEventListener('input', () => {
       ensureImagePool().filterQuery = filterEl.value;
@@ -808,6 +815,8 @@ function renderImagePoolGrid() {
   const canvas = document.getElementById('imgPoolGrid');
   const wrap = canvas?.closest('.pool-grid-wrap') || document.getElementById('imgPoolGridWrap');
   if (!canvas || !wrap) return;
+  // Hidden-DOM rule (§6): never measure a hidden/detached grid (see grid.js).
+  const gridHidden = !wrap.isConnected || !!wrap.closest('.tab-root[hidden]');
   const ip = ensureImagePool();
 
   // Ensure grid class + default tile size for CSS grid
@@ -856,6 +865,13 @@ function renderImagePoolGrid() {
   if (empty) empty.remove();
 
   prepareWallTenants(items);
+
+  if (gridHidden) {
+    wrap.dataset.dirtyGrid = '1';
+    _updateImageFilterCount();
+    return;
+  }
+  delete wrap.dataset.dirtyGrid;
 
   if (!_imageVirtualGrid || _imageVirtualCanvas !== canvas) {
     _imageVirtualGrid?.destroy();

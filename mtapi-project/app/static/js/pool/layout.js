@@ -1,6 +1,7 @@
 import { state } from '/app.js';
 import { POOL_LAYOUT_DEFAULTS } from '/js/pool/constants.js';
 import { scheduleSavePoolState } from '/js/pool/persistence.js';
+import { getTabRoot } from '/js/pool/tab-roots.js';
 
 // ── Pool layout / dock resize helpers ─────────────────────────────────────
 
@@ -62,10 +63,13 @@ function applyPoolLayout() {
   if (selectionBody) selectionBody.classList.toggle('is-collapsed', !!L.collapsed.selection);
   if (matchBlock) matchBlock.classList.toggle('is-collapsed', !!L.collapsed.matches);
 
-  const gridWrap = document.querySelector('.pool-grid-wrap');
+  // Scoped to the video pool root: the image pool root reuses .pool-grid-wrap
+  // / .pool-top classes, so a document-wide query could restyle the wrong wall.
+  const poolScope = getTabRoot('pool') || document;
+  const gridWrap = poolScope.querySelector ? poolScope.querySelector('.pool-grid-wrap') : null;
   if (gridWrap) gridWrap.classList.toggle('is-collapsed', !!L.collapsed.pool);
 
-  const poolTop = document.querySelector('.pool-top');
+  const poolTop = poolScope.querySelector ? poolScope.querySelector('.pool-top') : null;
   if (poolTop) poolTop.classList.toggle('pool-collapsed', !!L.collapsed.pool);
 
   const toggleBtn = document.getElementById('btnTogglePool');
@@ -106,6 +110,10 @@ function setupPoolLayoutChrome() {
   applyPoolLayout();
 
   document.querySelectorAll('[data-collapse]').forEach(head => {
+    // Mounted-guarded (§5): roots persist now, so a future re-render must not
+    // stack a second toggle on the same head.
+    if (head.dataset.chromeBound) return;
+    head.dataset.chromeBound = '1';
     const key = head.getAttribute('data-collapse');
     const onToggle = (e) => {
       if (e.target.closest('.seq-transport, .pool-match-controls, #btnExpandMatches, select, input, a')) return;
@@ -218,6 +226,9 @@ function installPoolScrollPaint(onIdle) {
 
 function bindPoolDragResize(el, { axis, onMove, startVals }) {
   if (!el) return;
+  // Mounted-guarded (§5): surviving nodes must not collect repeat drag binds.
+  if (el.dataset.resizeBound) return;
+  el.dataset.resizeBound = '1';
   el.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     el.setPointerCapture(e.pointerId);

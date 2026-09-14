@@ -12,7 +12,7 @@ import {
   refreshPoolToolbarCounts, ensureVideoOutputPath,
   projectLabel,
   poolThumbUrl, shortHash, buildPoolMetaHtml,
-  captureCurrentFormState, applySavedFormState,
+  captureCurrentFormState, captureAllMountedFormState, applySavedFormState,
   isApplyingFormState,
   _poolSeqId, _poolSaveTimer, _poolPersistReady,
 } from '/js/pool/persistence.js';
@@ -57,6 +57,11 @@ import { refreshInputPreview, bindInputPreviewListeners } from '/js/ui/input-pre
 import { makeClearable, bindClearables } from '/js/ui/clearable.js';
 import { setupNavSectionCollapse, ensureNavSectionForTab } from '/js/ui/nav-sections.js';
 import { saveTabScroll, restoreTabScroll, initTabScroll } from '/js/ui/tab-scroll.js';
+import {
+  isCachedTab, ensureTabRoot,
+  detachCachedRoots, reattachCachedRoots, clearUncachedNodes,
+  showCachedTab,
+} from '/js/pool/tab-roots.js';
 import { globalMediaIndex } from '/js/media-index.js';
 import '/js/repair-queue.js';
 import {
@@ -934,11 +939,12 @@ function switchTab(tab) {
       return;
     }
   }
-  // DOM forms are destroyed on tab changes. Capture their controls before the
-  // next renderer replaces the panel so inactive tabs remain serializable.
-  try { captureCurrentFormState(); } catch (_) { /* best effort */ }
+  // Stateful tabs: the DOM *is* the state for cached tabs, so there is no
+  // leave-capture on the switch path (a partial single-tab snapshot would
+  // stamp stale values as truth). Explicit saves capture all mounted roots.
   // Per-tab scroll memory (localStorage-backed): remember where we were on the tab we leave.
   try { saveTabScroll(state.activeTab); } catch (_) { /* best effort */ }
+  const leavingTab = state.activeTab;
   state.activeTab = tab;
   
   // Update Active Link UI
@@ -1016,6 +1022,22 @@ function switchTab(tab) {
   if (tab !== 'jobs') {
     try { stopJobsPoll(); } catch (_) { /* ignore */ }
   }
+  // Leaving stablefluids: drop GPU/rAF/Recorder via the installed teardown.
+  // (Was an unconditional per-switch teardown; now scoped to the hide path.)
+  if (leavingTab === 'stablefluids' && tab !== 'stablefluids') {
+    try { window.__sfTeardown?.(); } catch (_) { /* ignore */ } finally { window.__sfTeardown = null; }
+  }
+  // Leaving sequence mid-playback: preview-stop (pause, keep position).
+  // Never auto-resumes; the user presses play on return.
+  if (leavingTab === 'sequence' && tab !== 'sequence') {
+    try {
+      if (state.pool && state.pool.playback && state.pool.playback.playing) {
+        import('/js/pool/sequence.js').then((m) => {
+          try { m.seqPause(); } catch (_) { /* ignore */ }
+        }).catch(() => {});
+      }
+    } catch (_) { /* ignore */ }
+  }
 
   // Pool / Sequence / Image Pool take most of the workspace
   const appContent = document.querySelector('.app-content');
@@ -1056,6 +1078,50 @@ function switchTab(tab) {
   try { restoreTabScroll(tab); } catch (_) { /* best effort */ }
 }
 
+// Stateful cached tabs (Phase 1: pool, sequence, images). Each tab mounts
+// once into a permanent root; warm switches only hide/show. First-visit
+// builds run the existing renderer + cold-reload form-state replay.
+// Order is show-then-build so first renders measure a visible root.
+function renderCachedTabForm(tab) {
+  clearUncachedNodes();
+  reattachCachedRoots();
+  if (tab === 'sequence') {
+    // Pool root first: it owns the shared toolbar + grid shown above the
+    // composer, and must precede the sequence root in DOM order.
+    ensureTabRoot('pool');
+    ensureTabRoot('sequence');
+  } else {
+    ensureTabRoot(tab);
+  }
+  showCachedTab(tab);
+  const applyOnce = (t) => {
+    try { applySavedFormState(t); } catch (_) { /* ignore */ }
+  };
+  if (tab === 'pool') {
+    const root = ensureTabRoot('pool');
+    const fresh = root && !root.dataset.built;
+    renderPoolForm();
+    if (root) root.dataset.built = '1';
+    if (fresh) applyOnce('pool');
+  } else if (tab === 'sequence') {
+    const poolRoot = ensureTabRoot('pool');
+    const poolFresh = poolRoot && !poolRoot.dataset.built;
+    const seqRoot = ensureTabRoot('sequence');
+    const seqFresh = seqRoot && !seqRoot.dataset.built;
+    renderSequenceForm();
+    if (poolRoot) poolRoot.dataset.built = '1';
+    if (seqRoot) seqRoot.dataset.built = '1';
+    if (poolFresh) applyOnce('pool');
+    if (seqFresh) applyOnce('sequence');
+  } else if (tab === 'images') {
+    const root = ensureTabRoot('images');
+    const fresh = root && !root.dataset.built;
+    renderImagePoolForm();
+    if (root) root.dataset.built = '1';
+    if (fresh) applyOnce('images');
+  }
+}
+
 // Render Specific Tab Forms
 function renderTabForm(tab) {
   try {
@@ -1063,16 +1129,27 @@ function renderTabForm(tab) {
       window.__mtapiLazyLoader?.unobserve(el);
     });
   } catch (_) { /* ignore */ }
-  // Tear down interactive tab resources (e.g. native WebGPU sim) before the
-  // panel DOM is destroyed, so no rAF loop / MediaRecorder keeps running.
-  try { window.__sfTeardown?.(); } catch (_) { /* ignore */ } finally { window.__sfTeardown = null; }
-  elements.actionPanel.innerHTML = '';
   const root = elements.actionPanelRoot || elements.actionPanel;
   if (root) {
     root.classList.remove('pool-active');
     root.classList.remove('notes-active');
     root.classList.remove('settings-active');
   }
+
+  // Stateful tabs mount once into permanent roots; switches only hide/show.
+  if (isCachedTab(tab)) {
+    renderCachedTabForm(tab);
+    // Bottom input preview (after form chrome; survives form-only re-renders)
+    try { refreshInputPreview(); } catch (_) { /* ignore */ }
+    // No form-state replay on warm shows: the DOM is the state. First-visit
+    // (cold-reload) builds replay inside renderCachedTabForm.
+    return;
+  }
+
+  // Legacy destroy path for uncached tabs (Phase 1): cached roots are
+  // detached first so the panel wipe cannot destroy them.
+  detachCachedRoots();
+  elements.actionPanel.innerHTML = '';
 
   if (tab === 'mosh') {
     renderMoshForm();
@@ -1367,7 +1444,7 @@ function setupAllPanelResize() {
 window.addEventListener('beforeunload', () => {
   if (!_poolPersistReady) return;
   try {
-    captureCurrentFormState();
+    captureAllMountedFormState();
     const blob = new Blob([JSON.stringify(buildPoolStatePayload())], { type: 'application/json' });
     navigator.sendBeacon?.('/api/pool/state', blob);
   } catch (_) { /* ignore */ }

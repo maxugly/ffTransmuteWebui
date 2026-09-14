@@ -100,6 +100,68 @@ class OfflineKeepTest(unittest.TestCase):
         self.assertIn(gone, data["missing"])
 
 
+class StaleMergeKeepsFreshRowsTest(unittest.TestCase):
+    """A stale autosave must not revert fresher rows (e.g. Time committed
+    from another session while RIFE encodes). Spec §8.4: loads never delete;
+    symmetrically, stale saves never clobber — only brand-new paths merge."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(prefix="mtapi-stalemerge-")
+        self.root = Path(self.tmp.name)
+        self._saved = {}
+        for mod, name in ((media_config, "POOL_STATE_PATH"),
+                          (pool_mod, "POOL_STATE_PATH")):
+            self._saved[(mod, name)] = getattr(mod, name)
+        media_config.POOL_STATE_PATH = self.root / "pool_state.json"
+        pool_mod.POOL_STATE_PATH = self.root / "pool_state.json"
+        self._orig_cif = catalog_mod.catalog_if_ready
+        catalog_mod.catalog_if_ready = lambda: None
+
+    def tearDown(self):
+        catalog_mod.catalog_if_ready = self._orig_cif
+        for (mod, name), val in self._saved.items():
+            setattr(mod, name, val)
+        self.tmp.cleanup()
+
+    def _doc(self, seq, updated_at=None):
+        d = {"version": 2,
+             "items": [{"path": s["path"]} for s in seq],
+             "sequence": [dict(s) for s in seq]}
+        if updated_at is not None:
+            d["updated_at"] = updated_at
+        return d
+
+    def test_stale_save_keeps_fresh_time(self):
+        fresh = {"path": "/srv/a.mp4", "name": "a.mp4",
+                 "target_duration": 33.33}
+        res = asyncio.run(pool_mod.save_pool_state(self._doc([fresh])))
+        stale = self._doc([{"path": "/srv/a.mp4", "name": "a.mp4"}])
+        stale["_basis_updated_at"] = float(res["updated_at"]) - 100.0
+        asyncio.run(pool_mod.save_pool_state(stale))
+        data = pool_mod.load_pool_state()
+        row = next(e for e in data["sequence"]
+                   if e["path"] == "/srv/a.mp4")
+        self.assertEqual(row.get("target_duration"), 33.33,
+                         "stale autosave must not revert committed Time")
+
+    def test_stale_save_still_adopts_new_paths(self):
+        old = {"path": "/srv/a.mp4", "name": "a.mp4",
+               "target_duration": 33.33}
+        res = asyncio.run(pool_mod.save_pool_state(self._doc([old])))
+        inc = [{"path": "/srv/a.mp4", "name": "a.mp4"},
+               {"path": "/srv/new.mp4", "name": "new.mp4"}]
+        stale = self._doc(inc)
+        stale["_basis_updated_at"] = float(res["updated_at"]) - 100.0
+        asyncio.run(pool_mod.save_pool_state(stale))
+        data = pool_mod.load_pool_state()
+        paths = [e["path"] for e in data["sequence"]]
+        self.assertIn("/srv/new.mp4", paths,
+                      "watcher-style appends must still survive stale saves")
+        row = next(e for e in data["sequence"]
+                   if e["path"] == "/srv/a.mp4")
+        self.assertEqual(row.get("target_duration"), 33.33)
+
+
 class ProbeClampTest(unittest.TestCase):
     def test_async_rejects_insane_fps(self):
         async def fake_run(cmd):

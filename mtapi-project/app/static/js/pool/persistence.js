@@ -10,6 +10,7 @@ import { ensureTileInfo } from '/app.js';
 import { basename, escapeHtml, formatDurationExact } from '/js/utils.js';
 import { displayOpResult, runOpWithCancel, isMainJobBusy } from '/js/job-control.js';
 import { POOL_ZOOM, POOL_LAYOUT_DEFAULTS } from '/js/pool/constants.js';
+import { getTabRoot, mountedTabRoots, isCachedTab } from '/js/pool/tab-roots.js';
 
 let _poolSeqId = 1;
 
@@ -148,13 +149,11 @@ function migratePoolPayload(data) {
   return data;
 }
 
-/** Capture the currently mounted tab controls before its DOM is destroyed. */
-function captureCurrentFormState() {
-  const tab = state.activeTab;
-  if (!tab || !elements.actionPanel) return;
-  if (tab === 'settings') return;
+/** Read one scope's controls (same filters as captureCurrentFormState). */
+function captureFormStateInScope(scopeEl, tab) {
+  if (!scopeEl) return;
   const controls = {};
-  elements.actionPanel.querySelectorAll('input[id], select[id], textarea[id]').forEach((el) => {
+  scopeEl.querySelectorAll('input[id], select[id], textarea[id]').forEach((el) => {
     if (FORM_STATE_SKIP.has(el.id) || el.type === 'button' || el.type === 'submit') return;
     controls[el.id] = {
       value: el.value,
@@ -162,6 +161,44 @@ function captureCurrentFormState() {
     };
   });
   state.formState[tab] = controls;
+}
+
+/** Capture the currently mounted tab controls before its DOM is destroyed. */
+function captureCurrentFormState() {
+  const tab = state.activeTab;
+  if (!tab || !elements.actionPanel) return;
+  if (tab === 'settings') return;
+  // Permanent tab roots are captured per-tab by captureAllMountedFormState;
+  // the legacy path only owns direct (uncached) panel children.
+  const controls = {};
+  elements.actionPanel.querySelectorAll('input[id], select[id], textarea[id]').forEach((el) => {
+    if (el.closest && el.closest('.tab-root')) return;
+    if (FORM_STATE_SKIP.has(el.id) || el.type === 'button' || el.type === 'submit') return;
+    controls[el.id] = {
+      value: el.value,
+      checked: el.type === 'checkbox' || el.type === 'radio' ? !!el.checked : undefined,
+    };
+  });
+  state.formState[tab] = controls;
+}
+
+/**
+ * Capture every mounted tab root (including hidden and detached-held ones —
+ * reads, never measurements) plus the active uncached panel content.
+ * Replaces the single-tab leave-capture on explicit saves and beforeunload:
+ * background roots hold newer user edits than the leaving tab, and a partial
+ * snapshot would stamp stale values as truth on later saves.
+ */
+function captureAllMountedFormState() {
+  if (!elements.actionPanel) return;
+  for (const { tab, root } of mountedTabRoots()) {
+    if (tab === 'settings') continue;
+    try { captureFormStateInScope(root, tab); } catch (_) { /* best effort */ }
+  }
+  const tab = state.activeTab;
+  if (tab && !isCachedTab(tab)) {
+    try { captureCurrentFormState(); } catch (_) { /* best effort */ }
+  }
 }
 
 /**
@@ -173,10 +210,19 @@ function applySavedFormState(tab) {
   if (tab === 'settings') return;
   const controls = state.formState?.[tab];
   if (!controls || !elements.actionPanel) return;
+  // Resolve inside the tab's own root when mounted (attached or held):
+  // pool/sequence share control ids across roots, so a document-wide lookup
+  // could replay one tab's values onto another tab's live inputs.
+  const scope = getTabRoot(tab) || elements.actionPanel;
   _applyingFormState = true;
   try {
     Object.entries(controls).forEach(([id, saved]) => {
-      const el = document.getElementById(id);
+      let el = null;
+      try {
+        el = scope.querySelector(`#${CSS.escape(id)}`) || document.getElementById(id);
+      } catch (_) {
+        el = document.getElementById(id);
+      }
       if (!el || !saved) return;
       if (el.type === 'checkbox' || el.type === 'radio') el.checked = !!saved.checked;
       else if (saved.value != null) el.value = saved.value;
@@ -358,11 +404,12 @@ function markProjectDirty() {
 }
 
 function updateProjectNameUI() {
-  const el = document.getElementById('poolProjectName');
-  if (el) {
+  // poolProjectName exists in both the video and image pool toolbars —
+  // update every instance, not just the first in document order.
+  document.querySelectorAll('#poolProjectName').forEach((el) => {
     el.textContent = projectLabel();
     el.title = state.project.path || '';
-  }
+  });
 }
 
 /** Apply loaded project/session JSON into live pool state and re-render. */
@@ -642,7 +689,7 @@ async function confirmEmptySequenceOverwrite(path) {
 }
 
 async function projectSave(saveAs = false) {
-  captureCurrentFormState();
+  captureAllMountedFormState();
   let path = state.project.path;
   if (saveAs || !path) {
     const suggested = path
@@ -720,7 +767,7 @@ async function projectSave(saveAs = false) {
 async function savePoolStateNow() {
   if (!_poolPersistReady) return;
   try {
-    captureCurrentFormState();
+    captureAllMountedFormState();
     const payload = buildPoolStatePayload();
     const res = await fetch('/api/pool/state', {
       method: 'PUT',
@@ -819,10 +866,16 @@ async function restorePoolState() {
 }
 
 function refreshPoolToolbarCounts() {
-  const el = document.querySelector('.pool-count');
+  // Scope to the video pool root: the image pool has its own .pool-count.
+  const poolRoot = getTabRoot('pool');
+  const el = poolRoot
+    ? poolRoot.querySelector('.pool-count')
+    : document.querySelector('.pool-count:not(#imgPoolCount)');
   if (el) {
-    const hasSeqUi = document.getElementById('btnSeqClear') != null
-      || document.getElementById('poolSequenceBox') != null;
+    const seqClearBtn = document.getElementById('btnSeqClear');
+    const seqBox = document.getElementById('poolSequenceBox');
+    const hasSeqUi = (seqClearBtn && !seqClearBtn.hidden && !seqClearBtn.closest('.tab-root[hidden]'))
+      || (seqBox && !seqBox.closest('.tab-root[hidden]'));
     el.textContent = hasSeqUi
       ? `${state.pool.items.length} in video pool · ${state.pool.sequence.length} in sequence`
       : `${state.pool.items.length} in video pool`;
@@ -1065,7 +1118,7 @@ window.addEventListener('mtapi.settingsChanged', () => {
 export {
   _poolSeqId, _poolSaveTimer, _poolPersistReady,
   nextSeqId,
-  captureCurrentFormState, applySavedFormState, buildDeskSnapshot, applyDeskSnapshot,
+  captureCurrentFormState, captureAllMountedFormState, applySavedFormState, buildDeskSnapshot, applyDeskSnapshot,
   scheduleSavePoolState, buildPoolStatePayload,
   projectLabel, markProjectDirty, updateProjectNameUI,
   applyPoolData, projectNew, projectOpen, projectSave,

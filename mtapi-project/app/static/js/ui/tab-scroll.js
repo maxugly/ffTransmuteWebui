@@ -3,8 +3,10 @@
  *
  * Tab switches wipe #actionPanelForm innerHTML, which collapses content
  * height and resets the scroll container to 0. Remember the outer
- * #actionPanel scrollTop plus the inner pool grid scroller
- * (#poolGridWrap / #imgPoolGridWrap) per tab id, and restore after render.
+ * #actionPanel scrollTop, the inner pool grid scroller
+ * (#poolGridWrap / #imgPoolGridWrap), and the sequence token strip
+ * (#poolSequenceBox — a ~11kpx vertical scroller on big projects) per tab
+ * id, and restore after render.
  *
  * Browser-only: an in-memory Map fronted by localStorage (`mtapi_tab_scroll`).
  * Never written into named projects or the server session snapshot (same
@@ -16,7 +18,7 @@ const STORAGE_VERSION = 1;
 const MAX_TABS = 60;
 const MAX_SCROLL = 100000;
 
-const _mem = new Map(); // tabId -> { outer: number, form: number, grid: number }
+const _mem = new Map(); // tabId -> { outer: number, form: number, grid: number, seq: number }
 let _raf = 0;
 let _persistTimer = 0;
 
@@ -46,8 +48,8 @@ function _loadStored() {
       if (_mem.size >= MAX_TABS) break;
       const e = tabs[k];
       if (!e || typeof e !== 'object') continue;
-      const entry = { outer: _num(e.outer), form: _num(e.form), grid: _num(e.grid) };
-      if (entry.outer > 0 || entry.form > 0 || entry.grid > 0) _mem.set(k, entry);
+      const entry = { outer: _num(e.outer), form: _num(e.form), grid: _num(e.grid), seq: _num(e.seq) };
+      if (entry.outer > 0 || entry.form > 0 || entry.grid > 0 || entry.seq > 0) _mem.set(k, entry);
     }
   } catch (_) { /* ignore */ }
 }
@@ -95,10 +97,15 @@ function _gridEl() {
   );
 }
 
+function _seqEl() {
+  return document.getElementById('poolSequenceBox') || null;
+}
+
 function _read() {
   let outer = 0;
   let form = 0;
   let grid = 0;
+  let seq = 0;
   try {
     outer = Number(_outerEl()?.scrollTop) || 0;
   } catch (_) { /* ignore */ }
@@ -108,14 +115,30 @@ function _read() {
   try {
     grid = Number(_gridEl()?.scrollTop) || 0;
   } catch (_) { /* ignore */ }
-  return { outer, form, grid };
+  try {
+    seq = Number(_seqEl()?.scrollTop) || 0;
+  } catch (_) { /* ignore */ }
+  return { outer, form, grid, seq };
 }
 
 /** Save current scroll position under `tab`. No-op on bad input. */
 function saveTabScroll(tab) {
   if (!tab || typeof tab !== 'string') return;
   try {
-    _mem.set(tab, _read());
+    const entry = _read();
+    _mem.set(tab, entry);
+    // Pool and sequence share the same PoolGridWrap node (stateful tabs:
+    // single pool root shown in both views). Keep their stored grid in
+    // sync so a warm switch does not have tab-scroll clobber the live
+    // preserved scroll with a stale per-tab entry (see stateful proof A3).
+    if ((tab === 'pool' || tab === 'sequence') && entry && Number.isFinite(entry.grid)) {
+      const sibling = tab === 'pool' ? 'sequence' : 'pool';
+      const sib = _mem.get(sibling);
+      if (sib && sib.grid !== entry.grid) {
+        sib.grid = entry.grid;
+        _mem.set(sibling, sib);
+      }
+    }
     if (_mem.size > MAX_TABS) {
       const oldest = _mem.keys().next();
       if (!oldest.done) _mem.delete(oldest.value);
@@ -154,7 +177,8 @@ function _apply(tab, entry) {
   const okOuter = _applyPane(_outerEl(), entry.outer);
   const okForm = _applyPane(_formEl(), entry.form);
   const okGrid = _applyPane(_gridEl(), entry.grid);
-  return okOuter && okForm && okGrid;
+  const okSeq = _applyPane(_seqEl(), entry.seq);
+  return okOuter && okForm && okGrid && okSeq;
 }
 
 /**
@@ -180,7 +204,7 @@ function restoreTabScroll(tab) {
       }
     } catch (_) { /* ignore */ }
   }
-  if (!entry || (entry.outer <= 0 && entry.form <= 0 && entry.grid <= 0)) return;
+  if (!entry || (entry.outer <= 0 && entry.form <= 0 && entry.grid <= 0 && (entry.seq || 0) <= 0)) return;
   let attempts = 0;
   const run = () => {
     attempts += 1;
@@ -235,7 +259,7 @@ function initTabScroll(getActiveTab) {
     document.addEventListener('scroll', (e) => {
       const t = e && e.target;
       if (!t || t === document) return;
-      if (t.id === 'actionPanel' || t.id === 'actionPanelForm' || t.id === 'poolGridWrap' || t.id === 'imgPoolGridWrap') {
+      if (t.id === 'actionPanel' || t.id === 'actionPanelForm' || t.id === 'poolGridWrap' || t.id === 'imgPoolGridWrap' || t.id === 'poolSequenceBox') {
         schedule();
       }
     }, { capture: true, passive: true });

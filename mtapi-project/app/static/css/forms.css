@@ -1326,6 +1326,32 @@ input.daw-knob-value-input:focus {
   gap: inherit;
 }
 
+/* ── Stateful tabs: permanent per-tab roots, hidden/shown on switch ──
+   The !important mirrors the zoompan layer precedent: author display rules
+   beat the UA [hidden] rule, so hidden roots need the explicit override. */
+.tab-root[hidden] {
+  display: none !important;
+}
+
+/* Library roots fill the form column; the composer root sizes naturally.
+   The flex-basis:0 + min-height:0 + overflow:hidden chain is required
+   because the pool grid is a flex:1 scroll container inside several
+   nested flex columns; without it the root grows to the wall's full
+   scrollHeight (e.g. 77kpx) and the grid never scrolls. */
+.tab-root {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tab-root[data-tab="sequence"] {
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
 .tool-input-preview {
   flex: 0 0 auto;
   margin-top: auto;

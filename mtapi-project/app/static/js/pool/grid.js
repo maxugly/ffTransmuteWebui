@@ -43,6 +43,7 @@ import {
 import { installPoolScrollPaint } from '/js/pool/layout.js';
 import { createVirtualGrid } from '/js/pool/virtual-grid.js';
 import { prepareWallTenants, attachWallTenant, detachWallTenant } from '/js/pool/wall-thumbs.js';
+import { ensureTabRoot } from '/js/pool/tab-roots.js';
 
 let _statusTimer = null;
 let _poolVirtualGrid = null;
@@ -126,9 +127,25 @@ async function _variantNodeHtml(path) {
 
 // ─── Video Pool ───────────────────────────────────────────────────────────
 
+// Pool toolbar carries the sequence tools (single instance, no dup ids).
+// They belong to the sequence view; keep them hidden on the pool tab so its
+// chrome is identical to the pre-stateful layout.
+function syncSeqToolsVisibility() {
+  const show = state.activeTab === 'sequence';
+  for (const id of ['btnSeqClear', 'btnTogglePool']) {
+    const el = document.getElementById(id);
+    if (el) el.hidden = !show;
+  }
+}
+
 function renderPoolForm() {
-  const existing = document.getElementById('poolGrid');
-  if (existing && elements.actionPanel.contains(existing) && !document.getElementById('poolCompose')) {
+  // Stateful tab: pool owns toolbar + grid inside its permanent root.
+  // Fast path is root-scoped (a document-wide check would see the sequence
+  // root's nodes and either skip a needed build or rebuild a live wall).
+  const root = ensureTabRoot('pool') || elements.actionPanel;
+  const existing = root.querySelector('#poolGrid');
+  if (existing) {
+    syncSeqToolsVisibility();
     applyPoolZoom();
     renderPoolGrid();
     updateSelectionHighlights();
@@ -143,21 +160,22 @@ function renderPoolForm() {
   const html = `
     <div class="pool-workspace-inner">
       <div class="pool-top">
-        ${_poolToolbarHtml(count, selected, seqCount, { showSeqTools: false })}
-         <div class="pool-grid-wrap" id="poolGridWrap">
-           <div class="pool-grid pool-scroll-canvas" id="poolGrid" tabindex="0"></div>
-         </div>
+        ${_poolToolbarHtml(count, selected, seqCount, { showSeqTools: true })}
+          <div class="pool-grid-wrap" id="poolGridWrap">
+            <div class="pool-grid pool-scroll-canvas" id="poolGrid" tabindex="0"></div>
+          </div>
       </div>
     </div>
   `;
 
-  elements.actionPanel.innerHTML = html;
+  root.innerHTML = html;
   (elements.actionPanelRoot || elements.actionPanel).classList.add('pool-active');
 
-  _bindPoolToolbar();
-  zoomBindings();
+  _bindPoolToolbar(root);
+  zoomBindings(root);
   _bindTileInfoMenu();
   installPoolScrollPaint();
+  syncSeqToolsVisibility();
 
   applyPoolZoom();
   renderPoolGrid();
@@ -257,17 +275,21 @@ function _poolToggleLabel() {
   return L.collapsed.pool ? '\u25C9 Show Pool' : '\u25C7 Hide Pool';
 }
 
-function _bindPoolToolbar() {
-  document.getElementById('btnProjectNew')?.addEventListener('click', projectNew);
-  document.getElementById('btnProjectOpen')?.addEventListener('click', projectOpen);
-  document.getElementById('btnProjectSave')?.addEventListener('click', () => projectSave(false));
-  document.getElementById('btnProjectSaveAs')?.addEventListener('click', () => projectSave(true));
+function _bindPoolToolbar(root) {
+  // Root-scoped: btnProject* ids also exist in the image pool toolbar, so a
+  // document-wide lookup could bind the wrong (first-mounted) root's buttons
+  // and leave this root's buttons dead (§5 needs-guard disposition).
+  const $ = (id) => (root || document).querySelector(`#${id}`);
+  $('btnProjectNew')?.addEventListener('click', projectNew);
+  $('btnProjectOpen')?.addEventListener('click', projectOpen);
+  $('btnProjectSave')?.addEventListener('click', () => projectSave(false));
+  $('btnProjectSaveAs')?.addEventListener('click', () => projectSave(true));
 
-  document.getElementById('btnPoolImportFiles')?.addEventListener('click', importPoolFiles);
-  document.getElementById('btnPoolImportFolder')?.addEventListener('click', importPoolFolder);
-  document.getElementById('btnPoolClear')?.addEventListener('click', clearPool);
+  $('btnPoolImportFiles')?.addEventListener('click', importPoolFiles);
+  $('btnPoolImportFolder')?.addEventListener('click', importPoolFolder);
+  $('btnPoolClear')?.addEventListener('click', clearPool);
   // Bind via wrapper so circular-import undefined never silently no-ops the click
-  const seqClearBtn = document.getElementById('btnSeqClear');
+  const seqClearBtn = $('btnSeqClear');
   if (seqClearBtn) {
     seqClearBtn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -280,11 +302,11 @@ function _bindPoolToolbar() {
       }
     });
   }
-  document.getElementById('btnTogglePool')?.addEventListener('click', () => togglePoolSection('pool'));
-  document.getElementById('btnPoolUse')?.addEventListener('click', applyPoolAsInput);
-  document.getElementById('btnJumpSelected')?.addEventListener('click', scrollToSelected);
+  $('btnTogglePool')?.addEventListener('click', () => togglePoolSection('pool'));
+  $('btnPoolUse')?.addEventListener('click', applyPoolAsInput);
+  $('btnJumpSelected')?.addEventListener('click', scrollToSelected);
 
-  const filterEl = document.getElementById('poolFilterInput');
+  const filterEl = $('poolFilterInput');
   if (filterEl) {
     filterEl.value = state.pool.filterQuery || '';
     filterEl.addEventListener('input', () => {
@@ -303,7 +325,7 @@ function _bindPoolToolbar() {
     });
   }
 
-  const modeEl = document.getElementById('poolSearchMode');
+  const modeEl = $('poolSearchMode');
   if (modeEl) {
     modeEl.value = state.pool.searchMode === 'strict' ? 'strict' : 'fuzzy';
     modeEl.addEventListener('change', () => {
@@ -314,7 +336,7 @@ function _bindPoolToolbar() {
     });
   }
 
-  document.getElementById('btnRepairMetadata')?.addEventListener('click', () => {
+  $('btnRepairMetadata')?.addEventListener('click', () => {
     for (const it of state.pool.items || []) repairItem(it, { force: false });
     updateCatalogStatus();
   });
@@ -381,8 +403,11 @@ function _updatePoolFilterCount() {
   const total = state.pool.items.length;
   const shown = filteredPoolItems().length;
   const seqCount = state.pool.sequence?.length;
-  const hasSeq = document.getElementById('btnSeqClear') != null
-    || document.getElementById('poolSequenceBox') != null;
+  const seqClearBtn = document.getElementById('btnSeqClear');
+  const seqBox = document.getElementById('poolSequenceBox');
+  // Hidden/detached sequence roots must not flip the pool tab's count line.
+  const hasSeq = (seqClearBtn && !seqClearBtn.hidden && !seqClearBtn.closest('.tab-root[hidden]'))
+    || (seqBox && !seqBox.closest('.tab-root[hidden]'));
   const q = (state.pool.filterQuery || '').trim();
   let text = q
     ? `${shown} shown · ${total} in video pool`
@@ -395,12 +420,13 @@ function _bindTileInfoMenu() {
   setupTileInfoMenu();
 }
 
-function zoomBindings() {
-  document.getElementById('btnZoomMin')?.addEventListener('click', () => setPoolZoom(POOL_ZOOM.min));
-  document.getElementById('btnZoomOut')?.addEventListener('click', () => setPoolZoom(state.pool.tileZoom - POOL_ZOOM.step));
-  document.getElementById('btnZoomReset')?.addEventListener('click', () => setPoolZoom(POOL_ZOOM.reset));
-  document.getElementById('btnZoomIn')?.addEventListener('click', () => setPoolZoom(state.pool.tileZoom + POOL_ZOOM.step));
-  document.getElementById('btnZoomMax')?.addEventListener('click', () => setPoolZoom(POOL_ZOOM.max));
+function zoomBindings(root) {
+  const $ = (id) => (root || document).querySelector(`#${id}`);
+  $('btnZoomMin')?.addEventListener('click', () => setPoolZoom(POOL_ZOOM.min));
+  $('btnZoomOut')?.addEventListener('click', () => setPoolZoom(state.pool.tileZoom - POOL_ZOOM.step));
+  $('btnZoomReset')?.addEventListener('click', () => setPoolZoom(POOL_ZOOM.reset));
+  $('btnZoomIn')?.addEventListener('click', () => setPoolZoom(state.pool.tileZoom + POOL_ZOOM.step));
+  $('btnZoomMax')?.addEventListener('click', () => setPoolZoom(POOL_ZOOM.max));
 }
 
 function _bindSequencePanel() {
@@ -783,9 +809,12 @@ function _composeHtml() {
 }
 
 function renderSequenceForm() {
-  const existing = document.getElementById('poolGrid');
-  const compose = document.getElementById('poolCompose');
-  if (existing && compose && elements.actionPanel.contains(existing)) {
+  // Stateful tab: pool root owns toolbar + grid (built once, shared with the
+  // pool tab); the sequence root owns only the resize handle + composer.
+  // The sequence view shows both roots stacked, so no id exists twice.
+  renderPoolForm();
+  const root = ensureTabRoot('sequence') || elements.actionPanel;
+  if (root.querySelector('#poolCompose')) {
     applyPoolZoom();
     renderPoolGrid();
     updateSelectionHighlights();
@@ -793,34 +822,21 @@ function renderSequenceForm() {
     return;
   }
 
-  const count = state.pool.items.length;
-  const seqCount = state.pool.sequence.length;
-  const selected = state.pool.selectedPath;
   const L = ensurePoolLayout();
   const col = L.collapsed;
 
   const html = `
-    <div class="pool-workspace-inner">
-      <div class="pool-top">
-        ${_poolToolbarHtml(count, selected, seqCount, { showSeqTools: true })}
-         <div class="pool-grid-wrap${col.pool ? ' is-collapsed' : ''}" id="poolGridWrap">
-           <div class="pool-grid pool-scroll-canvas" id="poolGrid" tabindex="0"></div>
-         </div>
-      </div>
-
       <div class="pool-v-resize${col.pool ? ' is-collapsed' : ''}" id="poolVResize" title="Drag to resize dock"></div>
 
       ${_composeHtml()}
-    </div>
   `;
 
-  elements.actionPanel.innerHTML = html;
+  root.innerHTML = html;
   (elements.actionPanelRoot || elements.actionPanel).classList.add('pool-active');
 
-  _bindPoolToolbar();
   _bindSequencePanel();
-  _bindTileInfoMenu();
-  zoomBindings();
+  // Pool-root chrome (_bindTileInfoMenu, zoomBindings) is bound once at pool
+  // build; rebinding here would double-bind the shared toolbar buttons.
 
   setupSequenceDropZone();
   updateSeqClipSettings();
@@ -1212,6 +1228,9 @@ function renderPoolGrid() {
   const canvas = document.getElementById('poolGrid');
   const wrap = canvas?.closest('.pool-grid-wrap') || document.getElementById('poolGridWrap');
   if (!canvas || !wrap) return;
+  // Hidden-DOM rule (§6): background renders may write but never measure a
+  // hidden/detached grid. Mark dirty; the show path re-renders and consumes it.
+  const gridHidden = !wrap.isConnected || !!wrap.closest('.tab-root[hidden]');
 
   beginRender();
   try {
@@ -1259,6 +1278,14 @@ function renderPoolGrid() {
     if (empty) empty.remove();
 
     prepareWallTenants(items);
+
+    if (gridHidden) {
+      wrap.dataset.dirtyGrid = '1';
+      _updatePoolFilterCount();
+      updateCatalogStatus();
+      return;
+    }
+    delete wrap.dataset.dirtyGrid;
 
     // Chrome only: visible window plus overscan. Image nodes are stable tenants.
     canvas.classList.add('pool-grid');
