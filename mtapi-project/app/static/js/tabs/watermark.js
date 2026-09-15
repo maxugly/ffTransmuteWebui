@@ -40,6 +40,19 @@ function _paintStatus(data) {
     if (data.pm.npm) pm.push('npm');
   }
   box.textContent = node + ' · ' + gwr + ' · ' + sharp + ' · ' + (pm.join('/') || 'no js package manager');
+  var lamaBox = document.getElementById('wmLamaStatusLine');
+  if (lamaBox) {
+    var lama = (data && data.lama) || {};
+    var devs = (lama.devices && lama.devices.length) ? lama.devices.join('/') : 'no OV devices';
+    if (lama.onnx_present && lama.ir_present) {
+      lamaBox.textContent = 'LaMA ready · IR ok · ' + devs
+        + (lama.sha256 ? ' · sha ' + String(lama.sha256).slice(0, 12) : '');
+    } else if (lama.onnx_present) {
+      lamaBox.textContent = 'LaMA ONNX present, IR missing — press Setup to convert.';
+    } else {
+      lamaBox.textContent = 'LaMA not installed — press Setup (downloads ~200MB + converts to IR).';
+    }
+  }
 }
 
 async function refreshWatermarkStatus() {
@@ -152,15 +165,138 @@ async function _runStrip() {
   } catch (_) { /* logged */ }
 }
 
+/** Body for watermark_lama_remove (global Run + LaMA button when engine matches). */
+function collectWatermarkLamaBody() {
+  var input = '';
+  try { input = bestInput(); } catch (_) { input = ''; }
+  var outDir = (document.getElementById('wmOutDir')?.value || '').trim() || null;
+  function _num(id, fallback) {
+    var v = parseFloat(document.getElementById(id)?.value || '');
+    return isNaN(v) ? fallback : v;
+  }
+  var featherRaw = parseInt(document.getElementById('wmLamaFeather')?.value || '1', 10);
+  return {
+    input_path: input,
+    output_path: null,
+    out_dir: outDir,
+    overwrite: document.getElementById('wmOverwrite')?.value === '1',
+    engine: 'lama-openvino',
+    mask_x: Math.min(1, Math.max(0, _num('wmLamaX', 0.80))),
+    mask_y: Math.min(1, Math.max(0, _num('wmLamaY', 0.84))),
+    mask_w: Math.min(1, Math.max(0.001, _num('wmLamaW', 0.17))),
+    mask_h: Math.min(1, Math.max(0.001, _num('wmLamaH', 0.12))),
+    feather_px: isNaN(featherRaw) ? 1 : Math.min(8, Math.max(0, featherRaw)),
+    device: document.getElementById('wmLamaDevice')?.value || 'GPU',
+    dry_run: document.getElementById('wmDryRun')?.value === '1',
+  };
+}
+
+function _isLamaEngine() {
+  return (document.getElementById('wmEngine')?.value || '') === 'lama-openvino';
+}
+
+/** Tab-local preview src: /api/thumbnail needs ?path= (or ?hash=) + 1-based &frame=. */
+function _lamaPreviewUrl(input, mode, n) {
+  if (!input) return '';
+  var base = '/api/thumbnail?path=' + encodeURIComponent(input);
+  if (mode === 'last') return base + '&which=last';
+  var frame = 1;
+  if (mode === 'n') {
+    frame = parseInt(n, 10);
+    if (!isFinite(frame) || frame < 1) frame = 1;
+  } else if (mode === 'mid') {
+    var total = parseInt((window.globalInputs && window.globalInputs.totalFrames) || '0', 10);
+    frame = total > 1 ? Math.round(total / 2) : 1;
+  }
+  return base + '&frame=' + frame + '&_=' + frame;
+}
+
+/** Assign preview src once per frame-pick; never clear img.src (invariant 6). */
+function _updateLamaPreview() {
+  var img = document.getElementById('wmLamaPrev');
+  var hint = document.getElementById('wmLamaPrevHint');
+  if (!img) return;
+  var input = '';
+  try { input = bestInput(); } catch (_) { input = ''; }
+  if (!input) {
+    if (hint) hint.textContent = 'No input — set a global Video/Image input above.';
+    return;
+  }
+  if (hint) hint.textContent = '';
+  var mode = document.getElementById('wmLamaFrame')?.value || 'first';
+  var n = document.getElementById('wmLamaFrameN')?.value || '1';
+  var url = _lamaPreviewUrl(input, mode, n);
+  if (url && img.getAttribute('src') !== url) img.setAttribute('src', url);
+  _updateLamaOverlay();
+}
+
+function _updateLamaOverlay() {
+  var box = document.getElementById('wmLamaRect');
+  var readout = document.getElementById('wmLamaReadout');
+  if (!box) return;
+  function _num(id, fallback) {
+    var v = parseFloat(document.getElementById(id)?.value || '');
+    return isNaN(v) ? fallback : v;
+  }
+  var x = Math.min(1, Math.max(0, _num('wmLamaX', 0.80)));
+  var y = Math.min(1, Math.max(0, _num('wmLamaY', 0.84)));
+  var w = Math.min(1, Math.max(0, _num('wmLamaW', 0.17)));
+  var h = Math.min(1, Math.max(0, _num('wmLamaH', 0.12)));
+  box.style.left = (x * 100) + '%';
+  box.style.top = (y * 100) + '%';
+  box.style.width = (w * 100) + '%';
+  box.style.height = (h * 100) + '%';
+  if (readout) {
+    var img = document.getElementById('wmLamaPrev');
+    var nw = (img && img.naturalWidth) || 0;
+    var nh = (img && img.naturalHeight) || 0;
+    var pct = (w * h * 100).toFixed(1) + '% of frame';
+    if (nw > 0 && nh > 0) {
+      readout.textContent = Math.round(x * nw) + ',' + Math.round(y * nh) + ' '
+        + Math.round(w * nw) + '×' + Math.round(h * nh) + ' px'
+        + ' (' + nw + '×' + nh + ') · ' + pct;
+    } else {
+      readout.textContent = pct + ' (preview not loaded yet)';
+    }
+  }
+}
+
+async function runWatermarkLamaSetup() {
+  var card = document.getElementById('wmLamaCard');
+  if (card) card.querySelectorAll('button').forEach(function(b) { b.disabled = true; });
+  try {
+    await runOpWithCancel('watermark_lama_setup', { action: 'install', dry_run: false },
+      { label: 'LaMA setup (download + convert + smoke)…' });
+  } catch (_) { /* logged */ }
+  if (card) card.querySelectorAll('button').forEach(function(b) { b.disabled = false; });
+  refreshWatermarkStatus();
+}
+
+function _applyEngineVisibility() {
+  var lama = _isLamaEngine();
+  var card = document.getElementById('wmLamaCard');
+  if (card) card.hidden = !lama;
+  ['wmGwrBitrateRow', 'wmGwrTimeoutRow'].forEach(function(id) {
+    var row = document.getElementById(id);
+    if (row) row.style.display = lama ? 'none' : '';
+  });
+  var gwrBtns = document.getElementById('wmGwrButtons');
+  if (gwrBtns) gwrBtns.style.display = lama ? 'none' : '';
+  var removeBtn = document.getElementById('btnWmRemove');
+  if (removeBtn) removeBtn.textContent = lama ? 'Remove (LaMA)' : 'Remove';
+}
+
 async function _runRemove() {
-  var body = collectWatermarkBody();
+  var lama = _isLamaEngine();
+  var body = lama ? collectWatermarkLamaBody() : collectWatermarkBody();
   if (!body.input_path) {
     alert('No input selected. Use the global Video/Image inputs.');
     return;
   }
-  logConsole('[WATERMARK]: POST /ops/watermark_remove\n' + JSON.stringify(body, null, 2));
+  var opId = lama ? 'watermark_lama_remove' : 'watermark_remove';
+  logConsole('[WATERMARK]: POST /ops/' + opId + '\n' + JSON.stringify(body, null, 2));
   try {
-    await runOpWithCancel('watermark_remove', body, { label: 'Removing watermark…' });
+    await runOpWithCancel(opId, body, { label: 'Removing watermark…' });
   } catch (_) { /* logged */ }
 }
 
@@ -184,9 +320,47 @@ function renderWatermarkForm() {
     + '<div class="form-row"><label for="wmEngine">Engine</label>'
     + '<select id="wmEngine">'
     + '<option value="gemini-reverse-alpha">gemini-reverse-alpha (vendored)</option>'
+    + '<option value="lama-openvino">lama-openvino (LaMA inpaint)</option>'
     + '<option value="general-ai" disabled>general-ai (planned)</option>'
     + '<option value="synthid-detect" disabled>synthid-detect (report-only, planned)</option>'
     + '</select></div>'
+    + '<div class="card" id="wmLamaCard" hidden style="margin:8px 0;border:1px solid rgba(255,255,255,0.12);padding:8px">'
+    + '<div class="form-row"><label>LaMA inpaint</label>'
+    + '<span class="form-row-hint">Static rectangle → LaMA fills from surrounding pixels (not pixel-exact like reverse-alpha). Moving watermarks are out of scope.</span></div>'
+    + '<div class="form-row"><div id="wmLamaPrevWrap" style="position:relative;display:inline-block;max-width:100%">'
+    + '<img id="wmLamaPrev" alt="LaMA preview" style="display:block;max-width:420px;width:100%">'
+    + '<div id="wmLamaRect" style="position:absolute;border:2px solid #ff5a5a;box-shadow:0 0 0 9999px rgba(0,0,0,0.35);pointer-events:none"></div>'
+    + '</div></div>'
+    + '<div class="form-row"><span class="form-row-hint" id="wmLamaPrevHint"></span></div>'
+    + '<div class="form-row"><label for="wmLamaFrame">Preview frame</label>'
+    + '<select id="wmLamaFrame">'
+    + '<option value="first">First</option><option value="last">Last</option>'
+    + '<option value="mid">Mid</option><option value="n">N…</option>'
+    + '</select> <input type="text" id="wmLamaFrameN" data-clearable placeholder="N" '
+    + 'value="' + escapeHtml(_saved('wmLamaFrameN', '1')) + '" style="width:5em">'
+    + ' <button type="button" class="btn" id="btnWmLamaPrev">Load frame</button></div>'
+    + '<div class="knob-row"><div class="knob-bank">'
+    + knobUnitHtml({ id: 'wmLamaX', label: 'Mask X', value: _saved('wmLamaX', '0.80') })
+    + knobUnitHtml({ id: 'wmLamaY', label: 'Mask Y', value: _saved('wmLamaY', '0.84') })
+    + knobUnitHtml({ id: 'wmLamaW', label: 'Mask W', value: _saved('wmLamaW', '0.17') })
+    + knobUnitHtml({ id: 'wmLamaH', label: 'Mask H', value: _saved('wmLamaH', '0.12') })
+    + knobUnitHtml({ id: 'wmLamaFeather', label: 'Feather px', value: _saved('wmLamaFeather', '1') })
+    + '</div><p class="knob-row-legend">Normalized 0–1 rect (one static box for the whole job). Area capped at 25% server-side.</p></div>'
+    + '<span data-knob-spec="wmLamaX" data-min="0" data-max="1" data-step="0.005" data-dec="3" hidden></span>'
+    + '<span data-knob-spec="wmLamaY" data-min="0" data-max="1" data-step="0.005" data-dec="3" hidden></span>'
+    + '<span data-knob-spec="wmLamaW" data-min="0" data-max="1" data-step="0.005" data-dec="3" hidden></span>'
+    + '<span data-knob-spec="wmLamaH" data-min="0" data-max="1" data-step="0.005" data-dec="3" hidden></span>'
+    + '<span data-knob-spec="wmLamaFeather" data-min="0" data-max="8" data-step="1" data-dec="0" hidden></span>'
+    + '<div class="form-row"><span class="form-row-hint" id="wmLamaReadout"></span></div>'
+    + '<div class="form-row"><label for="wmLamaDevice">Device</label>'
+    + '<select id="wmLamaDevice">'
+    + '<option value="GPU">GPU</option><option value="CPU">CPU</option><option value="AUTO">AUTO</option>'
+    + '</select> <button type="button" class="btn" id="btnWmLamaSetup">Setup</button> '
+    + '<button type="button" class="btn" id="btnWmLamaRefresh">Refresh</button> '
+    + '<span class="form-row-hint" id="wmLamaStatusLine">LaMA status unknown.</span></div>'
+    + '<div class="form-row"><button type="button" class="btn btn-primary" id="btnWmLamaRemove">Remove with LaMA</button> '
+    + '<span class="form-row-hint">Or global <strong>Run</strong> (= Remove with LaMA in this mode).</span></div>'
+    + '</div>'
     + '<div class="form-row"><span class="form-row-hint" id="wmInputReminder">Current input: '
     + escapeHtml(reminder) + '</span></div>'
     + '<div class="form-row"><label for="wmOutDir">Output dir</label>'
@@ -198,15 +372,15 @@ function renderWatermarkForm() {
     + knobUnitHtml({ id: 'wmOverwrite', label: 'Overwrite', value: _saved('wmOverwrite', '0'), binary: true, leftCap: 'Off', rightCap: 'On' })
     + knobUnitHtml({ id: 'wmDryRun', label: 'Dry run', value: _saved('wmDryRun', '0'), binary: true, leftCap: 'Run', rightCap: 'Dry' })
     + '</div><p class="knob-row-legend">Overwrite off + existing target = refusal (no silent clobber). Dry = print command only.</p></div>'
-    + '<div class="knob-row"><div class="knob-bank">'
+    + '<div class="knob-row" id="wmGwrBitrateRow"><div class="knob-bank">'
     + knobUnitHtml({ id: 'wmBitrate', label: 'Video bitrate (Mbps)', value: _saved('wmBitrate', '12'), binary: false })
     + '</div><p class="knob-row-legend">Video only (default calibrated 12 Mbps AVC; quality-sensitive sources try 20). Images ignore it.</p></div>'
     + '<span data-knob-spec="wmBitrate" data-min="4" data-max="40" data-step="0.5" data-dec="1" hidden></span>'
-    + '<div class="form-row"><label for="wmTimeout">Video timeout (ms)</label>'
+    + '<div class="form-row" id="wmGwrTimeoutRow"><label for="wmTimeout">Video timeout (ms)</label>'
     + '<input type="text" id="wmTimeout" data-clearable placeholder="(blank = default)" '
     + 'value="' + escapeHtml(_saved('wmTimeout', '')) + '">'
     + '<span class="form-row-hint">Inactivity timeout — an export may run longer while frames keep advancing.</span></div>'
-    + '<div class="form-row"><button type="button" class="btn btn-primary" id="btnWmRemove">Remove</button> '
+    + '<div class="form-row" id="wmGwrButtons"><button type="button" class="btn btn-primary" id="btnWmRemove">Remove</button> '
     + '<button type="button" class="btn" id="btnWmDetect">Detect</button> '
     + '<span class="form-row-hint" id="wmDetectOut"></span></div>'
     + '<div class="form-row"><button type="button" class="btn" id="btnWmInspect">Inspect metadata</button> '
@@ -222,7 +396,13 @@ function renderWatermarkForm() {
     + 'fails/skips on cropped/repainted/heavily recompressed or unknown Gemini formats; '
     + 'validated against the Gemini pattern through April 2026.</p>'
     + '<p>Bitrate/timeout are video-only. The vendored tool lives at '
-    + '<code>mtapi-project/tools/gemini-watermark-remover/</code> (tag v1.0.43).</p></section>';
+    + '<code>mtapi-project/tools/gemini-watermark-remover/</code> (tag v1.0.43).</p>'
+    + '<p><strong>LaMA inpaint</strong> (engine <code>lama-openvino</code>): Fourier-conv inpainting fills the '
+    + 'rectangle from surrounding pixels — use for small static watermarks the reverse-alpha engine does not match '
+    + '(corner bugs, overlays, burned-in text). Large/complex removals wait for <code>general-ai</code>. '
+    + 'Frames are letterboxed into a 512×512 model canvas (mod-8 safe) and the hole is composited back at full '
+    + 'resolution, so surviving pixels are never rescaled. Weights: '
+    + '<code>mtapi-project/junk/models/lama/</code> (Carve/LaMa-ONNX, Apache-2.0).</p></section>';
 
   setupBinaryKnob({
     knobId: 'wmOverwriteKnob', indicatorId: 'wmOverwriteKnobInd', hiddenId: 'wmOverwrite',
@@ -239,6 +419,19 @@ function renderWatermarkForm() {
     valueId: 'wmBitrateVal', hiddenId: 'wmBitrate',
     min: 4, max: 40, step: 0.5, decimals: 1,
   });
+  [{ knob: 'wmLamaX', dec: 3 }, { knob: 'wmLamaY', dec: 3 },
+   { knob: 'wmLamaW', dec: 3 }, { knob: 'wmLamaH', dec: 3 }].forEach(function(k) {
+    setupContinuousKnob({
+      knobId: k.knob + 'Knob', indicatorId: k.knob + 'KnobInd',
+      valueId: k.knob + 'Val', hiddenId: k.knob,
+      min: 0, max: 1, step: 0.005, decimals: k.dec,
+    });
+  });
+  setupContinuousKnob({
+    knobId: 'wmLamaFeatherKnob', indicatorId: 'wmLamaFeatherKnobInd',
+    valueId: 'wmLamaFeatherVal', hiddenId: 'wmLamaFeather',
+    min: 0, max: 8, step: 1, decimals: 0,
+  });
 
   document.getElementById('btnWmInstall')?.addEventListener('click', function() { runWatermarkSetup('install'); });
   document.getElementById('btnWmUpdate')?.addEventListener('click', function() { runWatermarkSetup('update'); });
@@ -251,6 +444,45 @@ function renderWatermarkForm() {
     try { window.openFileBrowser('wmOutDir', false, 'dirs', 'all'); }
     catch (err) { logConsole('[WATERMARK]: Browse failed — ' + err.message, 'error'); }
   });
+  document.getElementById('wmEngine')?.addEventListener('change', function() {
+    _applyEngineVisibility();
+    if (_isLamaEngine()) _updateLamaPreview();
+  });
+  document.getElementById('btnWmLamaPrev')?.addEventListener('click', _updateLamaPreview);
+  document.getElementById('wmLamaFrame')?.addEventListener('change', _updateLamaPreview);
+  document.getElementById('btnWmLamaSetup')?.addEventListener('click', runWatermarkLamaSetup);
+  document.getElementById('btnWmLamaRefresh')?.addEventListener('click', refreshWatermarkStatus);
+  document.getElementById('btnWmLamaRemove')?.addEventListener('click', _runRemove);
+  document.getElementById('wmLamaPrev')?.addEventListener('load', _updateLamaOverlay);
+  ['wmLamaX', 'wmLamaY', 'wmLamaW', 'wmLamaH'].forEach(function(id) {
+    // Knob drags/wheel write the hidden input with no DOM event, so sync
+    // the overlay from the knob element + the numeric text input instead.
+    var valInput = document.getElementById(id + 'Val');
+    if (valInput) {
+      valInput.addEventListener('change', function() {
+        setTimeout(_updateLamaOverlay, 0);
+      });
+    }
+    var knob = document.getElementById(id + 'Knob');
+    if (knob) {
+      knob.addEventListener('mouseup', function() {
+        setTimeout(_updateLamaOverlay, 0);
+      });
+      knob.addEventListener('wheel', function() {
+        setTimeout(_updateLamaOverlay, 0);
+      }, { passive: true });
+    }
+    var hidden = document.getElementById(id);
+    if (hidden) hidden.addEventListener('change', _updateLamaOverlay);
+  });
+  ['giVideo', 'giImage'].forEach(function(id) {
+    document.getElementById(id)?.addEventListener('input', function() {
+      if (state.activeTab !== 'watermark' || !_isLamaEngine()) return;
+      _updateLamaPreview();
+    });
+  });
+  _applyEngineVisibility();
+  if (_isLamaEngine()) _updateLamaPreview();
   ['giVideo', 'giImage'].forEach(function(id) {
     document.getElementById(id)?.addEventListener('input', function() {
       if (state.activeTab !== 'watermark') return;
@@ -265,4 +497,4 @@ function renderWatermarkForm() {
   refreshWatermarkStatus();
 }
 
-export { renderWatermarkForm, collectWatermarkBody, refreshWatermarkStatus };
+export { renderWatermarkForm, collectWatermarkBody, collectWatermarkLamaBody, refreshWatermarkStatus };
