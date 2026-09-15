@@ -1069,11 +1069,23 @@ function displayOpResult(res) {
   // Preview the output if not a dry run and output path exists
   if (!res.dry_run && res.output_path) {
     showPreview(res.output_path);
-    try {
-      import('/js/pool/auto-add-outputs.js').then((m) => {
-        try { m.maybeAutoAddOpOutput(res.output_path); } catch (_) { /* ignore */ }
-      }).catch(() => {});
-    } catch (_) { /* auto-add must not break results */ }
+    // 2026-09-14: autorife (Instant RIFE) outputs are `rifed` variants — they
+    // register on the source clip and the Sequence entry auto-switches its
+    // dropdown via variantPath/_variantHash (sequence-rife.js). They must NOT
+    // become new Pool/Sequence cards. 8.019's generic auto-add (maybeAutoAddOpOutput)
+    // broke that by adding a duplicate entry; we now skip any rife result with
+    // meta.variant_hash here and also inside maybeAutoAddOpOutput (belt-and-suspenders).
+    // Plain single-clip RIFE (no variant) still auto-adds when the toggles are on.
+    const _isRifedVariant = res.operation === 'rife' && res.meta && res.meta.variant_hash;
+    if (_isRifedVariant) {
+      try { logConsole(`[AUTO-ADD]: skip rifed variant — stays on original's dropdown ${res.output_path}`); } catch (_) { /* ignore */ }
+    } else {
+      try {
+        import('/js/pool/auto-add-outputs.js').then((m) => {
+          try { m.maybeAutoAddOpOutput(res.output_path, { operation: res.operation, meta: res.meta }); } catch (_) { /* ignore */ }
+        }).catch(() => {});
+      } catch (_) { /* auto-add must not break results */ }
+    }
   } else if (res.dry_run) {
     logConsole(`[DRY RUN]: Complete. No files written.`);
     elements.mediaViewer.innerHTML = `
