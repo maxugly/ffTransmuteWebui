@@ -168,5 +168,47 @@ class EncodeIntegrationTest(unittest.TestCase):
             asyncio.run(go())
 
 
+class ConformEncodeTest(unittest.TestCase):
+    """Conform geometry/timing/audio contract (sequence-conform-copy-spec §7)."""
+
+    def test_conform_vf_fragments(self):
+        from app.video_pipeline import _conform_vf
+        pad = _conform_vf("pad", 1920, 1080, 1.0)
+        self.assertIn("pad=1920:1080", pad)
+        self.assertIn("setsar=1", pad)
+        crop = _conform_vf("crop", 1920, 1080, 1.0)
+        self.assertIn("crop=1920:1080", crop)
+        stretch = _conform_vf("stretch", 1920, 1080, 1.0)
+        self.assertIn("scale=1920:1080", stretch)
+        self.assertNotIn("pad=", stretch)
+        with self.assertRaises(ValueError):
+            _conform_vf("warp", 1920, 1080, 1.0)
+
+    def test_conform_af_omits_rubberband_at_factor_1(self):
+        from app.video_pipeline import _conform_af
+        af = _conform_af(has_audio=True, factor=1.0, duration=5.0)
+        self.assertIsNotNone(af)
+        self.assertNotIn("rubberband", af)
+        af2 = _conform_af(has_audio=True, factor=2.0, duration=5.0)
+        self.assertIn("rubberband", af2)
+        self.assertIsNone(_conform_af(has_audio=False, factor=2.0, duration=5.0))
+
+    def test_conform_preset_audio_selection(self):
+        from app.convert_presets import ENCODE_PRESETS
+        # AAC delivery preset vs PCM intermediate preset.
+        self.assertEqual(ENCODE_PRESETS["h264_avc_hq"].audio_codec, "aac")
+        self.assertEqual(ENCODE_PRESETS["dnxhr_hq"].audio_codec, "pcm_s16le")
+        self.assertEqual(ENCODE_PRESETS["prores_hq"].audio_codec, "pcm_s16le")
+
+    def test_concat_list_absolute_escaped(self):
+        from app.video_pipeline import write_concat_list
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            lst = write_concat_list(["/tmp/a.mp4", "/tmp/b's.mp4"], td / "list.txt")
+            text = lst.read_text()
+            self.assertIn("file '/tmp/a.mp4'", text)
+            self.assertIn("b'\\''s.mp4", text)
+
+
 if __name__ == "__main__":
     unittest.main()

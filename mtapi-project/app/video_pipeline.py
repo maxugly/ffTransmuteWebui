@@ -104,7 +104,7 @@ async def probe(input_path: str | Path) -> dict[str, Any]:
 
     stat = Path(input_path).resolve().stat()
 
-    return {
+    result: dict[str, Any] = {
         "ok": True,
         "fps": round(fps, 3),
         "fps_avg": round(fps_avg, 3),
@@ -118,6 +118,15 @@ async def probe(input_path: str | Path) -> dict[str, Any]:
         "file_size": stat.st_size,
         "file_mtime": stat.st_mtime,
     }
+    # Copy-gate metadata (spec §9/§10): best-effort merge of the strict
+    # stream fields so join/conform callers can gate without a second probe.
+    try:
+        copy_info = await probe_copy_info(sp)
+        for _k, _v in copy_info.items():
+            result.setdefault(_k, _v)
+    except Exception:
+        pass
+    return result
 
 
 async def _probe_has_audio(input_path: str) -> bool:
@@ -913,6 +922,143 @@ def _join_audio_fragment(i: int, has_audio: bool, factor: float, dur: float, *, 
     raise ValueError(f"unknown audio_engine: {audio_engine!r}")
 
 
+_CONCAT_CHUNK_SIZE = 120  # keep single filter_complex < MAX_ARG_STRLEN (128k)
+
+
+def _write_filter_script(workspace: JobWorkspace, parts: list[str], tag: str) -> Path:
+    import uuid as _uuid
+    p = workspace.root / f"filter_{tag}_{_uuid.uuid4().hex[:8]}.txt"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(";".join(parts), encoding="utf-8")
+    return p
+
+
+async def _probe_many_with_progress(srcs: list[Path]) -> list[dict[str, Any]]:
+    """Probe srcs with live progress (never silent on 300+ clips)."""
+    n = len(srcs)
+    token = job_control.current_token()
+    if token:
+        job_control.report_progress(
+            f"probe 0/{n} clips", phase="probe", current=0, total=n, unit="clips", token=token,
+        )
+    # 16 concurrent ffprobes gives fast throughput + streaming updates.
+    # asyncio.as_completed gives per-item progress instead of bulk gather.
+    import asyncio as _asyncio
+    sem = _asyncio.Semaphore(16)
+    infos: list[dict[str, Any] | None] = [None] * n
+
+    async def _one(idx: int, path: Path) -> tuple[int, dict[str, Any]]:
+        async with sem:
+            info = await probe(path)
+            return idx, info
+
+    tasks = [_asyncio.create_task(_one(i, sp)) for i, sp in enumerate(srcs)]
+    done = 0
+    for fut in _asyncio.as_completed(tasks):
+        idx, info = await fut
+        infos[idx] = info
+        done += 1
+        if token:
+            job_control.report_progress(
+                f"probe {done}/{n} clips", phase="probe", current=done, total=n, unit="clips", token=token,
+            )
+        try:
+            job_control.check_cancelled()
+        except job_control.JobCancelled:
+            for t in tasks:
+                t.cancel()
+            raise
+    # mypy: infos now all filled
+    return infos  # type: ignore[return-value]
+
+
+async def _run_concat_single(
+    workspace: JobWorkspace,
+    srcs: list[Path],
+    infos: list[dict[str, Any]],
+    output_path: Path,
+    *,
+    mode: str,
+    W: int,
+    H: int,
+    factors: list[float],
+    global_has_audio: bool | None = None,
+    audio_engine: str = "rubberband",
+    encode_preset: Any | None = None,
+) -> None:
+    """Run one ffmpeg concat with filter_complex_script (no ARG_MAX blowup).
+
+    When ``encode_preset`` (EncodePreset) is given, the filtered re-encode
+    uses that preset's codec/audio recipe instead of the legacy libx264
+    CRF18 default. The copy fast-path never calls this function.
+    """
+    n = len(srcs)
+    if n == 0:
+        raise ValueError("no inputs for concat single")
+    has_audio = global_has_audio if global_has_audio is not None else any(bool(i.get("has_audio")) for i in infos)
+    parts: list[str] = []
+    for i in range(n):
+        parts.append(_join_vf_fragment(mode, i, W, H, factors[i]))
+    if has_audio:
+        for i, info in enumerate(infos):
+            parts.append(_join_audio_fragment(
+                i, bool(info.get("has_audio")), factors[i], float(info.get("duration") or 0),
+                audio_engine=audio_engine,
+            ))
+        labels = "".join(f"[v{i}][a{i}]" for i in range(n))
+        parts.append(f"{labels}concat=n={n}:v=1:a=1[v][a]")
+    else:
+        labels = "".join(f"[v{i}]" for i in range(n))
+        parts.append(f"{labels}concat=n={n}:v=1:a=0[v]")
+
+    out_path = Path(output_path).resolve()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    script_path = _write_filter_script(workspace, parts, f"join_{n}")
+
+    token = job_control.current_token()
+    if token:
+        job_control.report_progress(
+            f"stitch {n} clips {W}x{H}", phase="stitch", current=0, total=n, unit="clips", token=token,
+        )
+
+    argv: list[str] = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
+    for sp in srcs:
+        argv.extend(["-i", str(sp)])
+    argv.extend(["-filter_complex_script", str(script_path), "-map", "[v]"])
+    if encode_preset is not None:
+        if has_audio:
+            argv.extend(["-map", "[a]"])
+        argv.extend(_video_codec_argv_for_preset(encode_preset))
+        if has_audio:
+            ac = getattr(encode_preset, "audio_codec", None) or "aac"
+            ab = getattr(encode_preset, "audio_bitrate", None) or ""
+            argv.extend(["-c:a", ac])
+            if ab:
+                argv.extend(["-b:a", ab])
+        else:
+            argv.append("-an")
+    else:
+        if has_audio:
+            argv.extend(["-map", "[a]", "-c:a", "aac", "-b:a", "192k"])
+        else:
+            argv.append("-an")
+        argv.extend(["-c:v", "libx264", "-crf", "18", "-preset", "medium"])
+    argv.append(str(out_path))
+
+    code, _, stderr = await run_command(argv)
+    # best-effort remove script (workspace cleanup also does it)
+    try:
+        script_path.unlink(missing_ok=True)
+    except Exception:
+        pass
+    if code != 0:
+        raise RuntimeError(
+            f"ffmpeg concat join failed (exit {code}): {stderr.strip() or 'no stderr'}"
+        )
+    if not out_path.is_file():
+        raise RuntimeError(f"concat join produced no output file: {out_path}")
+
+
 async def concat_clips(
     workspace: JobWorkspace,
     inputs: list[str | Path],
@@ -922,6 +1068,7 @@ async def concat_clips(
     aspect: str = "auto",
     durations: list[float | None] | None = None,
     audio_engine: str = "rubberband",
+    encode_preset: Any | None = None,
 ) -> dict[str, Any]:
     """Stitch clips end-to-end with pad/crop/stretch reconcile (mirrors
     `transmute -j MODE -A ASPECT`), producing one stitched intermediate.
@@ -929,9 +1076,16 @@ async def concat_clips(
     The intermediate is a neutral near-lossless libx264 -crf 18 -preset medium
     temp file inside `workspace` — NOT the user-facing deliverable. Re-encode
     with ``transcode_with_preset()`` for DNxHR/ProRes/etc. Do **not** PNG-dump
-    unless a frame filter stage actually needs image sequences.
+    unless a frame filter stage actually needs image sequences. When
+    ``encode_preset`` is given, the filtered stitch encodes directly in that
+    preset recipe instead of the neutral intermediate.
 
     Returns {output_path, fps, duration, frame_count, width, height, has_audio}.
+
+    Robust to large joins (373+ clips): probes stream progress so the UI never
+    sits frozen, filter graph goes via -filter_complex_script to dodge
+    MAX_ARG_STRLEN (131072), and batches > _CONCAT_CHUNK_SIZE are stitched
+    chunkwise then demuxer-joined (avoiding ARG_MAX total).
     """
     if len(inputs) == 0:
         raise ValueError("concat_clips needs at least 1 input")
@@ -940,7 +1094,7 @@ async def concat_clips(
         if not sp.is_file():
             raise RuntimeError(f"concat input not found: {sp}")
 
-    infos = await asyncio.gather(*(probe(sp) for sp in srcs))
+    infos = await _probe_many_with_progress(srcs)
     dims = [(int(info["width"]), int(info["height"])) for info in infos]
     max_w = max(w for w, _ in dims)
     max_h = max(h for _, h in dims)
@@ -957,42 +1111,91 @@ async def concat_clips(
 
     has_audio = any(bool(info["has_audio"]) for info in infos)
 
-    # ── Filter graph ────────────────────────────────────────────────────
-    parts: list[str] = []
-    for i in range(len(srcs)):
-        parts.append(_join_vf_fragment(mode, i, W, H, factors[i]))
-    if has_audio:
-        for i, info in enumerate(infos):
-            parts.append(_join_audio_fragment(
-                i, bool(info["has_audio"]), factors[i], float(info["duration"]),
-                audio_engine=audio_engine,
-            ))
-        labels = "".join(f"[v{i}][a{i}]" for i in range(len(srcs)))
-        parts.append(f"{labels}concat=n={len(srcs)}:v=1:a=1[v][a]")
-    else:
-        labels = "".join(f"[v{i}]" for i in range(len(srcs)))
-        parts.append(f"{labels}concat=n={len(srcs)}:v=1:a=0[v]")
-
-    # ── Build the intermediate ──────────────────────────────────────────
     out_path = Path(output_path).resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    argv: list[str] = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
-    for sp in srcs:
-        argv.extend(["-i", str(sp)])
-    argv.extend(["-filter_complex", ";".join(parts), "-map", "[v]"])
-    if has_audio:
-        argv.extend(["-map", "[a]", "-c:a", "aac", "-b:a", "192k"])
-    else:
-        argv.append("-an")
-    argv.extend(["-c:v", "libx264", "-crf", "18", "-preset", "medium", str(out_path)])
 
-    code, _, stderr = await run_command(argv)
-    if code != 0:
-        raise RuntimeError(
-            f"ffmpeg concat join failed (exit {code}): {stderr.strip() or 'no stderr'}"
+    # ── Small join: single ffmpeg ─────────────────────────────────────
+    if len(srcs) <= _CONCAT_CHUNK_SIZE:
+        await _run_concat_single(
+            workspace, srcs, infos, out_path,
+            mode=mode, W=W, H=H, factors=factors,
+            global_has_audio=has_audio, audio_engine=audio_engine,
+            encode_preset=encode_preset,
         )
-    if not out_path.is_file():
-        raise RuntimeError(f"concat join produced no output file: {out_path}")
+    else:
+        # ── Large join: chunked ───────────────────────────────────────
+        token = job_control.current_token()
+        n = len(srcs)
+        num_chunks = (n + _CONCAT_CHUNK_SIZE - 1) // _CONCAT_CHUNK_SIZE
+        if token:
+            job_control.report_progress(
+                f"stitch {n} clips → {num_chunks} chunks ({W}x{H})",
+                phase="stitch", current=0, total=num_chunks, unit="chunks", token=token,
+            )
+        chunk_paths: list[Path] = []
+        for ci in range(num_chunks):
+            s = ci * _CONCAT_CHUNK_SIZE
+            e = min(n, s + _CONCAT_CHUNK_SIZE)
+            c_srcs = srcs[s:e]
+            c_infos = infos[s:e]
+            c_factors = factors[s:e]
+            chunk_out = workspace.root / f"concat_chunk_{ci:03d}.mkv"
+            if token:
+                job_control.report_progress(
+                    f"stitch chunk {ci+1}/{num_chunks} ({len(c_srcs)} clips)",
+                    phase="stitch", current=ci, total=num_chunks, unit="chunks", token=token,
+                )
+            job_control.check_cancelled()
+            await _run_concat_single(
+                workspace, c_srcs, c_infos, chunk_out,
+                mode=mode, W=W, H=H, factors=c_factors,
+                global_has_audio=has_audio, audio_engine=audio_engine,
+                encode_preset=encode_preset,
+            )
+            chunk_paths.append(chunk_out)
+            if token:
+                job_control.report_progress(
+                    f"chunk {ci+1}/{num_chunks} done",
+                    phase="stitch", current=ci + 1, total=num_chunks, unit="chunks", token=token,
+                )
+
+        # Final concat — re-encode via filter_complex (small graph, avoids demuxer copy quirks)
+        if token:
+            job_control.report_progress(
+                f"final concat {num_chunks} chunks → {out_path.name}",
+                phase="stitch", current=num_chunks, total=num_chunks, unit="chunks", token=token,
+            )
+        # Chunk intermediates are already same canvas & sample format — just concat.
+        m = len(chunk_paths)
+        has_audio_final = has_audio
+        parts2: list[str] = []
+        if has_audio_final:
+            labels2 = "".join(f"[{i}:v][{i}:a]" for i in range(m))
+            parts2.append(f"{labels2}concat=n={m}:v=1:a=1[v][a]")
+        else:
+            labels2 = "".join(f"[{i}:v]" for i in range(m))
+            parts2.append(f"{labels2}concat=n={m}:v=1:a=0[v]")
+        script2 = _write_filter_script(workspace, parts2, "final")
+        argv2: list[str] = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
+        for cp in chunk_paths:
+            argv2.extend(["-i", str(cp)])
+        argv2.extend(["-filter_complex_script", str(script2), "-map", "[v]"])
+        if has_audio_final:
+            argv2.extend(["-map", "[a]", "-c:a", "aac", "-b:a", "192k"])
+        else:
+            argv2.append("-an")
+        argv2.extend(["-c:v", "libx264", "-crf", "18", "-preset", "medium", str(out_path)])
+        code2, _, err2 = await run_command(argv2)
+        try:
+            script2.unlink(missing_ok=True)
+        except Exception:
+            pass
+        if code2 != 0:
+            raise RuntimeError(
+                f"ffmpeg final chunk concat failed (exit {code2}): {err2.strip() or 'no stderr'}"
+            )
+        if not out_path.is_file():
+            raise RuntimeError(f"chunked concat produced no file: {out_path}")
 
     info = await probe(out_path)
     return {
@@ -1073,14 +1276,19 @@ async def grid_clips(
 
     out_path = Path(output_path).resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    script_path = _write_filter_script(workspace, parts, "grid")
     argv: list[str] = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
     for sp in srcs:
         argv.extend(["-i", str(sp)])
-    argv.extend(["-filter_complex", ";".join(parts)])
+    argv.extend(["-filter_complex_script", str(script_path)])
     argv.extend(vmap)
     argv.extend(["-c:v", "libx264", "-crf", "18", "-preset", "medium", str(out_path)])
 
     code, _, stderr = await run_command(argv)
+    try:
+        script_path.unlink(missing_ok=True)
+    except Exception:
+        pass
     if code != 0:
         raise RuntimeError(
             f"ffmpeg grid failed (exit {code}): {stderr.strip() or 'no stderr'}"
@@ -1282,3 +1490,427 @@ def encode_frames_sync(
         raise RuntimeError(
             f"ffmpeg encode failed: {(r.stderr or r.stdout or '').strip() or r.returncode}"
         )
+
+
+# ── D4. Sequence conform + strict concat-copy gate ──────────────────────────
+# Spec: docs/sequence-conform-copy-spec.md. Conform is a cache-fill op:
+# direct file-to-file ffmpeg (no PNG dump). Copy is strict optimization only;
+# any uncertainty falls back to the filtered re-encode path.
+
+_COPY_VIDEO_KEYS = (
+    "codec_name", "codec_tag_string", "profile", "level",
+    "width", "height", "pix_fmt", "sample_aspect_ratio",
+    "field_order", "r_frame_rate", "avg_frame_rate", "time_base",
+    "color_range", "color_space", "color_transfer", "color_primaries",
+    "chroma_location", "extradata", "rotation", "disposition_video",
+    "timecode",
+)
+
+_COPY_AUDIO_KEYS = (
+    "audio_present", "audio_codec_name", "audio_codec_tag",
+    "sample_rate", "channels", "channel_layout", "sample_fmt",
+    "audio_time_base", "audio_extradata", "audio_disposition",
+)
+
+
+async def probe_copy_info(input_path: str | Path) -> dict[str, Any]:
+    """Full stream metadata for the strict concat-copy gate.
+
+    Returns video + audio copy keys plus policy flags. Never raises on
+    missing streams — absent values are None/False so the gate can reject
+    with a precise reason instead of crashing.
+    """
+    sp = str(Path(input_path).resolve())
+    cmd = [
+        "ffprobe", "-v", "error",
+        "-show_entries",
+        "stream=index,codec_name,codec_type,codec_tag_string,profile,level,"
+        "width,height,pix_fmt,sample_aspect_ratio,field_order,"
+        "r_frame_rate,avg_frame_rate,time_base,color_range,color_space,"
+        "color_transfer,color_primaries,chroma_location,extradata_hash,"
+        "sample_rate,channels,channel_layout,sample_fmt,disposition,"
+        "side_data_list:stream_disposition",
+        "-show_entries", "format=duration",
+        "-show_entries", "stream_tags=creation_time,timecode",
+        "-of", "json",
+        sp,
+    ]
+    code, out, _ = await run_command(cmd)
+    if code != 0:
+        raise RuntimeError(f"ffprobe copy-info failed on {sp}")
+    try:
+        data = json.loads(out)
+    except json.JSONDecodeError:
+        raise RuntimeError(f"ffprobe copy-info produced invalid JSON for {sp}")
+    streams = data.get("streams") or []
+    v = next((s for s in streams if s.get("codec_type") == "video"), None) or {}
+    a = next((s for s in streams if s.get("codec_type") == "audio"), None)
+
+    def _disp(s: dict[str, Any]) -> str:
+        try:
+            d = s.get("disposition") or {}
+            return ",".join(sorted(k for k, val in d.items() if val == 1)) if isinstance(d, dict) else str(d)
+        except Exception:
+            return ""
+
+    tags = v.get("tags") or {}
+    # Rotation lives in side_data_list (displaymatrix) on modern ffprobe.
+    rotation = None
+    try:
+        for sd in v.get("side_data_list") or []:
+            if isinstance(sd, dict) and "rotation" in sd:
+                rotation = sd.get("rotation")
+                break
+    except Exception:
+        rotation = None
+    info: dict[str, Any] = {
+        "path": sp,
+        "codec_name": v.get("codec_name"),
+        "codec_tag_string": v.get("codec_tag_string"),
+        "profile": v.get("profile"),
+        "level": v.get("level"),
+        "width": v.get("width"),
+        "height": v.get("height"),
+        "pix_fmt": v.get("pix_fmt"),
+        "sample_aspect_ratio": v.get("sample_aspect_ratio") or "1:1",
+        "field_order": v.get("field_order") or "progressive",
+        "r_frame_rate": v.get("r_frame_rate"),
+        "avg_frame_rate": v.get("avg_frame_rate"),
+        "time_base": v.get("time_base"),
+        "color_range": v.get("color_range"),
+        "color_space": v.get("color_space"),
+        "color_transfer": v.get("color_transfer"),
+        "color_primaries": v.get("color_primaries"),
+        "chroma_location": v.get("chroma_location"),
+        "extradata": v.get("extradata_hash"),
+        "rotation": rotation,
+        "disposition_video": _disp(v),
+        "timecode": tags.get("timecode"),
+        "audio_present": a is not None,
+        "audio_codec_name": (a or {}).get("codec_name"),
+        "audio_codec_tag": (a or {}).get("codec_tag_string"),
+        "sample_rate": (a or {}).get("sample_rate"),
+        "channels": (a or {}).get("channels"),
+        "channel_layout": (a or {}).get("channel_layout"),
+        "sample_fmt": (a or {}).get("sample_fmt"),
+        "audio_time_base": (a or {}).get("time_base"),
+        "audio_extradata": (a or {}).get("extradata_hash"),
+        "audio_disposition": _disp(a or {}),
+        # Policy flags (set by callers / conform flow, default safe):
+        "unbaked_duration": False,
+        "unbaked_audio": False,
+        "vfr_uncertain": False,
+        "unsupported_cut": False,
+    }
+    return info
+
+
+def _norm_gate_value(key: str, value: Any) -> Any:
+    if value is None:
+        return None
+    if key in ("width", "height", "level", "channels"):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return value
+    if key == "sample_rate":
+        try:
+            return int(str(value).split("/")[0])
+        except (TypeError, ValueError):
+            return value
+    return str(value).strip() if isinstance(value, str) else value
+
+
+def can_concat_copy(
+    infos: list[dict[str, Any]],
+    *,
+    preset_id: str,
+    conform_signatures: list[dict[str, Any] | None] | None = None,
+    audio_policy: str = "encoded",
+) -> tuple[bool, str]:
+    """Strict concat-demuxer copy gate. (True, reason) or (False, reason).
+
+    False negatives acceptable; false positives are not. The reason always
+    names the first failing clip and field.
+    """
+    try:
+        from .convert_presets import CONFORM_PRESETS
+    except Exception:
+        CONFORM_PRESETS = ("h264_avc_hq", "h265_hevc", "dnxhr_hq", "prores_hq")
+    if not infos:
+        return False, "no clips to compare"
+    if preset_id not in tuple(CONFORM_PRESETS):
+        return False, f"preset {preset_id} not in conform allow-list"
+    if audio_policy not in ("encoded", "passthrough"):
+        return False, f"unbaked audio processing still required (audio_policy={audio_policy})"
+
+    sigs = list(conform_signatures) if conform_signatures is not None else [None] * len(infos)
+    if len(sigs) != len(infos):
+        return False, f"signature count mismatch: {len(sigs)} signatures for {len(infos)} clips"
+    for i, sig in enumerate(sigs):
+        if not isinstance(sig, dict) or not sig.get("variant_path"):
+            return False, f"missing conformed file at clip {i + 1}"
+        if sig.get("preset") != preset_id:
+            return False, f"preset identity mismatch at clip {i + 1}: {sig.get('preset')} != {preset_id}"
+        if sig.get("stale") is True or sig.get("valid") is False:
+            return False, f"stale conformed file at clip {i + 1}"
+
+    base = infos[0]
+    # Policy rejections first (per-clip flags).
+    for i, info in enumerate(infos):
+        n = i + 1
+        if info.get("unbaked_duration"):
+            return False, f"unbaked duration at clip {n}"
+        if info.get("unbaked_audio"):
+            return False, f"unbaked audio processing at clip {n}"
+        if info.get("vfr_uncertain"):
+            return False, f"VFR uncertainty at clip {n}"
+        if info.get("unsupported_cut"):
+            return False, f"unsupported cut at clip {n}"
+    for key in _COPY_VIDEO_KEYS:
+        want = _norm_gate_value(key, base.get(key))
+        for i, info in enumerate(infos[1:], start=2):
+            got = _norm_gate_value(key, info.get(key))
+            if got != want:
+                label = key.replace("_", " ")
+                return False, f"video {label} mismatch at clip {i}: {got} != {want}"
+    # Audio presence must be uniform (missing vs present falls back).
+    want_present = bool(base.get("audio_present"))
+    for i, info in enumerate(infos[1:], start=2):
+        if bool(info.get("audio_present")) != want_present:
+            return False, f"audio presence mismatch at clip {i}"
+    if want_present:
+        for key in _COPY_AUDIO_KEYS[1:]:
+            want = _norm_gate_value(key, base.get(key))
+            for i, info in enumerate(infos[1:], start=2):
+                got = _norm_gate_value(key, info.get(key))
+                if got != want:
+                    label = key.replace("_", " ")
+                    if key == "channel_layout":
+                        return False, (
+                            f"audio channel layout mismatch at clip {i}: {got} != {want}"
+                        )
+                    return False, f"audio {label} mismatch at clip {i}: {got} != {want}"
+    return True, "all streams match"
+
+
+def conform_signature(
+    *,
+    parent_path: str,
+    variant_path: str,
+    source_size: int,
+    source_mtime: float,
+    source_variant: str = "original",
+    mode: str = "pad",
+    aspect: str = "16:9",
+    width: int = 0,
+    height: int = 0,
+    target_fps: float | None = None,
+    time_factor: float = 1.0,
+    preset: str = "h264_avc_hq",
+    audio_policy: str = "encoded",
+    rife_multiplier: int | None = None,
+) -> dict[str, Any]:
+    """Build the complete conform identity record (spec §6)."""
+    return {
+        "kind": "conformed",
+        "parent_path": str(parent_path),
+        "variant_path": str(variant_path),
+        "source_size": int(source_size),
+        "source_mtime": float(source_mtime),
+        "source_variant": str(source_variant or "original"),
+        "mode": str(mode),
+        "aspect": str(aspect),
+        "width": int(width),
+        "height": int(height),
+        "target_fps": float(target_fps) if target_fps else None,
+        "time_factor": float(time_factor or 1.0),
+        "preset": str(preset),
+        "audio_policy": str(audio_policy),
+        "rife_multiplier": int(rife_multiplier) if rife_multiplier else None,
+    }
+
+
+def is_conform_signature_valid(
+    sig: dict[str, Any] | None,
+    *,
+    current: dict[str, Any],
+    output_exists: bool,
+    output_size: int = 0,
+) -> tuple[bool, str]:
+    """A cached conform is valid only when every signature field matches and
+    the output exists and is non-empty."""
+    if not isinstance(sig, dict):
+        return False, "no signature"
+    for key in ("mode", "aspect", "width", "height", "target_fps",
+                "time_factor", "preset", "audio_policy",
+                "rife_multiplier", "source_variant"):
+        if sig.get(key) != current.get(key):
+            return False, f"signature {key} changed"
+    try:
+        if int(sig.get("source_size") or -1) != int(current.get("source_size") or -2):
+            return False, "source size changed"
+        if abs(float(sig.get("source_mtime") or -1) - float(current.get("source_mtime") or -2)) > 1e-3:
+            return False, "source mtime changed"
+    except (TypeError, ValueError):
+        return False, "source identity unreadable"
+    if not output_exists or not (output_size > 0):
+        return False, "conformed file missing or empty"
+    return True, "valid"
+
+
+def _conform_vf(mode: str, W: int, H: int, factor: float) -> str:
+    if factor in (0, 1):
+        pts = "setpts=PTS-STARTPTS"
+    else:
+        pts = f"setpts=(PTS-STARTPTS)*{factor}"
+    if mode == "pad":
+        return (f"scale={W}:{H}:force_original_aspect_ratio=decrease:flags=lanczos,"
+                f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,{pts}")
+    if mode == "crop":
+        return (f"scale={W}:{H}:force_original_aspect_ratio=increase:flags=lanczos,"
+                f"crop={W}:{H}:(iw-ow)/2:(ih-oh)/2,setsar=1,{pts}")
+    if mode == "stretch":
+        return f"scale={W}:{H}:flags=lanczos,setsar=1,{pts}"
+    raise ValueError(f"unknown conform mode: {mode!r}")
+
+
+def _conform_af(*, has_audio: bool, factor: float, duration: float) -> str | None:
+    if not has_audio:
+        return None
+    base = "aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo"
+    new_dur = duration * (factor if factor not in (0, 1) else 1.0)
+    fade_out_st = max(0.0, new_dur - 0.01)
+    afade = f"afade=t=in:st=0:d=0.01,afade=t=out:st={fade_out_st:.6f}:d=0.01"
+    if factor in (0, 1, None):
+        return f"{base},{afade}"
+    # Bake timing without a second encode: rubberband tempo (pitch-preserving).
+    aspeed = 1.0 / factor
+    return f"{base},rubberband=tempo={aspeed:.10f}:transients=crisp:formant=preserved:pitchq=quality,{afade}"
+
+
+async def conform_clip(
+    input_path: str | Path,
+    output_path: str | Path,
+    *,
+    mode: str = "pad",
+    width: int = 0,
+    height: int = 0,
+    target_fps: float | None = None,
+    time_factor: float = 1.0,
+    encode_preset: Any | None = None,
+    duration: float = 0.0,
+    has_audio: bool = False,
+) -> str:
+    """Direct file-to-file conform (no PNG dump): geometry + fps + baked
+    timing/audio in ONE ffmpeg operation using the conform preset recipe."""
+    if mode not in ("pad", "crop", "stretch"):
+        raise ValueError(f"unknown conform mode: {mode!r}")
+    if width <= 0 or height <= 0:
+        raise ValueError("conform_clip needs explicit width/height canvas")
+    if encode_preset is None:
+        from .convert_presets import ENCODE_PRESETS, CONFORM_PRESET_DEFAULT
+        encode_preset = ENCODE_PRESETS[CONFORM_PRESET_DEFAULT]
+    src = str(Path(input_path).resolve())
+    out = str(Path(output_path).resolve())
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    vf = _conform_vf(mode, int(width), int(height), float(time_factor or 1.0))
+    if target_fps and float(target_fps) > 0:
+        vf = f"{vf},fps={float(target_fps)}"
+    # yuv420p-family presets need even canvas; snap already even, keep pad guard.
+    ep = encode_preset
+    if bool(getattr(ep, "even_floor", False)):
+        vf = f"{vf},pad=ceil(iw/2)*2:ceil(ih/2)*2"
+    af = _conform_af(has_audio=has_audio, factor=float(time_factor or 1.0),
+                     duration=float(duration or 0.0))
+    argv: list[str] = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", src,
+                       "-map", "0:v:0", "-vf", vf]
+    if has_audio:
+        argv.extend(["-map", "0:a:0?", "-af", af or "aresample=48000"])
+    argv.extend(_video_codec_argv_for_preset(ep))
+    if has_audio:
+        ac = getattr(ep, "audio_codec", None) or "aac"
+        ab = getattr(ep, "audio_bitrate", None) or ""
+        argv.extend(["-c:a", ac])
+        if ab:
+            argv.extend(["-b:a", ab])
+    else:
+        argv.append("-an")
+    argv.append(out)
+    token = job_control.current_token()
+    if token:
+        job_control.report_progress(
+            f"conform → {Path(out).name}", phase="conform",
+            current=0, total=1, unit="step", token=token,
+        )
+    code, _, stderr = await run_command(argv)
+    if code != 0:
+        raise RuntimeError(f"ffmpeg conform failed (exit {code}): {stderr.strip() or 'no stderr'}")
+    _ensure_output_file(Path(out))
+    if token:
+        job_control.report_progress(
+            "conform done", phase="conform", current=1, total=1, unit="step", token=token,
+        )
+    return out
+
+
+def _escape_concat_path(path: str) -> str:
+    """Escape one absolute path for the ffmpeg concat demuxer list file."""
+    return path.replace("\\", "\\\\").replace("'", "'\\''")
+
+
+def write_concat_list(paths: list[str | Path], list_path: str | Path) -> Path:
+    """Write an absolute escaped concat-demuxer list file (comma-safe: real
+    list, never comma-joined)."""
+    lp = Path(list_path).resolve()
+    lp.parent.mkdir(parents=True, exist_ok=True)
+    lines = []
+    for raw in paths:
+        ap = str(Path(str(raw)).expanduser().resolve())
+        lines.append(f"file '{_escape_concat_path(ap)}'")
+    lp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return lp
+
+
+async def run_concat_copy(
+    workspace: JobWorkspace,
+    inputs: list[str | Path],
+    output_path: str | Path,
+) -> dict[str, Any]:
+    """Concat-demuxer stream copy: no re-encode, no extra lossy chunk step."""
+    from .convert_presets import VIDEO_EXTS  # noqa: used for validation parity
+    del VIDEO_EXTS
+    if len(inputs) < 1:
+        raise ValueError("run_concat_copy needs at least 1 input")
+    srcs = [str(Path(str(p)).expanduser().resolve()) for p in inputs]
+    for sp in srcs:
+        if not Path(sp).is_file():
+            raise RuntimeError(f"concat copy input not found: {sp}")
+    out = Path(str(output_path)).expanduser().resolve()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    n = len(srcs)
+    token = job_control.current_token()
+    if token:
+        job_control.report_progress(
+            f"stitch copy 0/{n} clips", phase="stitch copy",
+            current=0, total=n, unit="clips", token=token,
+        )
+    lst = write_concat_list(srcs, workspace.root / "concat_copy.txt")
+    argv = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+            "-f", "concat", "-safe", "0", "-i", str(lst),
+            "-c", "copy", str(out)]
+    code, _, stderr = await run_command(argv)
+    try:
+        lst.unlink(missing_ok=True)
+    except Exception:
+        pass
+    if code != 0:
+        raise RuntimeError(f"ffmpeg concat copy failed (exit {code}): {stderr.strip() or 'no stderr'}")
+    _ensure_output_file(out)
+    if token:
+        job_control.report_progress(
+            f"stitch copy {n}/{n} clips", phase="stitch copy",
+            current=n, total=n, unit="clips", token=token,
+        )
+    return {"output_path": str(out), "clips": n}
+

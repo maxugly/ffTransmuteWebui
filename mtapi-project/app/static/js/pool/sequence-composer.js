@@ -9,6 +9,7 @@ import { setPoolHover, applyPoolHoverAtPoint, clearPoolHover, displayFocusPath, 
 import { refreshRifeNeed, _resolvedTargetFps, _rifeBadgeForEntry, _scheduleInstantRifeKick, _entrySatisfiesNeed, _updateInstantRifeStrip, _findQueuedRife, _maybeAutoRifeEntry, isHydrationComplete, isInstantArmed } from '/js/pool/sequence-rife.js';
 import { peekVariants, _fetchVariants, _fetchVariantsBatch, _normVariantKey, _showSeqVariantMenu } from '/js/pool/sequence-variants.js';
 import { updateSeqTransportUI, updateSeqClipSettings, seqClipSpeedInfo, seqClipTokenTitle, seqStop } from '/js/pool/sequence-transport.js';
+import { conformBadgeForEntry, updateStitchButton, maybeAutoConformEntry } from '/js/pool/sequence-conform.js';
 
 function setupSequenceDropZone() {
   installPoolScrollPaint(applyPoolHoverAtPoint);
@@ -80,6 +81,9 @@ function addPathToSequence(path, insertAt = null) {
     targetDuration: null, // seconds; null = native length
     _hadTarget: false,
     variantPath: (state.pool.selectedVariantPaths || {})[path] || null,
+    conformedPath: null,
+    conformSignature: null,
+    conformStatus: null,
     _rifeStatus: null, // null | 'pending' | 'running' | 'done' | 'skipped'
   };
   if (insertAt == null || insertAt < 0 || insertAt > state.pool.sequence.length) {
@@ -95,6 +99,7 @@ function addPathToSequence(path, insertAt = null) {
   updateSeqTransportUI();
   scheduleSavePoolState();
   _maybeAutoRifeEntry(entry);
+  try { maybeAutoConformEntry(entry); } catch (_) { /* conform gate only */ }
   try {
     import('/js/pool/auto-firstlast.js').then((m) => {
       try { m.maybeAutoFLForSequence([path]); } catch (_) { /* ignore */ }
@@ -124,6 +129,9 @@ function addPathsToSequence(paths) {
       targetDuration: null, // seconds; null = native length
       _hadTarget: false,
       variantPath: (state.pool.selectedVariantPaths || {})[path] || null,
+      conformedPath: null,
+      conformSignature: null,
+      conformStatus: null,
       _rifeStatus: null, // null | 'pending' | 'running' | 'done' | 'skipped'
     });
   }
@@ -138,6 +146,7 @@ function addPathsToSequence(paths) {
   scheduleSavePoolState();
   for (const entry of fresh) {
     try { _maybeAutoRifeEntry(entry); } catch (_) { /* ignore */ }
+    try { maybeAutoConformEntry(entry); } catch (_) { /* conform gate only */ }
   }
   try {
     import('/js/pool/auto-firstlast.js').then((m) => {
@@ -240,6 +249,7 @@ function renderSequenceBox(opts) {
     updateSeqTotalTime();
     _updateInstantRifeStrip();
     updateSeqTransportUI();
+    try { updateStitchButton(); } catch (_) { /* prediction only */ }
     return;
   }
 
@@ -330,6 +340,16 @@ function renderSequenceBox(opts) {
       el.setAttribute('role', 'status');
       host.appendChild(el);
     }
+    // Conform badge: valid / stale / pending — visibly distinct from RIFE.
+    const cbadge = conformBadgeForEntry(entry);
+    if (cbadge && host) {
+      const cel = document.createElement('span');
+      cel.className = cbadge.cls;
+      cel.textContent = cbadge.text;
+      cel.title = cbadge.title;
+      cel.setAttribute('role', 'status');
+      host.appendChild(cel);
+    }
 
     // Proportional width, but never below size-level min-width (prevents control crush)
     const ratio = totalDuration > 0
@@ -358,7 +378,7 @@ function renderSequenceBox(opts) {
     }
 
     tok.addEventListener('click', (e) => {
-      if (e.target.closest('.seq-token-x') || e.target.closest('.seq-token-var') || e.target.closest('.seq-rife-badge')) return;
+      if (e.target.closest('.seq-token-x') || e.target.closest('.seq-token-var') || e.target.closest('.seq-rife-badge') || e.target.closest('.seq-conform-badge')) return;
       state.pool.playback.index = idx;
       state.pool.selectedSeqId = entry.id;
       selectPoolItem(entry.path); // also selects matching library tile
@@ -407,6 +427,7 @@ function renderSequenceBox(opts) {
   // Variant count polish is cached/coalesced — never flood /api/variants
   _updateSeqVariantBadges();
 
+  try { updateStitchButton(); } catch (_) { /* prediction only */ }
   _updateInstantRifeStrip();
   updateSeqTransportUI();
   updateSeqTotalTime();

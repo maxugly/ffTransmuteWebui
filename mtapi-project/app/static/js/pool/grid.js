@@ -505,6 +505,55 @@ function _bindSequencePanel() {
     state.pool.audioEngine = e.target.value || 'rubberband';
     scheduleSavePoolState();
   });
+  document.getElementById('poolConform')?.addEventListener('change', (e) => {
+    state.pool.conformEnabled = e.target.checked;
+    if (isApplyingFormState()) return;
+    if (e.target.checked && !state.pool.conformMode) {
+      state.pool.conformMode = state.pool.reconcile || 'pad';
+      const m = document.getElementById('poolConformMode');
+      if (m) m.value = state.pool.conformMode;
+    }
+    scheduleSavePoolState();
+    renderSequenceBox({ skipInstantKick: true });
+    import('/js/pool/sequence-conform.js').then((m) => {
+      try { m.updateStitchButton(); } catch (_) {}
+    }).catch(() => {});
+  });
+  document.getElementById('poolConformMode')?.addEventListener('change', (e) => {
+    state.pool.conformMode = e.target.value || 'pad';
+    if (isApplyingFormState()) return;
+    scheduleSavePoolState();
+    import('/js/pool/sequence-conform.js').then((m) => {
+      try { m.invalidateConforms('mode changed'); } catch (_) {}
+      try { m.updateStitchButton(); } catch (_) {}
+    }).catch(() => {});
+    renderSequenceBox({ skipInstantKick: true });
+  });
+  document.getElementById('poolConformPreset')?.addEventListener('change', (e) => {
+    state.pool.conformPreset = e.target.value || 'h264_avc_hq';
+    if (isApplyingFormState()) return;
+    scheduleSavePoolState();
+    import('/js/pool/sequence-conform.js').then((m) => {
+      try { m.invalidateConforms('preset changed'); } catch (_) {}
+      try { m.updateStitchButton(); } catch (_) {}
+    }).catch(() => {});
+    renderSequenceBox({ skipInstantKick: true });
+  });
+  document.getElementById('poolConformFps')?.addEventListener('change', (e) => {
+    const v = parseFloat(e.target.value);
+    state.pool.conformTargetFps = (v > 0) ? v : null;
+    if (isApplyingFormState()) return;
+    scheduleSavePoolState();
+    import('/js/pool/sequence-conform.js').then((m) => {
+      try { m.invalidateConforms('target fps changed'); } catch (_) {}
+      try { m.updateStitchButton(); } catch (_) {}
+    }).catch(() => {});
+    renderSequenceBox({ skipInstantKick: true });
+  });
+  document.getElementById('poolAutoConform')?.addEventListener('change', (e) => {
+    state.pool.autoConformAfterRife = e.target.checked;
+    scheduleSavePoolState();
+  });
 
   document.getElementById('matchDistance')?.addEventListener('input', (e) => {
     state.pool.matchMaxDistance = parseInt(e.target.value, 10) || 0;
@@ -633,7 +682,20 @@ function _bindSequencePanel() {
   if (instantRifeEl) instantRifeEl.checked = !!state.pool.instantRife;
   if (targetFpsEl) targetFpsEl.value = state.pool.targetFps || '';
   if (audioEngineEl) audioEngineEl.value = state.pool.audioEngine || 'rubberband';
+  const conformEl = document.getElementById('poolConform');
+  const conformModeEl = document.getElementById('poolConformMode');
+  const conformPresetEl = document.getElementById('poolConformPreset');
+  const conformFpsEl = document.getElementById('poolConformFps');
+  const autoConformEl = document.getElementById('poolAutoConform');
+  if (conformEl) conformEl.checked = !!state.pool.conformEnabled;
+  if (conformModeEl) conformModeEl.value = state.pool.conformMode || state.pool.reconcile || 'pad';
+  if (conformPresetEl) conformPresetEl.value = state.pool.conformPreset || 'h264_avc_hq';
+  if (conformFpsEl) conformFpsEl.value = state.pool.conformTargetFps || '';
+  if (autoConformEl) autoConformEl.checked = state.pool.autoConformAfterRife !== false;
   fillJoinTargetOptions();
+  import('/js/pool/sequence-conform.js').then((m) => {
+    try { m.updateStitchButton(); } catch (_) {}
+  }).catch(() => {});
 }
 
 function _composeHtml() {
@@ -740,6 +802,30 @@ function _composeHtml() {
                   <option value="pitch" disabled>Pitch-Shift (Vinyl) [Coming Soon]</option>
                   <option value="mute" disabled>Mute [Coming Soon]</option>
                 </select>
+              </label>
+              <label class="checkbox-label" title="Conform: normalize each clip to one canvas/preset before stitch (cache beside source; copy fast-path when all match). Off = current Stitch behavior.">
+                <input type="checkbox" id="poolConform"> Conform
+              </label>
+              <label class="pool-opt-label" title="Conform geometry (default follows Fit)">C-mode
+                <select id="poolConformMode">
+                  <option value="pad" ${(state.pool.conformMode || 'pad') === 'pad' ? 'selected' : ''}>Pad</option>
+                  <option value="crop" ${(state.pool.conformMode || 'pad') === 'crop' ? 'selected' : ''}>Crop</option>
+                  <option value="stretch" ${(state.pool.conformMode || 'pad') === 'stretch' ? 'selected' : ''}>Stretch</option>
+                </select>
+              </label>
+              <label class="pool-opt-label" title="Conform preset (copy needs output preset to match)">C-preset
+                <select id="poolConformPreset">
+                  <option value="h264_avc_hq" ${(state.pool.conformPreset || 'h264_avc_hq') === 'h264_avc_hq' ? 'selected' : ''}>H.264 HQ</option>
+                  <option value="h265_hevc" ${state.pool.conformPreset === 'h265_hevc' ? 'selected' : ''}>H.265 HEVC</option>
+                  <option value="dnxhr_hq" ${state.pool.conformPreset === 'dnxhr_hq' ? 'selected' : ''}>DNxHR HQ</option>
+                  <option value="prores_hq" ${state.pool.conformPreset === 'prores_hq' ? 'selected' : ''}>ProRes HQ</option>
+                </select>
+              </label>
+              <label class="pool-opt-label" title="Conform target fps (blank = keep native)">C-fps
+                <input type="number" id="poolConformFps" min="1" step="1" placeholder="native" class="seq-clip-dur-input" value="${state.pool.conformTargetFps || ''}">
+              </label>
+              <label class="checkbox-label" title="Auto-conform after RIFE (follows Instant RIFE arming; no scan on open)">
+                <input type="checkbox" id="poolAutoConform" ${state.pool.autoConformAfterRife !== false ? 'checked' : ''}> Auto↯RIFE
               </label>
               <div class="input-row pool-out-row">
                 <input type="text" id="poolOutput" placeholder="Output path (blank = auto .mp4)" value="${escapeHtml(outVal)}">

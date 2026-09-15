@@ -77,6 +77,8 @@ function _invalidateVariantsCache(path) {
  */
 function _multiplierForVariantPath(vPath, variants, entry) {
   if (!vPath || vPath === entry.path) return 0;
+  // Conformed siblings are a copy cache, never a RIFE replacement.
+  if (entry.conformedPath && vPath === entry.conformedPath) return 0;
   const list = (variants && variants.rifed) || [];
   for (const v of list) {
     if (v && v.path === vPath) {
@@ -111,6 +113,12 @@ function _showSeqVariantMenu(anchor, entry, variants, currentPath) {
 
   let rows = makeRow(entry.path, 'original', null);
   const seen = new Set([entry.path]);
+  // Conformed sibling: listed distinctly, never offered as a RIFE file.
+  if (entry.conformedPath && !seen.has(entry.conformedPath)) {
+    rows += makeRow(entry.conformedPath, 'conformed', entry.conformSignature
+      ? { preset: entry.conformSignature.preset, mode: entry.conformSignature.mode } : null);
+    seen.add(entry.conformedPath);
+  }
   // Always list the active densified path even if /api/variants is empty
   if (entry.variantPath && entry.variantPath !== entry.path && !seen.has(entry.variantPath)) {
     rows += makeRow(entry.variantPath, 'rifed', entry._rifeMultiplier
@@ -118,11 +126,19 @@ function _showSeqVariantMenu(anchor, entry, variants, currentPath) {
     seen.add(entry.variantPath);
   }
   for (const [kind, entries] of Object.entries(variants || {})) {
+    if (kind === 'conformed') continue; // rendered above from entry state
     for (const v of entries) {
       if (v.path && !seen.has(v.path)) {
         rows += makeRow(v.path, kind, v.detail || null);
         seen.add(v.path);
       }
+    }
+  }
+  const conformedList = ((variants || {}).conformed) || [];
+  for (const v of conformedList) {
+    if (v.path && !seen.has(v.path)) {
+      rows += makeRow(v.path, 'conformed', v.detail || null);
+      seen.add(v.path);
     }
   }
   if (seen.size <= 1) {

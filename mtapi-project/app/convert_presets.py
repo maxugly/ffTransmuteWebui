@@ -240,6 +240,27 @@ def is_valid_target(target_id: str) -> bool:
     return target_id in ENCODE_PRESETS or target_id in DUMP_PRESETS
 
 
+# ── Conform allow-list (sequence-conform-copy-spec §5) ──────────────────────
+# Strict copy fast-path only. WebM/VP9, AV1, FFV1, and proxy presets are
+# excluded until codec-specific probe + concat-copy tests prove stable
+# stream metadata. ENCODE_PRESETS stays the sole codec recipe registry —
+# join must never fork codec args or hardcode libx264.
+
+CONFORM_PRESETS: tuple[str, ...] = (
+    "h264_avc_hq",
+    "h265_hevc",
+    "dnxhr_hq",
+    "prores_hq",
+)
+
+CONFORM_PRESET_DEFAULT = "h264_avc_hq"
+
+
+def is_conform_preset(preset_id: str) -> bool:
+    """True when preset_id is in the conform copy allow-list."""
+    return preset_id in CONFORM_PRESETS
+
+
 # ── Video/image extensions ──────────────────────────────────────────────────
 
 VIDEO_EXTS = frozenset({".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi",

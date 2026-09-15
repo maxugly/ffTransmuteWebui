@@ -1100,6 +1100,12 @@ async function _drainInstantRifeQueue() {
           logConsole(
             `[SEQ RIFE]: done ${entry.name} → ${basename(entry.variantPath || entry.path)} (×${entry._rifeMultiplier})`,
           );
+          // Auto-conform follows the same armed gate (spec §2/§10): only when
+          // Conform is enabled and this batch was explicitly started.
+          try {
+            const st = (await import('/js/pool/sequence-conform.js').catch(() => null));
+            if (st && entry) st.maybeAutoConformEntry(entry);
+          } catch (_) { /* conform hook must not break RIFE */ }
         } else {
           entry._rifeStatus = 'failed';
           entry._rifeError = (data && data.error) || 'unknown error';

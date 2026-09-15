@@ -715,10 +715,19 @@ class CatalogIndex:
                 ("variant_hash", "variant_hash"),
                 ("rife_need", "rife_need"),
                 ("rifeNeed", "rife_need"),
+                ("conformed_path", "conformed_path"),
+                ("conformedPath", "conformed_path"),
+                ("conform_signature", "conform_signature"),
+                ("conformSignature", "conform_signature"),
+                ("conform_status", "conform_status"),
+                ("conformStatus", "conform_status"),
             ):
                 if src in it and it[src] is not None and dst not in entry:
-                    if dst in ("variant_path",):
+                    if dst in ("variant_path", "conformed_path"):
                         entry[dst] = _expand_path_text(it[src]) or it[src]
+                    elif dst == "conform_signature":
+                        if isinstance(it[src], dict):
+                            entry[dst] = it[src]
                     else:
                         entry[dst] = it[src]
             out.append(entry)

@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 
 from ..contract import OperationResult, OperationSpec, register
 from ..shell import TRANSMUTE, ensure_video_output_path, parse_line, run_command
+from .. import job_control
 
 JoinGridMode = Literal["pad", "crop", "stretch"]
 
@@ -314,6 +315,26 @@ class JoinParams(BaseModel):
         "rubberband",
         description="Audio time-stretching engine. Currently only 'rubberband' is fully wired.",
     )
+    # Sequence conform + copy fast-path (docs/sequence-conform-copy-spec.md).
+    # Off by default — preserves current Stitch behavior.
+    conform_enabled: bool = Field(
+        False, description="Normalize each clip to the conform canvas/preset before stitch.",
+    )
+    conform_mode: JoinGridMode | None = Field(
+        None, description="Conform geometry (default: join mode). pad|crop|stretch.",
+    )
+    conform_aspect: str | None = Field(
+        None, description="Conform aspect override (default: join aspect).",
+    )
+    conform_preset: str | None = Field(
+        None, description="Conform preset id from CONFORM_PRESETS (default h264_avc_hq).",
+    )
+    conform_target_fps: float | None = Field(
+        None, gt=0, description="Conform target fps (null = keep native).",
+    )
+    conform_audio_policy: str = Field(
+        "encoded", description="Audio policy baked into conform (encoded|passthrough).",
+    )
     dry_run: bool = False
 
 
@@ -372,6 +393,10 @@ async def _rife_preprocess(
         raise RuntimeError("RIFE binary not found; install rife-ncnn-vulkan") from e
 
     infos: list[tuple[float, float, float, bool]] = []
+    _tok_r = job_control.current_token()
+    _n_r = len(input_paths)
+    if _tok_r:
+        job_control.report_progress(f"rife probe 0/{_n_r}", phase="probe", current=0, total=_n_r, unit="clips", token=_tok_r)
     for i, p in enumerate(input_paths):
         info = await probe(str(Path(p).expanduser()))
         native_fps = float(info.get("fps") or 0.0)
@@ -386,6 +411,12 @@ async def _rife_preprocess(
         else:
             eff = native_fps
         infos.append((native_fps, native_dur, eff, has_audio))
+        if _tok_r:
+            job_control.report_progress(f"rife probe {i+1}/{_n_r}", phase="probe", current=i+1, total=_n_r, unit="clips", token=_tok_r)
+        try:
+            job_control.check_cancelled()
+        except job_control.JobCancelled:
+            raise
 
     if target_fps:
         resolved_target = float(target_fps)
@@ -461,6 +492,293 @@ async def _rife_preprocess(
     return processed, resolved_target
 
 
+def _conform_canvas_for_join(
+    infos: list[dict],
+    aspect: str,
+) -> tuple[int, int]:
+    from ..video_pipeline import _resolve_target_ratio, _snap_canvas_to_ar
+    dims = [(int(i.get("width") or 0), int(i.get("height") or 0)) for i in infos]
+    dims = [(w or 2, h or 2) for w, h in dims]
+    max_w = max(w for w, _ in dims)
+    max_h = max(h for _, h in dims)
+    rw, rh = _resolve_target_ratio(aspect, dims)
+    return _snap_canvas_to_ar(max_w, max_h, rw, rh)
+
+
+async def _ensure_conforms(
+    p: JoinParams,
+    *,
+    inputs: list[str],
+    canvas_w: int,
+    canvas_h: int,
+    conform_preset: str,
+    conform_mode: str,
+    conform_aspect: str,
+) -> tuple[list[str], list[dict], int]:
+    """Generate missing/stale conformed siblings. Returns (conform_paths, sigs, made)."""
+    from ..convert_presets import ENCODE_PRESETS
+    from ..video_pipeline import (
+        conform_clip, conform_signature, probe,
+        _time_factor, is_conform_signature_valid,
+    )
+    from ..media import get_variants, register_variant
+    from ..operations.conform_ops import conform_variant_name, signature_short
+
+    ep = ENCODE_PRESETS[conform_preset]
+    n = len(inputs)
+    token = job_control.current_token()
+    if token:
+        job_control.report_progress(f"conform 0/{n}", phase="conform",
+                                    current=0, total=n, unit="clips", token=token)
+    out_paths: list[str] = []
+    sigs: list[dict] = []
+    made = 0
+    for i, raw in enumerate(inputs):
+        src = Path(str(raw)).expanduser().resolve()
+        info = await probe(src)
+        native_dur = float(info.get("duration") or 0.0)
+        req = p.durations[i] if p.durations and i < len(p.durations) else None
+        factor = _time_factor(req, native_dur) if req else 1.0
+        if abs(factor - 1.0) < 1e-3:
+            factor = 1.0
+        st = src.stat()
+        # Source-variant identity: RIFE-derived vs original are different parents.
+        src_variant = "original"
+        nm = src.stem.lower()
+        if "_rifed" in nm or "_resolve_rife" in nm:
+            src_variant = "rifed"
+        elif "_dnxhr" in nm or "_resolve" in nm:
+            src_variant = "dnxhr"
+        core = {
+            "mode": conform_mode, "aspect": conform_aspect,
+            "width": int(canvas_w), "height": int(canvas_h),
+            "target_fps": float(p.conform_target_fps) if p.conform_target_fps else None,
+            "time_factor": float(factor), "preset": conform_preset,
+            "audio_policy": p.conform_audio_policy or "encoded",
+            "rife_multiplier": None, "source_variant": src_variant,
+            "source_size": int(st.st_size), "source_mtime": float(st.st_mtime),
+        }
+        # Reuse a valid cached sibling (keep stale files, mark invalid, ignore).
+        reuse: str | None = None
+        reuse_sig: dict | None = None
+        try:
+            variants = await get_variants(src, include_missing=False)
+        except Exception:
+            variants = {}
+        for v in (variants or {}).get("conformed") or []:
+            if not isinstance(v, dict):
+                continue
+            det = v.get("detail") or {}
+            if det.get("kind") != "conformed":
+                continue
+            vp = v.get("path")
+            if not vp or not Path(str(vp)).is_file():
+                continue
+            ok, _ = is_conform_signature_valid(
+                det, current=core, output_exists=True,
+                output_size=int(Path(str(vp)).stat().st_size or 0),
+            )
+            if ok:
+                reuse, reuse_sig = str(vp), det
+                break
+        if reuse:
+            out_paths.append(reuse)
+            sigs.append(reuse_sig or {**core, "kind": "conformed",
+                                      "parent_path": str(src),
+                                      "variant_path": reuse})
+            if token:
+                job_control.report_progress(f"conform {i + 1}/{n} {src.name}",
+                                            phase="conform", current=i + 1,
+                                            total=n, unit="clips", token=token)
+            continue
+        short = signature_short(core)
+        out = conform_variant_name(src, mode=conform_mode, width=int(canvas_w),
+                                   height=int(canvas_h), preset=conform_preset, sig=short)
+        if token:
+            job_control.report_progress(f"conform {i + 1}/{n} {src.name}",
+                                        phase="conform", current=i + 1,
+                                        total=n, unit="clips", token=token)
+        job_control.check_cancelled()
+        await conform_clip(
+            src, out, mode=conform_mode, width=int(canvas_w), height=int(canvas_h),
+            target_fps=p.conform_target_fps, time_factor=float(factor),
+            encode_preset=ep, duration=native_dur,
+            has_audio=bool(info.get("has_audio")),
+        )
+        sig = conform_signature(
+            parent_path=str(src), variant_path=str(out.resolve()),
+            source_size=int(st.st_size), source_mtime=float(st.st_mtime),
+            source_variant=src_variant, mode=conform_mode, aspect=conform_aspect,
+            width=int(canvas_w), height=int(canvas_h),
+            target_fps=p.conform_target_fps, time_factor=float(factor),
+            preset=conform_preset, audio_policy=p.conform_audio_policy or "encoded",
+            rife_multiplier=None,
+        )
+        try:
+            await register_variant(str(src), kind="conformed",
+                                   variant_path=out.resolve(), detail=sig)
+        except Exception:
+            pass
+        made += 1
+        out_paths.append(str(out.resolve()))
+        sigs.append(sig)
+    return out_paths, sigs, made
+
+
+async def _join_conform_path(
+    p: JoinParams,
+    *,
+    inputs: list[str],
+    rife_target_fps: float | None = None,
+) -> OperationResult:
+    """Conform-normalize then strict copy, else preset-driven re-encode fallback."""
+    from ..convert_presets import CONFORM_PRESETS, ENCODE_PRESETS, VIDEO_EXTS
+    from ..job_workspace import JobWorkspace
+    from ..pathutil import unique_output_path
+    from ..video_pipeline import (
+        _probe_many_with_progress, can_concat_copy, concat_clips,
+        probe_copy_info, run_concat_copy, transcode_with_preset,
+    )
+
+    conform_preset = p.conform_preset or "h264_avc_hq"
+    if conform_preset not in tuple(CONFORM_PRESETS):
+        return OperationResult(ok=False, operation="join",
+                               error=f"preset {conform_preset} not in conform allow-list")
+    conform_mode = p.conform_mode or p.mode
+    conform_aspect = p.conform_aspect or p.aspect or "auto"
+    # Output preset must equal the conform preset for copy; otherwise re-encode.
+    requested = p.target or conform_preset
+    copy_eligible_preset = (requested == conform_preset)
+
+    summary = f"join {len(inputs)} clips (conform {conform_preset})"
+    try:
+        _tok = job_control.current_token()
+        if _tok:
+            job_control.report_progress(summary, phase="start", current=0,
+                                        total=len(inputs), unit="clips", token=_tok)
+    except Exception:
+        pass
+    if p.dry_run:
+        ep0 = ENCODE_PRESETS[conform_preset]
+        ext0 = (ep0.container_ext or ep0.container or ".mp4").lower()
+        return OperationResult(ok=True, operation="join",
+                               output_path=str(Path(inputs[0]).parent / f"join_conform{ext0}"),
+                               dry_run=True, command=summary,
+                               stdout=f"Command: {summary}\n(dry run — no files written)")
+
+    ws = JobWorkspace(uuid.uuid4().hex[:12], prefix="join_conform_")
+    success = False
+    logs: list[str] = [summary]
+    try:
+        ws.create()
+        # Canvas from the (RIFE-resolved) inputs — shared helper, no fork.
+        infos0 = await _probe_many_with_progress([Path(s) for s in inputs])
+        W, H = _conform_canvas_for_join(infos0, conform_aspect)
+        conform_paths, sigs, made = await _ensure_conforms(
+            p, inputs=inputs, canvas_w=W, canvas_h=H,
+            conform_preset=conform_preset, conform_mode=conform_mode,
+            conform_aspect=conform_aspect,
+        )
+        logs.append(f"conformed {len(conform_paths)} clips ({made} new) → {W}x{H} {conform_preset}")
+
+        copy_infos = []
+        for cp in conform_paths:
+            copy_infos.append(await probe_copy_info(cp))
+        # Unbaked-duration policy: any requested duration must already be baked
+        # into conform (it is — setpts/rubberband), so gate sees baked files.
+        if p.conform_audio_policy not in ("encoded", "passthrough"):
+            ok, reason = False, (
+                f"unbaked audio processing still required "
+                f"(audio_policy={p.conform_audio_policy})"
+            )
+        elif not copy_eligible_preset:
+            ok, reason = False, (
+                f"requested output preset {requested} != conform preset "
+                f"{conform_preset}"
+            )
+        else:
+            if _tok:
+                job_control.report_progress("checking concat compatibility",
+                                            phase="probe", current=len(inputs),
+                                            total=len(inputs), unit="clips", token=_tok)
+            logs.append("checking concat compatibility")
+            ok, reason = can_concat_copy(
+                copy_infos, preset_id=conform_preset,
+                conform_signatures=sigs,
+                audio_policy=p.conform_audio_policy or "encoded",
+            )
+        # Output extension follows the requested preset (never hardcoded).
+        ep_req = ENCODE_PRESETS[requested] if requested in ENCODE_PRESETS else ENCODE_PRESETS[conform_preset]
+        ext = (ep_req.container_ext or ep_req.container or ".mp4").lower()
+        if ext and not ext.startswith("."):
+            ext = f".{ext}"
+        if p.output_path:
+            suggested = Path(p.output_path).expanduser()
+            if not suggested.suffix or suggested.suffix.lower() not in VIDEO_EXTS:
+                suggested = suggested.with_suffix(ext or ".mp4")
+        else:
+            first = Path(inputs[0]).expanduser()
+            suggested = first.parent / f"{first.stem}_join_{requested}{ext or '.mp4'}"
+        out = unique_output_path(suggested)
+
+        if ok:
+            try:
+                res = await run_concat_copy(ws, conform_paths, out)
+                success = True
+                logs.append(f"copy: {reason}")
+                return OperationResult(
+                    ok=True, operation="join", output_path=res["output_path"],
+                    command=summary, stdout="\n".join(logs),
+                    meta={"stitch_mode": "copy", "copy_reason": reason,
+                          "conformed": len(conform_paths), "reencoded": False,
+                          "conformed_paths": list(conform_paths),
+                          "conformed_signatures": list(sigs)},
+                )
+            except Exception as ce:
+                # Copy failure after a passed gate retries once via re-encode.
+                reason = f"copy failed ({ce}); fallback re-encode"
+                logs.append(str(ce))
+        # Fallback: preset-driven filtered re-encode of the CONFORMED files.
+        if _tok:
+            job_control.report_progress(
+                f"stitch re-encode 0/{len(conform_paths)} clips",
+                phase="stitch re-encode", current=0,
+                total=len(conform_paths), unit="clips", token=_tok)
+        intermediate = ws.root / "joined_tmp.mkv"
+        # Neutral intermediate (libx264/mkv) then preset transcode — the
+        # intermediate container cannot hold DNxHD/ProRes safely.
+        stitched = await concat_clips(
+            ws, conform_paths, intermediate,
+            mode=conform_mode, aspect=conform_aspect, durations=None,
+            audio_engine=p.audio_engine,
+        )
+        if _tok:
+            job_control.report_progress(
+                f"stitch re-encode {len(conform_paths)}/{len(conform_paths)} clips",
+                phase="stitch re-encode", current=len(conform_paths),
+                total=len(conform_paths), unit="clips", token=_tok)
+        result_path = await transcode_with_preset(intermediate, out, ep_req,
+                                                  copy_audio=True)
+        success = True
+        logs.append(f"re-encode: {reason}")
+        if rife_target_fps is not None:
+            logs.append(f"(RIFE target fps was {rife_target_fps})")
+        return OperationResult(
+            ok=True, operation="join", output_path=str(result_path),
+            command=summary, stdout="\n".join(logs),
+            meta={"stitch_mode": "re-encode", "copy_reason": reason,
+                  "conformed": len(conform_paths), "reencoded": True,
+                  "conformed_paths": list(conform_paths),
+                  "conformed_signatures": list(sigs)},
+        )
+    except Exception as e:
+        return OperationResult(ok=False, operation="join", error=str(e),
+                               command=summary, stdout="\n".join(logs),
+                               stderr=str(e))
+    finally:
+        ws.cleanup(keep_on_failure=not success)
+
+
 async def _join_with_preset(
     p: JoinParams,
     *,
@@ -493,6 +811,13 @@ async def _join_with_preset(
     inputs = processed_paths if processed_paths is not None else p.input_paths
 
     summary = f"join {len(inputs)} clips -> {target}"
+    # Immediate feedback: don't hide for a minute before probe starts.
+    try:
+        _tok = job_control.current_token()
+        if _tok:
+            job_control.report_progress(summary, phase="start", current=0, total=len(inputs), unit="clips", token=_tok)
+    except Exception:
+        pass
     if p.dry_run:
         return OperationResult(
             ok=True, operation="join", output_path=str(out), dry_run=True,
@@ -531,6 +856,8 @@ async def _join_with_preset(
         return OperationResult(
             ok=True, operation="join", output_path=str(result_path),
             command=summary, stdout="\n".join(logs),
+            meta={"stitch_mode": "re-encode", "copy_reason": "conform off",
+                  "conformed": 0, "reencoded": True},
         )
     except Exception as e:
         return OperationResult(
@@ -570,6 +897,12 @@ async def _join_legacy(
     out = unique_output_path(suggested)
 
     summary = f"join {len(inputs)} clips (default H.264)"
+    try:
+        _tok = job_control.current_token()
+        if _tok:
+            job_control.report_progress(summary, phase="start", current=0, total=len(inputs), unit="clips", token=_tok)
+    except Exception:
+        pass
     if p.dry_run:
         return OperationResult(
             ok=True, operation="join", output_path=str(out), dry_run=True,
@@ -637,29 +970,35 @@ async def _join_legacy(
 
 
 async def join(p: JoinParams) -> OperationResult:
+    # Top-level immediate report so even pre-probe validation shows in /api/job
+    try:
+        _tok = job_control.current_token()
+        if _tok:
+            job_control.report_progress(f"join {len(p.input_paths)} clips", phase="start", current=0, total=len(p.input_paths), unit="clips", token=_tok)
+    except Exception:
+        pass
+    # RIFE first on native pixels (spec §8); geometry/timing/audio conform after.
+    processed: list[str] | None = None
+    rife_fps: float | None = None
     if p.use_rife:
-        if p.target:
-            try:
-                processed_paths, target_fps = await _rife_preprocess(
-                    p.input_paths, p.durations, p.target_fps
-                )
-            except Exception as e:
-                return OperationResult(ok=False, operation="join", error=str(e))
-            return await _join_with_preset(
-                p,
-                processed_paths=processed_paths,
-                rife_target_fps=target_fps,
-            )
-        # RIFE without a target preset: preprocess to the requested fps, then
-        # concat + remux the (already H.264) intermediates — the same default
-        # delivery the legacy path uses.
         try:
-            processed_paths, _target_fps = await _rife_preprocess(
+            processed, rife_fps = await _rife_preprocess(
                 p.input_paths, p.durations, p.target_fps
             )
         except Exception as e:
             return OperationResult(ok=False, operation="join", error=str(e))
-        return await _join_legacy(p, processed_paths=processed_paths)
+    if p.conform_enabled:
+        return await _join_conform_path(
+            p, inputs=list(processed) if processed is not None else list(p.input_paths),
+            rife_target_fps=rife_fps,
+        )
+    if p.use_rife:
+        assert processed is not None
+        if p.target:
+            return await _join_with_preset(
+                p, processed_paths=processed, rife_target_fps=rife_fps,
+            )
+        return await _join_legacy(p, processed_paths=processed)
     if p.target:
         return await _join_with_preset(p)
     return await _join_legacy(p)

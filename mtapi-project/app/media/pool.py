@@ -327,6 +327,22 @@ def _normalize_sequence_entries(
         parsed_td = _opt_float(td)
         if parsed_td is not None and parsed_td > 0:
             entry["target_duration"] = parsed_td
+        cp = it.get("conformed_path") or it.get("conformedPath") if isinstance(it, dict) else None
+        if cp:
+            try:
+                cp_path = Path(str(cp)).expanduser()
+                entry["conformed_path"] = str(cp_path.resolve()) if cp_path.exists() else str(cp)
+            except OSError:
+                entry["conformed_path"] = str(cp)
+        if isinstance(it, dict):
+            csig = it.get("conform_signature") or it.get("conformSignature")
+            if isinstance(csig, dict):
+                entry["conform_signature"] = csig
+            cstat = it.get("conform_status") or it.get("conformStatus")
+            if cstat in ("valid", "stale", "invalid", "pending", "running"):
+                entry["conform_status"] = cstat
+            elif cp:
+                entry["conform_status"] = "valid"
         if vp:
             try:
                 vp_path = Path(str(vp)).expanduser()
@@ -497,6 +513,11 @@ def _normalize_pool_payload(
         "target_fps": payload.get("target_fps") or None,
         "instant_rife": bool(payload.get("instant_rife")),
         "audio_engine": payload.get("audio_engine") or "rubberband",
+        "conform_enabled": bool(payload.get("conform_enabled")),
+        "conform_mode": payload.get("conform_mode") or payload.get("reconcile") or "pad",
+        "conform_preset": payload.get("conform_preset") or "h264_avc_hq",
+        "conform_target_fps": payload.get("conform_target_fps") or None,
+        "auto_conform_after_rife": payload.get("auto_conform_after_rife", True) is not False,
         "selected_variant_paths": variants,
         "tile_zoom": tile_zoom,
         "tile_info": tile_info,

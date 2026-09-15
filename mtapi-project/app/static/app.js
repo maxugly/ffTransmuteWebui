@@ -167,6 +167,11 @@ let state = {
     targetFps: null,          // exact output fps when useRife is true
     instantRife: false,       // auto densify NEED clips via Instant queue
     audioEngine: 'rubberband', // audio time-stretch engine for sequence join
+    conformEnabled: false,    // Sequence Conform cache-fill (spec: default OFF)
+    conformMode: 'pad',       // pad|crop|stretch (default follows reconcile)
+    conformPreset: 'h264_avc_hq',
+    conformTargetFps: null,   // null = keep native
+    autoConformAfterRife: true, // follow AutoRIFE armed queue when Conform on
     selectedVariantPaths: {}, // original path -> chosen variant path (rifed/export/...)
     // Sequence preview playback
     playback: {
@@ -510,11 +515,13 @@ function updateGlobalInputs() {
   window.globalInputs.image   = document.getElementById('giImage')?.value || '';
   window.globalInputs.pathIn  = document.getElementById('giPathIn')?.value || '';
   window.globalInputs.pathOut = document.getElementById('giPathOut')?.value || '';
-  // New first-line video → invalidate probe cache so range re-probes
+  // New first-line video → invalidate probe cache so range re-probes.
+  // Keep _lastProbedPath (old path) so probeGlobalVideo can tell "same file
+  // re-probe → keep selection" from "different file → reset to full". Only
+  // _probeOk needs clearing to force the fetch.
   const first = (window.globalInputs.video || '').split('\n').map(l => l.trim()).find(Boolean) || '';
   const prevFirst = (prevVideo || '').split('\n').map(l => l.trim()).find(Boolean) || '';
   if (first !== prevFirst) {
-    window.globalInputs._lastProbedPath = null;
     window.globalInputs._probeOk = false;
   }
   updateStatusIndicators();

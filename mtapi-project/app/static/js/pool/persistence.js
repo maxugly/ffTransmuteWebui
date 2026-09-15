@@ -32,7 +32,7 @@ const DESK_TAB_DEFAULTS = {
   quick: { reconcile: 'pad', aspect: 'auto', aspectCustom: '' },
   watcher: {
     enabled: false, pool_ingest: false, pool_add_sequence: false,
-    in_dir: '', out_dir: '',
+    in_dir: '', out_dir: '', dun_dir: '',
     resize_mode: 'letterbox', target_width: 1920, target_height: 1080,
   },
   imageSort: {
@@ -258,6 +258,7 @@ function buildDeskSnapshot() {
         pool_add_sequence: !!state.watcher?.pool_add_sequence,
         in_dir: state.watcher?.in_dir || '',
         out_dir: state.watcher?.out_dir || '',
+        dun_dir: state.watcher?.dun_dir || '',
         resize_mode: state.watcher?.resize_mode || 'letterbox',
         target_width: Number(state.watcher?.target_width || 1920),
         target_height: Number(state.watcher?.target_height || 1080),
@@ -346,6 +347,9 @@ function buildPoolStatePayload() {
         target_duration: n,
         _had_target: !!s._hadTarget,
         variant_path: s.variantPath || null,
+        conformed_path: s.conformedPath || null,
+        conform_signature: s.conformSignature || null,
+        conform_status: s.conformStatus || null,
         // Remember densify strength so Instant does not re-RIFE after reload
         rife_multiplier: (s._rifeMultiplier != null && s._rifeMultiplier > 0)
           ? Number(s._rifeMultiplier)
@@ -372,6 +376,11 @@ function buildPoolStatePayload() {
     target_fps: state.pool.targetFps || null,
     instant_rife: !!state.pool.instantRife,
     audio_engine: state.pool.audioEngine || 'rubberband',
+    conform_enabled: !!state.pool.conformEnabled,
+    conform_mode: state.pool.conformMode || state.pool.reconcile || 'pad',
+    conform_preset: state.pool.conformPreset || 'h264_avc_hq',
+    conform_target_fps: state.pool.conformTargetFps || null,
+    auto_conform_after_rife: state.pool.autoConformAfterRife !== false,
     selected_variant_paths: state.pool.selectedVariantPaths || {},
     tile_zoom: state.pool.tileZoom || POOL_ZOOM.reset,
     tile_info: ensureTileInfo(),
@@ -444,6 +453,9 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
     // If we have a densify path but no M (legacy sessions), assume at least ×2
     if (vp && rm == null) rm = 2;
     const vh = s.variant_hash ?? s._variantHash ?? null;
+    const cp = s.conformed_path ?? s.conformedPath ?? null;
+    const csig = s.conform_signature ?? s.conformSignature ?? null;
+    const cstat = s.conform_status ?? s.conformStatus ?? (cp ? 'valid' : null);
     return {
       id: nextSeqId(),
       path: s.path,
@@ -451,6 +463,10 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
       targetDuration: td,
       _hadTarget: !!s._had_target,
       variantPath: vp,
+      conformedPath: cp,
+      conformSignature: (csig && typeof csig === 'object') ? csig : null,
+      conformStatus: (cstat === 'valid' || cstat === 'stale' || cstat === 'invalid'
+        || cstat === 'pending' || cstat === 'running') ? cstat : (cp ? 'valid' : null),
       _rifeMultiplier: rm,
       _variantHash: (typeof vh === 'string' && vh) ? vh : null,
       rifeNeed: (s.rife_need === 'rifed' || s.rife_need === 'needsRife' || s.rife_need === 'noRifeNeeded')
@@ -480,6 +496,11 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
   state.pool.targetFps = data.target_fps || null;
   state.pool.instantRife = !!data.instant_rife;
   state.pool.audioEngine = data.audio_engine || 'rubberband';
+  state.pool.conformEnabled = !!data.conform_enabled;
+  state.pool.conformMode = data.conform_mode || data.reconcile || 'pad';
+  state.pool.conformPreset = data.conform_preset || 'h264_avc_hq';
+  state.pool.conformTargetFps = data.conform_target_fps || null;
+  state.pool.autoConformAfterRife = data.auto_conform_after_rife !== false;
   state.pool.selectedVariantPaths = data.selected_variant_paths || {};
 
   // Image Pool (v2; missing images → [])
@@ -593,6 +614,11 @@ async function projectNew() {
   state.pool.instantRife = false;
   state.pool.selectedVariantPaths = {};
   state.pool.audioEngine = 'rubberband';
+  state.pool.conformEnabled = false;
+  state.pool.conformMode = 'pad';
+  state.pool.conformPreset = 'h264_avc_hq';
+  state.pool.conformTargetFps = null;
+  state.pool.autoConformAfterRife = true;
   if (state.imagePool) {
     state.imagePool.items = [];
     state.imagePool.selectedPath = null;
@@ -912,6 +938,20 @@ async function stitchPoolSequence() {
     return;
   }
 
+  // --- INSTANT CLICK FEEDBACK (never hide) — sync, before any await ---
+  const _clickN = paths.length;
+  try {
+    logConsole(`[CLICK]: Stitch clicked — ${_clickN} clips`);
+    if (elements.statusDot) elements.statusDot.className = 'status-dot loading';
+    if (elements.statusText) elements.statusText.textContent = `Stitch clicked — ${_clickN} clips…`;
+    const _btnEarly = document.getElementById('btnPoolStitch');
+    if (_btnEarly) {
+      _btnEarly.disabled = true;
+      _btnEarly.dataset.label = _btnEarly.innerHTML;
+      _btnEarly.innerHTML = 'Stitching…';
+    }
+  } catch (_) { /* never block stitch on UI */ }
+
   const mode = document.getElementById('poolReconcile')?.value || state.pool.reconcile || 'pad';
   let aspect = document.getElementById('poolAspect')?.value || state.pool.aspect || 'auto';
   if (aspect === 'custom') {
@@ -919,6 +959,8 @@ async function stitchPoolSequence() {
     if (!aspect || !/^(\d+:\d+|\d+x\d+)$/i.test(aspect)) {
       logConsole('[STITCH]: Custom AR needs W:H (e.g. 5:4) or WxH (e.g. 1080x1920).', 'error');
       if (elements.statusText) elements.statusText.textContent = 'Bad custom AR';
+      const _btnErr = document.getElementById('btnPoolStitch');
+      if (_btnErr) { _btnErr.disabled = state.pool.sequence.length < 2; _btnErr.innerHTML = _btnErr.dataset.label || 'Stitch Sequence'; }
       return;
     }
   }
@@ -938,8 +980,24 @@ async function stitchPoolSequence() {
   );
   const anyTimed = durations.some(d => d != null);
 
-  try { await recoverSequenceVariants(); } catch (_) { /* targeted recover only */ }
+  // Early busy check — don't run 60s of work then fail
+  if (isMainJobBusy()) {
+    logConsole('[STITCH]: blocked — a job is already running. Use Stop first, or wait.', 'error');
+    if (elements.statusText) elements.statusText.textContent = 'Busy — stop current job first';
+    const _btnBusy = document.getElementById('btnPoolStitch');
+    if (_btnBusy) { _btnBusy.disabled = state.pool.sequence.length < 2; _btnBusy.innerHTML = _btnBusy.dataset.label || 'Stitch Sequence'; }
+    return;
+  }
 
+  // Show recover step if it has work — was hidden behind the 60s stall
+  const _needsRecover = (state.pool.sequence || []).some(s => s.variantPath && s.variantPath !== s.path);
+  if (_needsRecover) logConsole(`[STITCH]: checking ${_clickN} variant links…`);
+  const _tRec = Date.now();
+  try { await recoverSequenceVariants(); } catch (_) { /* targeted recover only */ }
+  if (_needsRecover) logConsole(`[STITCH]: variant check done in ${((Date.now() - _tRec)/1000).toFixed(1)}s`);
+
+  const conformOn = !!document.getElementById('poolConform')?.checked
+    || !!state.pool.conformEnabled;
   const body = {
     input_paths: paths.map((p, i) => {
       const entry = state.pool.sequence[i];
@@ -958,20 +1016,33 @@ async function stitchPoolSequence() {
     use_rife: false,
     target_fps: null,
     audio_engine: state.pool.audioEngine || 'rubberband',
+    conform_enabled: conformOn,
+    conform_mode: document.getElementById('poolConformMode')?.value || state.pool.conformMode || mode,
+    conform_aspect: aspect,
+    conform_preset: document.getElementById('poolConformPreset')?.value || state.pool.conformPreset || 'h264_avc_hq',
+    conform_target_fps: (() => {
+      const v = parseFloat(document.getElementById('poolConformFps')?.value || '');
+      return v > 0 ? v : (state.pool.conformTargetFps || null);
+    })(),
+    conform_audio_policy: 'encoded',
     output_path,
     dry_run: false,
   };
 
+  // (busy already checked before variant recover — this catches race)
   if (isMainJobBusy()) {
     logConsole('[STITCH]: blocked — a job is already running. Use Stop first, or wait.', 'error');
     if (elements.statusText) elements.statusText.textContent = 'Busy — stop current job first';
+    const _btnRace = document.getElementById('btnPoolStitch');
+    if (_btnRace) { _btnRace.disabled = state.pool.sequence.length < 2; _btnRace.innerHTML = _btnRace.dataset.label || 'Stitch Sequence'; }
     return;
   }
 
   const btn = document.getElementById('btnPoolStitch');
   if (btn) {
+    // already set to Stitching… on click — keep it, just ensure enabled state
     btn.disabled = true;
-    btn.dataset.label = btn.innerHTML;
+    if (!btn.dataset.label) btn.dataset.label = btn.innerHTML;
     btn.innerHTML = 'Stitching…';
   }
 
@@ -985,12 +1056,45 @@ async function stitchPoolSequence() {
     // displayOpResult already called inside runOpWithCancel
 
     if (data && data.ok && data.output_path) {
+      // Adopt conformed siblings onto their sequence entries (spec §6):
+      // the server returns them aligned with body.input_paths.
+      try {
+        const cps = (data.meta && data.meta.conformed_paths) || null;
+        const sigs = (data.meta && data.meta.conformed_signatures) || null;
+        if (Array.isArray(cps) && cps.length === body.input_paths.length) {
+          body.input_paths.forEach((usedPath, i) => {
+            const entry = state.pool.sequence.find((e) => {
+              if (e.path === usedPath) return true;
+              if (e.variantPath && e.variantPath === usedPath) return true;
+              const gv = (state.pool.selectedVariantPaths || {})[e.path];
+              return gv && gv === usedPath;
+            });
+            if (entry && cps[i]) {
+              entry.conformedPath = cps[i];
+              entry.conformSignature = (sigs && sigs[i]) || entry.conformSignature || null;
+              entry.conformStatus = 'valid';
+            }
+          });
+          // Persist promptly (not on the autosave timer): the named-project
+            // save/load contract requires conformed paths to survive.
+            try { savePoolStateNow(); } catch (_) { scheduleSavePoolState(); }
+            import('/js/pool/sequence.js').then((m) => {
+              try { m.renderSequenceBox({ skipInstantKick: true }); } catch (_) {}
+              try { m.updateStitchButton(); } catch (_) {}
+            }).catch(() => {});
+            const n = cps.filter(Boolean).length;
+            if (n) logConsole(`[STITCH]: Adopted ${n} conformed sibling(s) onto sequence entries`);
+        }
+      } catch (_) { /* adopt is best-effort */ }
       addPathsToPool([data.output_path]);
       if (state.activeTab === 'pool') {
         renderPoolGrid();
         refreshPoolToolbarCounts();
       }
       logConsole(`[STITCH]: Output added to pool → ${data.output_path}`);
+      if (data.meta && data.meta.stitch_mode) {
+        logConsole(`[STITCH]: mode=${data.meta.stitch_mode} — ${data.meta.copy_reason || ''}`);
+      }
     } else if (data && data.error === 'Cancelled by user') {
       logConsole('[STITCH]: stopped by user', 'error');
     }

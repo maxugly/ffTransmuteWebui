@@ -209,5 +209,72 @@ class BashCollectInputsTest(unittest.TestCase):
         self.assertIn("Output:", r.stdout)
 
 
+class JoinConformCopyTest(unittest.TestCase):
+    """Conform copy path: comma-safe, gate-driven, preset-driven fallback."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._dir = Path(tempfile.mkdtemp(prefix="joinconform_"))
+        cls.a = cls._dir / "a, one.mp4"
+        cls.b = cls._dir / "b.mp4"
+        # 320x240: large enough for the DNxHD fallback leg (min 256 wide).
+        _make_clip(str(cls.a), size="320x240")
+        _make_clip(str(cls.b), size="320x240")
+
+    def test_conform_join_copy_identical(self) -> None:
+        p = JoinParams(
+            input_paths=[str(self.a), str(self.b)],
+            mode="pad",
+            aspect="auto",
+            conform_enabled=True,
+            conform_preset="h264_avc_hq",
+        )
+
+        async def run():
+            return await join(p)
+
+        result = asyncio.run(run())
+        self.assertTrue(result.ok, result.stderr or result.error)
+        out = Path(result.output_path)
+        self.assertTrue(out.is_file() and out.stat().st_size > 32, result.stdout)
+        meta = result.meta or {}
+        self.assertIn(meta.get("stitch_mode"), ("copy", "re-encode"))
+        self.assertEqual(meta.get("conformed"), 2)
+        # Output extension follows the preset (.mp4 for h264).
+        self.assertTrue(str(out).endswith(".mp4"))
+
+    def test_conform_join_mismatched_preset_falls_back(self) -> None:
+        # Requested target != conform preset → re-encode with precise reason.
+        p = JoinParams(
+            input_paths=[str(self.a), str(self.b)],
+            mode="pad",
+            target="dnxhr_hq",
+            conform_enabled=True,
+            conform_preset="h264_avc_hq",
+        )
+
+        async def run():
+            return await join(p)
+
+        result = asyncio.run(run())
+        self.assertTrue(result.ok, result.stderr or result.error)
+        meta = result.meta or {}
+        self.assertEqual(meta.get("stitch_mode"), "re-encode")
+        self.assertTrue(meta.get("reencoded"))
+        self.assertIn("!=", meta.get("copy_reason") or "")
+        # DNxHR preset container is .mov.
+        self.assertTrue(str(result.output_path).endswith(".mov"))
+
+    def test_conform_join_dry_run(self) -> None:
+        p = JoinParams(
+            input_paths=[str(self.a), str(self.b)],
+            conform_enabled=True,
+            dry_run=True,
+        )
+        result = asyncio.run(join(p))
+        self.assertTrue(result.ok, result.error)
+        self.assertTrue(result.dry_run)
+
+
 if __name__ == "__main__":
     unittest.main()
