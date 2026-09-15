@@ -74,6 +74,7 @@ Everything that survives a page refresh, browser close, or server restart.
 | `enabled` | bool | `false` (always forced on write) |
 | `in_dir` | string | `""` |
 | `out_dir` | string | `""` |
+| `dun_dir` | string | `""` (empty = `in_dir/dun`) |
 | `target_width` | int | `1920` |
 | `target_height` | int | `1080` |
 | `resize_mode` | string | `"letterbox"` |

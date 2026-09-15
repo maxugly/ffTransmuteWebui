@@ -292,12 +292,12 @@ function startJobProgressPoll(token) {
   activeJob.lastSnap = null;
   activeJob.startedAt = Date.now();
 
-  // Local sticky clock — independent of server poll (smooth 1s ticks)
+  // Local sticky clock — independent of server poll (smooth ticks)
   paintStickyJobUi();
   activeJob.tickTimer = setInterval(() => {
     if (!activeJob.token || activeJob.token !== token) return;
     paintStickyJobUi();
-  }, 1000);
+  }, 400);
 
   const tick = async () => {
     if (!activeJob.token || activeJob.token !== token) return;
@@ -327,8 +327,8 @@ function startJobProgressPoll(token) {
   };
 
   tick();
-  // Server snapshot for phase / counts / ETA (status bar only — no spam)
-  activeJob.pollTimer = setInterval(tick, 1000);
+  // Server snapshot for phase / counts / ETA (status bar only — no spam) — 400ms so probe 0/373 shows in <0.5s
+  activeJob.pollTimer = setInterval(tick, 400);
 }
 
 function setRunUiBusy(busy, { stopping = false } = {}) {
@@ -503,8 +503,15 @@ async function runOpWithCancel(opId, body, { label = 'Processing…', allowDurin
   startJobProgressPoll(token);
   paintStickyJobUi();
 
+  // Instant CLI-like echo — must be visible even if server hasn't responded
+  try { console.log(`[EXECUTE] POST /ops/${opId} job=${token.slice(0,8)}`, body); } catch (_) {}
+  // Keep full body in app console but also show a one-liner command preview
+  const _n = Array.isArray(body.input_paths) ? body.input_paths.length : (body.input_path ? 1 : 0);
+  const _mode = body.mode || body.target || '';
+  const _tgt = body.target ? ` -> ${body.target}` : '';
+  if (_n) logConsole(`[COMMAND]: ${opId} ${_n} clips${_mode ? ' '+_mode : ''}${_tgt}`, 'command');
   logConsole(`[EXECUTE]: POST /ops/${opId} (job ${token.slice(0, 8)}…) · ${label}\nParameters: ${JSON.stringify(body, null, 2)}`);
-  logConsole('[JOB]: sticky timer on Run + Stop button — console only logs phase changes');
+  logConsole('[JOB]: polling /api/job every 0.4s — status bar shows elapsed, console logs phase changes');
 
   try {
     const response = await fetch(`/ops/${opId}`, {

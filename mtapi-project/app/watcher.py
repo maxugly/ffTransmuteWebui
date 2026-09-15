@@ -50,6 +50,7 @@ class WatcherState:
     pool_add_sequence: bool = False  # pool imports also append to sequence[]
     in_dir: str = ""
     out_dir: str = ""
+    dun_dir: str = ""  # where finished originals go; empty = in_dir/dun
     # 16:9 letterbox target AR (matches 2mv defaults; pixels used only for AR)
     target_width: int = 1920
     target_height: int = 1080
@@ -71,6 +72,22 @@ class WatcherState:
         )
         d["in_dir_ok"] = bool(self.in_dir and Path(self.in_dir).expanduser().is_dir())
         d["out_dir_ok"] = bool(self.out_dir and Path(self.out_dir).expanduser().is_dir())
+        d["dun_dir_effective"] = _effective_dun_dir_for_state(self)
+        d["dun_dir_ok"] = bool(
+            d["dun_dir_effective"]
+            and Path(d["dun_dir_effective"]).expanduser().is_dir()
+            or (not d["dun_dir_effective"])
+        )
+        # dun_dir_ok True means "no error to report" — effective will be created lazily.
+        # If a custom dun_dir is set but missing, it will be created on enable/move.
+        if self.dun_dir and d["dun_dir_effective"]:
+            try:
+                p = Path(d["dun_dir_effective"]).expanduser()
+                d["dun_dir_ok"] = p.is_dir() or not p.exists()
+            except Exception:
+                d["dun_dir_ok"] = False
+        else:
+            d["dun_dir_ok"] = True
         return d
 
 
@@ -92,6 +109,17 @@ def _log(msg: str) -> None:
         _state.last_event = msg
 
 
+def _effective_dun_dir_for_state(st: WatcherState | None = None) -> str:
+    """Resolve where finished originals go. Empty dun_dir => in_dir/dun."""
+    s = st if st is not None else _state
+    raw = (s.dun_dir or "").strip()
+    if raw:
+        return raw
+    if s.in_dir and s.in_dir.strip():
+        return str(Path(s.in_dir).expanduser() / "dun")
+    return ""
+
+
 def _load_config() -> None:
     global _state
     if not _CONFIG_PATH.is_file():
@@ -103,10 +131,18 @@ def _load_config() -> None:
             _state.pool_ingest = False  # same — headless ingest is opt-in per boot
             in_dir = str(data.get("in_dir") or "")
             out_dir = str(data.get("out_dir") or "")
+            dun_dir = str(data.get("dun_dir") or "")
             if in_dir and Path(in_dir).expanduser().is_dir():
+                _state.in_dir = in_dir
+            elif in_dir:
+                # Keep the path even if it doesn't exist yet — user may fix it later.
                 _state.in_dir = in_dir
             if out_dir and Path(out_dir).expanduser().is_dir():
                 _state.out_dir = out_dir
+            elif out_dir:
+                _state.out_dir = out_dir
+            # dun_dir may not exist yet — keep it; it will be created on first move.
+            _state.dun_dir = dun_dir.strip()
             _state.target_width = int(data.get("target_width") or 1920)
             _state.target_height = int(data.get("target_height") or 1080)
             _state.pool_add_sequence = bool(data.get("pool_add_sequence") or False)
@@ -128,6 +164,7 @@ def apply_config(
     pool_add_sequence: bool | None = None,
     in_dir: str | None = None,
     out_dir: str | None = None,
+    dun_dir: str | None = None,
     target_width: int | None = None,
     target_height: int | None = None,
     resize_mode: str | None = None,
@@ -139,6 +176,8 @@ def apply_config(
             _state.in_dir = str(in_dir).strip()
         if out_dir is not None:
             _state.out_dir = str(out_dir).strip()
+        if dun_dir is not None:
+            _state.dun_dir = str(dun_dir).strip()
         if target_width is not None:
             _state.target_width = max(2, int(target_width))
         if target_height is not None:
@@ -190,6 +229,7 @@ def _save_config_unlocked() -> None:
     payload = {
         "in_dir": _state.in_dir,
         "out_dir": _state.out_dir,
+        "dun_dir": _state.dun_dir,
         "target_width": _state.target_width,
         "target_height": _state.target_height,
         "resize_mode": _state.resize_mode,
@@ -223,6 +263,33 @@ def _validate_dirs_unlocked(*, dnxhr_on: bool, ingest_on: bool) -> str | None:
                 return f"Cannot create output directory: {e}"
         if inp.resolve() == out.resolve():
             return "Input and output directories must be different"
+    # Validate dun_dir if set: must be absolute, not same as in/out, creatable.
+    raw = (_state.dun_dir or "").strip()
+    if raw:
+        dun = Path(raw).expanduser()
+        if not dun.is_absolute():
+            return f"Dun directory must be absolute: {raw}"
+        try:
+            dun.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            return f"Cannot create dun directory: {e}"
+        try:
+            if dun.resolve() == inp.resolve():
+                return "Dun directory must be different from input"
+            if _state.out_dir:
+                out = Path(_state.out_dir).expanduser()
+                if out.is_dir() and dun.resolve() == out.resolve():
+                    return "Dun directory must be different from DNxHR output"
+        except Exception:
+            pass
+    else:
+        # Default in_dir/dun would be created lazily; ensure we could
+        try:
+            eff = Path(_effective_dun_dir_for_state(_state)).expanduser()
+            if eff.is_file():
+                return f"Dun path is a file: {eff}"
+        except Exception:
+            pass
     return None
 
 
@@ -337,7 +404,10 @@ def _scan_once(in_dir: str, out_dir: str, tw: int, th: int, mode: str,
                     continue
                 final = moved
             else:
-                dun_guess = p.parent / "dun" / p.name
+                # DNxHR-only moved via _process_one -> _move_to_dun; guess where it went.
+                with _lock:
+                    eff = _effective_dun_dir_for_state(_state)
+                dun_guess = Path(eff).expanduser() / p.name if eff else p.parent / "dun" / p.name
                 if dun_guess.is_file():
                     final = dun_guess
         # 3) Register the DNxHR output as a proxy variant of the original, so
@@ -502,14 +572,16 @@ def _process_one(src: Path, out_dir: Path, tw: int, th: int, mode: str,
 
 
 def _move_to_dun(src: Path) -> Path | None:
-    """Move a consumed original into ``dun/`` next to its folder.
+    """Move a consumed original into the configured dun dir (or ``in_dir/dun``).
 
     Collision-safe (``stem_1.ext`` …). Returns the final path, or None when
     the move failed (caller counts it as failed — the file stays for retry).
     """
-    dun = src.parent / "dun"
+    with _lock:
+        eff = _effective_dun_dir_for_state(_state)
+    dun = Path(eff).expanduser() if eff else src.parent / "dun"
     try:
-        dun.mkdir(exist_ok=True)
+        dun.mkdir(parents=True, exist_ok=True)
         target = dun / src.name
         if target.exists():
             stem, suffix = src.stem, src.suffix

@@ -381,8 +381,8 @@ function sendPoolPathTo(path, target) {
       gi.dispatchEvent(new Event('input'));
     }
     window.globalInputs.video = path;
-    // force re-probe so frame range matches this clip
-    window.globalInputs._lastProbedPath = null;
+    // re-probe so frame range matches this clip; keep _lastProbedPath so
+    // probe can decide keep (same file) vs reset (different file) correctly
     window.globalInputs._probeOk = false;
     logConsole(`[POOL]: Sent to Cut (global video) → ${path}`);
     switchTab('cut');

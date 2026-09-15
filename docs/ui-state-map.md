@@ -78,6 +78,7 @@ Maintains the active media paths and global frame range selections across tabs.
 * `watcher.enabled` (boolean): Toggle for active directory watching.
 * `watcher.in_dir` (string): Input directory path to watch.
 * `watcher.out_dir` (string): Output directory path for processed files.
+* `watcher.dun_dir` (string): Done directory for finished originals (empty = `in_dir/dun`).
 * `watcher.resize_mode` (string): Scaling mode (`'letterbox'`, etc.).
 * `watcher.status` (object | null): Live status object from the backend.
 * `watcher.pollTimer` (number | null): Interval ID for the active polling loop.

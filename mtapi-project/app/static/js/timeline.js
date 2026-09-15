@@ -12,8 +12,11 @@ async function probeGlobalVideo(path, opts) {
   if (!path) return;
   opts = opts || {};
   var gi = window.globalInputs;
+  var prevPath = gi._lastProbedPath;
+  var prevStart = gi.frameStart;
+  var prevEnd = gi.frameEnd;
   // Skip only when we already successfully probed this exact path
-  if (!opts.force && path === gi._lastProbedPath && gi._probeOk) {
+  if (!opts.force && path === prevPath && gi._probeOk) {
     try {
       document.dispatchEvent(new CustomEvent('mtapi:video-probed', {
         detail: { path: path, frames: gi.totalFrames, cached: true, data: gi._probeData },
@@ -36,9 +39,44 @@ async function probeGlobalVideo(path, opts) {
       gi.totalFrames = frames;
       gi._probeOk = true;
       gi._probeData = data;
-      // Reset range to full clip on new probe so In/Out match the file
-      gi.frameStart = 1;
-      gi.frameEnd = frames;
+      // Preserve user selection when re-probing the same file (force case —
+      // tab switch / Cut revisit) or on the first probe after session restore
+      // where desk already holds a valid range for this file. Otherwise reset
+      // to full clip so In/Out match the new file.
+      var keep = false;
+      if (prevPath === path) {
+        keep = true;
+      } else if (prevPath == null && Number.isFinite(prevStart) && Number.isFinite(prevEnd)) {
+        if (prevStart >= 1 && prevEnd >= prevStart && prevStart <= frames && prevEnd <= frames) {
+          // Only keep a non-bogus prior selection; 1..100 on a 50-frame clip
+          // would be out of bounds and correctly falls through to reset.
+          // Distinguish the default placeholder 1..100 (totalFrames 100) from a
+          // real user choice: if the clip's true length isn't 100 and the prior
+          // range is exactly the placeholder, treat it as "no selection" and let
+          // the full-clip reset win (otherwise a 200-frame clip would open with
+          // 1..100 selected instead of its true 1..200).
+          if (prevStart === 1 && prevEnd === 100 && frames !== 100) {
+            keep = false;
+          } else {
+            keep = true;
+          }
+        }
+      }
+      if (keep) {
+        var clampedStart = Math.min(Math.max(1, prevStart), frames);
+        var clampedEnd = Math.min(Math.max(clampedStart + 1, prevEnd), frames);
+        if (clampedStart < clampedEnd) {
+          gi.frameStart = clampedStart;
+          gi.frameEnd = clampedEnd;
+        } else {
+          gi.frameStart = 1;
+          gi.frameEnd = frames;
+        }
+      } else {
+        // Reset range to full clip on new probe so In/Out match the file
+        gi.frameStart = 1;
+        gi.frameEnd = frames;
+      }
 
       var startEl = document.getElementById('giTimelineStart');
       var endEl   = document.getElementById('giTimelineEnd');

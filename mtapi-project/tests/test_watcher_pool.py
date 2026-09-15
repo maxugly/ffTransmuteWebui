@@ -22,6 +22,7 @@ def _reset_watcher_state():
         watcher._state.pool_add_sequence = False
         watcher._state.in_dir = ""
         watcher._state.out_dir = ""
+        watcher._state.dun_dir = ""
         watcher._state.last_error = None
         watcher._state.processing = None
     watcher._processed_names.clear()

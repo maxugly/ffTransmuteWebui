@@ -22,6 +22,7 @@ def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY
             pool_add_sequence=body.get("pool_add_sequence"),
             in_dir=body.get("in_dir"),
             out_dir=body.get("out_dir"),
+            dun_dir=body.get("dun_dir"),
             target_width=body.get("target_width"),
             target_height=body.get("target_height"),
             resize_mode=body.get("resize_mode"),

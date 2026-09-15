@@ -105,12 +105,16 @@ loop (either, both, or neither — one tab, no new tabs):
    first/last, and VFR→CFR fire through the normal import funnel once the
    clip lands. Canonical pool path is always the original.
 
-Processed originals are moved to a `dun/` subfolder (collision-safe
-`stem_1.ext`) so they don't get picked up again.
+Processed originals are moved to the configured **dun** folder (default
+`in_dir/dun`, collision-safe `stem_1.ext`) so they don't get picked up again.
+Set `dun_dir` to any absolute path to archive elsewhere; leave empty for the
+default subfolder. Effective path is shown in the UI and `dun_dir_effective`
+in status.
 
 Controlled at `GET /api/watcher` (status) and `POST /api/watcher` (config).
 Both toggles default to **off** at boot — never auto-starts, even if they
-were on last run. The UI has a dedicated tab with one knob per job.
+were on last run. The UI has a dedicated tab with one knob per job plus
+separate fields for input, dun, and DNxHR output.
 
 **Status** (`GET /api/watcher`):
 
@@ -127,8 +131,11 @@ curl -s http://localhost:24590/api/watcher | jq .
   "running": false,
   "in_dir": "/home/m/incoming",
   "out_dir": "/home/m/transcoded",
+  "dun_dir": "",
   "in_dir_ok": true,
   "out_dir_ok": true,
+  "dun_dir_effective": "/home/m/incoming/dun",
+  "dun_dir_ok": true,
   "target_width": 1920,
   "target_height": 1080,
   "resize_mode": "letterbox",
@@ -153,6 +160,7 @@ curl -X POST http://localhost:24590/api/watcher \
     "pool_add_sequence": true,
     "in_dir": "/home/m/incoming",
     "out_dir": "/home/m/transcoded",
+    "dun_dir": "/home/m/incoming/dun",
     "target_width": 1920,
     "target_height": 1080,
     "resize_mode": "letterbox"
@@ -166,6 +174,7 @@ curl -X POST http://localhost:24590/api/watcher \
 | `pool_add_sequence` | bool \| null | `false` | Pool imports also append to `sequence[]` |
 | `in_dir` | string \| null | — | absolute path to watched folder (both jobs) |
 | `out_dir` | string \| null | — | absolute path for DNxHR `.mov` outputs (DNxHR job only) |
+| `dun_dir` | string \| null | `""` (= `in_dir/dun`) | absolute path where finished originals are moved (created if missing; must differ from `in_dir`/`out_dir`) |
 | `target_width` | int \| null | 1920 | AR reference width (min 2) |
 | `target_height` | int \| null | 1080 | AR reference height (min 2) |
 | `resize_mode` | string \| null | `"letterbox"` | `"letterbox"` pads to AR with black bars; `"crop"` scales up then center-crops |
@@ -181,7 +190,8 @@ the watcher always boots off.
 - Waits for file size to remain unchanged for 1.5 seconds (stabilization —
   avoids grabbing files still being copied)
 - Pool job: appends the original to the server pool file (`items[]`, plus
-  `sequence[]` when `pool_add_sequence`), then moves it to `dun/`
+  `sequence[]` when `pool_add_sequence`), then moves it to dun (default
+  `in_dir/dun`; configurable via `dun_dir`)
 - DNxHR job: ffprobe → letterbox/crop to target AR → DNxHR-LB (`dnxhd`
   codec, `yuv422p` pixel format) with PCM 16-bit audio (silent audio track
   added if source has none); output registered as a `dnxhr` proxy variant
@@ -189,7 +199,7 @@ the watcher always boots off.
   Sequence Instant RIFE interpolates from the DNxHR proxy when one exists
   and co-registers the result on the original (`source_kind: dnxhr`); the
   picker prefers project-sufficient dnxhr-derived files (rifed-DNxHR wins).
-- Moves original to `in_dir/dun/` on success (collision-safe `stem_1.ext`)
+- Moves original to dun (`dun_dir` or `in_dir/dun`) on success (collision-safe `stem_1.ext`)
 - Keeps up to 80 log lines; counts processed, failed, and pool-imported
 - DNxHR start requires `out_dir` (created if missing) and refuses
   `in_dir == out_dir`; pool-only start needs just `in_dir`

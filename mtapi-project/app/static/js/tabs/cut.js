@@ -235,10 +235,14 @@ async function renderCutForm() {
   const cmp = _cutCompareState();
   const mode = cmp.mode;
 
-  // Make sure frame sliders know the real length (not the default 100)
+  // Make sure frame sliders know the real length (not the default 100).
+  // No force: same-file revisits preserve the user's In/Out (globalInputs
+  // holds the selection); a different file still probes and resets to full
+  // clip via timeline.js. probeGlobalVideo itself also preserves on forced
+  // same-path re-probes, but we avoid the redundant fetch here.
   if (videoPath) {
     try {
-      await probeGlobalVideo(videoPath, { force: true });
+      await probeGlobalVideo(videoPath);
     } catch (_) { /* probe logs itself */ }
   }
 

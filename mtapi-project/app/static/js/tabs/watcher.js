@@ -20,6 +20,7 @@ async function fetchWatcherStatus() {
     if (typeof data.pool_add_sequence === 'boolean') state.watcher.pool_add_sequence = data.pool_add_sequence;
     if (data.in_dir != null && data.in_dir !== '') state.watcher.in_dir = data.in_dir;
     if (data.out_dir != null && data.out_dir !== '') state.watcher.out_dir = data.out_dir;
+    if (data.dun_dir != null) state.watcher.dun_dir = data.dun_dir;
     if (data.resize_mode) state.watcher.resize_mode = data.resize_mode;
     return data;
   } catch (e) {
@@ -39,6 +40,7 @@ async function postWatcherConfig(body) {
   if (typeof data.enabled === 'boolean') state.watcher.enabled = data.enabled;
   if (typeof data.pool_ingest === 'boolean') state.watcher.pool_ingest = data.pool_ingest;
   if (typeof data.pool_add_sequence === 'boolean') state.watcher.pool_add_sequence = data.pool_add_sequence;
+  if (data.dun_dir != null) state.watcher.dun_dir = data.dun_dir;
   return data;
 }
 
@@ -49,6 +51,8 @@ function renderWatcherForm() {
   const poolAddSeq = !!state.watcher.pool_add_sequence;
   const inDir = state.watcher.in_dir || st.in_dir || '';
   const outDir = state.watcher.out_dir || st.out_dir || '';
+  const dunDir = state.watcher.dun_dir ?? st.dun_dir ?? '';
+  const dunEff = st.dun_dir_effective || (inDir ? `${inDir.replace(/\/$/, '')}/dun` : '');
   const mode = state.watcher.resize_mode || st.resize_mode || 'letterbox';
   const running = !!st.running;
   const processing = st.processing || '';
@@ -108,6 +112,15 @@ function renderWatcherForm() {
     </div>
 
     <div class="form-group">
+      <label>Done (“dun”) directory — where finished originals go</label>
+      <div class="input-row">
+        <input type="text" id="watcherDunDir" placeholder="${escapeHtml(inDir ? inDir + '/dun' : '/absolute/path/to/in/dun')} (default)" value="${escapeHtml(dunDir)}">
+        <button type="button" class="btn" id="btnWatcherDunBrowse">Browse</button>
+      </div>
+      <span class="field-desc">Leave empty for <code>${escapeHtml(dunEff || '…/in/dun')}</code> (subfolder <code>dun/</code> inside input). Set an absolute path to archive elsewhere. Collision-safe <code>stem_1.ext</code>. Effective now: <code id="watcherDunEffective">${escapeHtml(dunEff || '—')}</code></span>
+    </div>
+
+    <div class="form-group">
       <label>DNxHR — output directory</label>
       <div class="input-row">
         <input type="text" id="watcherOutDir" placeholder="/absolute/path/to/out" value="${escapeHtml(outDir)}">
@@ -118,7 +131,7 @@ function renderWatcherForm() {
         <code>.mov</code> here as <code>*_resolve.mov</code>. Each output is
         registered as a <code>dnxhr</code> proxy variant of the original, so the
         Sequence file picker lists Original / dnxhr (/ rifed) from one record.
-        Sources move to a <code>dun/</code> subfolder under input when finished.
+        Originals are then moved to dun (above).
       </span>
     </div>
 
@@ -136,7 +149,7 @@ function renderWatcherForm() {
         <div>While the <strong>Pool import</strong> knob is <strong>On</strong>,
           every stabilized arrival is appended to the Video Pool straight from
           the server (works with the browser closed — pick it up on next load),
-          then moved to <code>dun/</code>. RIFE never runs here: Sequence
+          then moved to dun (above). RIFE never runs here: Sequence
           Instant-RIFE and auto first/last fire through the normal import funnel
           once the clip lands.</div>
         <label style="display:flex; align-items:center; gap:8px; margin-top:8px;">
@@ -200,6 +213,9 @@ function renderWatcherForm() {
   document.getElementById('btnWatcherInBrowse')?.addEventListener('click', () => {
     openFileBrowser('watcherInDir', true, 'dir', 'all');
   });
+  document.getElementById('btnWatcherDunBrowse')?.addEventListener('click', () => {
+    openFileBrowser('watcherDunDir', true, 'dir', 'all');
+  });
   document.getElementById('btnWatcherOutBrowse')?.addEventListener('click', () => {
     openFileBrowser('watcherOutDir', true, 'dir', 'all');
   });
@@ -216,10 +232,12 @@ function renderWatcherForm() {
   const applyPathsOnce = async () => {
     const in_dir = document.getElementById('watcherInDir')?.value?.trim() || '';
     const out_dir = document.getElementById('watcherOutDir')?.value?.trim() || '';
+    const dun_dir = document.getElementById('watcherDunDir')?.value?.trim() || '';
     const resize_mode = document.getElementById('watcherResizeMode')?.value || 'letterbox';
     const pool_add_sequence = !!document.getElementById('watcherPoolAddSeq')?.checked;
     state.watcher.in_dir = in_dir;
     state.watcher.out_dir = out_dir;
+    state.watcher.dun_dir = dun_dir;
     state.watcher.resize_mode = resize_mode;
     state.watcher.pool_add_sequence = pool_add_sequence;
     return postWatcherConfig({
@@ -228,6 +246,7 @@ function renderWatcherForm() {
       pool_add_sequence,
       in_dir,
       out_dir,
+      dun_dir,
       resize_mode,
     });
   };
@@ -303,6 +322,7 @@ function renderWatcherForm() {
     });
   };
   bindWatcherField('watcherInDir', 'in_dir');
+  bindWatcherField('watcherDunDir', 'dun_dir');
   bindWatcherField('watcherOutDir', 'out_dir');
   bindWatcherField('watcherResizeMode', 'resize_mode');
 
@@ -311,9 +331,13 @@ function renderWatcherForm() {
     if (!data) return;
     // refresh fields if server had saved paths
     const inEl = document.getElementById('watcherInDir');
+    const dunEl = document.getElementById('watcherDunDir');
     const outEl = document.getElementById('watcherOutDir');
     if (inEl && data.in_dir) inEl.value = data.in_dir;
+    if (dunEl && data.dun_dir != null) dunEl.value = data.dun_dir;
     if (outEl && data.out_dir) outEl.value = data.out_dir;
+    const effEl = document.getElementById('watcherDunEffective');
+    if (effEl && data.dun_dir_effective) effEl.textContent = data.dun_dir_effective;
     updateWatcherLiveUI(data);
   });
 
@@ -330,6 +354,7 @@ function updateWatcherLiveUI(st) {
   if (typeof st.enabled === 'boolean') state.watcher.enabled = st.enabled;
   if (typeof st.pool_ingest === 'boolean') state.watcher.pool_ingest = st.pool_ingest;
   if (typeof st.pool_add_sequence === 'boolean') state.watcher.pool_add_sequence = st.pool_add_sequence;
+  if (st.dun_dir != null) state.watcher.dun_dir = st.dun_dir;
   // Server is truth: re-sync knob visuals (covers reload-while-on; the
   // change handlers already POST before the next poll, so this converges).
   // In-flight user toggles are immune: a poll that predates their POST must
@@ -356,6 +381,18 @@ function updateWatcherLiveUI(st) {
   if (seqBox && typeof st.pool_add_sequence === 'boolean'
       && watcherPendingToggles.watcherPoolAddSeq == null) {
     seqBox.checked = !!st.pool_add_sequence;
+  }
+  const dunInput = document.getElementById('watcherDunDir');
+  if (dunInput && st.dun_dir != null && watcherPendingToggles.watcherDunDir == null) {
+    // Only sync when server dun_dir differs and user isn't mid-edit
+    if (document.activeElement !== dunInput) dunInput.value = st.dun_dir;
+  }
+  const effSpan = document.getElementById('watcherDunEffective');
+  if (effSpan && st.dun_dir_effective != null) effSpan.textContent = st.dun_dir_effective;
+  // Live-update placeholder when in_dir changes and dun_dir is empty
+  if (dunInput && !dunInput.value && st.dun_dir_effective) {
+    const ph = st.dun_dir_effective + ' (default)';
+    if (dunInput.placeholder !== ph) dunInput.placeholder = ph;
   }
   const anyOn = !!(st.enabled || st.pool_ingest);
   const running = !!st.running;
