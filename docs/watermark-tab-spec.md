@@ -1,6 +1,6 @@
 # Watermark tab (Clean section) — Spec
 
-> **Status**: Spec only. Builder follows this when implementing.
+> **Status**: Shipped (`8.069`). V1 as specified; engine #2 / SynthID-removal stay out.
 > **Hat**: Spec writer. This document + STATUS queue entry only — no app code.
 > **Upstream**: `GargantuaX/gemini-watermark-remover` (`@pilio/gemini-watermark-remover`), MIT. First engine of many: the tab is the home for all watermark / metadata / fingerprint work.
 > **Drives**: `VERSION` bump on ship (far-right DD) + STATUS top box + changelog entry.

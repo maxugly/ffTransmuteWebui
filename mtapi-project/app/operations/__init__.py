@@ -35,4 +35,5 @@ from . import (  # noqa: F401
     digicam_ops,
     cfr_ops,
     conform_ops,
+    watermark_ops,
 )

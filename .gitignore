@@ -73,3 +73,27 @@ mtapi-project/app/static/stablefluids/
 
 # Node modules
 /node_modules/
+mtapi-project/tools/**/node_modules/
+# Vendored gemini-watermark-remover: track runtime files only (bin/src minus
+# sample fixtures + manifests). Dev weight, nested git, and install outputs
+# stay local — the tab installer card rebuilds them via /ops/watermark_setup.
+mtapi-project/tools/gemini-watermark-remover/.git/
+mtapi-project/tools/gemini-watermark-remover/release/
+mtapi-project/tools/gemini-watermark-remover/public/
+mtapi-project/tools/gemini-watermark-remover/tests/
+mtapi-project/tools/gemini-watermark-remover/docs/
+mtapi-project/tools/gemini-watermark-remover/examples/
+mtapi-project/tools/gemini-watermark-remover/scripts/
+mtapi-project/tools/gemini-watermark-remover/.github/
+mtapi-project/tools/gemini-watermark-remover/src/assets/samples/
+mtapi-project/tools/gemini-watermark-remover/src/assets/video-samples/
+mtapi-project/tools/gemini-watermark-remover/AGENTS.md
+mtapi-project/tools/gemini-watermark-remover/CHANGELOG.md
+mtapi-project/tools/gemini-watermark-remover/CHANGELOG_zh.md
+mtapi-project/tools/gemini-watermark-remover/RELEASE.md
+mtapi-project/tools/gemini-watermark-remover/RELEASE_zh.md
+mtapi-project/tools/gemini-watermark-remover/README_zh.md
+mtapi-project/tools/gemini-watermark-remover/build.js
+mtapi-project/tools/gemini-watermark-remover/package-lock.json
+mtapi-project/tools/gemini-watermark-remover/pnpm-lock.yaml
+mtapi-project/tools/gemini-watermark-remover/pnpm-workspace.yaml

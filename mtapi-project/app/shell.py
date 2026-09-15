@@ -124,4 +124,10 @@ def check_tools() -> list[str]:
         found = any((Path(d) / name).is_file() for d in os.environ.get("PATH", "").split(os.pathsep))
         if not found:
             warnings.append(f"'{name}' not found on PATH — operations that need it will fail")
+    # Watermark tab (vendored gemini-watermark-remover): warn-only, fail at use.
+    import shutil as _shutil
+    if not _shutil.which("node"):
+        warnings.append("'node' not found on PATH — watermark ops will fail")
+    if not _shutil.which("pnpm") and not _shutil.which("npm"):
+        warnings.append("neither 'pnpm' nor 'npm' found on PATH — watermark setup will fail")
     return warnings

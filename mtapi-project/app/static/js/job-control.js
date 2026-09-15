@@ -27,6 +27,7 @@ import { activeTransmuteOp, transmuteOpsDetails, activeMultiMode } from '/js/tab
 import { collectDeepDreamBody } from '/js/tabs/deepdream.js';
 import { collectQrBody } from '/js/tabs/qr.js';
 import { collectScriptBody as collectScriptsBody, activeScriptOp } from '/js/tabs/scripts.js';
+import { collectWatermarkBody } from '/js/tabs/watermark.js';
 // ── Job run / cooperative stop ────────────────────────────────────────────
 // Stop is cooperative: we abort the fetch + POST /api/cancel so DeepDream
 // loops exit soon. ffmpeg/transmute mid-process may still finish the current
@@ -912,6 +913,11 @@ function resolveActiveOpAndBody() {
     const sop = activeScriptOp();
     if (!sop) { error = "Select a script first."; return { opId: '', body: null, error }; }
     opId = sop;
+    body = bb;
+  } else if (tab === 'watermark') {
+    const bb = collectWatermarkBody();
+    if (!bb || !bb.input_path) { error = "Please provide an Input path."; return { opId: '', body: null, error }; }
+    opId = 'watermark_remove';
     body = bb;
   } else if (tab === 'advanced') {
     const input = bestInput('advInput');

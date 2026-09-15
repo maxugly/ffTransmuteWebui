@@ -213,6 +213,9 @@ skills.register(app)
 from .routes import scripts
 scripts.register(app)
 
+from .routes import watermark
+watermark.register(app)
+
 def _make_endpoint(spec):
     async def endpoint(
         params: spec.params_model,  # type: ignore[name-defined]
