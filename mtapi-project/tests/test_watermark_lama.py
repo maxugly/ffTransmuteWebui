@@ -58,6 +58,15 @@ def test_rect_out_of_range_rejected_by_model():
         WatermarkLamaRemoveParams(input_path="/abs/x.png", feather_px=9)
     with pytest.raises(Exception):
         WatermarkLamaRemoveParams(input_path="/abs/x.png", device="TPU")
+    with pytest.raises(Exception):
+        WatermarkLamaRemoveParams(input_path="/abs/x.png", margin_px=300)
+    with pytest.raises(Exception):
+        WatermarkLamaRemoveParams(input_path="/abs/x.png", margin_px=-1)
+
+
+def test_margin_default_32():
+    p = WatermarkLamaRemoveParams(input_path="/abs/x.png")
+    assert p.margin_px == 32
 
 
 def test_oversize_rect_refused(tmp_path):
@@ -105,6 +114,8 @@ def test_dry_run_writes_nothing(tmp_path):
     assert r.ok is True and r.dry_run is True
     assert r.output_path is None
     assert "watermark_lama_remove" in (r.command or "")
+    assert "margin=32px" in (r.command or "")
+    assert (r.meta or {}).get("margin_px") == 32
     assert not (tmp_path / "in_clean.png").exists()
 
 
@@ -156,6 +167,70 @@ class _FakeCompiled:
 
 _FAKE_SPEC = {"image_name": "image", "mask_name": "mask",
               "output_name": "output", "size": 512}
+
+
+def test_compute_crop_box_matrix():
+    import numpy as np
+
+    m = np.zeros((240, 320), dtype=np.float32)
+    m[200:220, 260:300] = 1.0
+    assert lama_filter.compute_crop_box(320, 240, m, 0) is None  # 0 = full-frame
+    assert lama_filter.compute_crop_box(320, 240, np.zeros_like(m), 32) is None
+    box = lama_filter.compute_crop_box(320, 240, m, 32)
+    assert box == {"x0": 228, "y0": 168, "x1": 320, "y1": 240}  # clamped
+    big = np.ones((240, 320), dtype=np.float32)
+    assert lama_filter.compute_crop_box(320, 240, big, 32) is None  # full cover
+
+
+def test_crop_vs_full_consistent_fake_model():
+    import numpy as np
+
+    img = np.random.randint(0, 255, (240, 320, 3), dtype=np.uint8)
+    mask = lama_filter.rasterize_mask(320, 240, (0.80, 0.84, 0.17, 0.12), 1)
+    assert lama_filter.compute_crop_box(320, 240, mask, 32) is not None
+    full = lama_filter.inpaint_image(img, mask, _FakeCompiled(), _FAKE_SPEC,
+                                     margin_px=0)
+    crop = lama_filter.inpaint_image(img, mask, _FakeCompiled(), _FAKE_SPEC,
+                                     margin_px=32)
+    assert full.shape == img.shape == crop.shape
+    outside = mask == 0.0
+    # Composite-only-inside-mask: exact-zero pixels are source-exact, both paths.
+    assert np.abs(full[outside].astype(int) - img[outside].astype(int)).max() <= 1
+    assert np.abs(crop[outside].astype(int) - img[outside].astype(int)).max() <= 1
+
+
+def _ir_present() -> bool:
+    from app.operations.watermark_lama_ops import lama_model_dir
+    from app.filters.lama import ir_path_for
+
+    return ir_path_for(lama_model_dir()).is_file()
+
+
+@pytest.mark.skipif(not _ir_present(), reason="LaMA IR not installed")
+def test_still_fixture_outside_mask_unchanged_real_model(tmp_path):
+    """Validation bar (stills): with the REAL model, pixels where the
+    feathered mask is exactly 0 are byte-identical to the source, and the
+    hole actually changes."""
+    import cv2
+    import numpy as np
+
+    from app.filters.lama import get_compiled, introspect_ir, ir_path_for
+    from app.operations.watermark_lama_ops import lama_model_dir
+
+    src = _make_png(tmp_path / "still.png", 320, 240)
+    img = cv2.imread(str(src))
+    mask = lama_filter.rasterize_mask(320, 240, (0.80, 0.84, 0.17, 0.12), 1)
+    compiled, settled = get_compiled(lama_model_dir(), "CPU")
+    spec = introspect_ir(ir_path_for(lama_model_dir()))
+    assert settled == "CPU"
+    done = lama_filter.inpaint_image(img, mask, compiled, spec, margin_px=32)
+    assert done.shape == img.shape
+    outside = mask == 0.0
+    assert outside.sum() > 0
+    assert np.abs(done[outside].astype(int) - img[outside].astype(int)).max() == 0
+    hole = mask > 0.9
+    assert hole.sum() > 100
+    assert np.abs(done[hole].astype(int) - img[hole].astype(int)).mean() > 0.5
 
 
 def test_inpaint_round_trip_odd_dims():

@@ -22,13 +22,33 @@ Build-time introspection (2026-09-15, ov 2026.3.1, `available_devices ==
   Unmasked pixels are bit-preserved (measured mean abs diff 0.0); only
   masked pixels come from the model.
 
+Fixed-512 handling (exact path, no stretch of surviving pixels):
+- every inference input is a 512x512 canvas built as: take the source
+  array (full frame, or context crop), scale by
+  s = min(512/W, 512/H, 1.0) — downscale only, never upscale — then
+  BORDER_REFLECT_101 pad right/bottom to exactly 512x512. The mask is
+  rasterized at source res, downscaled NEAREST, padded with 0.
+- model output (0..255) is unpadded, resized LINEAR back to source size,
+  and composited: out = src*(1-m) + model*m. Composite-only-inside-mask:
+  where the feathered mask is 0 the output IS the source pixel (exact);
+  the model contributes only where m > 0.
+
+Context-crop inference (default; full-frame is the fallback):
+- the feathered mask bbox is expanded by margin_px (default 32) per side
+  and clamped to the frame; inference runs on that crop only, pasted back
+  at its origin. A small corner watermark keeps near-native resolution
+  through the fixed 512 bottleneck instead of being downscaled away with
+  the whole frame.
+- fallback to full-frame when margin_px <= 0, the mask is empty, or the
+  expanded crop covers the whole frame.
+
 Geometry per frame (input W x H):
 - scale s = min(512/W, 512/H, 1.0) — downscale only, never upscale.
 - canvas (round(W*s), round(H*s)), BORDER_REFLECT_101 padded to 512x512.
-- mask rasterized at FULL res from the normalized rect, dilated +
+- mask rasterized at source res from the normalized rect, dilated +
   blurred by feather_px, downscaled NEAREST to canvas, padded with 0.
-- inference output unpadded, resized LINEAR back to W x H, composited:
-  out = img*(1-m) + inpainted*m. Output dims = input dims always.
+- inference output unpadded, resized LINEAR back to source W x H,
+  composited: out = src*(1-m) + model*m. Output dims = input dims always.
 """
 from __future__ import annotations
 
@@ -185,18 +205,44 @@ def rasterize_mask(
     return mask
 
 
-def inpaint_image(
+def compute_crop_box(
+    w: int, h: int,
+    mask: np.ndarray,
+    margin_px: int = 32,
+) -> dict[str, int] | None:
+    """Context window around the feathered mask, expanded + clamped.
+
+    Returns {x0, y0, x1, y1} or None when the crop path must fall back to
+    full-frame (empty mask, or the expanded window covers the whole frame).
+    """
+    m = int(margin_px or 0)
+    if m <= 0:
+        return None
+    ys, xs = np.nonzero(mask > 0)
+    if xs.size == 0:
+        return None
+    x0 = max(0, int(xs.min()) - m)
+    y0 = max(0, int(ys.min()) - m)
+    x1 = min(w, int(xs.max()) + 1 + m)
+    y1 = min(h, int(ys.max()) + 1 + m)
+    if x1 - x0 <= 0 or y1 - y0 <= 0:
+        return None
+    if x0 <= 0 and y0 <= 0 and x1 >= w and y1 >= h:
+        return None  # no savings, no quality gain — full-frame fallback
+    return {"x0": x0, "y0": y0, "x1": x1, "y1": y1}
+
+
+def _run_canvas(
     bgr: np.ndarray,
-    mask_full: np.ndarray,
+    mask: np.ndarray,
     compiled: Any,
     spec: dict[str, Any],
-    *,
-    canvas: int = 512,
+    canvas: int,
 ) -> np.ndarray:
-    """Inpaint one BGR uint8 frame; shared by directory + image paths.
+    """Fixed-512 canvas pipeline on an arbitrary BGR array.
 
-    `mask_full` is full-res float32 0..1, `spec` is `introspect_ir()`.
-    Returns BGR uint8, same W x H.
+    Letterbox (downscale-only + reflect pad) → OV infer → unpad → resize
+    back → composite-only-inside-mask. Returns BGR uint8, same size as input.
     """
     h, w = bgr.shape[:2]
     s = min(canvas / w, canvas / h, 1.0)
@@ -204,7 +250,7 @@ def inpaint_image(
     small_img = cv2.resize(bgr, (cw, ch),
                            interpolation=cv2.INTER_AREA if s < 1.0
                            else cv2.INTER_LINEAR)
-    small_msk = cv2.resize(mask_full, (cw, ch),
+    small_msk = cv2.resize(mask, (cw, ch),
                            interpolation=cv2.INTER_NEAREST)
     pad_b = canvas - ch
     pad_r = canvas - cw
@@ -222,15 +268,39 @@ def inpaint_image(
     out_small = cv2.resize(out_rgb[:ch, :cw, :], (w, h),
                            interpolation=cv2.INTER_LINEAR)
     out_bgr = cv2.cvtColor(out_small, cv2.COLOR_RGB2BGR)
-    m = mask_full[:, :, None]
+    m = mask[:, :, None]
     base = bgr.astype(np.float32) / 255.0
     comp = base * (1.0 - m) + out_bgr * m
     np.clip(comp, 0.0, 1.0, out=comp)
     return (comp * 255.0 + 0.5).astype(np.uint8)
 
 
-def clear_compiled_cache() -> None:
-    _COMPILED.clear()
+def inpaint_image(
+    bgr: np.ndarray,
+    mask_full: np.ndarray,
+    compiled: Any,
+    spec: dict[str, Any],
+    *,
+    canvas: int = 512,
+    margin_px: int = 0,
+) -> np.ndarray:
+    """Inpaint one BGR uint8 frame; shared by directory + image paths.
+
+    `mask_full` is full-res float32 0..1, `spec` is `introspect_ir()`.
+    With margin_px > 0 inference runs on the expanded mask bbox only and
+    is pasted back at its origin (full-frame fallback otherwise).
+    Returns BGR uint8, same W x H.
+    """
+    h, w = bgr.shape[:2]
+    box = compute_crop_box(w, h, mask_full, margin_px) if margin_px > 0 else None
+    if box is None:
+        return _run_canvas(bgr, mask_full, compiled, spec, canvas)
+    x0, y0, x1, y1 = box["x0"], box["y0"], box["x1"], box["y1"]
+    crop = _run_canvas(bgr[y0:y1, x0:x1], mask_full[y0:y1, x0:x1],
+                       compiled, spec, canvas)
+    done = bgr.copy()
+    done[y0:y1, x0:x1] = crop
+    return done
 
 
 async def run_lama_directory(
@@ -241,6 +311,7 @@ async def run_lama_directory(
     feather_px: int = 1,
     device: str = "GPU",
     model_dir: Path | str | None = None,
+    margin_px: int = 32,
 ) -> dict[str, Any]:
     """Directory stage body: one fixed mask, LaMA per frame."""
     src = Path(src_dir).resolve()
@@ -260,6 +331,8 @@ async def run_lama_directory(
     token = job_control.current_token()
     mask_full: np.ndarray | None = None
     px_box: dict[str, int] = {}
+    crop_box: dict[str, int] | None = None
+    margin = int(margin_px or 0)
     for i, frame_path in enumerate(frames):
         job_control.check_cancelled()
         img = await asyncio.to_thread(cv2.imread, str(frame_path))
@@ -278,6 +351,7 @@ async def run_lama_directory(
                          - max(0, min(h, int(round(my * h))))),
                 "frame_w": w, "frame_h": h,
             }
+            crop_box = compute_crop_box(w, h, mask_full, margin)
         else:
             h, w = img.shape[:2]
             if (w, h) != (px_box["frame_w"], px_box["frame_h"]):
@@ -292,7 +366,8 @@ async def run_lama_directory(
                    cm: Any = compiled) -> np.ndarray:
             if token:
                 job_control.bind(token)
-            return inpaint_image(bgr, m, cm, spec, canvas=spec["size"])
+            return inpaint_image(bgr, m, cm, spec, canvas=spec["size"],
+                                 margin_px=margin)
 
         done = await asyncio.to_thread(_infer)
         ok = await asyncio.to_thread(cv2.imwrite,
@@ -312,7 +387,8 @@ async def run_lama_directory(
             token=token, watch_dir=str(dst), watch_count=total,
         )
     return {"frame_count_in": total, "frame_count_out": total,
-            "frame_count": total, "device": settled, "mask_px": px_box}
+            "frame_count": total, "device": settled, "mask_px": px_box,
+            "margin_px": margin, "crop_box": crop_box}
 
 
 def make_lama_directory(
@@ -321,6 +397,7 @@ def make_lama_directory(
     feather_px: int = 1,
     device: str = "GPU",
     model_dir: Path | str | None = None,
+    margin_px: int = 32,
     **_extra: Any,
 ):
     """Factory for the pipeline registry. Returned callable kind=directory."""
@@ -329,7 +406,7 @@ def make_lama_directory(
         return await run_lama_directory(
             src_dir, dst_dir, mask_rect=tuple(float(v) for v in mask_rect),
             feather_px=int(feather_px), device=str(device),
-            model_dir=model_dir,
+            model_dir=model_dir, margin_px=int(margin_px),
         )
 
     directory_fn.kind = "directory"  # type: ignore[attr-defined]

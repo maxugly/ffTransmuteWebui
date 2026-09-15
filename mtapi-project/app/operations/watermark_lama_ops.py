@@ -104,6 +104,7 @@ class WatermarkLamaRemoveParams(BaseModel):
     mask_w: float = Field(0.17, gt=0.0, le=1.0)
     mask_h: float = Field(0.12, gt=0.0, le=1.0)
     feather_px: int = Field(1, ge=0, le=8)
+    margin_px: int = Field(32, ge=0, le=256)
     device: Literal["GPU", "CPU", "AUTO"] = Field("GPU")
     start_frame: int = Field(1, ge=1)
     end_frame: int = Field(999999, ge=1)
@@ -208,7 +209,8 @@ async def watermark_lama_remove(p: WatermarkLamaRemoveParams) -> OperationResult
                 f"w={mask_rect[2]:.3f} h={mask_rect[3]:.3f} "
                 f"({mask_rect[2] * mask_rect[3]:.1%})")
     summary = (f"watermark_lama_remove {src.name} → {out.name} "
-               f"({p.engine}, {p.device}, {rect_txt})")
+               f"({p.engine}, {p.device}, {rect_txt}, "
+               f"margin={int(p.margin_px)}px)")
 
     if p.dry_run:
         return OperationResult(
@@ -217,7 +219,8 @@ async def watermark_lama_remove(p: WatermarkLamaRemoveParams) -> OperationResult
             stdout=f"{summary}\nWould write {out}\n",
             meta={"dry_run": True, "engine": p.engine,
                   "mask": {"x": mask_rect[0], "y": mask_rect[1],
-                           "w": mask_rect[2], "h": mask_rect[3]}},
+                           "w": mask_rect[2], "h": mask_rect[3]},
+                  "margin_px": int(p.margin_px)},
         )
 
     if is_video:
@@ -237,6 +240,7 @@ async def watermark_lama_remove(p: WatermarkLamaRemoveParams) -> OperationResult
                         feather_px=int(p.feather_px),
                         device=str(p.device),
                         model_dir=lama_model_dir(),
+                        margin_px=int(p.margin_px),
                     ),
                 ),
             ],
@@ -254,7 +258,8 @@ async def watermark_lama_remove(p: WatermarkLamaRemoveParams) -> OperationResult
         meta = dict(result.meta or {})
         meta.update({"engine": p.engine,
                      "mask": {"x": mask_rect[0], "y": mask_rect[1],
-                              "w": mask_rect[2], "h": mask_rect[3]}})
+                              "w": mask_rect[2], "h": mask_rect[3]},
+                     "margin_px": int(p.margin_px)})
         result.meta = meta
         result.command = summary
         return result
@@ -280,7 +285,8 @@ async def watermark_lama_remove(p: WatermarkLamaRemoveParams) -> OperationResult
             compiled, settled = get_compiled(lama_model_dir(), str(p.device))
             spec = introspect_ir(ir_path_for(lama_model_dir()))
             done = inpaint_image(img, mask_full, compiled, spec,
-                                 canvas=spec["size"])
+                                 canvas=spec["size"],
+                                 margin_px=int(p.margin_px))
             out.parent.mkdir(parents=True, exist_ok=True)
             if not cv2.imwrite(str(out), done):
                 raise RuntimeError(f"could not write {out}")
@@ -313,6 +319,7 @@ async def watermark_lama_remove(p: WatermarkLamaRemoveParams) -> OperationResult
         meta={"engine": p.engine, "device_settled": info["settled"],
               "mask": {"x": mx, "y": my, "w": mw, "h": mh,
                        "px": {"frame_w": info["w"], "frame_h": info["h"]}},
+              "margin_px": int(p.margin_px),
               "frame_count": 1},
     )
 

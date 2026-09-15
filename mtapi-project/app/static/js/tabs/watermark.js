@@ -175,6 +175,7 @@ function collectWatermarkLamaBody() {
     return isNaN(v) ? fallback : v;
   }
   var featherRaw = parseInt(document.getElementById('wmLamaFeather')?.value || '1', 10);
+  var marginRaw = parseInt(document.getElementById('wmLamaMargin')?.value || '32', 10);
   return {
     input_path: input,
     output_path: null,
@@ -186,6 +187,7 @@ function collectWatermarkLamaBody() {
     mask_w: Math.min(1, Math.max(0.001, _num('wmLamaW', 0.17))),
     mask_h: Math.min(1, Math.max(0.001, _num('wmLamaH', 0.12))),
     feather_px: isNaN(featherRaw) ? 1 : Math.min(8, Math.max(0, featherRaw)),
+    margin_px: isNaN(marginRaw) ? 32 : Math.min(256, Math.max(0, marginRaw)),
     device: document.getElementById('wmLamaDevice')?.value || 'GPU',
     dry_run: document.getElementById('wmDryRun')?.value === '1',
   };
@@ -345,12 +347,14 @@ function renderWatermarkForm() {
     + knobUnitHtml({ id: 'wmLamaW', label: 'Mask W', value: _saved('wmLamaW', '0.17') })
     + knobUnitHtml({ id: 'wmLamaH', label: 'Mask H', value: _saved('wmLamaH', '0.12') })
     + knobUnitHtml({ id: 'wmLamaFeather', label: 'Feather px', value: _saved('wmLamaFeather', '1') })
-    + '</div><p class="knob-row-legend">Normalized 0–1 rect (one static box for the whole job). Area capped at 25% server-side.</p></div>'
+    + knobUnitHtml({ id: 'wmLamaMargin', label: 'Crop margin px', value: _saved('wmLamaMargin', '32') })
+    + '</div><p class="knob-row-legend">Normalized 0–1 rect (one static box for the whole job). Area capped at 25% server-side. Margin = context window around the mask (0 = full-frame).</p></div>'
     + '<span data-knob-spec="wmLamaX" data-min="0" data-max="1" data-step="0.005" data-dec="3" hidden></span>'
     + '<span data-knob-spec="wmLamaY" data-min="0" data-max="1" data-step="0.005" data-dec="3" hidden></span>'
     + '<span data-knob-spec="wmLamaW" data-min="0" data-max="1" data-step="0.005" data-dec="3" hidden></span>'
     + '<span data-knob-spec="wmLamaH" data-min="0" data-max="1" data-step="0.005" data-dec="3" hidden></span>'
     + '<span data-knob-spec="wmLamaFeather" data-min="0" data-max="8" data-step="1" data-dec="0" hidden></span>'
+    + '<span data-knob-spec="wmLamaMargin" data-min="0" data-max="256" data-step="1" data-dec="0" hidden></span>'
     + '<div class="form-row"><span class="form-row-hint" id="wmLamaReadout"></span></div>'
     + '<div class="form-row"><label for="wmLamaDevice">Device</label>'
     + '<select id="wmLamaDevice">'
@@ -431,6 +435,11 @@ function renderWatermarkForm() {
     knobId: 'wmLamaFeatherKnob', indicatorId: 'wmLamaFeatherKnobInd',
     valueId: 'wmLamaFeatherVal', hiddenId: 'wmLamaFeather',
     min: 0, max: 8, step: 1, decimals: 0,
+  });
+  setupContinuousKnob({
+    knobId: 'wmLamaMarginKnob', indicatorId: 'wmLamaMarginKnobInd',
+    valueId: 'wmLamaMarginVal', hiddenId: 'wmLamaMargin',
+    min: 0, max: 256, step: 1, decimals: 0,
   });
 
   document.getElementById('btnWmInstall')?.addEventListener('click', function() { runWatermarkSetup('install'); });
