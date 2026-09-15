@@ -539,6 +539,13 @@
     "summary": "Single-Clip Ops zoom/pan dropdown op + POST /ops/zoom: stable Pillow lerp or raw ffmpeg zoompan, 11 presets, auto image/video detect."
   },
   {
+    "file": "watermark-lama-spec.md",
+    "path": "docs/watermark-lama-spec.md",
+    "category": "Operation",
+    "status": "Audited (2 passes) — ready for builder",
+    "summary": "Watermark tab engine #2: LaMA inpainting via direct OpenVINO IR on Intel iGPU. Static user rectangle (tab-local preview + x/y/w/h knobs), dump -> app/filters/lama.py (directory) -> encode. Weights under junk/models/lama/."
+  },
+  {
     "file": "qr-illusion-art-spec.md",
     "path": "docs/qr-illusion-art-spec.md",
     "category": "Operation",
