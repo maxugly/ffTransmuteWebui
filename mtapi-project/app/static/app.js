@@ -49,6 +49,7 @@ import { renderNotesForm } from '/js/tabs/notes.js';
 import { renderSkillsForm } from '/js/tabs/skills.js';
 import { renderScriptsForm } from '/js/tabs/scripts.js';
 import { renderWatermarkForm } from '/js/tabs/watermark.js';
+import { renderEraseForm } from '/js/tabs/erase.js';
 import { renderStableFluidsForm } from '/js/tabs/stablefluids.js';
 import { renderSettingsForm, applyUiTweaks, readStoredScrollbarWidth } from '/js/tabs/settings.js';
 import { renderJobsForm, stopJobsPoll } from '/js/tabs/jobs.js';
@@ -480,6 +481,7 @@ const TAB_ACCEPTS = {
   settings:    'none',
   scripts:     'any',
   watermark:   'any',
+  erase:       'any',
   stablefluids:'none',
   refs:        'none',
 };
@@ -1000,6 +1002,7 @@ function switchTab(tab) {
   if (tab === 'skills') title = 'Skills · AI model skills';
   if (tab === 'scripts') title = 'Script Runner';
   if (tab === 'watermark') title = 'Watermark · Clean';
+  if (tab === 'erase') title = 'Erase · Clean';
   if (tab === 'settings') title = 'Settings';
   if (tab === 'stablefluids') title = 'Stable Fluids · Sim';
   // References tab: no big header (sidebar already shows active item)
@@ -1229,6 +1232,8 @@ function renderTabForm(tab) {
     renderScriptsForm();
   } else if (tab === 'watermark') {
     renderWatermarkForm();
+  } else if (tab === 'erase') {
+    renderEraseForm();
   } else if (tab === 'stablefluids') {
     renderStableFluidsForm();
   } else if (tab === 'settings') {

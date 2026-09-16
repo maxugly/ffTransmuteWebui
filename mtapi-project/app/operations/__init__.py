@@ -36,5 +36,5 @@ from . import (  # noqa: F401
     cfr_ops,
     conform_ops,
     watermark_ops,
-    watermark_lama_ops,
+    erase_ops,
 )
