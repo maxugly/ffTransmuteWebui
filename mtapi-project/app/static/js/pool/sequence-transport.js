@@ -8,6 +8,7 @@ import { findPoolItem, updateSeqTotalTime } from '/js/pool/sequence-model.js';
 import { updateSelectionHighlights, displayFocusPath, updatePoolFocusFrame } from '/js/pool/sequence-select.js';
 import { _maybeAutoRifeEntry } from '/js/pool/sequence-rife.js';
 import { renderSequenceBox } from '/js/pool/sequence-composer.js';
+import { normTagColor, sequenceUseCounts } from '/js/pool/sequence-tag.js';
 
 function updateSeqTransportUI() {
   const n = state.pool.sequence.length;
@@ -143,12 +144,34 @@ function updateSeqClipSettings() {
     if (entry.targetDuration != null && entry.targetDuration > 0 && native > 0) {
       const factor = entry.targetDuration / native;
       const pct = Math.round(factor * 100);
-      hint.textContent = `native ${formatDurationExact(native)} \u2192 ${formatDurationExact(entry.targetDuration)} (${pct}% speed ${factor >= 1 ? 'slower' : 'faster'})`;
+      hint.textContent = `native ${formatDurationExact(native)} → ${formatDurationExact(entry.targetDuration)} (${pct}% speed ${factor >= 1 ? 'slower' : 'faster'})`;
     } else if (native > 0) {
       hint.textContent = `native ${formatDurationExact(native)} (no stretch)`;
     } else {
       hint.textContent = 'set target length to stretch in time';
     }
+  }
+  // Revisit tag: the button itself carries the color (nothing else is recolored).
+  const tagBtn = document.getElementById('seqTagBtn');
+  if (tagBtn) {
+    const tag = normTagColor(entry.tagColor);
+    tagBtn.classList.toggle('is-tagged', !!tag);
+    tagBtn.style.background = tag || '';
+    tagBtn.title = tag
+      ? `Tag: ${tag} — click to change the revisit mark`
+      : 'Tag this clip — click to pick a revisit color';
+    tagBtn.dataset.seqId = String(entry.id);
+  }
+  // Usage counter: how many chips share this clip's original path.
+  const useEl = document.getElementById('seqUseCount');
+  if (useEl) {
+    const rec = sequenceUseCounts().get(entry.path);
+    const n = rec ? rec.count : 1;
+    const pos = rec ? rec.positions : [idx + 1];
+    useEl.textContent = `in sequence ${n}× (#${pos.join(', #')})`;
+    useEl.title = n > 1
+      ? `This clip appears ${n} times in the sequence at positions ${pos.join(', ')}`
+      : 'This clip appears once in the sequence';
   }
 }
 

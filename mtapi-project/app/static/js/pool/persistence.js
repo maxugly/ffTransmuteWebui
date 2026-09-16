@@ -341,11 +341,16 @@ function buildPoolStatePayload() {
       const n = (td != null && td !== '' && Number.isFinite(Number(td)) && Number(td) > 0)
         ? Number(td)
         : null;
+      // Revisit tag: lowercase #rrggbb or null (validated, never trusted raw).
+      const _tag = (typeof s.tagColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(s.tagColor.trim()))
+        ? s.tagColor.trim().toLowerCase()
+        : null;
       return {
         path: s.path,
         name: s.name || basename(s.path),
         target_duration: n,
         _had_target: !!s._hadTarget,
+        tag_color: _tag,
         variant_path: s.variantPath || null,
         conformed_path: s.conformedPath || null,
         conform_signature: s.conformSignature || null,
@@ -456,12 +461,17 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
     const cp = s.conformed_path ?? s.conformedPath ?? null;
     const csig = s.conform_signature ?? s.conformSignature ?? null;
     const cstat = s.conform_status ?? s.conformStatus ?? (cp ? 'valid' : null);
+    const _rawTag = s.tag_color ?? s.tagColor ?? null;
+    const _tag = (typeof _rawTag === 'string' && /^#[0-9a-fA-F]{6}$/.test(_rawTag.trim()))
+      ? _rawTag.trim().toLowerCase()
+      : null;
     return {
       id: nextSeqId(),
       path: s.path,
       name: s.name || basename(s.path),
       targetDuration: td,
       _hadTarget: !!s._had_target,
+      tagColor: _tag,
       variantPath: vp,
       conformedPath: cp,
       conformSignature: (csig && typeof csig === 'object') ? csig : null,

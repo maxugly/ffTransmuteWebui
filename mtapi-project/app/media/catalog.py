@@ -708,6 +708,8 @@ class CatalogIndex:
             for src, dst in (
                 ("target_duration", "target_duration"),
                 ("targetDuration", "target_duration"),
+                ("tag_color", "tag_color"),
+                ("tagColor", "tag_color"),
                 ("variant_path", "variant_path"),
                 ("variantPath", "variant_path"),
                 ("rife_multiplier", "rife_multiplier"),
@@ -728,6 +730,15 @@ class CatalogIndex:
                     elif dst == "conform_signature":
                         if isinstance(it[src], dict):
                             entry[dst] = it[src]
+                    elif dst == "tag_color":
+                        # Revisit tag: lowercase #rrggbb only, junk never sticks.
+                        v = it[src]
+                        if isinstance(v, str):
+                            s = v.strip().lower()
+                            if len(s) == 7 and s.startswith("#") and all(
+                                c in "0123456789abcdef" for c in s[1:]
+                            ):
+                                entry[dst] = s
                     else:
                         entry[dst] = it[src]
             out.append(entry)

@@ -9,3 +9,4 @@ export { updateSeqTransportUI, findSelectedSeqIndex, moveSelectedInSequence, upd
 export { peekVariants, _showSeqVariantMenu, _fetchVariants, _fetchVariantsBatch } from '/js/pool/sequence-variants.js';
 export { refreshRifeNeed, attachCachedRifeVariants, recoverSequenceVariants, setInstantHydrationGate, armInstantRife, disarmInstantRife, ensureSequenceMetaAndInstantScan, _maybeAutoRifeAll, getInstantRifeQueueSnapshot } from '/js/pool/sequence-rife.js';
 export { conformBadgeForEntry, updateStitchButton, invalidateConforms, maybeAutoConformEntry, noteConformDone } from '/js/pool/sequence-conform.js';
+export { SEQ_TAG_COLORS, normTagColor, sequenceUseCounts, setEntryTagColor, openTagPicker, closeTagPicker } from '/js/pool/sequence-tag.js';

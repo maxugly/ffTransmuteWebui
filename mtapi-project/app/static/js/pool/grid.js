@@ -20,6 +20,7 @@ import {
   seqPlay, seqPause, seqStop, seqPrev, seqNext,
   _maybeAutoRifeAll, setSeqTokenSize, applySeqTokenSize,
 } from '/js/pool/sequence.js';
+import { openTagPicker } from '/js/pool/sequence-tag.js';
 import {
   selectPoolItem, removePoolItem, clearPool,
   addPathsToPool, importPoolFiles, importPoolFolder,
@@ -674,6 +675,15 @@ function _bindSequencePanel() {
     if (state.pool.instantRife && state.pool.useRife) _maybeAutoRifeAll({ quiet: true });
   });
 
+  document.getElementById('seqTagBtn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const idx = findSelectedSeqIndex();
+    if (idx < 0) return;
+    const entry = state.pool.sequence[idx];
+    if (!entry) return;
+    openTagPicker(e.currentTarget, entry.id);
+  });
+
   const useRifeEl = document.getElementById('poolUseRife');
   const instantRifeEl = document.getElementById('poolInstantRife');
   const targetFpsEl = document.getElementById('poolTargetFps');
@@ -753,6 +763,10 @@ function _composeHtml() {
             </label>
             <button type="button" class="btn pool-info-mini" id="btnSeqClipDurClear" title="Use original duration">Native</button>
             <span class="seq-clip-settings-hint" id="seqClipDurHint"></span>
+            <label class="pool-opt-label" title="Revisit mark: per-chip color tag, independent of the Time stretch colors. The button itself shows the color.">Tag
+              <button type="button" class="seq-tag-btn" id="seqTagBtn" title="Tag this clip — click to pick a revisit color"></button>
+            </label>
+            <span class="seq-clip-settings-hint" id="seqUseCount" title="How many sequence chips share this clip's source file"></span>
           </div>
           <div class="pool-sequence-bar">
             <div class="pool-sequence-opts">

@@ -941,6 +941,111 @@
   font-weight: 700;
 }
 
+/* Revisit tag block: #-sized, filled with the chosen color. Untagged is a
+   dashed outline. Never drives token background or duration colors. */
+.seq-token-tag {
+  display: inline-block;
+  width: 1.35em;
+  height: 1.35em;
+  flex-shrink: 0;
+  border-radius: 4px;
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.seq-token-tag:hover {
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.6);
+}
+.seq-token-tag.is-tagged {
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+/* Usage counter badge: neutral chrome, only shows when path is used >1. */
+.seq-use-badge {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.18);
+  color: #cbd5e1;
+  font-size: 0.82em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: 0 4px;
+  line-height: 1.35em;
+  white-space: nowrap;
+}
+
+/* Selected-clip panel tag button: the button itself shows the color. */
+.seq-tag-btn {
+  width: 1.7em;
+  height: 1.7em;
+  border-radius: 5px;
+  border: 1px dashed rgba(255, 255, 255, 0.35);
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  vertical-align: middle;
+}
+.seq-tag-btn:hover {
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.65);
+}
+.seq-tag-btn.is-tagged {
+  border-style: solid;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* 32-color grid popover */
+.seq-tag-pop {
+  background: #101724;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+  width: max-content;
+  max-width: calc(100vw - 16px);
+}
+.seq-tag-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 22px);
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.seq-tag-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  padding: 0;
+}
+.seq-tag-swatch:hover {
+  border-color: #fff;
+  transform: scale(1.12);
+}
+.seq-tag-swatch.is-selected {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+.seq-tag-clear {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+  border-radius: 4px;
+  padding: 3px 0;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.seq-tag-clear:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+}
+
 .seq-token-name {
   overflow: hidden;
   text-overflow: ellipsis;

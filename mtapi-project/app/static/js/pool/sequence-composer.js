@@ -10,6 +10,7 @@ import { refreshRifeNeed, _resolvedTargetFps, _rifeBadgeForEntry, _scheduleInsta
 import { peekVariants, _fetchVariants, _fetchVariantsBatch, _normVariantKey, _showSeqVariantMenu } from '/js/pool/sequence-variants.js';
 import { updateSeqTransportUI, updateSeqClipSettings, seqClipSpeedInfo, seqClipTokenTitle, seqStop } from '/js/pool/sequence-transport.js';
 import { conformBadgeForEntry, updateStitchButton, maybeAutoConformEntry } from '/js/pool/sequence-conform.js';
+import { normTagColor, sequenceUseCounts, openTagPicker } from '/js/pool/sequence-tag.js';
 
 function setupSequenceDropZone() {
   installPoolScrollPaint(applyPoolHoverAtPoint);
@@ -80,6 +81,7 @@ function addPathToSequence(path, insertAt = null) {
     name,
     targetDuration: null, // seconds; null = native length
     _hadTarget: false,
+    tagColor: null, // revisit mark; null = untagged (see sequence-tag.js)
     variantPath: (state.pool.selectedVariantPaths || {})[path] || null,
     conformedPath: null,
     conformSignature: null,
@@ -128,6 +130,7 @@ function addPathsToSequence(paths) {
       name: item?.name || basename(path),
       targetDuration: null, // seconds; null = native length
       _hadTarget: false,
+      tagColor: null, // revisit mark; null = untagged (see sequence-tag.js)
       variantPath: (state.pool.selectedVariantPaths || {})[path] || null,
       conformedPath: null,
       conformSignature: null,
@@ -268,6 +271,8 @@ function renderSequenceBox(opts) {
   // either turn this loop O(n²) (347 tokens ≈ seconds of forced reflow).
   const _renderTarget = _resolvedTargetFps();
   const _tokenMinW = getComputedStyle(box).getPropertyValue('--seq-token-min-w').trim() || '152px';
+  // Usage counts grouped by original path (one pass — not per token).
+  const _useCounts = sequenceUseCounts();
 
   state.pool.sequence.forEach((entry, idx) => {
     const tok = document.createElement('span');
@@ -302,10 +307,22 @@ function renderSequenceBox(opts) {
 
     // Two-row layout: name on top; controls (dur / ORIG / badge / ×) on bottom
     // so badges never spill onto neighboring chips.
+    // Top row also owns the tag block (#-sized revisit mark, independent of
+    // the Time speed colors) and the ×N usage badge (same path >1 in seq).
+    const _tag = normTagColor(entry.tagColor);
+    const _use = _useCounts.get(entry.path);
+    const _useBadge = (_use && _use.count > 1)
+      ? `<span class="seq-use-badge" title="In sequence ${_use.count}× (#${_use.positions.join(', #')})">&times;${_use.count}</span>`
+      : '';
+    const _tagTitle = _tag
+      ? `Tag: ${_tag} — click to change the revisit mark`
+      : 'Tag this clip — click to pick a revisit color';
     tok.innerHTML = `
       <span class="seq-token-row seq-token-row-top">
         <span class="seq-token-idx">${idx + 1}</span>
+        <button type="button" class="seq-token-tag${_tag ? ' is-tagged' : ''}"${_tag ? ` style="background:${_tag}"` : ''} title="${escapeHtml(_tagTitle)}" aria-label="${escapeHtml(_tagTitle)}"></button>
         <span class="seq-token-name">${escapeHtml(entry.name)}</span>
+        ${_useBadge}
         <button type="button" class="seq-token-x" title="Remove from sequence">&cross;</button>
       </span>
       <span class="seq-token-row seq-token-row-bot">
@@ -323,6 +340,14 @@ function renderSequenceBox(opts) {
         const currentPath = entry.variantPath || entry.path;
         const variants = peekVariants(entry.path) || await _fetchVariants(entry.path);
         _showSeqVariantMenu(varBtn, entry, variants, currentPath);
+      });
+    }
+
+    const tagBtn = tok.querySelector('.seq-token-tag');
+    if (tagBtn) {
+      tagBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openTagPicker(tagBtn, entry.id);
       });
     }
 
@@ -378,7 +403,7 @@ function renderSequenceBox(opts) {
     }
 
     tok.addEventListener('click', (e) => {
-      if (e.target.closest('.seq-token-x') || e.target.closest('.seq-token-var') || e.target.closest('.seq-rife-badge') || e.target.closest('.seq-conform-badge')) return;
+      if (e.target.closest('.seq-token-x') || e.target.closest('.seq-token-var') || e.target.closest('.seq-token-tag') || e.target.closest('.seq-rife-badge') || e.target.closest('.seq-conform-badge')) return;
       state.pool.playback.index = idx;
       state.pool.selectedSeqId = entry.id;
       selectPoolItem(entry.path); // also selects matching library tile

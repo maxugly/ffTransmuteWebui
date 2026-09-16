@@ -147,6 +147,22 @@ def _opt_float(value: Any) -> float | None:
         return None
 
 
+_TAG_COLOR_RE = None  # lazy compiled below
+
+
+def _opt_tag_color(value: Any) -> str | None:
+    """Revisit tag: lowercase #rrggbb or None (never trusted raw)."""
+    import re
+
+    global _TAG_COLOR_RE
+    if _TAG_COLOR_RE is None:
+        _TAG_COLOR_RE = re.compile(r"^#[0-9a-f]{6}$")
+    if not isinstance(value, str):
+        return None
+    s = value.strip().lower()
+    return s if _TAG_COLOR_RE.match(s) else None
+
+
 def _schema_version(raw: Any) -> int:
     """Missing or malformed versions are treated as schema v1."""
     n = _opt_int(raw)
@@ -327,6 +343,10 @@ def _normalize_sequence_entries(
         parsed_td = _opt_float(td)
         if parsed_td is not None and parsed_td > 0:
             entry["target_duration"] = parsed_td
+        if isinstance(it, dict):
+            _tag = _opt_tag_color(it.get("tag_color") or it.get("tagColor"))
+            if _tag:
+                entry["tag_color"] = _tag
         cp = it.get("conformed_path") or it.get("conformedPath") if isinstance(it, dict) else None
         if cp:
             try:

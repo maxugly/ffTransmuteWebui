@@ -307,3 +307,17 @@
 ### 000.000.7.013
 - Datamosh: Implemented Mosh-ups (from Parker Higgins' automated datamoshing from multiple video sources technique). Added `video` and `shuffle` inject modes to Visual Hijack.
 - `_resolve_payload_stills` and `_create_payload_yuv_from_stills` pipelines process multi-image/frame streams to stitch into MPEG-2 payload P-frames.
+
+## 000.000.8.070 — Sequence clip tag + usage counter (2026-09-16)
+
+Per-chip revisit color tag (32-grid popover + Clear, no wheel) with a `#`-sized
+tag block on each sequence chip and the same control in the Selected-clip
+panel; token background and Time speed colors untouched. Usage counter groups
+by original path: neutral `×N` badge on chips used more than once plus an
+`in sequence N× (#a, #b)` positions line in the panel. Tag persists as
+`tag_color` through session autosave and named projects. Live-proven with real
+clicks on an isolated server (pick/clear/independence/reload round-trip, zero
+console errors); 261 pytest green (8 new `test_sequence_tags.py`). Caught live:
+stray braces from the transport edit broke the module graph in-browser while
+plain `node --check` stayed green — use `node --input-type=module --check`
+for ESM.
