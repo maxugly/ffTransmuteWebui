@@ -252,7 +252,7 @@ def _normalize_media_entry(
             "first": bool(failed_raw.get("first")),
             "last": bool(failed_raw.get("last")),
         }
-    return {
+    out_entry: dict[str, Any] = {
         "path": key,
         "name": it.get("name") or path.name,
         "hash": _normalize_hash(it.get("hash")),
@@ -264,6 +264,15 @@ def _normalize_media_entry(
         "open_count": _opt_int(it.get("open_count")),
         "thumbsFailed": thumbs_failed,
     }
+    # Erase-pipeline lineage identity (video pool; images never carry it).
+    try:
+        from .lineage import normalize_lineage_id as _norm_lid
+        _lid = _norm_lid(it.get("lineage_id") or it.get("lineageId"))
+        if _lid:
+            out_entry["lineage_id"] = _lid
+    except Exception:
+        pass
+    return out_entry
 
 
 def _normalize_media_entries(
@@ -379,6 +388,37 @@ def _normalize_sequence_entries(
             rn = raw_dict.get("rife_need") or raw_dict.get("rifeNeed")
         if rn in ("rifed", "needsRife", "noRifeNeeded"):
             entry["rife_need"] = rn
+        # Erase-pipeline lineage refs (spec §6). Occurrence identity stays
+        # sequence[].id (frontend); lineage groups occurrences of one source.
+        if raw_dict:
+            try:
+                from .lineage import normalize_lineage_id as _norm_lid
+                _lid = _norm_lid(raw_dict.get("lineage_id") or raw_dict.get("lineageId"))
+                if _lid:
+                    entry["lineage_id"] = _lid
+            except Exception:
+                pass
+            _cp = raw_dict.get("clean_path") or raw_dict.get("cleanPath")
+            if isinstance(_cp, str) and _cp.strip():
+                try:
+                    _cpp = Path(_cp.strip()).expanduser()
+                    entry["clean_path"] = str(_cpp.resolve()) if _cpp.exists() else str(_cp.strip())
+                except OSError:
+                    entry["clean_path"] = str(_cp.strip())
+            _cs = raw_dict.get("clean_signature") or raw_dict.get("cleanSignature")
+            if isinstance(_cs, dict):
+                entry["clean_signature"] = _cs
+            _em = raw_dict.get("erase_mask_id") or raw_dict.get("eraseMaskId")
+            if isinstance(_em, str) and _em.strip():
+                entry["erase_mask_id"] = _em.strip()
+            _es = raw_dict.get("erase_settings") or raw_dict.get("eraseSettings")
+            if isinstance(_es, dict):
+                entry["erase_settings"] = {
+                    k: _es[k] for k in (
+                        "hd_strategy", "crop_trigger", "crop_margin",
+                        "resize_limit", "device",
+                    ) if k in _es
+                }
         if raw_dict is None:
             out.append(entry)
             continue
@@ -548,8 +588,39 @@ def _normalize_pool_payload(
         "project_path": payload.get("project_path") or None,
         "project_name": payload.get("project_name") or None,
         "project_dirty": bool(payload.get("project_dirty")),
+        "lineages": _normalize_lineages(payload.get("lineages")),
         "updated_at": time.time(),
     }
+
+
+def _normalize_lineages(raw: Any) -> dict[str, dict[str, Any]]:
+    """Lineage reference mirror (spec §6): valid UUID keys only, dict values.
+
+    The mask bytes live in the lineage store; the pool snapshot keeps the
+    reference (original path, mask id/path, dims, erase settings) so a
+    named project reloads mask state without media reads.
+    """
+    out: dict[str, dict[str, Any]] = {}
+    if not isinstance(raw, dict):
+        return out
+    try:
+        from .lineage import normalize_lineage_id as _norm_lid
+    except Exception:
+        return out
+    for key, val in raw.items():
+        lid = _norm_lid(key)
+        if not lid or not isinstance(val, dict):
+            continue
+        rec: dict[str, Any] = {}
+        op = val.get("original_path") or val.get("path")
+        if isinstance(op, str) and op.strip():
+            rec["original_path"] = op.strip()
+        for f in ("mask_id", "mask_path", "width", "height", "threshold",
+                  "erase_settings", "updated_at"):
+            if val.get(f) is not None:
+                rec[f] = val[f]
+        out[lid] = rec
+    return out
 
 
 def _record_thumb_flags(content_hash: str, rec: dict[str, Any] | None) -> tuple[dict[str, bool], dict[str, bool]]:

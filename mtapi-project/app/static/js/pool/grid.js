@@ -432,6 +432,9 @@ function zoomBindings(root) {
 
 function _bindSequencePanel() {
   document.getElementById('btnPoolStitch')?.addEventListener('click', stitchPoolSequence);
+  import('/js/pool/sequence-erase.js').then((m) => {
+    try { m.initSequenceErase(); } catch (_) { /* erase panel optional */ }
+  }).catch(() => {});
   document.getElementById('btnPoolOutBrowse')?.addEventListener('click', () => {
     window.openFileBrowser('poolOutput', false, 'file_save');
   });
@@ -767,6 +770,7 @@ function _composeHtml() {
               <button type="button" class="seq-tag-btn" id="seqTagBtn" title="Tag this clip — click to pick a revisit color"></button>
             </label>
             <span class="seq-clip-settings-hint" id="seqUseCount" title="How many sequence chips share this clip's source file"></span>
+            <div class="seq-erase-box" id="seqEraseBox" hidden></div>
           </div>
           <div class="pool-sequence-bar">
             <div class="pool-sequence-opts">
@@ -852,6 +856,8 @@ function _composeHtml() {
               </svg>
               Stitch Sequence
             </button>
+            <button class="btn seq-ctrl" id="btnEraseRunAll" type="button" title="Erase → RIFE → Conform every masked Sequence lineage (deduped, originals untouched)">Erase▸Run</button>
+            <button class="btn seq-ctrl" id="btnEraseClear" type="button" title="Clear erase pipeline progress/status states">Erase▸Clear</button>
           </div>
         </div>
       </div>

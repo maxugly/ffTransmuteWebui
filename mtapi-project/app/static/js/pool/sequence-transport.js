@@ -162,6 +162,12 @@ function updateSeqClipSettings() {
       : 'Tag this clip — click to pick a revisit color';
     tagBtn.dataset.seqId = String(entry.id);
   }
+  // Erase pipeline panel (dynamic import: erase.js also touches the composer).
+  try {
+    import('/js/pool/sequence-erase.js').then((m) => {
+      try { m.updateErasePanel(); } catch (_) { /* panel optional */ }
+    }).catch(() => {});
+  } catch (_) { /* panel optional */ }
   // Usage counter: how many chips share this clip's original path.
   const useEl = document.getElementById('seqUseCount');
   if (useEl) {

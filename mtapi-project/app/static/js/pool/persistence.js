@@ -98,6 +98,7 @@ function serializePoolItem(item) {
     history_count: serializeCounter(item.history_count ?? item.meta?.history_count),
     open_count: serializeCounter(item.open_count ?? item.meta?.open_count),
     thumbsFailed: item.thumbsFailed || null,
+    lineage_id: item.lineageId || null,
   };
 }
 
@@ -117,6 +118,7 @@ function hydratePoolItem(it) {
     open_count: serializeCounter(it.open_count),
     thumbs: it.thumbs || null,
     thumbsFailed: it.thumbsFailed || it.thumbs_failed || null,
+    lineageId: it.lineage_id || it.lineageId || null,
   };
 }
 
@@ -355,6 +357,11 @@ function buildPoolStatePayload() {
         conformed_path: s.conformedPath || null,
         conform_signature: s.conformSignature || null,
         conform_status: s.conformStatus || null,
+        lineage_id: s.lineageId || null,
+        clean_path: s.cleanPath || null,
+        clean_signature: s.cleanSignature || null,
+        erase_mask_id: s.eraseMaskId || null,
+        erase_settings: s.eraseSettings || null,
         // Remember densify strength so Instant does not re-RIFE after reload
         rife_multiplier: (s._rifeMultiplier != null && s._rifeMultiplier > 0)
           ? Number(s._rifeMultiplier)
@@ -392,6 +399,8 @@ function buildPoolStatePayload() {
     seq_token_w: state.pool.seqTokenW ?? 2,
     seq_token_h: state.pool.seqTokenH ?? 2,
     layout: ensurePoolLayout(),
+    lineages: (state.pool.lineages && typeof state.pool.lineages === 'object')
+      ? state.pool.lineages : {},
     project_name: state.project.name || null,
     project_path: state.project.path || null,
     // Session-only: whether named project file may lag the desk (never auto-written).
@@ -483,6 +492,18 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
         ? s.rife_need
         : ((vp && rm) ? 'rifed' : null),
       _rifeStatus: (vp && rm) ? 'done' : null,
+      // Erase pipeline lineage refs (spec §6). Occurrence id stays local.
+      lineageId: (typeof (s.lineage_id ?? s.lineageId) === 'string'
+        && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s.lineage_id ?? s.lineageId))
+        ? (s.lineage_id ?? s.lineageId) : null,
+      cleanPath: (typeof (s.clean_path ?? s.cleanPath) === 'string' && (s.clean_path ?? s.cleanPath)) || null,
+      cleanSignature: ((s.clean_signature ?? s.cleanSignature) && typeof (s.clean_signature ?? s.cleanSignature) === 'object')
+        ? (s.clean_signature ?? s.cleanSignature) : null,
+      eraseMaskId: (typeof (s.erase_mask_id ?? s.eraseMaskId) === 'string' && (s.erase_mask_id ?? s.eraseMaskId)) || null,
+      eraseSettings: ((s.erase_settings ?? s.eraseSettings) && typeof (s.erase_settings ?? s.eraseSettings) === 'object')
+        ? (s.erase_settings ?? s.eraseSettings) : null,
+      eraseRunStatus: null,
+      eraseRunError: null,
     };
   });
   state.pool.selectedPath = data.selected_path || null;
@@ -512,6 +533,8 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
   state.pool.conformTargetFps = data.conform_target_fps || null;
   state.pool.autoConformAfterRife = data.auto_conform_after_rife !== false;
   state.pool.selectedVariantPaths = data.selected_variant_paths || {};
+  state.pool.lineages = (data.lineages && typeof data.lineages === 'object')
+    ? data.lineages : {};
 
   // Image Pool (v2; missing images → [])
   if (!state.imagePool) {
@@ -593,6 +616,14 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
     import('/js/pool/grid.js').then((m) => m.renderPoolGrid()).catch(() => {});
   } else if (state.activeTab === 'images' && document.getElementById('imgPoolGrid')) {
     import('/js/pool/image-pool.js').then((m) => m.renderImagePoolGrid()).catch(() => {});
+  }
+  // Same race for the Sequence strip: a fast tab click renders the empty
+  // placeholder before restore lands. Re-render from persisted records only
+  // (skipInstantKick: restore never arms Instant — spec §8.2/§8.3).
+  if (document.getElementById('poolSequenceBox') && (state.pool.sequence || []).length) {
+    import('/js/pool/sequence-composer.js').then((m) => {
+      try { m.renderSequenceBox({ skipInstantKick: true }); } catch (_) { /* ignore */ }
+    }).catch(() => {});
   }
 }
 

@@ -1,6 +1,6 @@
 # Sequence Erase → RIFE → Conform Pipeline Spec
 
-> **Status:** Ready to build (docs-only proposal, 2026-09-16). No VERSION bump.
+> **Status:** Shipped (`8.071`, 2026-09-16) — implemented as specified; see STATUS top box.
 > **Related:** `erase-tab-spec.md` · `sequence_rife_interpolation_spec.md` ·
 > `sequence-conform-copy-spec.md` · `universal-persistence-spec.md` ·
 > `server-memory-catalog-spec.md`

@@ -37,4 +37,5 @@ from . import (  # noqa: F401
     conform_ops,
     watermark_ops,
     erase_ops,
+    erase_pipeline_ops,
 )

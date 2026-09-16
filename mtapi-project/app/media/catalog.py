@@ -723,6 +723,16 @@ class CatalogIndex:
                 ("conformSignature", "conform_signature"),
                 ("conform_status", "conform_status"),
                 ("conformStatus", "conform_status"),
+                ("lineage_id", "lineage_id"),
+                ("lineageId", "lineage_id"),
+                ("clean_path", "clean_path"),
+                ("cleanPath", "clean_path"),
+                ("clean_signature", "clean_signature"),
+                ("cleanSignature", "clean_signature"),
+                ("erase_mask_id", "erase_mask_id"),
+                ("eraseMaskId", "erase_mask_id"),
+                ("erase_settings", "erase_settings"),
+                ("eraseSettings", "erase_settings"),
             ):
                 if src in it and it[src] is not None and dst not in entry:
                     if dst in ("variant_path", "conformed_path"):
@@ -739,6 +749,14 @@ class CatalogIndex:
                                 c in "0123456789abcdef" for c in s[1:]
                             ):
                                 entry[dst] = s
+                    elif dst == "lineage_id":
+                        try:
+                            from .lineage import normalize_lineage_id as _norm_lid
+                            _lid = _norm_lid(it[src])
+                            if _lid:
+                                entry[dst] = _lid
+                        except Exception:
+                            pass
                     else:
                         entry[dst] = it[src]
             out.append(entry)

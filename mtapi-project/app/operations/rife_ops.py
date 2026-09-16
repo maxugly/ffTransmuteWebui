@@ -141,7 +141,11 @@ async def rife_interpolate(p: RifeParams) -> OperationResult:
             StageSpec("rife", "directory", rife_fn,
                       progress_total=None),  # progress managed by dir watch
         ],
-        encode_kwargs={"mux_audio": True, **({"fps": p.target_fps} if p.target_fps else {})},
+        # Target fps travels via the dedicated encode_fps slot: stuffing
+        # "fps" into encode_kwargs collides with the positional fps that
+        # run_staged_job always passes to encode() (TypeError crash).
+        encode_fps=(float(p.target_fps) if p.target_fps else None),
+        encode_kwargs={"mux_audio": True},
         summary=f"rife {input_path.name} {p.multiplier}x {p.model}",
     )
 

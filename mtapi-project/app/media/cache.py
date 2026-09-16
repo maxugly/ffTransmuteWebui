@@ -658,6 +658,7 @@ def _collect_referenced_media_paths() -> set[str]:
             _add(s.get("path"))
             _add(s.get("variant_path") or s.get("variantPath"))
             _add(s.get("conformed_path") or s.get("conformedPath"))
+            _add(s.get("clean_path") or s.get("cleanPath"))
         svp = pool.get("selected_variant_paths") or pool.get("selectedVariantPaths") or {}
         if isinstance(svp, dict):
             for v in svp.values():

@@ -10,6 +10,7 @@ import { refreshRifeNeed, _resolvedTargetFps, _rifeBadgeForEntry, _scheduleInsta
 import { peekVariants, _fetchVariants, _fetchVariantsBatch, _normVariantKey, _showSeqVariantMenu } from '/js/pool/sequence-variants.js';
 import { updateSeqTransportUI, updateSeqClipSettings, seqClipSpeedInfo, seqClipTokenTitle, seqStop } from '/js/pool/sequence-transport.js';
 import { conformBadgeForEntry, updateStitchButton, maybeAutoConformEntry } from '/js/pool/sequence-conform.js';
+import { eraseBadgeForEntry, ensureSequenceLineages } from '/js/pool/sequence-erase.js';
 import { normTagColor, sequenceUseCounts, openTagPicker } from '/js/pool/sequence-tag.js';
 
 function setupSequenceDropZone() {
@@ -94,6 +95,7 @@ function addPathToSequence(path, insertAt = null) {
     state.pool.sequence.splice(insertAt, 0, entry);
   }
   logConsole(`[SEQ]: + ${name}`);
+  try { ensureSequenceLineages(); } catch (_) { /* lineage optional */ }
   renderSequenceBox();
   renderPoolGrid();
   selectPoolItem(path); // select in library + sequence together
@@ -141,6 +143,7 @@ function addPathsToSequence(paths) {
   if (fresh.length === 0) return 0;
   state.pool.sequence.push(...fresh);
   logConsole(`[SEQ]: +${fresh.length} (auto-add on import)`);
+  try { ensureSequenceLineages(); } catch (_) { /* lineage optional */ }
   renderSequenceBox();
   try { renderPoolGrid(); } catch (_) { /* grid may be absent */ }
   try { selectPoolItem(fresh[fresh.length - 1].path); } catch (_) { /* ignore */ }
@@ -375,6 +378,18 @@ function renderSequenceBox(opts) {
       cel.setAttribute('role', 'status');
       host.appendChild(cel);
     }
+    // Erase badge: mask dot + stale marker (spec §4.1). Never a RIFE badge.
+    try {
+      const ebadge = eraseBadgeForEntry(entry);
+      if (ebadge && host) {
+        const eel = document.createElement('span');
+        eel.className = ebadge.cls;
+        eel.textContent = ebadge.text;
+        eel.title = ebadge.title;
+        eel.setAttribute('role', 'status');
+        host.appendChild(eel);
+      }
+    } catch (_) { /* badge optional */ }
 
     // Proportional width, but never below size-level min-width (prevents control crush)
     const ratio = totalDuration > 0

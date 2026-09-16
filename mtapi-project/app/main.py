@@ -219,6 +219,9 @@ watermark.register(app)
 from .routes import erase
 erase.register(app)
 
+from .routes import lineage
+lineage.register(app)
+
 def _make_endpoint(spec):
     async def endpoint(
         params: spec.params_model,  # type: ignore[name-defined]
