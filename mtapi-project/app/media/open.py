@@ -168,7 +168,7 @@ def _public_payload(
     for k in (
         "width", "height", "fps", "duration", "frames",
         "video_codec", "audio_codec", "format_name", "bit_rate",
-        "has_audio",
+        "has_audio", "fps_avg", "fps_r", "is_vfr_guess",
     ):
         if k in meta:
             out[k] = meta[k]

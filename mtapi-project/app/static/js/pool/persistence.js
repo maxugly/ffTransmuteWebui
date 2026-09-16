@@ -1096,7 +1096,7 @@ async function stitchPoolSequence() {
             if (n) logConsole(`[STITCH]: Adopted ${n} conformed sibling(s) onto sequence entries`);
         }
       } catch (_) { /* adopt is best-effort */ }
-      addPathsToPool([data.output_path]);
+      await addPathsToPool([data.output_path]);
       if (state.activeTab === 'pool') {
         renderPoolGrid();
         refreshPoolToolbarCounts();

@@ -45,10 +45,10 @@ export function maybeAutoAddOpOutput(outputPath, opts = {}) {
   if (!settings.autoAddOpOutputs) return;
   try {
     if (isVideoPath(path)) {
-      import('/js/pool/items.js').then((m) => {
+      import('/js/pool/items.js').then(async (m) => {
         try {
           const before = (state?.pool?.items || []).length;
-          m.addPathsToPool([path]);
+          await m.addPathsToPool([path]);
           const after = (state?.pool?.items || []).length;
           _log(`[AUTO-ADD]: pool ${after > before ? '+' : '(dup)'} ${path}`);
         } catch (_) { /* pool render must not break results */ }

@@ -63,6 +63,8 @@ function settingsSnapshot() {
     autoAddToSequence: !!state.settings.autoAddToSequence,
     autoFirstLast: !!state.settings.autoFirstLast,
     autoFirstLastMode: state.settings.autoFirstLastMode === 'sequence' ? 'sequence' : 'import',
+    autoVfrToCfr: !!state.settings.autoVfrToCfr,
+    vfrCfrFps: Math.max(0, Math.min(240, Number(state.settings.vfrCfrFps) || 0)),
     autoAddOpOutputs: !!state.settings.autoAddOpOutputs,
     autoAddOpOutputsToSequence: !!state.settings.autoAddOpOutputsToSequence,
     autoAddOpImageOutputs: !!state.settings.autoAddOpImageOutputs,
@@ -93,6 +95,8 @@ async function saveSettings(patch = {}) {
         auto_add_to_sequence: payload.autoAddToSequence,
         auto_first_last: payload.autoFirstLast,
         auto_first_last_mode: payload.autoFirstLastMode,
+        auto_vfr_to_cfr: payload.autoVfrToCfr,
+        vfr_cfr_fps: payload.vfrCfrFps,
         auto_add_op_outputs: payload.autoAddOpOutputs,
         auto_add_op_outputs_to_sequence: payload.autoAddOpOutputsToSequence,
         auto_add_op_image_outputs: payload.autoAddOpImageOutputs,
@@ -135,6 +139,31 @@ export function renderSettingsForm() {
   elements.actionPanel.innerHTML = `
     <div class="settings-workspace" id="settingsWorkspace">
       <p class="settings-lede">Performance controls are stored locally and mirrored to the media server.</p>
+      <section class="settings-card settings-import" aria-labelledby="settingsImportTitle">
+        <div class="settings-card-head">
+          <span class="settings-card-kicker">Media</span>
+          <h4 class="settings-card-name" id="settingsImportTitle">Import</h4>
+        </div>
+        <div class="settings-switches">
+          ${switchHtml('settingsAutoSeq', 'Auto-add imports to Sequence', !!state.settings.autoAddToSequence)}
+          ${switchHtml('settingsAutoFL', 'Auto first/last', !!state.settings.autoFirstLast)}
+          <div class="settings-autofl-sub" id="settingsAutoFLSub" ${state.settings.autoFirstLast ? '' : 'hidden'}>
+            <div class="settings-autofl-mode" role="radiogroup" aria-label="Auto first/last trigger">
+              <label><input type="radio" name="autoFLMode" value="import" ${state.settings.autoFirstLastMode !== 'sequence' ? 'checked' : ''}> On pool import</label>
+              <label><input type="radio" name="autoFLMode" value="sequence" ${state.settings.autoFirstLastMode === 'sequence' ? 'checked' : ''}> On added to sequence</label>
+            </div>
+            <button type="button" class="btn" id="btnAutoFLBatch">Batch process existing</button>
+          </div>
+          ${switchHtml('settingsAutoVfrCfr', 'Auto-reencode VFR to CFR', !!state.settings.autoVfrToCfr)}
+          <div class="settings-autofl-sub" id="settingsAutoVfrCfrSub" ${state.settings.autoVfrToCfr ? '' : 'hidden'}>
+            <label class="settings-inline-control" for="settingsVfrCfrFps">CFR FPS (0 = Auto)</label>
+            <input id="settingsVfrCfrFps" type="number" min="0" max="240" step="1" value="${Math.max(0, Math.min(240, Number(state.settings.vfrCfrFps) || 0))}">
+            <button type="button" class="btn" id="btnVfrScan">Scan VFR (read-only)</button>
+            <button type="button" class="btn" id="btnVfrCfrBatch">Normalize pool + Sequence</button>
+          </div>
+        </div>
+        <p class="settings-card-desc">Imports can be appended to the video-only Sequence and can prepare first/last stills on import or sequence add. VFR detection compares average and nominal frame rates; CFR media passes through. When enabled, VFR media is replaced in the pool by a <code>_cfr</code> sibling while the original stays on disk. Failures keep the original and write a warning. FPS 0 uses the measured average rate.</p>
+      </section>
       <section class="settings-card settings-performance" aria-labelledby="settingsPerformanceTitle">
         <div class="settings-card-head">
           <span class="settings-card-kicker">Performance</span>
@@ -161,19 +190,10 @@ export function renderSettingsForm() {
             ${switchHtml('settingsThumbRam', 'Keep thumbnails in RAM', state.settings.thumbnailsToRam)}
             ${switchHtml('settingsPhashRam', 'Keep hashes in RAM', state.settings.phashToRam)}
             ${switchHtml('settingsWallPair', 'First + last wall', state.settings.wallStyle !== 'first')}
-            ${switchHtml('settingsAutoSeq', 'Auto-add imports to Sequence', !!state.settings.autoAddToSequence)}
-            ${switchHtml('settingsAutoFL', 'Auto first/last', !!state.settings.autoFirstLast)}
-            <div class="settings-autofl-sub" id="settingsAutoFLSub" ${state.settings.autoFirstLast ? '' : 'hidden'}>
-              <div class="settings-autofl-mode" role="radiogroup" aria-label="Auto first/last trigger">
-                <label><input type="radio" name="autoFLMode" value="import" ${state.settings.autoFirstLastMode !== 'sequence' ? 'checked' : ''}> On pool import</label>
-                <label><input type="radio" name="autoFLMode" value="sequence" ${state.settings.autoFirstLastMode === 'sequence' ? 'checked' : ''}> On added to sequence</label>
-              </div>
-              <button type="button" class="btn" id="btnAutoFLBatch">Batch process existing</button>
-            </div>
             ${switchHtml('settingsMuteVideos', 'Mute videos', state.settings.muteVideos !== false)}
           </div>
         </div>
-        <p class="settings-card-desc">Wall default is one JPEG: first|last side by side at 120px each.<br>Off shows the single first-frame preview. L/M/H is match-size only.<br>Auto-add appends imported videos to the Sequence (deduped). Images are skipped — Sequence is video-only.<br>Auto first/last saves {stem}_first/_last.png next to each video; skips if present. Left-behind PNGs stay where they are if a video moves.<br>Mute videos keeps preview playback silent (autoplay-safe). Off = previews play audio.</p>
+        <p class="settings-card-desc">Wall default is one JPEG: first|last side by side at 120px each.<br>Off shows the single first-frame preview. L/M/H is match-size only.<br>Mute videos keeps preview playback silent (autoplay-safe). Off = previews play audio.</p>
       </section>
       <section class="settings-card settings-outputs" aria-labelledby="settingsOutputsTitle">
         <div class="settings-card-head">
@@ -270,6 +290,39 @@ export function renderSettingsForm() {
   document.getElementById('settingsAutoFL')?.addEventListener('change', (e) => {
     saveSettings({ autoFirstLast: e.target.checked });
     document.getElementById('settingsAutoFLSub')?.toggleAttribute('hidden', !e.target.checked);
+  });
+  document.getElementById('settingsAutoVfrCfr')?.addEventListener('change', (e) => {
+    saveSettings({ autoVfrToCfr: e.target.checked });
+    document.getElementById('settingsAutoVfrCfrSub')?.toggleAttribute('hidden', !e.target.checked);
+  });
+  document.getElementById('settingsVfrCfrFps')?.addEventListener('change', (e) => {
+    const n = Number(e.target.value);
+    const fps = Number.isFinite(n) ? Math.max(0, Math.min(240, Math.round(n))) : 0;
+    e.target.value = String(fps);
+    saveSettings({ vfrCfrFps: fps });
+  });
+  document.getElementById('btnVfrCfrBatch')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    if (btn.disabled) return;
+    btn.disabled = true;
+    try {
+      const m = await import('/js/pool/auto-vfrcfr.js');
+      await m.batchNormalizeSequence();
+      await m.batchNormalizePool();
+    } catch (err) {
+      try { (await import('/app.js')).logConsole(`[AUTO CFR ERROR]: ${err.message}`, 'error'); } catch (_) { /* ignore */ }
+    } finally { btn.disabled = false; }
+  });
+  document.getElementById('btnVfrScan')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    if (btn.disabled) return;
+    btn.disabled = true;
+    try {
+      const m = await import('/js/pool/auto-vfrcfr.js');
+      await m.scanCurrentMedia();
+    } catch (err) {
+      try { (await import('/app.js')).logConsole(`[VFR SCAN ERROR]: ${err.message}`, 'error'); } catch (_) { /* ignore */ }
+    } finally { btn.disabled = false; }
   });
   document.getElementById('settingsAutoAddOutputs')?.addEventListener('change', (e) => {
     saveSettings({ autoAddOpOutputs: e.target.checked });

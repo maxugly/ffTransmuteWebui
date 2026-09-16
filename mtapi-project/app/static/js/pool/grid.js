@@ -1595,7 +1595,7 @@ function renderMatchResults(data) {
    *  - pool panel collapsed on Sequence → card not visible
    *  - row click only soft-previewed without full select in some paths
    */
-  function selectMatchInPool(path) {
+  async function selectMatchInPool(path) {
     if (!path) return;
     // Show the pool grid if user hid it on Sequence
     try {
@@ -1612,7 +1612,7 @@ function renderMatchResults(data) {
       if (filterEl) filterEl.value = '';
     }
     if (!findPoolItem(path)) {
-      addPathsToPool([path]);
+      await addPathsToPool([path]);
     }
     // Full select (preview + focus + toolbar + sequence sync)
     selectPoolItem(path);
@@ -1641,14 +1641,14 @@ function renderMatchResults(data) {
   box.querySelectorAll('.pool-match-row').forEach(row => {
     const path = row.dataset.path;
     row.querySelectorAll('[data-act]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const act = btn.dataset.act;
         if (act === 'select') {
-          selectMatchInPool(path);
+          selectMatchInPool(path).catch(() => {});
         } else if (act === 'seq') {
-          if (!findPoolItem(path)) addPathsToPool([path]);
-          selectMatchInPool(path);
+          if (!findPoolItem(path)) await addPathsToPool([path]);
+          await selectMatchInPool(path);
           addPathToSequence(path);
         } else if (act === 'preview') {
           selectMatchInPool(path);
@@ -1659,7 +1659,7 @@ function renderMatchResults(data) {
     // Whole row click = select in pool (same as Select button)
     row.addEventListener('click', (e) => {
       if (e.target.closest('[data-act]')) return;
-      selectMatchInPool(path);
+      selectMatchInPool(path).catch(() => {});
     });
   });
 }

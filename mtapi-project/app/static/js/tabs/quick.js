@@ -181,7 +181,7 @@ async function runQuickTransmute(path) {
     const data = await response.json();
     displayOpResult(data);
     if (data.ok && data.output_path) {
-      addPathsToPool([data.output_path]);
+      await addPathsToPool([data.output_path]);
       if (state.activeTab === 'pool') {
         renderPoolGrid();
         refreshPoolToolbarCounts();

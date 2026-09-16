@@ -19,6 +19,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "auto_add_to_sequence": False,
     "auto_first_last": False,
     "auto_first_last_mode": "import",
+    "auto_vfr_to_cfr": False,
+    "vfr_cfr_fps": 0,
     "auto_add_op_outputs": False,
     "auto_add_op_outputs_to_sequence": False,
     "auto_add_op_image_outputs": False,
@@ -41,6 +43,11 @@ def _normalize_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
     except (TypeError, ValueError):
         bar = DEFAULT_SETTINGS["scrollbar_width"]
     bar = max(6, min(30, int(round(bar / 2) * 2)))
+    try:
+        vfr_fps = int(raw.get("vfr_cfr_fps", DEFAULT_SETTINGS["vfr_cfr_fps"]))
+    except (TypeError, ValueError):
+        vfr_fps = DEFAULT_SETTINGS["vfr_cfr_fps"]
+    vfr_fps = 0 if vfr_fps <= 0 else max(1, min(240, vfr_fps))
     return {
         "thumbnail_size": normalize_thumb_size(raw.get("thumbnail_size", "H")),
         "thumbnails_to_ram": bool(raw.get("thumbnails_to_ram", False)),
@@ -50,6 +57,8 @@ def _normalize_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
         "auto_add_to_sequence": bool(raw.get("auto_add_to_sequence", False)),
         "auto_first_last": bool(raw.get("auto_first_last", False)),
         "auto_first_last_mode": "sequence" if str(raw.get("auto_first_last_mode", "import")).lower() == "sequence" else "import",
+        "auto_vfr_to_cfr": bool(raw.get("auto_vfr_to_cfr", False)),
+        "vfr_cfr_fps": vfr_fps,
         "auto_add_op_outputs": bool(raw.get("auto_add_op_outputs", False)),
         "auto_add_op_outputs_to_sequence": bool(raw.get("auto_add_op_outputs_to_sequence", False)),
         "auto_add_op_image_outputs": bool(raw.get("auto_add_op_image_outputs", False)),
@@ -175,4 +184,3 @@ class ByteLRU:
 # object counts, so a large pool cannot turn cache population into an OOM.
 thumbnail_cache = ByteLRU(64 * 1024 * 1024)
 phash_cache = ByteLRU(1 * 1024 * 1024)
-

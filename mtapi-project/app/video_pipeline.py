@@ -118,15 +118,49 @@ async def probe(input_path: str | Path) -> dict[str, Any]:
         "file_size": stat.st_size,
         "file_mtime": stat.st_mtime,
     }
-    # Copy-gate metadata (spec §9/§10): best-effort merge of the strict
-    # stream fields so join/conform callers can gate without a second probe.
-    try:
-        copy_info = await probe_copy_info(sp)
-        for _k, _v in copy_info.items():
-            result.setdefault(_k, _v)
-    except Exception:
-        pass
+    # Keep the basic probe bounded and independent. The strict concat-copy
+    # metadata probe is intentionally separate: some VFR files cause ffprobe's
+    # large side-data query to stall, which must not prevent callers from
+    # receiving fps_avg/fps_r/is_vfr_guess.
     return result
+
+
+async def scan_vfr_paths(
+    paths: list[str | Path],
+    probe_fn: Callable[[str | Path], Coroutine[Any, Any, dict[str, Any]]] | None = None,
+) -> list[dict[str, Any]]:
+    """Probe a bounded list and return only scan-safe timing fields.
+
+    This is deliberately read-only: it never opens media records, generates
+    thumbnails, or creates output files.
+    """
+    seen: set[str] = set()
+    results: list[dict[str, Any]] = []
+    for raw in paths[:2000]:
+        path = Path(raw).expanduser().resolve()
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        row: dict[str, Any] = {"path": key}
+        if not path.is_file():
+            row.update({"ok": False, "error": "File not found"})
+        else:
+            try:
+                info = await (probe_fn or probe)(path)
+                row.update({
+                    "ok": True,
+                    "is_vfr_guess": bool(info.get("is_vfr_guess")),
+                    "fps": info.get("fps"),
+                    "fps_avg": info.get("fps_avg"),
+                    "fps_r": info.get("fps_r"),
+                    "duration": info.get("duration"),
+                    "frames": info.get("frame_count"),
+                })
+            except Exception as exc:
+                row.update({"ok": False, "error": str(exc)})
+        results.append(row)
+    return results
 
 
 async def _probe_has_audio(input_path: str) -> bool:
@@ -1913,4 +1947,3 @@ async def run_concat_copy(
             current=n, total=n, unit="clips", token=token,
         )
     return {"output_path": str(out), "clips": n}
-

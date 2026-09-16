@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from .. import media
 from .. import job_control
 from .. import shell
+from ..video_pipeline import scan_vfr_paths
 
 
 def register(app: FastAPI, probe_fn) -> None:
@@ -49,6 +50,17 @@ def register(app: FastAPI, probe_fn) -> None:
             ensure_thumbs_flag=ensure_thumbs,
             record_open=True,
         )
+
+    @app.post("/api/vfr_scan", tags=["meta"])
+    async def vfr_scan(body: dict):
+        paths = (body or {}).get("paths")
+        if not isinstance(paths, list):
+            raise HTTPException(status_code=400, detail="paths must be a list")
+        rows = await scan_vfr_paths([str(p) for p in paths if p])
+        return {"ok": True, "results": rows,
+                "vfr": [r for r in rows if r.get("ok") and r.get("is_vfr_guess")],
+                "cfr": [r for r in rows if r.get("ok") and not r.get("is_vfr_guess")],
+                "failed": [r for r in rows if not r.get("ok")]}
 
     @app.get("/api/media_hash", tags=["meta"])
     async def media_hash(path: str):

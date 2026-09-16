@@ -186,14 +186,19 @@ function clearPool() {
   }
 }
 
-function addPathsToPool(paths) {
+async function addPathsToPool(paths) {
+  let finalPaths = paths || [];
+  try {
+    const m = await import('/js/pool/auto-vfrcfr.js');
+    finalPaths = await m.normalizeImportsForPool(finalPaths);
+  } catch (_) { /* import must remain usable if auto-CFR is unavailable */ }
   let added = 0;
   let skipped = 0;
   const existingPaths = new Set(state.pool.items.map(i => i.path));
   const newPaths = [];
   let firstNew = null;
 
-  for (const raw of paths) {
+  for (const raw of finalPaths) {
     if (!raw) continue;
     const path = raw.trim();
     if (!path) continue;
@@ -250,7 +255,7 @@ async function importPoolFiles() {
       logConsole('[POOL]: File import cancelled');
       return;
     }
-    const { firstNew } = addPathsToPool(paths);
+    const { firstNew } = await addPathsToPool(paths);
     if (state.activeTab === 'pool') {
       renderPoolForm();
       if (firstNew) selectPoolItem(firstNew);
@@ -290,7 +295,7 @@ async function importPoolFolder() {
       return;
     }
     const scanData = new Map((scan.videos || []).map(v => [v.path, v]));
-    const { added, firstNew } = addPathsToPool(paths);
+    const { added, firstNew } = await addPathsToPool(paths);
     state.pool.items.forEach(item => {
       const data = scanData.get(item.path);
       if (data) {

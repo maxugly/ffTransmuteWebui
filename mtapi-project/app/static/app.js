@@ -279,6 +279,8 @@ let state = {
     autoAddToSequence: false,
     autoFirstLast: false,
     autoFirstLastMode: 'import',
+    autoVfrToCfr: false,
+    vfrCfrFps: 0,
     autoAddOpOutputs: false,
     autoAddOpOutputsToSequence: false,
     autoAddOpImageOutputs: false,
@@ -305,6 +307,8 @@ const SETTINGS_DEFAULTS = {
   autoAddToSequence: false,
   autoFirstLast: false,
   autoFirstLastMode: 'import',
+  autoVfrToCfr: false,
+  vfrCfrFps: 0,
   autoAddOpOutputs: false,
   autoAddOpOutputsToSequence: false,
   autoAddOpImageOutputs: false,
@@ -323,6 +327,8 @@ function mapServerSettings(data) {
   if (data.auto_add_to_sequence != null) mapped.autoAddToSequence = !!data.auto_add_to_sequence;
   if (data.auto_first_last != null) mapped.autoFirstLast = !!data.auto_first_last;
   if (data.auto_first_last_mode != null) mapped.autoFirstLastMode = data.auto_first_last_mode === 'sequence' ? 'sequence' : 'import';
+  if (data.auto_vfr_to_cfr != null) mapped.autoVfrToCfr = !!data.auto_vfr_to_cfr;
+  if (data.vfr_cfr_fps != null) mapped.vfrCfrFps = Number(data.vfr_cfr_fps) || 0;
   if (data.auto_add_op_outputs != null) mapped.autoAddOpOutputs = !!data.auto_add_op_outputs;
   if (data.auto_add_op_outputs_to_sequence != null) mapped.autoAddOpOutputsToSequence = !!data.auto_add_op_outputs_to_sequence;
   if (data.auto_add_op_image_outputs != null) mapped.autoAddOpImageOutputs = !!data.auto_add_op_image_outputs;
