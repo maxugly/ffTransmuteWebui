@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field
 
 from .. import job_control
 from ..contract import OperationResult, OperationSpec, register
+from ..pathutil import finalize_output_path
 from ..shell import run_command
 
 PINNED_TAG = "v1.0.43"
@@ -130,21 +131,13 @@ def _is_video_path(p: Path) -> bool:
     return p.suffix.lower() in VIDEO_EXTS
 
 
-def _default_output(src: Path) -> Path:
-    ext = src.suffix if src.suffix.lower() in (IMAGE_EXTS | VIDEO_EXTS) else None
+def _default_ext_for(src: Path) -> str:
+    """House default extension: video → .mp4, image keeps its own ext."""
     if _is_video_path(src):
-        return src.with_name(f"{src.stem}_clean.mp4")
-    if ext:
-        return src.with_name(f"{src.stem}_clean{src.suffix}")
-    return src.with_name(f"{src.stem}_clean.png")
-
-
-def _resolve_output(src: Path, output_path: str | None, out_dir: str | None) -> Path:
-    if out_dir:
-        return Path(out_dir).expanduser() / _default_output(src).name
-    if output_path:
-        return Path(output_path).expanduser()
-    return _default_output(src)
+        return ".mp4"
+    if src.suffix.lower() in IMAGE_EXTS:
+        return src.suffix
+    return ".png"
 
 
 def build_remove_argv(
@@ -194,7 +187,6 @@ class WatermarkRemoveParams(BaseModel):
     input_path: str = Field(..., description="Absolute image/video path")
     output_path: str | None = Field(None, description="Explicit output file")
     out_dir: str | None = Field(None, description="Output folder (named from input)")
-    overwrite: bool = Field(False)
     engine: str = Field(ENGINE_V1)
     video_bitrate_mbps: float = Field(12, ge=4, le=40)
     video_timeout_ms: int | None = Field(None, gt=0)
@@ -219,7 +211,6 @@ class MetadataStripParams(BaseModel):
 
     input_path: str = Field(...)
     output_path: str | None = Field(None)
-    overwrite: bool = Field(False)
     dry_run: bool = Field(False)
 
 
@@ -246,17 +237,25 @@ def _validate_input(input_path: str) -> tuple[Path | None, str | None]:
 
 def _validate_outputs(
     op_id: str, src: Path, output_path: str | None, out_dir: str | None,
-    overwrite: bool,
 ) -> tuple[Path | None, str | None]:
+    """House behavior (app/pathutil.py): never overwrite — collisions get
+    far-right _0001, _0002, … like every other op. output_path/out_dir only
+    choose WHERE, never clobber (the old overwrite knob is gone)."""
     if output_path and out_dir:
         return None, "Use either output_path or out_dir, not both."
     if out_dir and not Path(out_dir).expanduser().is_absolute():
         return None, f"out_dir must be absolute: {out_dir}"
     if output_path and not Path(output_path).expanduser().is_absolute():
         return None, f"output_path must be absolute: {output_path}"
-    out = _resolve_output(src, output_path, out_dir)
-    if out.exists() and not overwrite:
-        return None, f"Output already exists (pass overwrite=true): {out}"
+    try:
+        out = finalize_output_path(
+            output_path, source=src, default_suffix="_clean",
+            default_ext=_default_ext_for(src),
+            output_dir=out_dir,
+            allowed_exts=IMAGE_EXTS | VIDEO_EXTS,
+        )
+    except ValueError as e:
+        return None, str(e)
     return out, None
 
 
@@ -271,7 +270,7 @@ async def watermark_remove(p: WatermarkRemoveParams) -> OperationResult:
     eng_err = _check_engine(p.engine)
     if eng_err:
         return OperationResult(ok=False, operation=op, error=eng_err, dry_run=p.dry_run)
-    out, err = _validate_outputs(op, src, p.output_path, p.out_dir, p.overwrite)
+    out, err = _validate_outputs(op, src, p.output_path, p.out_dir)
     if err:
         return OperationResult(ok=False, operation=op, error=err, dry_run=p.dry_run)
     assert out is not None
@@ -291,7 +290,9 @@ async def watermark_remove(p: WatermarkRemoveParams) -> OperationResult:
     assert node is not None
     argv = build_remove_argv(
         node, str(gwr_entrypoint()), str(src), str(out),
-        overwrite=p.overwrite,
+        # Target is always free (finalize_output_path never-overwrite), so
+        # gwr always gets --overwrite for its own internal check.
+        overwrite=True,
         video_bitrate_mbps=float(p.video_bitrate_mbps) if is_video else None,
         video_timeout_ms=p.video_timeout_ms if is_video else None,
         is_video=is_video,
@@ -471,7 +472,7 @@ async def metadata_strip(p: MetadataStripParams) -> OperationResult:
     if err:
         return OperationResult(ok=False, operation=op, error=err, dry_run=p.dry_run)
     assert src is not None
-    out, err = _validate_outputs(op, src, p.output_path, None, p.overwrite)
+    out, err = _validate_outputs(op, src, p.output_path, None)
     if err:
         return OperationResult(ok=False, operation=op, error=err, dry_run=p.dry_run)
     assert out is not None

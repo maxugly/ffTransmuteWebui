@@ -1,10 +1,10 @@
 """Watermark LaMA inpaint mode (engine #2) backend.
 
 Covers the rect validation matrix (out-of-range, zero-area, >25% refuse,
-rel-path reject, output/output-dir exclusivity, no-clobber), dry-run plans,
-odd-dim pad/crop round-trip, missing-IR setup hint, image-path success via a
-fake compiled model, the no-shell=True guard, and the registry contract.
-V1 file (test_watermark.py) is untouched.
+rel-path reject, output/output-dir exclusivity, house never-overwrite _0001
+increments), dry-run plans, odd-dim pad/crop round-trip, missing-IR setup
+hint, image-path success via a fake compiled model, the no-shell=True guard,
+and the registry contract. V1 file (test_watermark.py) is untouched.
 """
 from __future__ import annotations
 
@@ -62,6 +62,37 @@ def test_rect_out_of_range_rejected_by_model():
         WatermarkLamaRemoveParams(input_path="/abs/x.png", margin_px=300)
     with pytest.raises(Exception):
         WatermarkLamaRemoveParams(input_path="/abs/x.png", margin_px=-1)
+    with pytest.raises(Exception):
+        WatermarkLamaRemoveParams(input_path="/abs/x.png", blend="dream")
+    with pytest.raises(Exception):
+        WatermarkLamaRemoveParams(input_path="/abs/x.png", sharpen=2.5)
+    with pytest.raises(Exception):
+        WatermarkLamaRemoveParams(input_path="/abs/x.png", sharpen_radius=0.1)
+    with pytest.raises(Exception):
+        WatermarkLamaRemoveParams(input_path="/abs/x.png", grow_px=17)
+    with pytest.raises(Exception):
+        WatermarkLamaRemoveParams(input_path="/abs/x.png", upscale=0.5)
+    with pytest.raises(Exception):
+        WatermarkLamaRemoveParams(input_path="/abs/x.png", upscale=5.0)
+    with pytest.raises(Exception):
+        WatermarkLamaRemoveParams(input_path="/abs/x.png", mask_thresh=0.05)
+    with pytest.raises(Exception):
+        WatermarkLamaRemoveParams(input_path="/abs/x.png", precision="int8")
+
+
+def test_finish_defaults():
+    p = WatermarkLamaRemoveParams(input_path="/abs/x.png")
+    assert (p.blend, p.sharpen, p.grow_px, p.upscale) == ("linear", 0.0, 0, 1.0)
+    assert (p.precision, p.color_match, p.mask_thresh) == ("fp16", False, 0.5)
+
+
+def test_grow_expands_mask():
+    import numpy as np
+
+    base = lama_filter.rasterize_mask(320, 240, (0.45, 0.40, 0.10, 0.15), 1, 0)
+    grown = lama_filter.rasterize_mask(320, 240, (0.45, 0.40, 0.10, 0.15), 1, 4)
+    assert grown.sum() > base.sum() > 0
+    assert grown.shape == base.shape
 
 
 def test_margin_default_32():
@@ -92,12 +123,12 @@ def test_output_exclusivity(tmp_path):
     assert r.ok is False and "either output_path or out_dir" in (r.error or "")
 
 
-def test_no_clobber_without_overwrite(tmp_path):
+def test_collision_increments_like_everywhere_else(tmp_path):
     src = _make_png(tmp_path / "in.png")
-    clash = tmp_path / "in_clean.png"
-    clash.write_bytes(b"x" * 64)
-    r = _run(watermark_lama_remove(_params(str(src))))
-    assert r.ok is False and "already exists" in (r.error or "")
+    (tmp_path / "in_clean.png").write_bytes(b"x" * 64)
+    r = _run(watermark_lama_remove(_params(str(src), dry_run=True)))
+    assert r.ok is True and r.dry_run is True
+    assert "in_clean_0001.png" in (r.stdout or "")
 
 
 def test_wrong_engine_refused(tmp_path):
@@ -233,6 +264,72 @@ def test_still_fixture_outside_mask_unchanged_real_model(tmp_path):
     assert np.abs(done[hole].astype(int) - img[hole].astype(int)).mean() > 0.5
 
 
+@pytest.mark.skipif(not _ir_present(), reason="LaMA IR not installed")
+def test_finish_modes_fake_model():
+    """Every blend + finish knob runs on the fake model: dims preserved and
+    exact-zero mask pixels stay source-exact (fake output is zeros, so only
+    outside-mask is asserted)."""
+    import numpy as np
+
+    img = np.random.randint(0, 255, (240, 320, 3), dtype=np.uint8)
+    mask = lama_filter.rasterize_mask(320, 240, (0.80, 0.84, 0.17, 0.12), 1)
+    outside = mask == 0.0
+    for kw in (dict(blend="poisson"), dict(blend="mono"),
+               dict(sharpen=1.0), dict(color_match=True),
+               dict(upscale_max=2.0), dict(mask_thresh=0.3)):
+        done = lama_filter.inpaint_image(img, mask, _FakeCompiled(),
+                                         _FAKE_SPEC, margin_px=32, **kw)
+        assert done.shape == img.shape, kw
+        assert np.abs(done[outside].astype(int)
+                      - img[outside].astype(int)).max() <= 1, kw
+
+
+def test_mono_fill_real_model(tmp_path):
+    """Smoke: the mono finish path runs on the real model and keeps color."""
+    import cv2
+    import numpy as np
+
+    from app.filters.lama import get_compiled, introspect_ir, ir_path_for
+    from app.operations.watermark_lama_ops import lama_model_dir
+
+    if not ir_path_for(lama_model_dir()).is_file():
+        pytest.skip("LaMA IR not installed")
+    img = np.zeros((240, 320, 3), dtype=np.uint8)
+    img[:, :, 2] = 255
+    mask = lama_filter.rasterize_mask(320, 240, (0.45, 0.40, 0.10, 0.15), 1)
+    compiled, _ = get_compiled(lama_model_dir(), "CPU")
+    spec = introspect_ir(ir_path_for(lama_model_dir()))
+    done = lama_filter.inpaint_image(img, mask, compiled, spec, margin_px=32,
+                                     blend="mono", sharpen=0.5)
+    hole = mask > 0.9
+    assert done.shape == img.shape and hole.sum() > 100
+    assert done[hole][:, 2].astype(float).mean() > 200
+
+
+@pytest.mark.skipif(not _ir_present(), reason="LaMA IR not installed")
+def test_flat_field_fills_to_background_real_model():
+    """Root-cause regression (2026-09-16): a soft/feathered mask fed to the
+    model collapses the fill toward mid-intensity (flat-red hole filled 130
+    instead of ~255). The model-bound mask must be binarized; the feathered
+    mask is composite-only."""
+    import cv2
+    import numpy as np
+
+    from app.filters.lama import get_compiled, introspect_ir, ir_path_for
+    from app.operations.watermark_lama_ops import lama_model_dir
+
+    img = np.zeros((240, 320, 3), dtype=np.uint8)
+    img[:, :, 2] = 255  # flat red (BGR)
+    mask = lama_filter.rasterize_mask(320, 240, (0.45, 0.40, 0.10, 0.15), 1)
+    compiled, _ = get_compiled(lama_model_dir(), "CPU")
+    spec = introspect_ir(ir_path_for(lama_model_dir()))
+    done = lama_filter.inpaint_image(img, mask, compiled, spec, margin_px=32)
+    hole = mask > 0.9
+    assert hole.sum() > 100
+    mean_red = done[hole][:, 2].astype(float).mean()
+    assert mean_red > 200, f"flat-red hole filled {mean_red:.0f}, want ~255"
+
+
 def test_inpaint_round_trip_odd_dims():
     import cv2
     import numpy as np
@@ -255,7 +352,7 @@ def test_image_path_success_fake_model(tmp_path, monkeypatch):
     fake_ir_dir.mkdir()
     (fake_ir_dir / "lama_fp32_fp16.xml").write_text("<net/>")
     monkeypatch.setattr(wl, "lama_model_dir", lambda: fake_ir_dir)
-    monkeypatch.setattr(wl, "get_compiled", lambda d, dev="GPU": (_FakeCompiled(), "CPU"))
+    monkeypatch.setattr(wl, "get_compiled", lambda d, dev="GPU", precision="fp16": (_FakeCompiled(), "CPU"))
     monkeypatch.setattr(wl, "introspect_ir", lambda ir: dict(_FAKE_SPEC))
     r = _run(watermark_lama_remove(_params(str(src))))
     assert r.ok is True, r.error
@@ -277,7 +374,7 @@ def test_image_path_ignores_frame_range(tmp_path, monkeypatch):
     fake_ir_dir.mkdir()
     (fake_ir_dir / "lama_fp32_fp16.xml").write_text("<net/>")
     monkeypatch.setattr(wl, "lama_model_dir", lambda: fake_ir_dir)
-    monkeypatch.setattr(wl, "get_compiled", lambda d, dev="GPU": (_FakeCompiled(), "GPU"))
+    monkeypatch.setattr(wl, "get_compiled", lambda d, dev="GPU", precision="fp16": (_FakeCompiled(), "GPU"))
     monkeypatch.setattr(wl, "introspect_ir", lambda ir: dict(_FAKE_SPEC))
     r = _run(watermark_lama_remove(_params(
         str(src), start_frame=5, end_frame=10)))

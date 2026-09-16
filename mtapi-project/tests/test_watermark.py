@@ -2,10 +2,10 @@
 
 Covers argv builder (image vs video flags, overwrite/json/bitrate/timeout,
 exactly-one of output/out-dir), the validation matrix (missing input,
-planned-engine refusal, bitrate range, rel-path reject, no-clobber without
-overwrite), dry-run plans, --json stdout → meta parse, node/gwr-missing
-installer hints, metadata inspect/strip on real fixtures, registry contract,
-and the no-shell=True guard.
+planned-engine refusal, bitrate range, rel-path reject, house
+never-overwrite _0001 increments), dry-run plans, --json stdout → meta
+parse, node/gwr-missing installer hints, metadata inspect/strip on real
+fixtures, registry contract, and the no-shell=True guard.
 """
 from __future__ import annotations
 
@@ -156,12 +156,14 @@ def test_output_and_outdir_exclusive(tmp_path):
     assert r.ok is False and "either" in (r.error or "")
 
 
-def test_no_clobber_without_overwrite(tmp_path):
+def test_collision_increments_like_everywhere_else(tmp_path):
     src = _make_png(tmp_path / "in.png")
-    existing = tmp_path / "in_clean.png"
-    existing.write_bytes(b"x" * 64)
-    r = _run(watermark_remove(WatermarkRemoveParams(input_path=str(src))))
-    assert r.ok is False and "already exists" in (r.error or "")
+    (tmp_path / "in_clean.png").write_bytes(b"x" * 64)
+    (tmp_path / "in_clean_0001.png").write_bytes(b"x" * 64)
+    r = _run(watermark_remove(WatermarkRemoveParams(
+        input_path=str(src), dry_run=True)))
+    assert r.ok is True and r.dry_run is True
+    assert "in_clean_0002.png" in (r.stdout or "")
 
 
 # ── dry run ───────────────────────────────────────────────────────────────
@@ -215,7 +217,7 @@ def test_setup_flat_vendor_skips_clone(tmp_path, monkeypatch):
 def test_remove_ok_parses_meta(tmp_path):
     src = _make_png(tmp_path / "in.png")
     out = tmp_path / "custom.png"
-    out.write_bytes(b"y" * 64)  # pre-existing + overwrite=true
+    out.write_bytes(b"y" * 64)  # pre-existing → never clobbered, incremented
     canned = (0, GWR_JSON, "")
 
     async def fake_run(argv):
@@ -225,8 +227,10 @@ def test_remove_ok_parses_meta(tmp_path):
 
     with patch.object(wm, "run_command", side_effect=fake_run):
         r = _run(watermark_remove(WatermarkRemoveParams(
-            input_path=str(src), output_path=str(out), overwrite=True)))
-    assert r.ok is True and r.output_path == str(out)
+            input_path=str(src), output_path=str(out))))
+    assert r.ok is True
+    assert r.output_path == str(tmp_path / "custom_0001.png")
+    assert out.read_bytes() == b"y" * 64  # original untouched
     assert (r.meta or {}).get("applied") is True
     assert (r.meta or {}).get("decisionTier") == "validated-match"
 

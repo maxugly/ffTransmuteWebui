@@ -28,6 +28,7 @@ from pydantic import BaseModel, Field
 
 from .. import job_control
 from ..contract import OperationResult, OperationSpec, register
+from ..pathutil import finalize_output_path
 from ..filters.lama import (
     MODEL_FILENAME,
     MODEL_LICENSE,
@@ -43,9 +44,8 @@ from ..staged_job import StageSpec, run_staged_job
 from .watermark_ops import (
     IMAGE_EXTS,
     VIDEO_EXTS,
-    _default_output,
+    _default_ext_for,
     _ensure_output_file,
-    _resolve_output,
     _validate_input,
 )
 
@@ -68,9 +68,12 @@ def _sha_file(onnx_path: Path) -> Path:
 
 def get_lama_status() -> dict:
     """Additive status block for GET /api/watermark/status (read-only)."""
+    from ..filters.lama import IR_FP32_XML_NAME  # noqa: E402
+
     d = lama_model_dir()
     onnx = d / MODEL_FILENAME
     ir = ir_path_for(d)
+    ir32 = d / IR_FP32_XML_NAME
     sha: str | None = None
     sidecar = _sha_file(onnx) if onnx.is_file() else None
     if sidecar is not None and sidecar.is_file():
@@ -86,6 +89,7 @@ def get_lama_status() -> dict:
     except Exception:
         pass
     return {"onnx_present": onnx.is_file(), "ir_present": ir.is_file(),
+            "ir_fp32_present": ir32.is_file(),
             "sha256": sha, "devices": devices}
 
 
@@ -97,15 +101,22 @@ class WatermarkLamaRemoveParams(BaseModel):
     input_path: str = Field(..., description="Absolute image/video path")
     output_path: str | None = Field(None, description="Explicit output file")
     out_dir: str | None = Field(None, description="Output folder (named from input)")
-    overwrite: bool = Field(False)
     engine: str = Field(ENGINE_LAMA)
     mask_x: float = Field(0.80, ge=0.0, le=1.0)
     mask_y: float = Field(0.84, ge=0.0, le=1.0)
     mask_w: float = Field(0.17, gt=0.0, le=1.0)
     mask_h: float = Field(0.12, gt=0.0, le=1.0)
     feather_px: int = Field(1, ge=0, le=8)
+    grow_px: int = Field(0, ge=0, le=16)
     margin_px: int = Field(32, ge=0, le=256)
     device: Literal["GPU", "CPU", "AUTO"] = Field("GPU")
+    precision: Literal["fp16", "fp32"] = Field("fp16")
+    blend: Literal["linear", "poisson", "mono"] = Field("linear")
+    sharpen: float = Field(0.0, ge=0.0, le=2.0)
+    sharpen_radius: float = Field(1.0, ge=0.5, le=3.0)
+    color_match: bool = Field(False)
+    mask_thresh: float = Field(0.5, ge=0.1, le=0.9)
+    upscale: float = Field(1.0, ge=1.0, le=4.0)
     start_frame: int = Field(1, ge=1)
     end_frame: int = Field(999999, ge=1)
     dry_run: bool = Field(False)
@@ -142,9 +153,12 @@ def _check_engine(engine: str) -> str | None:
     )
 
 
-def _check_ir() -> str | None:
-    if not ir_path_for(lama_model_dir()).is_file():
-        return SETUP_HINT
+def _check_ir(precision: str = "fp16") -> str | None:
+    prec = (precision or "fp16").lower()
+    if not ir_path_for(lama_model_dir(), prec).is_file():
+        extra = (" — re-run Setup (update) to build it" if prec == "fp32"
+                 else "")
+        return SETUP_HINT + extra
     return None
 
 
@@ -183,20 +197,25 @@ async def watermark_lama_remove(p: WatermarkLamaRemoveParams) -> OperationResult
             error=f"output_path must be absolute: {p.output_path}",
             dry_run=p.dry_run,
         )
-    out = _resolve_output(src, p.output_path, p.out_dir)
-    if out.exists() and not p.overwrite:
-        return OperationResult(
-            ok=False, operation=op,
-            error=f"Output already exists (pass overwrite=true): {out}",
-            dry_run=p.dry_run,
+    # House behavior (app/pathutil.py): never overwrite — collisions get
+    # far-right _0001, _0002, … like every other op.
+    try:
+        out = finalize_output_path(
+            p.output_path, source=src, default_suffix="_clean",
+            default_ext=_default_ext_for(src),
+            output_dir=p.out_dir,
+            allowed_exts=IMAGE_EXTS | VIDEO_EXTS,
         )
+    except ValueError as e:
+        return OperationResult(ok=False, operation=op, error=str(e),
+                               dry_run=p.dry_run)
     if src.suffix.lower() not in (IMAGE_EXTS | VIDEO_EXTS):
         return OperationResult(
             ok=False, operation=op,
             error=f"Unsupported input type: {src.suffix or '(no extension)'}",
             dry_run=p.dry_run,
         )
-    ir_err = _check_ir()
+    ir_err = _check_ir(p.precision)
     if ir_err and not p.dry_run:
         return OperationResult(ok=False, operation=op, error=ir_err, dry_run=p.dry_run)
 
@@ -208,9 +227,12 @@ async def watermark_lama_remove(p: WatermarkLamaRemoveParams) -> OperationResult
     rect_txt = (f"rect x={mask_rect[0]:.3f} y={mask_rect[1]:.3f} "
                 f"w={mask_rect[2]:.3f} h={mask_rect[3]:.3f} "
                 f"({mask_rect[2] * mask_rect[3]:.1%})")
+    finish_txt = (f"blend={p.blend} sharp={float(p.sharpen):.1f} "
+                  f"grow={int(p.grow_px)} up={float(p.upscale):.1f} "
+                  f"{p.precision}")
     summary = (f"watermark_lama_remove {src.name} → {out.name} "
                f"({p.engine}, {p.device}, {rect_txt}, "
-               f"margin={int(p.margin_px)}px)")
+               f"margin={int(p.margin_px)}px, {finish_txt})")
 
     if p.dry_run:
         return OperationResult(
@@ -220,7 +242,8 @@ async def watermark_lama_remove(p: WatermarkLamaRemoveParams) -> OperationResult
             meta={"dry_run": True, "engine": p.engine,
                   "mask": {"x": mask_rect[0], "y": mask_rect[1],
                            "w": mask_rect[2], "h": mask_rect[3]},
-                  "margin_px": int(p.margin_px)},
+                  "margin_px": int(p.margin_px), "blend": p.blend,
+                  "precision": p.precision},
         )
 
     if is_video:
@@ -238,9 +261,17 @@ async def watermark_lama_remove(p: WatermarkLamaRemoveParams) -> OperationResult
                     make_lama_directory(
                         mask_rect=mask_rect,
                         feather_px=int(p.feather_px),
+                        grow_px=int(p.grow_px),
                         device=str(p.device),
+                        precision=str(p.precision),
                         model_dir=lama_model_dir(),
                         margin_px=int(p.margin_px),
+                        blend=str(p.blend),
+                        sharpen=float(p.sharpen),
+                        sharpen_radius=float(p.sharpen_radius),
+                        color_match=bool(p.color_match),
+                        mask_thresh=float(p.mask_thresh),
+                        upscale_max=float(p.upscale),
                     ),
                 ),
             ],
@@ -259,7 +290,8 @@ async def watermark_lama_remove(p: WatermarkLamaRemoveParams) -> OperationResult
         meta.update({"engine": p.engine,
                      "mask": {"x": mask_rect[0], "y": mask_rect[1],
                               "w": mask_rect[2], "h": mask_rect[3]},
-                     "margin_px": int(p.margin_px)})
+                     "margin_px": int(p.margin_px), "blend": p.blend,
+                     "precision": p.precision})
         result.meta = meta
         result.command = summary
         return result
@@ -281,12 +313,21 @@ async def watermark_lama_remove(p: WatermarkLamaRemoveParams) -> OperationResult
             if img is None:
                 raise RuntimeError(f"unreadable image: {src}")
             h, w = img.shape[:2]
-            mask_full = rasterize_mask(w, h, mask_rect, int(p.feather_px))
-            compiled, settled = get_compiled(lama_model_dir(), str(p.device))
-            spec = introspect_ir(ir_path_for(lama_model_dir()))
+            mask_full = rasterize_mask(w, h, mask_rect, int(p.feather_px),
+                                       int(p.grow_px))
+            compiled, settled = get_compiled(lama_model_dir(), str(p.device),
+                                             str(p.precision))
+            spec = introspect_ir(ir_path_for(lama_model_dir(),
+                                             str(p.precision)))
             done = inpaint_image(img, mask_full, compiled, spec,
                                  canvas=spec["size"],
-                                 margin_px=int(p.margin_px))
+                                 margin_px=int(p.margin_px),
+                                 blend=str(p.blend),
+                                 sharpen=float(p.sharpen),
+                                 sharpen_radius=float(p.sharpen_radius),
+                                 color_match=bool(p.color_match),
+                                 mask_thresh=float(p.mask_thresh),
+                                 upscale_max=float(p.upscale))
             out.parent.mkdir(parents=True, exist_ok=True)
             if not cv2.imwrite(str(out), done):
                 raise RuntimeError(f"could not write {out}")
@@ -319,7 +360,8 @@ async def watermark_lama_remove(p: WatermarkLamaRemoveParams) -> OperationResult
         meta={"engine": p.engine, "device_settled": info["settled"],
               "mask": {"x": mx, "y": my, "w": mw, "h": mh,
                        "px": {"frame_w": info["w"], "frame_h": info["h"]}},
-              "margin_px": int(p.margin_px),
+              "margin_px": int(p.margin_px), "blend": p.blend,
+              "precision": p.precision,
               "frame_count": 1},
     )
 
@@ -348,7 +390,7 @@ def _sha256(path: Path) -> str:
 
 
 async def watermark_lama_setup(p: WatermarkLamaSetupParams) -> OperationResult:
-    """Download ONNX → convert to FP16 IR → CPU compile-smoke.
+    """Download ONNX → convert to FP16 + FP32 IR → CPU compile-smoke.
 
     Cancel-safe between phases. Ends with a fresh status payload in meta +
     recommend_restart=false. Dry-run prints phases and changes nothing.
@@ -357,9 +399,10 @@ async def watermark_lama_setup(p: WatermarkLamaSetupParams) -> OperationResult:
     d = lama_model_dir()
     onnx = d / MODEL_FILENAME
     ir = ir_path_for(d)
+    ir32 = ir_path_for(d, "fp32")
     phases = [
         f"download {MODEL_URL} → {onnx}",
-        f"convert → FP16 IR {ir}",
+        f"convert → FP16 IR {ir} + FP32 IR {ir32}",
         "compile-smoke on CPU (synthetic 512 input, no media needed)",
     ]
     plan = "\n".join(f"phase {i + 1}: {ph}" for i, ph in enumerate(phases))
@@ -403,9 +446,9 @@ async def watermark_lama_setup(p: WatermarkLamaSetupParams) -> OperationResult:
         await asyncio.to_thread(_sha_file(onnx).write_text, sha + "\n")
         logs.append(f"sha256 {sha[:16]}…")
 
-        # Phase 2 — convert to FP16 IR (once; runtime only compiles).
+        # Phase 2 — convert to FP16 + FP32 IR (once; runtime only compiles).
         _phase(1, len(phases))
-        if p.action == "update" or not ir.is_file():
+        if p.action == "update" or not ir.is_file() or not ir32.is_file():
             def _convert() -> None:
                 import openvino as ov
 
@@ -413,11 +456,12 @@ async def watermark_lama_setup(p: WatermarkLamaSetupParams) -> OperationResult:
                     job_control.bind(token)
                 model = ov.Core().read_model(str(onnx))
                 ov.save_model(model, str(ir), compress_to_fp16=True)
+                ov.save_model(model, str(ir32))
 
             await asyncio.to_thread(_convert)
-            logs.append(f"converted FP16 IR → {ir}")
+            logs.append(f"converted FP16 IR → {ir} + FP32 IR → {ir32}")
         else:
-            logs.append("IR present, kept")
+            logs.append("IRs present, kept")
 
         # Phase 3 — CPU compile-smoke on a synthetic input.
         _phase(2, len(phases))
@@ -471,9 +515,10 @@ register(OperationSpec(
     summary="Remove static-rect watermark via LaMA inpaint (OpenVINO)",
     description=(
         "User-drawn normalized rectangle inpainted with Carve/LaMa-ONNX "
-        "(FP16 OpenVINO IR, GPU/CPU). Video: dump → lama stage → encode "
+        "(FP16/FP32 OpenVINO IR, GPU/CPU). Video: dump → lama stage → encode "
         "(audio kept). Image: single-shot in-process. Rect area capped "
-        "at 25% of frame."
+        "at 25% of frame. Finish controls: blend (linear/poisson/mono), "
+        "sharpen, grow, detail upscale, color match."
     ),
     params_model=WatermarkLamaRemoveParams,
     handler=watermark_lama_remove,
@@ -482,10 +527,10 @@ register(OperationSpec(
 
 register(OperationSpec(
     id="watermark_lama_setup",
-    summary="Install/update LaMA weights (download + FP16 IR + CPU smoke)",
+    summary="Install/update LaMA weights (download + FP16/FP32 IR + CPU smoke)",
     description=(
         f"Downloads {MODEL_FILENAME} from {MODEL_REPO}, converts once to "
-        "FP16 OpenVINO IR, compile-smokes on CPU. Tab installer row driver."
+        "FP16 + FP32 OpenVINO IR, compile-smokes on CPU. Tab installer row driver."
     ),
     params_model=WatermarkLamaSetupParams,
     handler=watermark_lama_setup,

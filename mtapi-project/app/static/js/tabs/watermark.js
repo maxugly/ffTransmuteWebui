@@ -95,7 +95,6 @@ function collectWatermarkBody() {
     input_path: input,
     output_path: null,
     out_dir: outDir,
-    overwrite: document.getElementById('wmOverwrite')?.value === '1',
     engine: document.getElementById('wmEngine')?.value || 'gemini-reverse-alpha',
     video_bitrate_mbps: (isNaN(bitrateRaw) ? 12 : Math.min(40, Math.max(4, bitrateRaw))),
     video_timeout_ms: _readTimeout(),
@@ -156,7 +155,6 @@ async function _runStrip() {
   var body = {
     input_path: input,
     output_path: null,
-    overwrite: document.getElementById('wmOverwrite')?.value === '1',
     dry_run: document.getElementById('wmDryRun')?.value === '1',
   };
   logConsole('[WATERMARK]: POST /ops/metadata_strip\n' + JSON.stringify(body, null, 2));
@@ -176,11 +174,17 @@ function collectWatermarkLamaBody() {
   }
   var featherRaw = parseInt(document.getElementById('wmLamaFeather')?.value || '1', 10);
   var marginRaw = parseInt(document.getElementById('wmLamaMargin')?.value || '32', 10);
+  var growRaw = parseInt(document.getElementById('wmLamaGrow')?.value || '0', 10);
+  var sharpRaw = parseFloat(document.getElementById('wmLamaSharpen')?.value || '0');
+  var sharpRRaw = parseFloat(document.getElementById('wmLamaSharpR')?.value || '1');
+  var upRaw = parseFloat(document.getElementById('wmLamaUpscale')?.value || '1');
+  var threshRaw = parseFloat(document.getElementById('wmLamaMaskThresh')?.value || '0.5');
+  var blendSel = document.getElementById('wmLamaBlend')?.value || 'linear';
+  var precSel = document.getElementById('wmLamaPrecision')?.value || 'fp16';
   return {
     input_path: input,
     output_path: null,
     out_dir: outDir,
-    overwrite: document.getElementById('wmOverwrite')?.value === '1',
     engine: 'lama-openvino',
     mask_x: Math.min(1, Math.max(0, _num('wmLamaX', 0.80))),
     mask_y: Math.min(1, Math.max(0, _num('wmLamaY', 0.84))),
@@ -188,6 +192,14 @@ function collectWatermarkLamaBody() {
     mask_h: Math.min(1, Math.max(0.001, _num('wmLamaH', 0.12))),
     feather_px: isNaN(featherRaw) ? 1 : Math.min(8, Math.max(0, featherRaw)),
     margin_px: isNaN(marginRaw) ? 32 : Math.min(256, Math.max(0, marginRaw)),
+    grow_px: isNaN(growRaw) ? 0 : Math.min(16, Math.max(0, growRaw)),
+    sharpen: isNaN(sharpRaw) ? 0 : Math.min(2, Math.max(0, sharpRaw)),
+    sharpen_radius: isNaN(sharpRRaw) ? 1 : Math.min(3, Math.max(0.5, sharpRRaw)),
+    color_match: document.getElementById('wmLamaColorMatch')?.value === '1',
+    mask_thresh: isNaN(threshRaw) ? 0.5 : Math.min(0.9, Math.max(0.1, threshRaw)),
+    upscale: isNaN(upRaw) ? 1 : Math.min(4, Math.max(1, upRaw)),
+    blend: (blendSel === 'poisson' || blendSel === 'mono') ? blendSel : 'linear',
+    precision: precSel === 'fp32' ? 'fp32' : 'fp16',
     device: document.getElementById('wmLamaDevice')?.value || 'GPU',
     dry_run: document.getElementById('wmDryRun')?.value === '1',
   };
@@ -348,18 +360,42 @@ function renderWatermarkForm() {
     + knobUnitHtml({ id: 'wmLamaH', label: 'Mask H', value: _saved('wmLamaH', '0.12') })
     + knobUnitHtml({ id: 'wmLamaFeather', label: 'Feather px', value: _saved('wmLamaFeather', '1') })
     + knobUnitHtml({ id: 'wmLamaMargin', label: 'Crop margin px', value: _saved('wmLamaMargin', '32') })
-    + '</div><p class="knob-row-legend">Normalized 0–1 rect (one static box for the whole job). Area capped at 25% server-side. Margin = context window around the mask (0 = full-frame).</p></div>'
+    + knobUnitHtml({ id: 'wmLamaGrow', label: 'Grow px', value: _saved('wmLamaGrow', '0') })
+    + knobUnitHtml({ id: 'wmLamaSharpen', label: 'Sharpen', value: _saved('wmLamaSharpen', '0') })
+    + knobUnitHtml({ id: 'wmLamaUpscale', label: 'Detail ↑', value: _saved('wmLamaUpscale', '1') })
+    + '</div><p class="knob-row-legend">Normalized 0–1 rect (one static box for the whole job). Area capped at 25% server-side. Margin = context window (0 = full-frame). Grow swallows text-edge halos. Sharpen de-blurs the fill. Detail ↑ upscales small crops into the model (1 = off).</p></div>'
     + '<span data-knob-spec="wmLamaX" data-min="0" data-max="1" data-step="0.005" data-dec="3" hidden></span>'
     + '<span data-knob-spec="wmLamaY" data-min="0" data-max="1" data-step="0.005" data-dec="3" hidden></span>'
     + '<span data-knob-spec="wmLamaW" data-min="0" data-max="1" data-step="0.005" data-dec="3" hidden></span>'
     + '<span data-knob-spec="wmLamaH" data-min="0" data-max="1" data-step="0.005" data-dec="3" hidden></span>'
     + '<span data-knob-spec="wmLamaFeather" data-min="0" data-max="8" data-step="1" data-dec="0" hidden></span>'
     + '<span data-knob-spec="wmLamaMargin" data-min="0" data-max="256" data-step="1" data-dec="0" hidden></span>'
+    + '<span data-knob-spec="wmLamaGrow" data-min="0" data-max="16" data-step="1" data-dec="0" hidden></span>'
+    + '<span data-knob-spec="wmLamaSharpen" data-min="0" data-max="2" data-step="0.1" data-dec="1" hidden></span>'
+    + '<span data-knob-spec="wmLamaUpscale" data-min="1" data-max="4" data-step="0.5" data-dec="1" hidden></span>'
     + '<div class="form-row"><span class="form-row-hint" id="wmLamaReadout"></span></div>'
     + '<div class="form-row"><label for="wmLamaDevice">Device</label>'
     + '<select id="wmLamaDevice">'
     + '<option value="GPU">GPU</option><option value="CPU">CPU</option><option value="AUTO">AUTO</option>'
-    + '</select> <button type="button" class="btn" id="btnWmLamaSetup">Setup</button> '
+    + '</select> <label for="wmLamaPrecision" style="margin-left:8px">Precision</label> '
+    + '<select id="wmLamaPrecision">'
+    + '<option value="fp16">fp16</option><option value="fp32">fp32</option>'
+    + '</select> <label for="wmLamaBlend" style="margin-left:8px">Blend</label> '
+    + '<select id="wmLamaBlend">'
+    + '<option value="linear">linear</option><option value="mono">mono (keeps color)</option><option value="poisson">poisson (full clone)</option>'
+    + '</select></div>'
+    + '<div class="form-row"><button type="button" class="btn" id="btnWmLamaAdv">Advanced ▸</button> '
+    + '<span class="form-row-hint">Finish controls that stay out of the way until needed.</span></div>'
+    + '<div id="wmLamaAdv" hidden style="margin:4px 0 4px 12px;padding-left:8px;border-left:2px solid rgba(255,255,255,0.12)">'
+    + '<div class="knob-row"><div class="knob-bank">'
+    + knobUnitHtml({ id: 'wmLamaSharpR', label: 'Sharp radius', value: _saved('wmLamaSharpR', '1') })
+    + knobUnitHtml({ id: 'wmLamaColorMatch', label: 'Color match', value: _saved('wmLamaColorMatch', '0'), binary: true, leftCap: 'Off', rightCap: 'On' })
+    + knobUnitHtml({ id: 'wmLamaMaskThresh', label: 'Mask thresh', value: _saved('wmLamaMaskThresh', '0.5') })
+    + '</div><p class="knob-row-legend">Sharp radius = unsharp blur sigma. Color match = fill mean/std fitted to the surrounding ring (kills flat-tint boxes). Mask thresh = model-bound mask binarization (raise if the fill leaks, lower if edges starve).</p></div>'
+    + '<span data-knob-spec="wmLamaSharpR" data-min="0.5" data-max="3" data-step="0.1" data-dec="1" hidden></span>'
+    + '<span data-knob-spec="wmLamaMaskThresh" data-min="0.1" data-max="0.9" data-step="0.05" data-dec="2" hidden></span>'
+    + '</div>'
+    + '<div class="form-row"><button type="button" class="btn" id="btnWmLamaSetup">Setup</button> '
     + '<button type="button" class="btn" id="btnWmLamaRefresh">Refresh</button> '
     + '<span class="form-row-hint" id="wmLamaStatusLine">LaMA status unknown.</span></div>'
     + '<div class="form-row"><button type="button" class="btn btn-primary" id="btnWmLamaRemove">Remove with LaMA</button> '
@@ -373,9 +409,8 @@ function renderWatermarkForm() {
     + '<button type="button" class="btn" id="btnWmOutBrowse">Browse</button>'
     + '</div></div>'
     + '<div class="knob-row"><div class="knob-bank">'
-    + knobUnitHtml({ id: 'wmOverwrite', label: 'Overwrite', value: _saved('wmOverwrite', '0'), binary: true, leftCap: 'Off', rightCap: 'On' })
     + knobUnitHtml({ id: 'wmDryRun', label: 'Dry run', value: _saved('wmDryRun', '0'), binary: true, leftCap: 'Run', rightCap: 'Dry' })
-    + '</div><p class="knob-row-legend">Overwrite off + existing target = refusal (no silent clobber). Dry = print command only.</p></div>'
+    + '</div><p class="knob-row-legend">Outputs never overwrite — collisions get _0001, _0002, … like every other tab. Dry = print command only.</p></div>'
     + '<div class="knob-row" id="wmGwrBitrateRow"><div class="knob-bank">'
     + knobUnitHtml({ id: 'wmBitrate', label: 'Video bitrate (Mbps)', value: _saved('wmBitrate', '12'), binary: false })
     + '</div><p class="knob-row-legend">Video only (default calibrated 12 Mbps AVC; quality-sensitive sources try 20). Images ignore it.</p></div>'
@@ -409,11 +444,6 @@ function renderWatermarkForm() {
     + '<code>mtapi-project/junk/models/lama/</code> (Carve/LaMa-ONNX, Apache-2.0).</p></section>';
 
   setupBinaryKnob({
-    knobId: 'wmOverwriteKnob', indicatorId: 'wmOverwriteKnobInd', hiddenId: 'wmOverwrite',
-    leftValue: '0', rightValue: '1',
-    initial: document.getElementById('wmOverwrite')?.value || '0',
-  });
-  setupBinaryKnob({
     knobId: 'wmDryRunKnob', indicatorId: 'wmDryRunKnobInd', hiddenId: 'wmDryRun',
     leftValue: '0', rightValue: '1',
     initial: document.getElementById('wmDryRun')?.value || '0',
@@ -440,6 +470,43 @@ function renderWatermarkForm() {
     knobId: 'wmLamaMarginKnob', indicatorId: 'wmLamaMarginKnobInd',
     valueId: 'wmLamaMarginVal', hiddenId: 'wmLamaMargin',
     min: 0, max: 256, step: 1, decimals: 0,
+  });
+  setupContinuousKnob({
+    knobId: 'wmLamaGrowKnob', indicatorId: 'wmLamaGrowKnobInd',
+    valueId: 'wmLamaGrowVal', hiddenId: 'wmLamaGrow',
+    min: 0, max: 16, step: 1, decimals: 0,
+  });
+  setupContinuousKnob({
+    knobId: 'wmLamaSharpenKnob', indicatorId: 'wmLamaSharpenKnobInd',
+    valueId: 'wmLamaSharpenVal', hiddenId: 'wmLamaSharpen',
+    min: 0, max: 2, step: 0.1, decimals: 1,
+  });
+  setupContinuousKnob({
+    knobId: 'wmLamaUpscaleKnob', indicatorId: 'wmLamaUpscaleKnobInd',
+    valueId: 'wmLamaUpscaleVal', hiddenId: 'wmLamaUpscale',
+    min: 1, max: 4, step: 0.5, decimals: 1,
+  });
+  setupContinuousKnob({
+    knobId: 'wmLamaSharpRKnob', indicatorId: 'wmLamaSharpRKnobInd',
+    valueId: 'wmLamaSharpRVal', hiddenId: 'wmLamaSharpR',
+    min: 0.5, max: 3, step: 0.1, decimals: 1,
+  });
+  setupBinaryKnob({
+    knobId: 'wmLamaColorMatchKnob', indicatorId: 'wmLamaColorMatchKnobInd', hiddenId: 'wmLamaColorMatch',
+    leftValue: '0', rightValue: '1',
+    initial: document.getElementById('wmLamaColorMatch')?.value || '0',
+  });
+  setupContinuousKnob({
+    knobId: 'wmLamaMaskThreshKnob', indicatorId: 'wmLamaMaskThreshKnobInd',
+    valueId: 'wmLamaMaskThreshVal', hiddenId: 'wmLamaMaskThresh',
+    min: 0.1, max: 0.9, step: 0.05, decimals: 2,
+  });
+  document.getElementById('btnWmLamaAdv')?.addEventListener('click', function() {
+    var adv = document.getElementById('wmLamaAdv');
+    var btn = document.getElementById('btnWmLamaAdv');
+    if (!adv || !btn) return;
+    adv.hidden = !adv.hidden;
+    btn.textContent = adv.hidden ? 'Advanced ▸' : 'Advanced ▾';
   });
 
   document.getElementById('btnWmInstall')?.addEventListener('click', function() { runWatermarkSetup('install'); });

@@ -12,9 +12,11 @@ by `run_staged_job` — invariant 2).
 
 Build-time introspection (2026-09-15, ov 2026.3.1, `available_devices ==
 ['CPU', 'GPU']`, `ov.Core().read_model` on the downloaded file):
-- inputs: `image` (N,3,512,512) f32 [0,1], `mask` (N,1,512,512) f32,
-  1 = inpaint hole (publisher demo convention + synthetic-behavior proof:
-  white box under a 1-mask inpaints to background, zero-mask is identity).
+- inputs: `image` (N,3,512,512) f32 [0,1], `mask` (N,1,512,512) f32 BINARY,
+  1 = inpaint hole (soft/feathered values collapse the fill toward
+  mid-intensity — proven 2026-09-16 — so `_run_canvas` binarizes at 0.5;
+  publisher demo convention + synthetic-behavior proof: white box under a
+  1-mask inpaints to background, zero-mask is identity).
 - output: `output` (N,3,512,512) f32 [0,255] (max exactly 255.0 observed).
 - spatial dims are STATIC 512x512 (audit-2 finding 6 confirmed) so the
   filter letterboxes full frames into a 512 canvas and composites the hole
@@ -41,6 +43,16 @@ Context-crop inference (default; full-frame is the fallback):
   the whole frame.
 - fallback to full-frame when margin_px <= 0, the mask is empty, or the
   expanded crop covers the whole frame.
+- upscale_max (>1.0) lets small inputs upscale into the canvas (CUBIC)
+  for extra model detail; 1.0 = downscale-only, legacy.
+
+Finish pipeline (all optional, all composite-aware):
+- blend linear (alpha) | poisson (seamlessClone) | mono (monochrome
+  transfer: fill texture, source color — the lighter-box fix).
+- sharpen (unsharp amount on the filled region) + sharpen_radius.
+- color_match (per-channel mean/std of the fill matched to the ring).
+- Model-bound mask is binarized at mask_thresh (default 0.5): soft masks
+  collapse the LaMA fill toward mid-intensity (root-caused 2026-09-16).
 
 Geometry per frame (input W x H):
 - scale s = min(512/W, 512/H, 1.0) — downscale only, never upscale.
@@ -67,6 +79,10 @@ MODEL_FILENAME = "lama_fp32.onnx"
 MODEL_REPO = "https://huggingface.co/Carve/LaMa-ONNX"
 MODEL_LICENSE = "Apache-2.0"
 IR_XML_NAME = "lama_fp32_fp16.xml"
+IR_FP32_XML_NAME = "lama_fp32_fp32.xml"
+
+BLEND_MODES = ("linear", "poisson", "mono")
+PRECISIONS = ("fp16", "fp32")
 
 # Lazy compiled-model cache: device -> compiled model. Max ~2 entries, no
 # pre-compile at boot (16 GB shared-RAM box).
@@ -82,8 +98,10 @@ def lama_model_dir() -> Path:
     )
 
 
-def ir_path_for(model_dir: Path | str) -> Path:
-    return Path(model_dir).expanduser().resolve() / IR_XML_NAME
+def ir_path_for(model_dir: Path | str, precision: str = "fp16") -> Path:
+    name = IR_XML_NAME if (precision or "fp16").lower() != "fp32" \
+        else IR_FP32_XML_NAME
+    return Path(model_dir).expanduser().resolve() / name
 
 
 def introspect_ir(ir_path: Path | str) -> dict[str, Any]:
@@ -127,20 +145,23 @@ def introspect_ir(ir_path: Path | str) -> dict[str, Any]:
     return dict(out)
 
 
-def get_compiled(model_dir: Path | str, device: str = "GPU") -> tuple[Any, str]:
-    """Compile (or hit the lazy per-device cache). Returns (model, settled).
+def get_compiled(model_dir: Path | str, device: str = "GPU",
+                 precision: str = "fp16") -> tuple[Any, str]:
+    """Compile (or hit the lazy per-device+precision cache).
 
-    `device` in GPU|CPU|AUTO. AUTO tries GPU then CPU; the fallback is
-    logged and the settled device is returned for the op meta.
+    `device` in GPU|CPU|AUTO, `precision` in fp16|fp32. Returns (model, settled).
     Raises RuntimeError with the setup hint when the IR is missing.
     """
     import openvino as ov
 
-    ir = ir_path_for(model_dir)
+    prec = (precision or "fp16").lower()
+    if prec not in PRECISIONS:
+        raise ValueError(f"precision must be fp16|fp32, got {precision!r}")
+    ir = ir_path_for(model_dir, prec)
     if not ir.is_file():
         raise RuntimeError(
-            f"LaMA IR missing at {ir} — open the Watermark tab LaMA Setup "
-            f"row (Clean → Watermark → Setup) or POST "
+            f"LaMA {prec} IR missing at {ir} — re-run the Watermark tab LaMA "
+            f"Setup row (Clean → Watermark → Setup) or POST "
             f"/ops/watermark_lama_setup."
         )
     want = (device or "GPU").upper()
@@ -151,7 +172,7 @@ def get_compiled(model_dir: Path | str, device: str = "GPU") -> tuple[Any, str]:
     core = ov.Core()
     last_err: Exception | None = None
     for dev in candidates:
-        key = f"{ir}::{dev}"
+        key = f"{ir}::{prec}::{dev}"
         hit = _COMPILED.get(key)
         if hit is not None:
             _COMPILED.move_to_end(key)
@@ -182,10 +203,12 @@ def rasterize_mask(
     w: int, h: int,
     mask_rect: tuple[float, float, float, float],
     feather_px: int = 1,
+    grow_px: int = 0,
 ) -> np.ndarray:
     """Full-res float32 mask (0..1, 1 = inpaint) from a normalized rect.
 
-    Clamped to frame bounds; feather dilates then softens the edge.
+    Clamped to frame bounds; `grow_px` hard-dilates first (swallows
+    antialiased text-edge halos), then feather dilates + softens the edge.
     """
     mx, my, mw, mh = (float(v) for v in mask_rect)
     x0 = max(0, min(w, int(round(mx * w))))
@@ -195,6 +218,10 @@ def rasterize_mask(
     mask = np.zeros((h, w), dtype=np.float32)
     if x1 > x0 and y1 > y0:
         mask[y0:y1, x0:x1] = 1.0
+    g = int(grow_px or 0)
+    if g > 0 and (mask > 0).any():
+        gk = cv2.getStructuringElement(cv2.MORPH_RECT, (2 * g + 1, 2 * g + 1))
+        mask = cv2.dilate(mask, gk)
     f = int(feather_px or 0)
     if f > 0:
         k = 2 * f + 1
@@ -238,18 +265,41 @@ def _run_canvas(
     compiled: Any,
     spec: dict[str, Any],
     canvas: int,
+    *,
+    blend: str = "linear",
+    sharpen: float = 0.0,
+    sharpen_radius: float = 1.0,
+    color_match: bool = False,
+    mask_thresh: float = 0.5,
+    upscale_max: float = 1.0,
 ) -> np.ndarray:
     """Fixed-512 canvas pipeline on an arbitrary BGR array.
 
-    Letterbox (downscale-only + reflect pad) → OV infer → unpad → resize
-    back → composite-only-inside-mask. Returns BGR uint8, same size as input.
+    Letterbox (downscale-only by default, reflect pad) → OV infer (BINARY
+    mask) → unpad → resize back → finish pipeline → composite. Returns BGR
+    uint8, same size as input.
+
+    Finish controls:
+    - blend: "linear" (alpha composite), "poisson" (seamlessClone normal —
+      texture + color from the fill), "mono" (monochrome transfer — fill
+      texture, source color; the fix for a "lighter box").
+    - sharpen: unsharp amount on the filled region (0 = off).
+    - color_match: shift/scale the filled region's per-channel mean/std to
+      the surrounding ring (kills flat-tint mismatch).
+    - mask_thresh: binarization point of the model-bound mask.
+    - upscale_max: allow upscaling small inputs up to this factor (detail
+      for tiny watermarks; 1.0 = downscale-only, legacy).
     """
+    mode = (blend or "linear").lower()
+    if mode not in BLEND_MODES:
+        raise ValueError(f"blend must be {'|'.join(BLEND_MODES)}, got {blend!r}")
+    up = max(1.0, float(upscale_max or 1.0))
     h, w = bgr.shape[:2]
-    s = min(canvas / w, canvas / h, 1.0)
+    s = min(canvas / w, canvas / h, up)
     cw, ch = max(1, int(round(w * s))), max(1, int(round(h * s)))
-    small_img = cv2.resize(bgr, (cw, ch),
-                           interpolation=cv2.INTER_AREA if s < 1.0
-                           else cv2.INTER_LINEAR)
+    interp = cv2.INTER_AREA if s < 1.0 else (
+        cv2.INTER_LINEAR if s <= 1.0 else cv2.INTER_CUBIC)
+    small_img = cv2.resize(bgr, (cw, ch), interpolation=interp)
     small_msk = cv2.resize(mask, (cw, ch),
                            interpolation=cv2.INTER_NEAREST)
     pad_b = canvas - ch
@@ -260,7 +310,8 @@ def _run_canvas(
                                     cv2.BORDER_CONSTANT, value=0.0)
     rgb = cv2.cvtColor(canvas_img, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
     image_in = np.transpose(rgb, (2, 0, 1))[None]
-    mask_in = canvas_msk[None, None, :, :].astype(np.float32)
+    thr = min(0.9, max(0.1, float(mask_thresh)))
+    mask_in = (canvas_msk > thr)[None, None, :, :].astype(np.float32)
     out = compiled({spec["image_name"]: image_in,
                     spec["mask_name"]: mask_in})[spec["output_name"]]
     out_rgb = np.transpose(out[0], (1, 2, 0)).astype(np.float32) / 255.0
@@ -270,7 +321,42 @@ def _run_canvas(
     out_bgr = cv2.cvtColor(out_small, cv2.COLOR_RGB2BGR)
     m = mask[:, :, None]
     base = bgr.astype(np.float32) / 255.0
-    comp = base * (1.0 - m) + out_bgr * m
+    hole_bin = (mask > thr).astype(np.uint8)
+    if mode == "linear" or not hole_bin.any():
+        comp = base * (1.0 - m) + out_bgr * m
+    else:
+        flag = (cv2.NORMAL_CLONE if mode == "poisson"
+                else cv2.MONOCHROME_TRANSFER)
+        base8 = (np.clip(base, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8)
+        fill8 = (np.clip(out_bgr, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8)
+        mask8 = (hole_bin * 255).astype(np.uint8)
+        mom = cv2.moments(mask8)
+        cx, cy = int(mom["m10"] / mom["m00"]), int(mom["m01"] / mom["m00"])
+        comp = cv2.seamlessClone(fill8, base8, mask8, (cx, cy),
+                                 flag).astype(np.float32) / 255.0
+    amt = max(0.0, float(sharpen or 0.0))
+    if amt > 0 and hole_bin.any():
+        sig = min(3.0, max(0.5, float(sharpen_radius or 1.0)))
+        blur = cv2.GaussianBlur(comp, (0, 0), sig)
+        sharp = comp + amt * (comp - blur)
+        np.clip(sharp, 0.0, 1.0, out=sharp)
+        comp = comp * (1.0 - m) + sharp * m
+    if color_match and hole_bin.any():
+        ring = cv2.dilate(hole_bin,
+                          cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7)))
+        ring = ((ring > 0) & (hole_bin == 0))
+        if ring.any():
+            matched = comp.copy()
+            for c in range(3):
+                hole_px = comp[:, :, c][hole_bin > 0]
+                ring_px = base[:, :, c][ring]
+                mh, sh = float(hole_px.mean()), float(hole_px.std())
+                mr, sr = float(ring_px.mean()), float(ring_px.std())
+                gain = (sr / sh) if sh > 1e-3 else 0.0
+                gain = min(4.0, max(0.25, gain))
+                matched[:, :, c] = (comp[:, :, c] - mh) * gain + mr
+            np.clip(matched, 0.0, 1.0, out=matched)
+            comp = comp * (1.0 - m) + matched * m
     np.clip(comp, 0.0, 1.0, out=comp)
     return (comp * 255.0 + 0.5).astype(np.uint8)
 
@@ -283,21 +369,31 @@ def inpaint_image(
     *,
     canvas: int = 512,
     margin_px: int = 0,
+    blend: str = "linear",
+    sharpen: float = 0.0,
+    sharpen_radius: float = 1.0,
+    color_match: bool = False,
+    mask_thresh: float = 0.5,
+    upscale_max: float = 1.0,
 ) -> np.ndarray:
     """Inpaint one BGR uint8 frame; shared by directory + image paths.
 
     `mask_full` is full-res float32 0..1, `spec` is `introspect_ir()`.
     With margin_px > 0 inference runs on the expanded mask bbox only and
     is pasted back at its origin (full-frame fallback otherwise).
-    Returns BGR uint8, same W x H.
+    `blend`/`sharpen`/`color_match` form the finish pipeline (see
+    `_run_canvas`). Returns BGR uint8, same W x H.
     """
     h, w = bgr.shape[:2]
     box = compute_crop_box(w, h, mask_full, margin_px) if margin_px > 0 else None
+    finish = dict(blend=blend, sharpen=sharpen,
+                  sharpen_radius=sharpen_radius, color_match=color_match,
+                  mask_thresh=mask_thresh, upscale_max=upscale_max)
     if box is None:
-        return _run_canvas(bgr, mask_full, compiled, spec, canvas)
+        return _run_canvas(bgr, mask_full, compiled, spec, canvas, **finish)
     x0, y0, x1, y1 = box["x0"], box["y0"], box["x1"], box["y1"]
     crop = _run_canvas(bgr[y0:y1, x0:x1], mask_full[y0:y1, x0:x1],
-                       compiled, spec, canvas)
+                       compiled, spec, canvas, **finish)
     done = bgr.copy()
     done[y0:y1, x0:x1] = crop
     return done
@@ -309,9 +405,17 @@ async def run_lama_directory(
     *,
     mask_rect: tuple[float, float, float, float],
     feather_px: int = 1,
+    grow_px: int = 0,
     device: str = "GPU",
+    precision: str = "fp16",
     model_dir: Path | str | None = None,
     margin_px: int = 32,
+    blend: str = "linear",
+    sharpen: float = 0.0,
+    sharpen_radius: float = 1.0,
+    color_match: bool = False,
+    mask_thresh: float = 0.5,
+    upscale_max: float = 1.0,
 ) -> dict[str, Any]:
     """Directory stage body: one fixed mask, LaMA per frame."""
     src = Path(src_dir).resolve()
@@ -325,8 +429,9 @@ async def run_lama_directory(
         raise RuntimeError(f"No PNG frames in {src}")
 
     mdir = Path(model_dir).expanduser().resolve() if model_dir else lama_model_dir()
-    spec = introspect_ir(ir_path_for(mdir))
-    compiled, settled = await asyncio.to_thread(get_compiled, mdir, device)
+    spec = introspect_ir(ir_path_for(mdir, precision))
+    compiled, settled = await asyncio.to_thread(
+        get_compiled, mdir, device, precision)
 
     token = job_control.current_token()
     mask_full: np.ndarray | None = None
@@ -340,7 +445,7 @@ async def run_lama_directory(
             raise RuntimeError(f"unreadable frame: {frame_path.name}")
         if mask_full is None:
             h, w = img.shape[:2]
-            mask_full = rasterize_mask(w, h, mask_rect, feather_px)
+            mask_full = rasterize_mask(w, h, mask_rect, feather_px, grow_px)
             mx, my, mw, mh = (float(v) for v in mask_rect)
             px_box = {
                 "x": max(0, min(w, int(round(mx * w)))),
@@ -367,7 +472,12 @@ async def run_lama_directory(
             if token:
                 job_control.bind(token)
             return inpaint_image(bgr, m, cm, spec, canvas=spec["size"],
-                                 margin_px=margin)
+                                 margin_px=margin, blend=blend,
+                                 sharpen=sharpen,
+                                 sharpen_radius=sharpen_radius,
+                                 color_match=color_match,
+                                 mask_thresh=mask_thresh,
+                                 upscale_max=upscale_max)
 
         done = await asyncio.to_thread(_infer)
         ok = await asyncio.to_thread(cv2.imwrite,
@@ -388,16 +498,25 @@ async def run_lama_directory(
         )
     return {"frame_count_in": total, "frame_count_out": total,
             "frame_count": total, "device": settled, "mask_px": px_box,
-            "margin_px": margin, "crop_box": crop_box}
+            "margin_px": margin, "crop_box": crop_box, "blend": blend,
+            "precision": (precision or "fp16").lower()}
 
 
 def make_lama_directory(
     *,
     mask_rect: tuple[float, float, float, float],
     feather_px: int = 1,
+    grow_px: int = 0,
     device: str = "GPU",
+    precision: str = "fp16",
     model_dir: Path | str | None = None,
     margin_px: int = 32,
+    blend: str = "linear",
+    sharpen: float = 0.0,
+    sharpen_radius: float = 1.0,
+    color_match: bool = False,
+    mask_thresh: float = 0.5,
+    upscale_max: float = 1.0,
     **_extra: Any,
 ):
     """Factory for the pipeline registry. Returned callable kind=directory."""
@@ -405,8 +524,14 @@ def make_lama_directory(
     async def directory_fn(src_dir: Path, dst_dir: Path) -> dict[str, Any]:
         return await run_lama_directory(
             src_dir, dst_dir, mask_rect=tuple(float(v) for v in mask_rect),
-            feather_px=int(feather_px), device=str(device),
+            feather_px=int(feather_px), grow_px=int(grow_px),
+            device=str(device), precision=str(precision),
             model_dir=model_dir, margin_px=int(margin_px),
+            blend=str(blend), sharpen=float(sharpen),
+            sharpen_radius=float(sharpen_radius),
+            color_match=bool(color_match),
+            mask_thresh=float(mask_thresh),
+            upscale_max=float(upscale_max),
         )
 
     directory_fn.kind = "directory"  # type: ignore[attr-defined]

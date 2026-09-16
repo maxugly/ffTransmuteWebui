@@ -84,6 +84,7 @@ async def make_lama_directory(
     feather_px: int = 1,
     device: str = "GPU",        # GPU | CPU | AUTO
     model_dir: Path,            # junk/models/lama (absolute, resolved server-side)
+    margin_px: int = 32,        # context-crop margin (0 = full-frame fallback)
     **kwargs,
 ) -> DirectoryFn: ...
 ```
@@ -92,13 +93,13 @@ Directory-fn duties (all inside the stage, platform owns bookends):
 
 1. Compile once per call (or hit the lazy cache): `core.read_model(ir) → compile_model(ir, device)`. `AUTO` tries `GPU`, falls back to `CPU` with a one-line log (unlike generative compare-modes, silent fallback is acceptable here — record the settled device in the returned meta dict).
 2. Fixed mask: rasterize the normalized rect against the **first frame's W×H** (§6.2), dilate by `feather_px`, keep single-channel `uint8` (255 = inpaint).
-3. Per frame `i`: read PNG → BGR `float32/255` + mask → **pad both to multiples of 8** (`cv2.BORDER_REFLECT`, FFC requirement per `backlog/inpaint-spec.md`) → OV infer → crop to orig W×H → clip → write `dst_dir / frame_%06d.png` (start 0, continuous).
+3. Per frame `i`: read PNG → context-crop around the feathered mask bbox expanded by `margin_px` per side (clamped; full-frame fallback when `margin_px <= 0`, mask empty, or crop covers the frame) → BGR `float32/255` + mask → fixed-512 canvas (downscale-only + `BORDER_REFLECT_101` pad; FFC mod-8 satisfied inside the 512 canvas) → OV infer → unpad → resize back → composite-only-inside-mask (`out = src*(1-m) + model*m`, feathered `m`; exact-zero pixels are source-exact) → paste crop at origin → write `dst_dir / frame_%06d.png` (start 0, continuous). **Model-bound mask is binarized at 0.5** — feeding the feathered float mask collapses the fill toward mid-intensity (root-caused 2026-09-16: flat-red hole fills 130 soft vs 254 binary, same image; regression test `test_flat_field_fills_to_background_real_model`).
 4. `report_progress(phase="lama", current=i+1, total=N, unit="frames")` every frame (invariant 9); `check_cancelled()` between frames. No double-report: `staged_job.py` emits only a single `0/total` kickoff for a directory stage, never per-frame progress (audit-2 verified) — the filter's per-frame reports are the real progress. `start_dir_watch` applies where the platform provides it.
 5. Return `{"frame_count": N, "device": settled, "mask": {...}}` for the op's meta. The op (§5.2) collects the four `mask_x/y/w/h` floats and constructs the `mask_rect` tuple at the call site before invoking `make_lama_directory` — the tuple is never on the HTTP wire.
 
 Image inputs: the thin op (§5.2) runs the same compiled model once in-process (no dump) and writes the output image directly — same mask/pad/crop math, no code fork (share a `inpaint_image()` helper with the directory fn).
 
-Input-name/shape risk: LaMA ONNX variants differ (`image, mask` names, NCHW vs NHWC, 0–1 vs 0–255, mask polarity) and `Carve/LaMa-ONNX` may use a **fixed input size** (audit-2 flags 512×512), in which case mod-8 padding alone is insufficient. Builder introspects the downloaded file first (`ov.Core().read_model` → input names/shapes, static vs dynamic dims) and normalizes inside the filter; if the graph is fixed-size, the filter letterboxes/pads full frames to that size and crops back (no stretch of the surviving pixels — invariant 4), documenting the path in ship notes. No guessed constants in the shipped code.
+Input-name/shape (resolved, was audit-2 finding 6): `Carve/LaMa-ONNX` is `image` (N,3,512,512) f32 [0,1] RGB + `mask` (N,1,512,512) f32 **binary**, 1 = hole; output `output` (N,3,512,512) f32 [0,255]. Spatial dims STATIC 512 — the filter letterboxes (downscale-only, never upscale) into the 512 canvas and composites the hole back at full res; surviving pixels are never stretched (invariant 4). No guessed constants in the shipped code (`introspect_ir` refuses non-static/non-square graphs).
 
 ### 5.2 `POST /ops/watermark_lama_remove`
 
@@ -112,18 +113,23 @@ New module `app/operations/watermark_lama_ops.py` (V1 file untouched), registere
   "overwrite": false,
   "engine": "lama-openvino",
   "mask_x": 0.82, "mask_y": 0.86, "mask_w": 0.15, "mask_h": 0.10,
-  "feather_px": 1,
-  "device": "GPU",
+  "feather_px": 1, "grow_px": 0,
+  "margin_px": 32,
+  "device": "GPU", "precision": "fp16",
+  "blend": "linear", "sharpen": 0.0, "sharpen_radius": 1.0,
+  "color_match": false, "mask_thresh": 0.5, "upscale": 1.0,
   "start_frame": 1, "end_frame": 999999,
   "dry_run": false
 }
 ```
 
+Finish pipeline (all composite-aware, applied in order): `blend` linear (alpha) | poisson (seamlessClone) | mono (monochrome transfer — fill texture, source color; the lighter-box fix); `sharpen` 0–2 unsharp amount on the filled region (+ `sharpen_radius` 0.5–3 sigma, Advanced); `color_match` fits the fill's per-channel mean/std to the surrounding ring (Advanced); `grow_px` 0–16 hard-dilates the mask first (swallows antialiased text halos); `upscale` 1–4 lets small crops upscale into the 512 canvas (CUBIC) for extra model detail; `mask_thresh` 0.1–0.9 is the model-bound mask binarization (Advanced); `precision` fp16 (default) | fp32 (setup builds both IRs; fp32 = slower, less banding).
+
 Validation (fail = `OperationResult(ok=False)`, never HTTP 4xx — invariant 10):
 
 - `input_path` absolute + exists; `engine` must be the literal `lama-openvino` (anything else → `ok:false`, pointing at the tab dropdown).
 - `mask_*` all in `[0,1]`, `mask_w/h > 0`, rect area > 0 and ≤ 25% of frame (refuse full-frame "removals" — LaMA hallucinates at that scale; point at `general-ai` future).
-- `feather_px` in `0–8`; `device` in `GPU|CPU|AUTO`; `start/end_frame` 1-based inclusive (`frame-range-spec.md`), **video-only** — the image path ignores them (documented, never an error); `output_path` ⊕ `out_dir` mutually exclusive; defaults mirror V1 (`<stem>_clean.<same ext>` image, `<stem>_clean.mp4` video); `overwrite=false` + existing target → `ok:false` naming the file.
+- `feather_px` in `0–8`; `margin_px` in `0–256` (default 32; 0 = full-frame inference); `device` in `GPU|CPU|AUTO`; `start/end_frame` 1-based inclusive (`frame-range-spec.md`), **video-only** — the image path ignores them (documented, never an error); `output_path` ⊕ `out_dir` mutually exclusive; defaults mirror V1 (`<stem>_clean.<same ext>` image, `<stem>_clean.mp4` video); `overwrite=false` + existing target → `ok:false` naming the file.
 - Model IR present under `junk/models/lama/` else `ok:false` with the setup hint (`Clean → Watermark → LaMA Setup`, i.e. `watermark_lama_setup`).
 
 Execution:
@@ -196,7 +202,7 @@ The existing `watermark` branch (`job-control.js:918`) hardcodes `opId = 'waterm
 
 ## 7. Test plan
 
-**Unit (`tests/test_watermark_lama.py`, new — V1 file untouched):** rect validation matrix (out-of-range, zero-area, >25% refuse, rel-path reject, output/output-dir exclusivity, no-clobber); dry-run writes nothing; mod-8 pad/crop round-trip on odd dims; missing-IR → `ok:false` + setup hint; no `shell=True` grep guard (only the stdlib download + OV API; ffmpeg only inside `run_staged_job` bookends).
+**Unit (`tests/test_watermark_lama.py`, new — V1 file untouched):** rect validation matrix (out-of-range, zero-area, >25% refuse, rel-path reject, output/output-dir exclusivity, no-clobber); margin default/validation + crop-box matrix + crop-vs-full fake-model consistency; dry-run writes nothing; mod-8 pad/crop round-trip on odd dims; flat-field fill regression (`test_flat_field_fills_to_background_real_model` — guards the 2026-09-16 soft-mask root cause); still-fixture outside-mask-unchanged (real model); missing-IR → `ok:false` + setup hint; no `shell=True` grep guard (only the stdlib download + OV API; ffmpeg only inside `run_staged_job` bookends).
 
 **API:** monkeypatched stage fn: `ok:true` + absolute `output_path` + meta (`device_settled`, `mask`, `frame_count`); cancel mid-batch → `Cancelled by user`; failures always HTTP 200 + `ok:false`.
 
@@ -220,10 +226,10 @@ The existing `watermark` branch (`job-control.js:918`) hardcodes `opId = 'waterm
 
 ---
 
-## 10. Builder verify-before-code list
+## 10. Builder verify-before-code list (resolved 2026-09-16 unless noted)
 
-1. `Carve/LaMa-ONNX` exact asset name, license, sha256; record all three in setup meta + ship notes. Check static vs dynamic input dims first (fixed 512×512 suspected — see §5.1).
-2. Real OV input signature (names, NCHW/NHWC, value range, mask polarity) via `read_model` introspection — normalize once in the filter.
+1. `Carve/LaMa-ONNX` exact asset name, license (Apache-2.0), sha256 (`1faef530…`, full hash in setup meta + ship notes) — confirmed.
+2. Real OV input signature via `read_model` introspection — confirmed: `image` NCHW f32 [0,1] RGB, `mask` binary 1 = hole, `output` [0,255]; static 512×512.
 3. `GPU` plugin: confirmed present on this box (`available_devices == ['CPU','GPU']` per audit-2); `AUTO` fallback still logged + meta-recorded.
 4. Large-mask quality cliff: validate the 25% cap against one real watermark sample (adjust the number, never drop the cap silently).
 5. FP16 IR vs FP32 quality on a real corner watermark (one screenshot pair in the ship proof).
