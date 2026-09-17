@@ -2021,3 +2021,32 @@ input.daw-knob-value-input:focus {
   color: var(--text-main, #f3f4f6);
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Stems tab (Demucs) ─────────────────────────────────────────────── */
+.dm-stems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+.dm-stem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  font-size: 0.85rem;
+  user-select: none;
+}
+.dm-stem input[type="checkbox"] {
+  accent-color: #4ade80;
+  margin: 0;
+}
+.dm-stem.is-on {
+  border-color: rgba(74, 222, 128, 0.55);
+  background: rgba(74, 222, 128, 0.10);
+}

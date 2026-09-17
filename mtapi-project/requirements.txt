@@ -20,6 +20,8 @@ tensorflow-hub>=0.16
 setuptools<81
 openvino
 ultralytics
+# Demucs stem separation (Stems tab: host STFT/ISTFT + torch; neural core via OpenVINO)
+demucs>=4.1
 # QR Art Generator
 qrcode[pil]>=8.0
 pyzbar>=0.1.9

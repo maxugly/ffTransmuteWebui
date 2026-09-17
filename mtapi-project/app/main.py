@@ -225,6 +225,9 @@ styletransfer.register(app)
 from .routes import deepdream
 deepdream.register(app)
 
+from .routes import demucs
+demucs.register(app)
+
 from .routes import lineage
 lineage.register(app)
 
