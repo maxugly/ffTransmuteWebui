@@ -61,9 +61,43 @@ def make_deepdream_filter(
     custom_layer_weights_from: dict[str, float] | None = None,
     custom_layer_weights_to: dict[str, float] | None = None,
     total_frames: int | None = None,
+    engine: str = "cpu",
     **_extra: Any,
 ):
     """Return a per_frame FilterFn with optional temporal state."""
+    if (engine or "cpu").lower() == "gpu":
+        # check_compatible must see EXPLICIT custom weights only — the resolved
+        # preset dict is always non-empty and is covered by the baked-layer note.
+        custom_for_check = None
+        if layer_preset == "custom" and layer_weights:
+            custom_for_check = layer_weights
+        if custom_layer_weights_to:
+            custom_for_check = custom_layer_weights_to
+        return _make_ov_filter(
+            model_name=model_name,
+            custom_layer_weights=custom_for_check,
+            layer_cycle=layer_cycle,
+            guide_path=guide_path,
+            max_loss=max_loss,
+            max_loss_to=max_loss_to,
+            preview_width=preview_width,
+            optical_flow=optical_flow,
+            octave_scale=octave_scale,
+            num_octave=num_octave,
+            num_octave_to=num_octave_to,
+            octave_scale_to=octave_scale_to,
+            layer_preset=layer_preset,
+            step=step,
+            iterations=iterations,
+            blend=blend,
+            jitter=jitter,
+            reinject_detail=reinject_detail,
+            temporal_blend=temporal_blend,
+            frame_step=frame_step,
+            step_to=step_to,
+            iterations_to=iterations_to,
+            blend_to=blend_to,
+        )
     from ..operations.deepdream.dream import (
         dream_image,
         linear_blend,
@@ -176,6 +210,115 @@ def make_deepdream_filter(
 
     filter_fn.kind = "per_frame"  # type: ignore[attr-defined]
     filter_fn.stage_name = "deepdream"  # type: ignore[attr-defined]
+    return filter_fn
+
+
+def _make_ov_filter(
+    *,
+    model_name: str = "inception_v3",
+    custom_layer_weights: dict[str, float] | None = None,
+    layer_cycle: bool = False,
+    guide_path: str | None = None,
+    max_loss: float | None = 0.0,
+    max_loss_to: float | None = None,
+    preview_width: int | None = 0,
+    optical_flow: bool = False,
+    octave_scale: float = 1.4,
+    num_octave: int = 3,
+    num_octave_to: float | None = None,
+    octave_scale_to: float | None = None,
+    layer_preset: str = "classic",
+    step: float = 0.01,
+    iterations: int = 20,
+    blend: float = 1.0,
+    jitter: bool = True,
+    reinject_detail: bool = True,
+    temporal_blend: float = 0.85,
+    frame_step: int = 1,
+    step_to: float | None = None,
+    iterations_to: float | None = None,
+    blend_to: float | None = None,
+    total_frames: int | None = None,
+):
+    """OpenVINO InceptionV3/Mixed_6c per_frame stage.
+
+    Supports per-frame step/iterations/blend ramps, frame_step skips, and the
+    classic temporal alpha-mix. Everything shape- or layer-changing fails
+    loudly at factory time (before any dump is processed).
+    """
+    from ..operations import deepdream_ov_engine as ove
+
+    note = ove.check_compatible(
+        model_name=model_name,
+        custom_layer_weights=custom_layer_weights,
+        layer_cycle=layer_cycle,
+        guide_path=guide_path,
+        max_loss=max_loss,
+        max_loss_to=max_loss_to,
+        preview_width=preview_width,
+        optical_flow=optical_flow,
+        octave_scale=octave_scale,
+        num_octave=num_octave,
+        num_octave_to=num_octave_to,
+        octave_scale_to=octave_scale_to,
+    )
+    _ = note  # surfaced by the op summary; factory stays quiet on presets
+
+    frame_step = max(1, int(frame_step))
+    use_temporal = 0.0 <= float(temporal_blend) < 1.0 - 1e-9
+    last_dream_arr = None
+    seed_dir: Path | None = None
+
+    async def filter_fn(src: Path, dst: Path, index: int) -> None:
+        nonlocal last_dream_arr, seed_dir
+
+        if index % frame_step != 0:
+            shutil.copy2(src, dst)
+            return
+
+        t = (index / (total_frames - 1)) if total_frames and total_frames > 1 else 0.0
+        f_step = _lerp(float(step), float(step_to), t) if step_to is not None else float(step)
+        f_iter = (
+            int(round(_lerp(float(iterations), float(iterations_to), t)))
+            if iterations_to is not None
+            else int(iterations)
+        )
+        f_blend = _lerp(float(blend), float(blend_to), t) if blend_to is not None else float(blend)
+        f_blend = max(0.0, min(1.0, f_blend))
+
+        curr_src = np.asarray(PILImage.open(src).convert("RGB"))
+        dream_in = curr_src
+        if use_temporal and last_dream_arr is not None:
+            if seed_dir is None:
+                seed_dir = dst.parent / "_dd_seed"
+                seed_dir.mkdir(parents=True, exist_ok=True)
+            a = float(temporal_blend)
+            dream_in = (last_dream_arr.astype(np.float32) * (1.0 - a)
+                        + curr_src.astype(np.float32) * a).astype(np.uint8)
+
+        def _run():
+            dreamed, _ = ove.dream_array(
+                dream_in,
+                step=f_step,
+                iterations=f_iter,
+                num_octave=int(num_octave),
+                jitter=bool(jitter),
+                reinject_detail=bool(reinject_detail),
+                progress_cb=None,
+            )
+            if f_blend < 1.0 - 1e-6:
+                dreamed = (
+                    dreamed.astype(np.float32) * f_blend
+                    + curr_src.astype(np.float32) * (1.0 - f_blend)
+                ).astype(np.uint8)
+            return dreamed
+
+        dreamed = await asyncio.to_thread(_run)
+        PILImage.fromarray(dreamed, "RGB").save(str(dst))
+        last_dream_arr = dreamed
+
+    filter_fn.kind = "per_frame"  # type: ignore[attr-defined]
+    filter_fn.stage_name = "deepdream-ov"  # type: ignore[attr-defined]
     return filter_fn
 
 

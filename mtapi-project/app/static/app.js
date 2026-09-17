@@ -23,7 +23,7 @@ import {
   newJobToken, enqueueActiveOperation,
 } from '/js/job-control.js';
 import { renderMoshForm, updateMoshParams } from '/js/tabs/datamosh.js';
-import { renderDeepDreamForm, collectDeepDreamBody } from '/js/tabs/deepdream.js';
+import { renderDeepDreamForm, collectDeepDreamBody } from '/js/tabs/deepdream.js?v=2';
 import { renderTransmuteForm, renderMultiForm, renderAdvancedForm, addMultiClipPath } from '/js/tabs/transmute.js';
 import { renderFaceMorphForm, collectFaceMorphBody } from '/js/tabs/facemorph.js';
 import { renderWithoutBgForm, collectWithoutBgBody } from '/js/tabs/withoutbg.js';

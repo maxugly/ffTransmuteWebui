@@ -222,6 +222,9 @@ erase.register(app)
 from .routes import styletransfer
 styletransfer.register(app)
 
+from .routes import deepdream
+deepdream.register(app)
+
 from .routes import lineage
 lineage.register(app)
 

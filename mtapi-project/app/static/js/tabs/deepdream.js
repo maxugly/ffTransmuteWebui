@@ -1,5 +1,6 @@
 import { state, elements, bestInput, logConsole } from '/app.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { runOpWithCancel } from '/js/job-control.js';
 import {
   evolveRifeModelSelectHtml,
   evolveRifeKnobUnitsHtml,
@@ -80,7 +81,22 @@ function renderDeepDreamForm() {
   const html = `
     <div class="panel-title-desc dense">
       <h3>Google DeepDream</h3>
-      <p class="dream-hint">CNN gradient ascent — pick model + layers. Image / video / Ouroboros.</p>
+      <p class="dream-hint">CNN gradient ascent — pick model + layers. Image / video / Ouroboros.
+        GPU = OpenVINO static dream on the iGPU (InceptionV3 · Mixed_6c baked, 512/1.4 pyramid;
+        needs one-time Setup below; other models/layers/guides stay CPU-only).</p>
+    </div>
+    <div class="form-row">
+      <label for="dreamEngine">Engine</label>
+      <select id="dreamEngine">
+        <option value="cpu">CPU · TF nets (full knobs)</option>
+        <option value="gpu">GPU · OpenVINO static (iGPU)</option>
+      </select>
+      <span class="form-row-hint" id="dreamOvStatus">GPU status: checking…</span>
+    </div>
+    <div class="form-row dream-gpu-only hidden" id="dreamGpuSetupRow">
+      <button type="button" class="btn" id="btnDreamOvSetup">GPU Setup</button>
+      <button type="button" class="btn" id="btnDreamOvRefresh">Refresh</button>
+      <span class="form-row-hint">One-time IR install + CPU smoke + GPU probe.</span>
     </div>
     <div class="knob-row settings-inline-warm">
       <div class="knob-bank">${knobUnitHtml({ id: 'dreamWarm', label: 'Keep warm', value: state.settings?.warmModels?.deepdream ? '1' : '0', binary: true, leftCap: 'Off', rightCap: 'On' })}</div>
@@ -829,6 +845,29 @@ function renderDeepDreamForm() {
   });
   document.getElementById('btnDreamExportSettings')?.addEventListener('click', exportDeepDreamSettings);
 
+  // ── Engine dropdown (CPU TF nets vs GPU OpenVINO static) ──
+  const dreamEng = document.getElementById('dreamEngine');
+  if (dreamEng) {
+    try {
+      dreamEng.value = localStorage.getItem('mtapi.dreamEngine') || 'cpu';
+    } catch (_) { dreamEng.value = 'cpu'; }
+    _syncDreamGpuRow();
+    dreamEng.addEventListener('change', () => {
+      try { localStorage.setItem('mtapi.dreamEngine', dreamEng.value); } catch (_) {}
+      _syncDreamGpuRow();
+      if (dreamEng.value === 'gpu') _refreshDreamOvStatus();
+    });
+  }
+  document.getElementById('btnDreamOvSetup')?.addEventListener('click', async () => {
+    try {
+      await runOpWithCancel('deepdream_ov_setup', { action: 'install', dry_run: false },
+        { label: 'DeepDream GPU setup (IR install + smoke)…' });
+    } catch (_) { /* logged */ }
+    _refreshDreamOvStatus();
+  });
+  document.getElementById('btnDreamOvRefresh')?.addEventListener('click', _refreshDreamOvStatus);
+  _refreshDreamOvStatus();
+
   // Apply pending send-to path
   if (state.pendingInputPath && state.pendingInputTarget === 'deepdream') {
     const inp = document.getElementById('dreamInput');
@@ -841,6 +880,26 @@ function renderDeepDreamForm() {
   }
 
   syncDreamUiVisibility();
+}
+
+function _syncDreamGpuRow() {
+  const show = (document.getElementById('dreamEngine')?.value || 'cpu') === 'gpu';
+  document.getElementById('dreamGpuSetupRow')?.classList.toggle('hidden', !show);
+}
+
+async function _refreshDreamOvStatus() {
+  const box = document.getElementById('dreamOvStatus');
+  if (!box) return;
+  box.textContent = 'GPU status: checking…';
+  try {
+    const res = await fetch('/api/deepdream_ov/status');
+    const data = await res.json();
+    const baked = data.baked ? ` ${data.baked.model}/${data.baked.layer}` : '';
+    box.textContent = 'GPU status: IR ' + (data.ir_present ? `ok${baked}` : 'MISSING — run GPU Setup')
+      + ' · devices ' + ((data.devices || []).join('/') || '?');
+  } catch (err) {
+    box.textContent = 'GPU status check failed — ' + err.message;
+  }
 }
 
 function collectDeepDreamBody() {
@@ -875,6 +934,7 @@ function collectDeepDreamBody() {
   const dynamic = document.getElementById('dreamDynamic')?.value === '1';
 
   const body = withFrameRange({
+    engine: document.getElementById('dreamEngine')?.value || 'cpu',
     input_path: input,
     output_path: output,
     media_kind,
