@@ -50,6 +50,36 @@ CANVAS = 512
 
 HdStrategy = Literal["Original", "Crop", "Resize"]
 
+# Painted masks get the same area cap as the rect fallback: past ~25% of
+# the frame LaMA stops inpainting and starts hallucinating whole-frame
+# texture. (A closed brush outline fills its interior via _solid_mask, and
+# an opaque canvas background decodes to 100% — both must be refused with
+# a plain message, never rendered as texture.)
+MAX_MASK_AREA = 0.25
+
+
+def mask_coverage(mask_bin: np.ndarray) -> float:
+    """Fraction of the frame covered by a binary float32 mask."""
+    return float((mask_bin > 0.5).mean()) if mask_bin.size else 0.0
+
+
+def check_mask_area(mask_bin: np.ndarray, *, painted: bool) -> float:
+    """Refuse full-frame-scale masks before any inference runs.
+
+    Returns the coverage fraction. Raises RuntimeError past the cap —
+    both callers (single-shot image path, directory video stage) turn
+    that into HTTP 200 + ok:false, so a bad mask fails loudly instead of
+    burning GPU minutes on whole-frame texture.
+    """
+    cov = mask_coverage(mask_bin)
+    if cov > MAX_MASK_AREA:
+        what = "painted mask" if painted else "mask rect"
+        raise RuntimeError(
+            f"{what} covers {cov:.0%} of the frame (cap 25%) — "
+            f"LaMA hallucinates at that scale; paint a tighter mask "
+            f"(or Clear it and use a small rect).")
+    return cov
+
 _COMPILED: dict[str, Any] = {}
 _INTROSPECTED: dict[str, dict[str, Any]] = {}
 
@@ -102,7 +132,16 @@ def introspect_ir(ir_path: Path | str) -> dict[str, Any]:
 
 
 def get_compiled(model_dir: Path | str, device: str = "GPU") -> tuple[Any, str]:
-    """Compile (or hit the lazy per-device cache). Returns (model, settled)."""
+    """Compile (or hit the lazy per-device cache). Returns (model, settled).
+
+    GPU compiles force `hint.inference_precision=f32`: the default fp16
+    GPU path accumulates fatal error in the FFC spectral MatMul chains
+    (large 5D reductions lose precision, then the spectral Div amplifies
+    it — measured hole mean|d| ≈ 56 vs CPU, max 239). With f32 the GPU
+    matches CPU bit-nearly (hole mean|d| ≈ 0.0001, max 1 LSB). See
+    docs/intel_gpu_5d_bug_workaround.md (source theory) and the erase-tab
+    spec for the bisection that pinned the real cause on this stack.
+    """
     import openvino as ov
 
     ir = ir_path_for(model_dir)
@@ -123,7 +162,9 @@ def get_compiled(model_dir: Path | str, device: str = "GPU") -> tuple[Any, str]:
         if hit is not None:
             return hit, dev
         try:
-            compiled = core.compile_model(str(ir), dev)
+            cfg = ({ov.properties.hint.inference_precision: ov.Type.f32}
+                   if dev == "GPU" else {})
+            compiled = core.compile_model(str(ir), dev, cfg)
         except Exception as e:  # noqa: BLE001 — fallback is the contract
             last_err = e
             continue
@@ -355,6 +396,7 @@ async def run_erase_directory(
         mask_bin = decode_mask_png(mask_png, pw, ph)
         if not (mask_bin > 0).any():
             raise RuntimeError("painted mask is empty — paint the watermark first")
+        check_mask_area(mask_bin, painted=True)
         px_box = {"frame_w": pw, "frame_h": ph, "painted": True}
     if debug_mask_path is not None:
         if mask_bin is None:
@@ -380,6 +422,7 @@ async def run_erase_directory(
         if mask_bin is None:
             assert mask_rect is not None
             mask_bin = draw_mask(w, h, mask_rect)
+            check_mask_area(mask_bin, painted=False)
             mx, my, mw, mh = (float(v) for v in mask_rect)
             px_box = {
                 "x": max(0, min(w, int(round(mx * w)))),

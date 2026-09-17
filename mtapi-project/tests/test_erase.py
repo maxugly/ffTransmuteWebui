@@ -21,7 +21,9 @@ from app.contract import REGISTRY  # noqa: E402
 from app.operations import erase_ops as eo  # noqa: E402
 from app.operations.erase_ops import (  # noqa: E402
     EraseRemoveParams,
+    EraseSetupParams,
     erase_remove,
+    erase_setup,
 )
 from app.filters import erase as ef  # noqa: E402
 
@@ -288,6 +290,111 @@ def test_busy_ground_truth_real_model():
     assert hole.sum() > 1000
     err = np.abs(done[hole].astype(float) - gt[hole].astype(float)).mean()
     assert err < 55, f"erase GT hole err {err:.1f}"
+
+
+# ── Intel GPU (docs/intel_gpu_5d_bug_workaround.md) ─────────────────────
+#
+# The workaround doc theorizes an Add/Sub 5D fusion bug fixed by ONNX
+# Squeeze/Unsqueeze surgery. Bisection on this stack (OV 2026.3.1) proved
+# otherwise: the first CPU-vs-GPU divergence is a 5D spectral MatMul, and
+# wrapping the 72 true-5D rttn Add/Subs changed nothing (hole mean|d|
+# stayed ≈ 65). The actual cause is the GPU plugin's default fp16
+# accumulation in those large reductions, amplified by the spectral Div.
+# Compiling GPU with hint.inference_precision=f32 matches CPU bit-nearly,
+# so that hint (in filters/erase.py:get_compiled) IS the fix — no model
+# surgery, no extra weights. This test guards it: without the hint the
+# hole diff is ~65 and the test fails.
+
+def _gpu_available() -> bool:
+    try:
+        import openvino as ov
+
+        return "GPU" in [str(x) for x in ov.Core().available_devices]
+    except Exception:
+        return False
+
+
+@pytest.mark.skipif(not _ir_present(), reason="Erase IR not installed")
+@pytest.mark.skipif(not _gpu_available(), reason="No Intel GPU")
+def test_gpu_matches_cpu_real_model():
+    """GPU (f32 hint) must match CPU bit-nearly on a seeded fixture."""
+    import numpy as np
+
+    from app.filters.erase import (
+        draw_mask,
+        erase_model_dir,
+        get_compiled,
+        inpaint_frame,
+        introspect_ir,
+        ir_path_for,
+    )
+
+    rng = np.random.default_rng(7)
+    img = np.zeros((240, 320, 3), dtype=np.uint8)
+    for _ in range(60):
+        x, y = rng.integers(0, 300), rng.integers(0, 220)
+        w, h = rng.integers(10, 60), rng.integers(10, 50)
+        import cv2
+
+        cv2.rectangle(img, (x, y), (x + w, y + h),
+                      tuple(int(v) for v in rng.integers(50, 210, 3)), -1)
+    import cv2
+
+    img = cv2.GaussianBlur(img, (3, 3), 0)
+    mask = draw_mask(320, 240, (0.55, 0.60, 0.20, 0.16))
+    compiled_cpu, _ = get_compiled(erase_model_dir(), "CPU")
+    compiled_gpu, settled = get_compiled(erase_model_dir(), "GPU")
+    assert settled == "GPU"
+    spec = introspect_ir(ir_path_for(erase_model_dir()))
+    cpu = inpaint_frame(img, mask, compiled_cpu, spec,
+                        hd_strategy="Original").astype(float)
+    gpu = inpaint_frame(img, mask, compiled_gpu, spec,
+                        hd_strategy="Original").astype(float)
+    hole = mask > 0.5
+    diff = float(np.abs(cpu[hole] - gpu[hole]).mean())
+    assert diff < 1.0, f"GPU diverged from CPU in hole: mean|d|={diff:.2f}"
+
+
+def test_setup_dry_run_phases(tmp_path):
+    r = _run(erase_setup(EraseSetupParams(action="install", dry_run=True)))
+    assert r.ok is True and r.dry_run is True
+    plan = (r.command or "").lower()
+    assert "download" in plan and "convert" in plan and "gpu" in plan
+
+
+def _white_mask_b64(w: int = 320, h: int = 240) -> str:
+    import base64
+    import cv2
+    import numpy as np
+
+    m = np.full((h, w), 255, dtype=np.uint8)
+    ok, buf = cv2.imencode(".png", m)
+    assert ok
+    return "data:image/png;base64," + base64.b64encode(buf.tobytes()).decode()
+
+
+def test_painted_mask_over_cap_refused(tmp_path):
+    """A full-frame painted mask must fail loudly (cap 25%), never render
+    whole-frame LaMA texture. Regression: an opaque canvas background
+    decodes to 100% coverage via the alpha channel."""
+    src = _make_png(tmp_path / "in.png")
+    r = _run(erase_remove(_params(str(src), mask_b64=_white_mask_b64())))
+    assert r.ok is False and "25%" in (r.error or "")
+    assert "tighter mask" in (r.error or "")
+
+
+def test_mask_area_helper_units():
+    import numpy as np
+
+    from app.filters.erase import MAX_MASK_AREA, check_mask_area
+
+    assert MAX_MASK_AREA == 0.25
+    m = np.zeros((100, 100), dtype=np.float32)
+    m[40:60, 40:60] = 1.0  # 4% — fine
+    assert check_mask_area(m, painted=True) == 0.04
+    m[:] = 1.0
+    with pytest.raises(RuntimeError, match="25%"):
+        check_mask_area(m, painted=True)
 
 
 # ── contract guards ─────────────────────────────────────────────────────

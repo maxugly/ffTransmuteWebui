@@ -25,6 +25,7 @@ from ..filters.erase import (
     MODEL_FILENAME,
     MODEL_LICENSE,
     MODEL_REPO,
+    check_mask_area,
     decode_mask_png,
     draw_mask,
     erase_model_dir,
@@ -55,29 +56,6 @@ MAX_MASK_B64 = 2 * 1024 * 1024  # painted masks are tiny; refuse garbage
 
 def _sha_file(onnx_path: Path) -> Path:
     return onnx_path.with_suffix(onnx_path.suffix + ".sha256")
-
-
-def get_erase_status() -> dict:
-    """Additive status block for GET /api/erase/status (read-only)."""
-    d = erase_model_dir()
-    onnx = d / MODEL_FILENAME
-    ir = ir_path_for(d)
-    sha: str | None = None
-    sidecar = _sha_file(onnx) if onnx.is_file() else None
-    if sidecar is not None and sidecar.is_file():
-        try:
-            sha = sidecar.read_text().strip().split()[0] or None
-        except OSError:
-            sha = None
-    devices: list[str] = []
-    try:
-        import openvino as ov
-
-        devices = [str(x) for x in ov.Core().available_devices]
-    except Exception:
-        pass
-    return {"onnx_present": onnx.is_file(), "ir_present": ir.is_file(),
-            "sha256": sha, "devices": devices}
 
 
 class EraseRemoveParams(BaseModel):
@@ -285,6 +263,7 @@ async def erase_remove(p: EraseRemoveParams) -> OperationResult:
                 mask_bin = decode_mask_png(mask_png, w, h)
                 if not (mask_bin > 0).any():
                     raise RuntimeError("painted mask is empty")
+                check_mask_area(mask_bin, painted=True)
             else:
                 mask_bin = draw_mask(w, h, mask_rect)
             compiled, settled = get_compiled(erase_model_dir(), str(p.device))
@@ -368,7 +347,7 @@ def _sha256(path: Path) -> str:
 
 
 async def erase_setup(p: EraseSetupParams) -> OperationResult:
-    """Download ONNX → convert to FP16 IR → CPU compile-smoke.
+    """Download ONNX → FP16 IR → CPU smoke + GPU probe.
 
     Cancel-safe between phases. Ends with a fresh status payload in meta +
     recommend_restart=false. Dry-run prints phases and changes nothing.
@@ -381,6 +360,7 @@ async def erase_setup(p: EraseSetupParams) -> OperationResult:
         f"download {MODEL_URL} → {onnx}",
         f"convert → FP16 IR {ir}",
         "compile-smoke on CPU (synthetic 512 input, no media needed)",
+        "probe GPU compile (non-fatal — CPU path already proven above)",
     ]
     plan = "\n".join(f"phase {i + 1}: {ph}" for i, ph in enumerate(phases))
     if p.dry_run:
@@ -456,6 +436,34 @@ async def erase_setup(p: EraseSetupParams) -> OperationResult:
 
         smoke = await asyncio.to_thread(_smoke)
         logs.append(f"cpu smoke ok: shape={smoke['shape']} max={smoke['max']:.1f}")
+
+        _phase(3, len(phases))
+        gpu_probe: dict = {"ok": False}
+
+        def _gpu_smoke() -> dict:
+            import numpy as np
+
+            if token:
+                job_control.bind(token)
+            compiled, settled = get_compiled(d, "GPU")
+            spec = introspect_ir(ir)
+            n = spec["size"]
+            img = np.zeros((1, 3, n, n), dtype=np.float32)
+            msk = np.zeros((1, 1, n, n), dtype=np.float32)
+            out = compiled({spec["image_name"]: img,
+                            spec["mask_name"]: msk})[spec["output_name"]]
+            return {"settled": settled,
+                    "shape": [int(v) for v in out.shape],
+                    "max": float(np.max(out))}
+
+        try:
+            gpu_probe = await asyncio.to_thread(_gpu_smoke)
+            gpu_probe["ok"] = True
+            logs.append(f"gpu smoke ok: settled={gpu_probe['settled']} "
+                        f"shape={gpu_probe['shape']} max={gpu_probe['max']:.1f}")
+        except Exception as e:  # noqa: BLE001 — non-fatal, CPU path stands
+            gpu_probe = {"ok": False, "error": str(e)[:300]}
+            logs.append(f"gpu smoke skipped: {gpu_probe['error']}")
     except job_control.JobCancelled as e:
         return OperationResult(
             ok=False, operation=op, error=str(e), dry_run=False,
@@ -478,6 +486,7 @@ async def erase_setup(p: EraseSetupParams) -> OperationResult:
     return OperationResult(
         ok=True, operation=op, command=plan, stdout="\n".join(logs),
         meta={"status": {"erase": get_erase_status()},
+              "gpu_probe": gpu_probe,
               "recommend_restart": False, "repo": MODEL_REPO,
               "license": MODEL_LICENSE},
     )
@@ -525,7 +534,10 @@ register(OperationSpec(
     summary="Install/update erase weights (download + FP16 IR + CPU smoke)",
     description=(
         f"Downloads {MODEL_FILENAME} from {MODEL_REPO}, converts once to "
-        "FP16 OpenVINO IR, compile-smokes on CPU. Tab installer row driver."
+        "FP16 OpenVINO IR, compile-smokes on CPU plus a non-fatal GPU "
+        "probe (GPU compiles with f32 inference precision — the default "
+        "fp16 GPU path corrupts LaMA's spectral MatMuls). Tab installer "
+        "row driver."
     ),
     params_model=EraseSetupParams,
     handler=erase_setup,

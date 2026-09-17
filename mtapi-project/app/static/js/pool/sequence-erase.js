@@ -11,6 +11,10 @@ import { scheduleSavePoolState } from '/js/pool/persistence.js';
 
 const ERASE_W = 960;
 const ERASE_H = 540;
+// Backing-store cap: the paint canvas is aspect-matched to the frame on
+// load (base.naturalWidth/Height), never stretched. ERASE_MAX bounds the
+// long side; PW/PH below carry the live dims for this editor instance.
+const ERASE_MAX = 960;
 const MASK_TTL_MS = 15000;
 
 const _maskCache = new Map(); // lineageId → { at, record }
@@ -212,20 +216,42 @@ function openEraseMaskEditor(entry) {
 
   const paint = overlay.querySelector('#seqErasePaint');
   const pctx = paint.getContext('2d');
-  pctx.fillStyle = '#000';
-  pctx.fillRect(0, 0, ERASE_W, ERASE_H);
+  // Transparent black = empty mask. NEVER fill opaque: the backend decodes
+  // the mask PNG by its alpha channel, so an opaque background reads as a
+  // 100% mask and LaMA regenerates the whole frame as texture.
+  let PW = ERASE_W;
+  let PH = ERASE_H;
+  pctx.clearRect(0, 0, paint.width, paint.height);
   const undoStack = [];
   let brush = 24;
   let drawing = false;
   let erasing = false;
 
   const base = overlay.querySelector('#seqEraseBase');
+  base.onload = () => {
+    try {
+      const nw = base.naturalWidth || 0;
+      const nh = base.naturalHeight || 0;
+      if (nw > 0 && nh > 0) {
+        const s = Math.min(1, ERASE_MAX / Math.max(nw, nh));
+        PW = Math.max(2, Math.round(nw * s));
+        PH = Math.max(2, Math.round(nh * s));
+        paint.width = PW;
+        paint.height = PH;
+        pctx.clearRect(0, 0, PW, PH);
+        const stage = overlay.querySelector('.seq-erase-stage');
+        if (stage) stage.style.aspectRatio = PW + ' / ' + PH;
+        undoStack.length = 0;
+        pushUndo();
+      }
+    } catch (_) { /* keep 960x540 fallback */ }
+  };
   base.src = `/api/thumbnail?path=${encodeURIComponent(entry.path)}&which=first`;
   base.onerror = () => { base.style.display = 'none'; };
 
   const pushUndo = () => {
     try {
-      undoStack.push(pctx.getImageData(0, 0, ERASE_W, ERASE_H));
+      undoStack.push(pctx.getImageData(0, 0, paint.width, paint.height));
       if (undoStack.length > 40) undoStack.shift();
     } catch (_) { /* ignore */ }
   };
@@ -234,15 +260,23 @@ function openEraseMaskEditor(entry) {
   const pos = (e) => {
     const r = paint.getBoundingClientRect();
     return {
-      x: ((e.clientX - r.left) / r.width) * ERASE_W,
-      y: ((e.clientY - r.top) / r.height) * ERASE_H,
+      x: ((e.clientX - r.left) / r.width) * PW,
+      y: ((e.clientY - r.top) / r.height) * PH,
     };
   };
   const dot = (x, y, erase) => {
-    pctx.fillStyle = erase ? '#000' : '#fff';
+    pctx.save();
+    if (erase) {
+      // Erase back to transparency (unmasked), not to opaque black.
+      pctx.globalCompositeOperation = 'destination-out';
+      pctx.fillStyle = 'rgba(0,0,0,1)';
+    } else {
+      pctx.fillStyle = '#fff';
+    }
     pctx.beginPath();
     pctx.arc(x, y, brush / 2, 0, Math.PI * 2);
     pctx.fill();
+    pctx.restore();
   };
   paint.addEventListener('contextmenu', (e) => e.preventDefault());
   paint.addEventListener('pointerdown', (e) => {
@@ -280,8 +314,7 @@ function openEraseMaskEditor(entry) {
   });
   overlay.querySelector('#seqEraseClearC')?.addEventListener('click', () => {
     pushUndo();
-    pctx.fillStyle = '#000';
-    pctx.fillRect(0, 0, ERASE_W, ERASE_H);
+    pctx.clearRect(0, 0, paint.width, paint.height);
   });
   overlay.querySelector('#seqEraseCancel')?.addEventListener('click', closeEraseMaskEditor);
   overlay.addEventListener('pointerdown', (e) => {
@@ -302,24 +335,34 @@ function openEraseMaskEditor(entry) {
   if (dev) dev.value = prior.device;
 
   overlay.querySelector('#seqEraseSave')?.addEventListener('click', async () => {
-    const hasPaint = (() => {
+    const cov = (() => {
+      // Alpha channel decides server-side: sample the white fraction.
       try {
-        const d = pctx.getImageData(0, 0, ERASE_W, ERASE_H).data;
-        for (let i = 0; i < d.length; i += 401 * 4) {
-          if (d[i] > 0) return true;
+        const d = pctx.getImageData(0, 0, paint.width, paint.height).data;
+        let n = 0;
+        let hit = 0;
+        for (let i = 3; i < d.length; i += 401 * 4) {
+          n++;
+          if (d[i] > 127) hit++;
         }
-        return false;
-      } catch (_) { return true; }
+        return n ? hit / n : 0;
+      } catch (_) { return 0; }
     })();
+    const hasPaint = cov > 0;
+    if (cov > 0.25 && !confirm(
+      `Mask covers ${Math.round(cov * 100)}% of the frame (cap 25%) — ` +
+      `LaMA hallucinates at that scale and the run will be refused. ` +
+      `Save anyway?`)) {
+      return;
+    }
     let dataUrl = paint.toDataURL('image/png');
     if (!hasPaint) {
-      // Rect fallback: fill the normalized rect into the mask canvas.
+      // Rect fallback: clear canvas, then fill the normalized rect.
       const raw = (overlay.querySelector('#seqEraseRect').value || '').split(',').map(Number);
       const [rx, ry, rw, rh] = raw.length === 4 && raw.every(Number.isFinite) ? raw : [0.8, 0.84, 0.17, 0.12];
-      pctx.fillStyle = '#000';
-      pctx.fillRect(0, 0, ERASE_W, ERASE_H);
+      pctx.clearRect(0, 0, paint.width, paint.height);
       pctx.fillStyle = '#fff';
-      pctx.fillRect(rx * ERASE_W, ry * ERASE_H, rw * ERASE_W, rh * ERASE_H);
+      pctx.fillRect(rx * PW, ry * PH, rw * PW, rh * PH);
       dataUrl = paint.toDataURL('image/png');
     }
     const settings = {
@@ -327,7 +370,7 @@ function openEraseMaskEditor(entry) {
       crop_trigger: 800, crop_margin: 128, resize_limit: 1280,
       device: dev ? dev.value : 'GPU',
     };
-    await saveEraseMask(entry, dataUrl, settings);
+    await saveEraseMask(entry, dataUrl, settings, paint.width, paint.height);
     closeEraseMaskEditor();
   });
 }
@@ -336,7 +379,7 @@ function closeEraseMaskEditor() {
   document.getElementById('seqEraseModal')?.remove();
 }
 
-async function saveEraseMask(entry, maskDataUrl, settings) {
+async function saveEraseMask(entry, maskDataUrl, settings, mw, mh) {
   const lid = eraseLineageId(entry);
   if (!lid) return false;
   let res;
@@ -345,7 +388,7 @@ async function saveEraseMask(entry, maskDataUrl, settings) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        mask_b64: maskDataUrl, width: ERASE_W, height: ERASE_H,
+        mask_b64: maskDataUrl, width: mw || ERASE_W, height: mh || ERASE_H,
         erase_settings: settings,
       }),
     });
@@ -374,11 +417,11 @@ async function saveEraseMask(entry, maskDataUrl, settings) {
     original_path: entry.path,
     mask_id: entry.eraseMaskId,
     mask_path: rec?.mask_path || null,
-    width: ERASE_W, height: ERASE_H,
+    width: mw || ERASE_W, height: mh || ERASE_H,
     erase_settings: entry.eraseSettings,
   };
   invalidateMaskCache(lid);
-  logConsole(`[ERASE]: mask saved for ${basename(entry.path)} (${ERASE_W}×${ERASE_H}) — pipeline will regenerate clean/RIFE/conform`);
+  logConsole(`[ERASE]: mask saved for ${basename(entry.path)} (${mw || ERASE_W}×${mh || ERASE_H}) — pipeline will regenerate clean/RIFE/conform`);
   scheduleSavePoolState();
   try {
     const { renderSequenceBox } = await import('/js/pool/sequence-composer.js');

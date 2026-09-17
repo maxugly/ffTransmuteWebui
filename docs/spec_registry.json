@@ -543,7 +543,14 @@
     "path": "docs/erase-tab-spec.md",
     "category": "Operation",
     "status": "Implemented, unshipped",
-    "summary": "Erase tab: LaMA inpaint with lama-cleaner (iopaint) erase settings on OpenVINO. Brush-painted mask (wheel size, right-erase, undo) auto-applied to every frame, rect fallback, HD Original/Crop/Resize, masked-only composite."
+    "summary": "Erase tab: LaMA inpaint with lama-cleaner (iopaint) erase settings on OpenVINO. Brush-painted mask (wheel size, right-erase, undo) auto-applied to every frame, rect fallback, HD Original/Crop/Resize, masked-only composite. GPU via f32 inference-precision hint (fp16 GPU path corrupts spectral MatMuls; ONNX surgery rejected by bisection)."
+  },
+  {
+    "file": "intel_gpu_5d_bug_workaround.md",
+    "path": "docs/intel_gpu_5d_bug_workaround.md",
+    "category": "Operation",
+    "status": "Reference — source theory (Add/Sub 5D fusion → Squeeze/Unsqueeze surgery); bisected on OV 2026.3.1 and NOT the LaMA-GPU cause here (first divergence is the spectral MatMul itself; fix is the f32 inference hint — see erase-tab-spec.md)",
+    "summary": "Intel-GPU 5D-tensor OpenVINO workaround: wrap buggy Add/Sub in Squeeze/Unsqueeze to force 4D execution. Copied verbatim from external source."
   },
   {
     "file": "qr-illusion-art-spec.md",

@@ -157,6 +157,21 @@ The editor uses the existing Erase preview and paint canvas. It displays the
 canonical/original source frame, even when the Sequence is currently showing a
 RIFE or conformed variant. Saving the mask does not run an operation.
 
+Mask canvas contract (measured fixes, 2026-09-17 — a full-frame "paper
+texture" incident traced to these):
+- **Transparent background.** The backend decodes the mask PNG by its alpha
+  channel, so the canvas background must stay transparent (eraser restores
+  transparency via `destination-out`). An opaque background decodes to a 100%
+  mask and LaMA regenerates the whole frame as texture.
+- **Aspect-matched canvas.** The backing store follows the base frame aspect
+  (long side capped at 960px) and the stage `aspect-ratio` tracks it — never
+  a fixed 960×540 stretch, which misplaces paint on non-16:9 frames.
+- **25% area cap.** Painted masks get the same cap as the rect fallback: past
+  ~25% LaMA hallucinates instead of inpainting. Save warns via `confirm()`
+  past the cap; `erase_remove` (all paths: Erase tab image/video + this
+  pipeline) refuses past the cap with HTTP 200 + `ok:false` and a plain
+  message, so a bad mask fails loudly instead of burning GPU minutes.
+
 The selected Sequence chip shows a small mask marker and a stale marker when
 the source hash or erase settings no longer match the saved artifact.
 
