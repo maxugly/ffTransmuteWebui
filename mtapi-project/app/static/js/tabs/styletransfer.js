@@ -1,6 +1,7 @@
 import { state, elements, resolveGlobalImages, bestInput, showPreview } from '/app.js';
 import { basename, escapeHtml, withFrameRange, isVideoPath, isImagePath } from '/js/utils.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { runOpWithCancel } from '/js/job-control.js';
 import {
   evolveRifeModelSelectHtml,
   evolveRifeKnobUnitsHtml,
@@ -40,9 +41,23 @@ function renderStyleTransferForm() {
     <div class="panel-title-desc dense">
       <h3>Neural style transfer</h3>
       <p class="dream-hint">
-        Magenta arbitrary stylization (~90&nbsp;MB). Stills batch · video = dump → per-frame → encode.
+        CPU = Magenta arbitrary stylization (~90&nbsp;MB). GPU = OpenVINO AdaIN on the iGPU
+        (needs one-time Setup below). Stills batch · video = dump → per-frame → encode.
         ${hasVideo ? ' <strong>Video mode:</strong> one clip (not mixed with stills).' : ''}
       </p>
+    </div>
+    <div class="form-row">
+      <label for="stEngine">Engine</label>
+      <select id="stEngine">
+        <option value="cpu">CPU · Magenta (existing)</option>
+        <option value="gpu">GPU · OpenVINO AdaIN (iGPU)</option>
+      </select>
+      <span class="form-row-hint" id="stOvStatus">GPU status: checking…</span>
+    </div>
+    <div class="form-row st-gpu-only hidden" id="stGpuSetupRow">
+      <button type="button" class="btn" id="btnStOvSetup">GPU Setup</button>
+      <button type="button" class="btn" id="btnStOvRefresh">Refresh</button>
+      <span class="form-row-hint">One-time IR install + CPU smoke + GPU probe.</span>
     </div>
     <div class="knob-row settings-inline-warm">
       <div class="knob-bank">${knobUnitHtml({ id: 'stWarm', label: 'Keep warm', value: state.settings?.warmModels?.styletransfer ? '1' : '0', binary: true, leftCap: 'Off', rightCap: 'On' })}</div>
@@ -143,6 +158,26 @@ function renderStyleTransferForm() {
     state.settings.warmModels.styletransfer = e.target.value === '1';
     try { localStorage.setItem('mtapi.settings', JSON.stringify(state.settings)); } catch (_) {}
   });
+  // ── Engine dropdown (CPU Magenta vs GPU OpenVINO AdaIN) ──
+  const engSel = document.getElementById('stEngine');
+  if (engSel) {
+    engSel.value = state.styleTransfer.engine || 'cpu';
+    _syncStGpuRow();
+    engSel.addEventListener('change', () => {
+      state.styleTransfer.engine = engSel.value;
+      _syncStGpuRow();
+      if (engSel.value === 'gpu') _refreshStOvStatus();
+    });
+  }
+  document.getElementById('btnStOvSetup')?.addEventListener('click', async () => {
+    try {
+      await runOpWithCancel('styletransfer_ov_setup', { action: 'install', dry_run: false },
+        { label: 'Style-transfer GPU setup (IR install + smoke)…' });
+    } catch (_) { /* logged */ }
+    _refreshStOvStatus();
+  });
+  document.getElementById('btnStOvRefresh')?.addEventListener('click', _refreshStOvStatus);
+  _refreshStOvStatus();
   setupBinaryKnob({
     knobId: 'stDryRunKnob', indicatorId: 'stDryRunKnobInd', hiddenId: 'stDryRun',
     leftValue: '0', rightValue: '1', initial: '0',
@@ -276,8 +311,26 @@ registerListKeys('styletransfer', {
   },
 });
 
-async function _addPathsFromPicker(mode, filter) {
+function _syncStGpuRow() {
+  const show = (document.getElementById('stEngine')?.value || 'cpu') === 'gpu';
+  document.getElementById('stGpuSetupRow')?.classList.toggle('hidden', !show);
+}
+
+async function _refreshStOvStatus() {
+  const box = document.getElementById('stOvStatus');
+  if (!box) return;
+  box.textContent = 'GPU status: checking…';
   try {
+    const res = await fetch('/api/styletransfer_ov/status');
+    const data = await res.json();
+    box.textContent = 'GPU status: IR ' + (data.ir_present ? 'ok' : 'MISSING — run GPU Setup')
+      + ' · devices ' + ((data.devices || []).join('/') || '?');
+  } catch (err) {
+    box.textContent = 'GPU status check failed — ' + err.message;
+  }
+}
+
+async function _addPathsFromPicker(mode, filter) {  try {
     const res = await fetch(`/api/picker?mode=${mode}&filter=${filter}&start_path=`);
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
@@ -367,6 +420,7 @@ function collectStyleTransferBody() {
   }
 
   return withFrameRange({
+    engine: document.getElementById('stEngine')?.value || state.styleTransfer.engine || 'cpu',
     content_path: singleVideo ? videos[0] : (contents.length === 1 ? contents[0] : null),
     content_paths: singleVideo ? null : contents,
     style_path,

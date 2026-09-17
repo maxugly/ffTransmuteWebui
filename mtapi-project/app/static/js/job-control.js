@@ -10,7 +10,7 @@ import { basename, escapeHtml } from '/js/utils.js';
 import { setPreviewAspect } from '/js/preview.js';
 import { collectFaceMorphBody } from '/js/tabs/facemorph.js';
 import { collectWithoutBgBody } from '/js/tabs/withoutbg.js';
-import { collectStyleTransferBody } from '/js/tabs/styletransfer.js';
+import { collectStyleTransferBody } from '/js/tabs/styletransfer.js?v=2';
 import { collectRifeBody } from '/js/tabs/rife.js';
 import { collectImg2ImgBody } from '/js/tabs/img2img.js';
 import { collectTxt2ImgBody } from '/js/tabs/txt2img.js';

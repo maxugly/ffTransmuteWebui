@@ -28,7 +28,7 @@ import { renderTransmuteForm, renderMultiForm, renderAdvancedForm, addMultiClipP
 import { renderFaceMorphForm, collectFaceMorphBody } from '/js/tabs/facemorph.js';
 import { renderWithoutBgForm, collectWithoutBgBody } from '/js/tabs/withoutbg.js';
 import { renderFastSAMForm, collectFastSAMBody } from '/js/tabs/fastsam.js';
-import { renderStyleTransferForm, collectStyleTransferBody } from '/js/tabs/styletransfer.js';
+import { renderStyleTransferForm, collectStyleTransferBody } from '/js/tabs/styletransfer.js?v=2';
 import { renderRifeForm, collectRifeBody } from '/js/tabs/rife.js';
 import { renderImg2ImgForm, collectImg2ImgBody } from '/js/tabs/img2img.js';
 import { renderTxt2ImgForm, collectTxt2ImgBody } from '/js/tabs/txt2img.js';
@@ -123,6 +123,7 @@ let state = {
     contents: [], // {path, name}[]
     stylePath: null,
     selected: 0,
+    engine: 'cpu',
   },
   // Quick Transmute: one-click right-click reformat (same Fit/AR as sequence)
   quick: {
@@ -983,7 +984,7 @@ function switchTab(tab) {
   if (tab === 'facemorph') title = 'Face Morph';
   if (tab === 'withoutbg') title = 'withoutBG · Remove Background';
   if (tab === 'fastsam') title = 'FastSAM · Asset Extraction';
-  if (tab === 'styletransfer') title = 'Style Transfer · Magenta';
+  if (tab === 'styletransfer') title = 'Style Transfer · CPU/GPU';
   if (tab === 'rife') title = 'RIFE · AI Frame Interpolation';
   if (tab === 'img2img') title = 'Img2Img · OpenVINO GPU';
   if (tab === 'txt2img') title = 'Txt2Img · OpenVINO GPU';

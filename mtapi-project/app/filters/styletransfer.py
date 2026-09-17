@@ -1,6 +1,6 @@
-"""Style transfer per_frame stage — Magenta TF-Hub.
+"""Style transfer per_frame stage — Magenta TF-Hub (cpu) or OpenVINO AdaIN (gpu).
 
-kind=per_frame. Model + style tensor loaded once at factory time.
+kind=per_frame. Model + style loaded once at factory time.
 Shared by /ops/styletransfer (video) and /ops/pipeline.
 """
 from __future__ import annotations
@@ -21,9 +21,14 @@ def make_styletransfer_filter(
     strength: float = 1.0,
     max_side: int = 1280,
     style_size: int = 256,
+    engine: str = "cpu",
     **_extra: Any,
 ):
     """Return a per_frame FilterFn. Loads model + style once."""
+    if (engine or "cpu").lower() == "gpu":
+        return _make_ov_filter(
+            style_path=style_path, strength=strength, max_side=max_side
+        )
     from ..operations import styletransfer_engine as ste
     import tensorflow as tf
 
@@ -63,6 +68,37 @@ def make_styletransfer_filter(
 
     filter_fn.kind = "per_frame"  # type: ignore[attr-defined]
     filter_fn.stage_name = "styletransfer"  # type: ignore[attr-defined]
+    return filter_fn
+
+
+def _make_ov_filter(
+    *,
+    style_path: str,
+    strength: float = 1.0,
+    max_side: int = 1280,
+):
+    """OpenVINO AdaIN per_frame stage: style encoded once, alpha=strength
+    is a native graph input (feature-space blend, like the OVS CLI)."""
+    from ..operations import styletransfer_ov_engine as ove
+
+    style_file = Path(style_path).expanduser().resolve()
+    if not style_file.is_file():
+        raise FileNotFoundError(f"Style image not found: {style_file}")
+
+    style_mean, style_std, settled = ove.encode_style(style_file, device="GPU")
+    alpha = float(np.clip(strength, 0.0, 1.0))
+    max_side_i = int(max_side) if max_side else 0
+
+    def _run(input_png: Path, output_png: Path) -> None:
+        content = ove._resize_max_side(ove._load_rgb(input_png), max_side_i)
+        result = ove.stylize_array(content, style_mean, style_std, alpha=alpha, device=settled)
+        PILImage.fromarray(result, "RGB").save(str(output_png))
+
+    async def filter_fn(src: Path, dst: Path, index: int) -> None:
+        await asyncio.to_thread(_run, src, dst)
+
+    filter_fn.kind = "per_frame"  # type: ignore[attr-defined]
+    filter_fn.stage_name = "styletransfer-ov"  # type: ignore[attr-defined]
     return filter_fn
 
 

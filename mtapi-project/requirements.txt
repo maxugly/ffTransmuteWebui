@@ -16,6 +16,8 @@ pyyaml>=6.0
 withoutbg>=1.0.6
 # Arbitrary neural style transfer (Magenta TF-Hub; TF already used by DeepDream)
 tensorflow-hub>=0.16
+# TF-hub still does `from pkg_resources import parse_version` (gone in setuptools 81+)
+setuptools<81
 openvino
 ultralytics
 # QR Art Generator

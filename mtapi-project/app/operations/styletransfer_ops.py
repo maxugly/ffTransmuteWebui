@@ -14,6 +14,7 @@ import asyncio
 import shutil
 import uuid
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 from pydantic import Field
@@ -30,6 +31,11 @@ VIDEO_EXTS = {".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi"}
 
 
 class StyleTransferParams(EvolveRifeParams):
+    engine: Literal["cpu", "gpu"] = Field(
+        "cpu",
+        description="Style engine: 'cpu' = Magenta TF-Hub (existing), "
+        "'gpu' = OpenVINO AdaIN, strict GPU (fails loudly, never falls back to CPU)",
+    )
     keep_model_warm: bool = Field(False, description="Keep the style model resident between runs")
     content_path: str | None = Field(
         None,
@@ -245,7 +251,7 @@ async def _styletransfer_video(p: StyleTransferParams, video_path: str) -> Opera
 
     summary = (
         f"styletransfer video {input_path.name} ← {style_path.name} "
-        f"strength={p.strength} max_side={p.max_side} "
+        f"engine={p.engine} strength={p.strength} max_side={p.max_side} "
         f"frames={p.start_frame}–{p.end_frame if p.end_frame < 999999 else 'end'}"
     )
 
@@ -276,6 +282,7 @@ async def _styletransfer_video(p: StyleTransferParams, video_path: str) -> Opera
             strength=p.strength,
             max_side=p.max_side,
             style_size=p.style_size,
+            engine=p.engine,
         )
         dump_info = await dump(
             ws, input_path, start_frame=p.start_frame, end_frame=p.end_frame,
@@ -380,7 +387,7 @@ async def styletransfer(p: StyleTransferParams) -> OperationResult:
     s_end = float(p.strength) if p.evolve_strength_end < 0 else float(p.evolve_strength_end)
     summary = (
         f"styletransfer n={len(contents)} style={style.name} "
-        f"strength={p.strength} max_side={p.max_side}"
+        f"engine={p.engine} strength={p.strength} max_side={p.max_side}"
     )
     if p.evolve_enabled:
         summary += (
@@ -446,9 +453,15 @@ async def styletransfer(p: StyleTransferParams) -> OperationResult:
 
     def runner():
         job_control.bind(job_token)
+        use_ov = p.engine == "gpu"
+        if use_ov:
+            from . import styletransfer_ov_engine as ove
         # Warm model once, then stylize each with a pre-allocated unique dest
         try:
-            ste.preload()
+            if use_ov:
+                ove.preload()
+            else:
+                ste.preload()
         except Exception as e:
             return {"ok": False, "error": str(e), "results": [], "output_path": None}
 
@@ -480,14 +493,25 @@ async def styletransfer(p: StyleTransferParams) -> OperationResult:
                 default_ext=".png",
                 allowed_exts=IMAGE_EXTS,
             )
-            r = ste.stylize_pair(
-                src,
-                style,
-                dest_final,
-                strength=p.strength,
-                max_side=p.max_side,
-                style_size=p.style_size,
-                progress_cb=None,
+            r = (
+                ove.stylize_pair(
+                    src,
+                    style,
+                    dest_final,
+                    strength=p.strength,
+                    max_side=p.max_side,
+                    progress_cb=None,
+                )
+                if use_ov
+                else ste.stylize_pair(
+                    src,
+                    style,
+                    dest_final,
+                    strength=p.strength,
+                    max_side=p.max_side,
+                    style_size=p.style_size,
+                    progress_cb=None,
+                )
             )
             results.append(r)
             if r.get("ok"):
@@ -557,7 +581,8 @@ async def styletransfer(p: StyleTransferParams) -> OperationResult:
     lines = list(logs)
     for r in result.get("results") or []:
         if r.get("ok"):
-            lines.append(f"  OK {r.get('output_path')}")
+            tag = f" ({r.get('engine')}/{r.get('device_settled')})" if r.get("engine") == "openvino" else ""
+            lines.append(f"  OK {r.get('output_path')}{tag}")
         else:
             lines.append(f"  FAIL {r.get('content') or r.get('error')}: {r.get('error')}")
 
@@ -612,6 +637,17 @@ async def _styletransfer_evolve_still(
 
         def runner():
             job_control.bind(job_token)
+            if p.engine == "gpu":
+                from . import styletransfer_ov_engine as _ove
+
+                return _ove.stylize_strength_strip(
+                    content,
+                    style,
+                    cand,
+                    strengths=strengths,
+                    max_side=p.max_side,
+                    progress_cb=progress_cb,
+                )
             return ste.stylize_strength_strip(
                 content,
                 style,
@@ -691,9 +727,11 @@ async def _styletransfer_evolve_still(
 
 register(OperationSpec(
     id="styletransfer",
-    summary="Neural style transfer (Magenta; optional strength Evolve video)",
+    summary="Neural style transfer (CPU Magenta or GPU OpenVINO AdaIN; optional Evolve video)",
     description=(
-        "Arbitrary artistic style transfer via Magenta TF-Hub model. "
+        "Arbitrary artistic style transfer. Engine 'cpu' = Magenta TF-Hub model "
+        "(existing default); engine 'gpu' = OpenVINO AdaIN, strict GPU "
+        "(fails loudly, no CPU fallback; needs POST /ops/styletransfer_ov_setup once). "
         "Pass content photo(s) or a folder, plus any style reference image. "
         "Outputs default next to each content as *_styled.png and never overwrite "
         "(auto _0001, _0002, …). "
@@ -703,4 +741,204 @@ register(OperationSpec(
     params_model=StyleTransferParams,
     handler=styletransfer,
     tags=["styletransfer", "image", "video", "neural", "filter", "evolve"],
+))
+
+
+# ── OpenVINO AdaIN installer / status (GPU engine) ──────────────────────────
+
+OV_IR_FILES = (
+    ["style_encoder_fp16.xml", "style_encoder_fp16.bin"]
+    + [
+        f"content_stylize_{tag}_fp16.{ext}"
+        for tag in ("512x512", "768x768", "1024x1024", "1080x1920")
+        for ext in ("xml", "bin")
+    ]
+)
+OV_DEV_SOURCE = Path("/home/m/snc/cod/testLamaEraser/ovs_style/artifacts")
+
+
+def _ov_model_dir() -> Path:
+    import os as _os
+
+    env = _os.environ.get("OVS_STYLE_DIR", "").strip()
+    if env:
+        return Path(env).expanduser()
+    return Path(__file__).resolve().parent.parent.parent / "junk" / "models" / "ovs_style"
+
+
+def _ov_source_dir() -> Path | None:
+    import os as _os
+
+    env = _os.environ.get("OVS_STYLE_SRC", "").strip()
+    if env and Path(env).expanduser().is_dir():
+        return Path(env).expanduser()
+    if OV_DEV_SOURCE.is_dir():
+        return OV_DEV_SOURCE
+    return None
+
+
+def get_styletransfer_ov_status() -> dict:
+    """Read-only status payload for GET /api/styletransfer_ov/status."""
+    from . import styletransfer_ov_engine as ove
+
+    d = _ov_model_dir()
+    files = {}
+    try:
+        files = {name: (d / name).is_file() for name in OV_IR_FILES}
+    except OSError:
+        pass
+    resolved = ove.resolve_artifacts_dir()
+    return {
+        "ok": True,
+        "ir_present": ove.ir_present(),
+        "artifacts_dir": str(resolved) if resolved else None,
+        "model_dir": str(d),
+        "files": files,
+        "devices": ove.available_devices(),
+    }
+
+
+class StyleTransferOvSetupParams(StyleTransferParams):
+    style_path: str = Field(
+        "",
+        description="Unused for setup (inherited field, defaults empty).",
+    )
+    action: Literal["install", "update"] = Field(
+        "install", description="install = copy missing IRs; update = re-copy all"
+    )
+    dry_run: bool = False  # re-declared for registry clarity (inherited anyway)
+
+
+async def styletransfer_ov_setup(p: StyleTransferOvSetupParams) -> OperationResult:
+    """Copy OVS-Style FP16 IRs into junk/models/ovs_style + CPU smoke + GPU probe.
+
+    Cancel-safe between phases. Ends with a fresh status payload in meta +
+    recommend_restart=false. Dry-run prints phases and changes nothing.
+    """
+    from . import styletransfer_ov_engine as ove
+
+    op = "styletransfer_ov_setup"
+    d = _ov_model_dir()
+    src = _ov_source_dir()
+    phases = [
+        f"copy {len(OV_IR_FILES)} IR files → {d}",
+        "compile-smoke on CPU (synthetic 256px input, no media needed)",
+        "probe GPU compile+infer (non-fatal — CPU path already proven above)",
+    ]
+    plan = "\n".join(f"phase {i + 1}: {ph}" for i, ph in enumerate(phases))
+    if p.dry_run:
+        return OperationResult(
+            ok=True, operation=op, dry_run=True, command=plan,
+            stdout=f"styletransfer_ov_setup {p.action} (dry run — nothing changed)\n{plan}\n",
+            meta={"dry_run": True, "status": {"styletransfer_ov": get_styletransfer_ov_status()},
+                  "recommend_restart": False},
+        )
+    logs = [f"styletransfer_ov_setup {p.action} (AdaIN OpenVINO, Apache-2.0 weights via naoto0804/pytorch-AdaIN)"]
+    token = job_control.current_token()
+
+    def _phase(i: int, total: int) -> None:
+        job_control.check_cancelled()
+        if token:
+            job_control.report_progress(
+                f"setup phase {i + 1}/{total}", phase="setup",
+                current=i, total=total, unit="phases", token=token,
+            )
+
+    try:
+        _phase(0, len(phases))
+        if src is None:
+            raise RuntimeError(
+                "No OVS-Style IR source found — set $OVS_STYLE_SRC to a dir holding "
+                "style_encoder_fp16.xml + content_stylize_*_fp16.xml, or place them in "
+                f"{d} manually."
+            )
+        missing = [n for n in OV_IR_FILES if not (src / n).is_file()]
+        if missing:
+            raise RuntimeError(
+                f"IR source {src} is missing {len(missing)} file(s): "
+                + ", ".join(missing[:4])
+                + ("…" if len(missing) > 4 else "")
+            )
+
+        def _copy() -> int:
+            if token:
+                job_control.bind(token)
+            d.mkdir(parents=True, exist_ok=True)
+            n = 0
+            for name in OV_IR_FILES:
+                dest = d / name
+                if p.action == "install" and dest.is_file():
+                    continue
+                shutil.copy2(src / name, dest)
+                n += 1
+            return n
+
+        copied = await asyncio.to_thread(_copy)
+        logs.append(f"IR files ready in {d} ({copied} copied, {len(OV_IR_FILES) - copied} kept)")
+
+        _phase(1, len(phases))
+
+        def _smoke(device: str) -> dict:
+            rng = np.random.default_rng(7)
+            if token:
+                job_control.bind(token)
+            settled = ove.preload(device=device)
+            content = (rng.random((256, 256, 3)) * 255).astype(np.uint8)
+            mean = rng.standard_normal((1, 512, 1, 1)).astype(np.float32)
+            std = np.abs(rng.standard_normal((1, 512, 1, 1)).astype(np.float32)) + 0.1
+            out = ove.stylize_array(content, mean, std, alpha=1.0, device=settled)
+            return {"settled": settled, "shape": [int(v) for v in out.shape],
+                    "mean": float(np.mean(out))}
+
+        smoke = await asyncio.to_thread(_smoke, "CPU")
+        logs.append(f"cpu smoke ok: settled={smoke['settled']} shape={smoke['shape']} mean={smoke['mean']:.1f}")
+
+        _phase(2, len(phases))
+        gpu_probe: dict = {"ok": False}
+        try:
+            gpu_probe = await asyncio.to_thread(_smoke, "GPU")
+            gpu_probe["ok"] = True
+            logs.append(f"gpu smoke ok: settled={gpu_probe['settled']} "
+                        f"shape={gpu_probe['shape']} mean={gpu_probe['mean']:.1f}")
+        except Exception as e:  # noqa: BLE001 — non-fatal, CPU path stands
+            gpu_probe = {"ok": False, "error": str(e)[:300]}
+            logs.append(f"gpu smoke skipped: {gpu_probe['error']}")
+    except job_control.JobCancelled as e:
+        return OperationResult(
+            ok=False, operation=op, error=str(e), dry_run=False,
+            command=plan, stdout="\n".join(logs),
+            meta={"status": {"styletransfer_ov": get_styletransfer_ov_status()},
+                  "recommend_restart": False},
+        )
+    except Exception as e:  # noqa: BLE001 — HTTP 200 + ok:false
+        return OperationResult(
+            ok=False, operation=op, error=str(e), dry_run=False,
+            command=plan, stdout="\n".join(logs),
+            meta={"status": {"styletransfer_ov": get_styletransfer_ov_status()},
+                  "recommend_restart": False},
+        )
+    if token:
+        job_control.report_progress(
+            "setup done", phase="done",
+            current=len(phases), total=len(phases), unit="phases", token=token,
+        )
+    return OperationResult(
+        ok=True, operation=op, command=plan, stdout="\n".join(logs),
+        meta={"status": {"styletransfer_ov": get_styletransfer_ov_status()},
+              "gpu_probe": gpu_probe,
+              "recommend_restart": False},
+    )
+
+
+register(OperationSpec(
+    id="styletransfer_ov_setup",
+    summary="Install OVS-Style IRs for the GPU style-transfer engine",
+    description=(
+        "Copies the 10 AdaIN OpenVINO FP16 IR files into "
+        "junk/models/ovs_style/, compile-smokes on CPU plus a non-fatal GPU "
+        "probe. Source: $OVS_STYLE_SRC or the dev-machine build."
+    ),
+    params_model=StyleTransferOvSetupParams,
+    handler=styletransfer_ov_setup,
+    tags=["styletransfer", "setup", "openvino", "gpu"],
 ))
