@@ -10,7 +10,7 @@ import { refreshRifeNeed, _resolvedTargetFps, _rifeBadgeForEntry, _scheduleInsta
 import { peekVariants, _fetchVariants, _fetchVariantsBatch, _normVariantKey, _showSeqVariantMenu } from '/js/pool/sequence-variants.js';
 import { updateSeqTransportUI, updateSeqClipSettings, seqClipSpeedInfo, seqClipTokenTitle, seqStop } from '/js/pool/sequence-transport.js';
 import { conformBadgeForEntry, updateStitchButton, maybeAutoConformEntry } from '/js/pool/sequence-conform.js';
-import { eraseBadgeForEntry, ensureSequenceLineages } from '/js/pool/sequence-erase.js';
+import { eraseBadgeForEntry, ensureSequenceLineages } from '/js/pool/sequence-erase.js?v=2';
 import { normTagColor, sequenceUseCounts, openTagPicker } from '/js/pool/sequence-tag.js';
 
 function setupSequenceDropZone() {

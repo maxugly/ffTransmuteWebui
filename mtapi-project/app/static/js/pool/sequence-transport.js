@@ -164,7 +164,7 @@ function updateSeqClipSettings() {
   }
   // Erase pipeline panel (dynamic import: erase.js also touches the composer).
   try {
-    import('/js/pool/sequence-erase.js').then((m) => {
+    import('/js/pool/sequence-erase.js?v=2').then((m) => {
       try { m.updateErasePanel(); } catch (_) { /* panel optional */ }
     }).catch(() => {});
   } catch (_) { /* panel optional */ }

@@ -10,4 +10,4 @@ export { peekVariants, _showSeqVariantMenu, _fetchVariants, _fetchVariantsBatch 
 export { refreshRifeNeed, attachCachedRifeVariants, recoverSequenceVariants, setInstantHydrationGate, armInstantRife, disarmInstantRife, ensureSequenceMetaAndInstantScan, _maybeAutoRifeAll, getInstantRifeQueueSnapshot } from '/js/pool/sequence-rife.js';
 export { conformBadgeForEntry, updateStitchButton, invalidateConforms, maybeAutoConformEntry, noteConformDone } from '/js/pool/sequence-conform.js';
 export { SEQ_TAG_COLORS, normTagColor, sequenceUseCounts, setEntryTagColor, openTagPicker, closeTagPicker } from '/js/pool/sequence-tag.js';
-export { ensureSequenceLineages, eraseLineageId, eraseBadgeForEntry, updateErasePanel, runErasePipeline, clearEraseStatus, initSequenceErase } from '/js/pool/sequence-erase.js';
+export { ensureSequenceLineages, eraseLineageId, eraseBadgeForEntry, updateErasePanel, runErasePipeline, clearEraseStatus, initSequenceErase } from '/js/pool/sequence-erase.js?v=2';

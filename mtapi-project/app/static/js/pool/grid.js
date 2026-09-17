@@ -432,7 +432,7 @@ function zoomBindings(root) {
 
 function _bindSequencePanel() {
   document.getElementById('btnPoolStitch')?.addEventListener('click', stitchPoolSequence);
-  import('/js/pool/sequence-erase.js').then((m) => {
+  import('/js/pool/sequence-erase.js?v=2').then((m) => {
     try { m.initSequenceErase(); } catch (_) { /* erase panel optional */ }
   }).catch(() => {});
   document.getElementById('btnPoolOutBrowse')?.addEventListener('click', () => {
