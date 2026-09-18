@@ -22,7 +22,7 @@ from . import music_ov_engine as ove
 
 
 class MusicGenerateParams(BaseModel):
-    prompt: str = Field("A fast synthwave track with heavy bass",
+    prompt: str = Field("wu-tang, hip hop, boom bap, gritty instrumental, 95bpm, sampled guitar riff, sampled woodwinds, tight snare, dirty kick",
                         description="Caption text (goes through the SFT template)")
     lyrics: str = Field("[Instrumental]", description="Lyric block content")
     seed: int = Field(42, ge=0, description="Initial-noise seed (same prompt+seed = bit-identical clip)")

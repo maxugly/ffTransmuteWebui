@@ -15,7 +15,7 @@ function _muState() {
   if (!state.music || typeof state.music !== 'object') {
     state.music = {
       model: 'acestep-v15-turbo',
-      prompt: 'A fast synthwave track with heavy bass',
+      prompt: 'wu-tang, hip hop, boom bap, gritty instrumental, 95bpm, sampled guitar riff, sampled woodwinds, tight snare, dirty kick',
       lyrics: '[Instrumental]',
       seed: 42,
       duration: 12,

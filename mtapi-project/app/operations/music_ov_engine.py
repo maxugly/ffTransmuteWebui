@@ -55,9 +55,8 @@ MUSIC_MODELS: dict[str, dict] = {
                  "proj_out runs on CPU via HETERO pin (measured fix).",
     },
     "acestep-v15-base": {
-        "label": "ACE-Step 1.5 base · 2B (needs validation)",
-        "enabled": False,
-        "disabled_reason": "IR validating — see spec §8",
+        "label": "ACE-Step 1.5 base · 2B (CFG, ear-verified)",
+        "enabled": True,
         "knobs": ["prompt", "negative", "lyrics", "seed", "duration", "steps",
                   "guidance", "device", "outdir", "format", "overwrite", "dryrun"],
         "dit_dir": "models/dit_base",

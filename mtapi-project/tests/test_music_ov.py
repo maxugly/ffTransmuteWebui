@@ -41,7 +41,7 @@ def test_turbo_enabled_exact_knobs():
 
 
 def test_future_entries_disabled_with_reasons():
-    for name in ("acestep-v15-sft", "acestep-v15-base",
+    for name in ("acestep-v15-sft",
                  "acestep-v15-turbo-shift1", "acestep-v15-xl-turbo"):
         spec = ove.MUSIC_MODELS[name]
         assert spec["enabled"] is False
@@ -83,9 +83,9 @@ def test_base_model_accepted_with_cfg_fields():
     assert p.negative == "muddy" and p.steps == 30 and p.guidance == 5.0
 
 
-def test_base_catalog_declares_cfg_knobs_but_stays_disabled():
+def test_base_catalog_declares_cfg_knobs_and_enabled():
     spec = ove.MUSIC_MODELS["acestep-v15-base"]
-    assert spec["enabled"] is False
+    assert spec["enabled"] is True
     for k in ("negative", "steps", "guidance"):
         assert k in spec["knobs"]
     assert spec["runner"] == "scripts/generate_t2m_base.py"
