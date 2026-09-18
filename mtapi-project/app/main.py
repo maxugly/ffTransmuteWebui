@@ -228,6 +228,9 @@ deepdream.register(app)
 from .routes import demucs
 demucs.register(app)
 
+from .routes import music
+music.register(app)
+
 from .routes import lineage
 lineage.register(app)
 

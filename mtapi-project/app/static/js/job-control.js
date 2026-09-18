@@ -29,6 +29,7 @@ import { collectQrBody } from '/js/tabs/qr.js';
 import { collectScriptBody as collectScriptsBody, activeScriptOp } from '/js/tabs/scripts.js';
 import { collectWatermarkBody } from '/js/tabs/watermark.js';
 import { collectDemucsBody } from '/js/tabs/demucs.js';
+import { collectMusicBody } from '/js/tabs/music.js';
 import { collectEraseBody } from '/js/tabs/erase.js';
 // ── Job run / cooperative stop ────────────────────────────────────────────
 // Stop is cooperative: we abort the fetch + POST /api/cancel so DeepDream
@@ -930,6 +931,11 @@ function resolveActiveOpAndBody() {
     const bb = collectDemucsBody();
     if (!bb || !bb.input_path) { error = "Please provide an audio file (or video)."; return { opId: '', body: null, error }; }
     opId = 'demucs_separate';
+    body = bb;
+  } else if (tab === 'music') {
+    const bb = collectMusicBody();
+    if (!bb || !bb.prompt) { error = "Type a prompt first."; return { opId: '', body: null, error }; }
+    opId = 'music_generate';
     body = bb;
   } else if (tab === 'advanced') {
     const input = bestInput('advInput');

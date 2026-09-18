@@ -50,6 +50,7 @@ import { renderSkillsForm } from '/js/tabs/skills.js';
 import { renderScriptsForm } from '/js/tabs/scripts.js';
 import { renderWatermarkForm } from '/js/tabs/watermark.js';
 import { renderDemucsForm } from '/js/tabs/demucs.js';
+import { renderMusicForm } from '/js/tabs/music.js';
 import { renderEraseForm } from '/js/tabs/erase.js';
 import { renderStableFluidsForm } from '/js/tabs/stablefluids.js';
 import { renderSettingsForm, applyUiTweaks, readStoredScrollbarWidth } from '/js/tabs/settings.js';
@@ -491,6 +492,7 @@ const TAB_ACCEPTS = {
   watermark:   'any',
   erase:       'any',
   demucs:      'any',
+  music:        'any',
   stablefluids:'none',
   refs:        'none',
 };
@@ -1012,6 +1014,7 @@ function switchTab(tab) {
   if (tab === 'scripts') title = 'Script Runner';
   if (tab === 'watermark') title = 'Watermark · Clean';
   if (tab === 'demucs') title = 'Stems · Demucs separation';
+  if (tab === 'music') title = 'Music · ACE-Step text-to-music';
   if (tab === 'erase') title = 'Erase · Clean';
   if (tab === 'settings') title = 'Settings';
   if (tab === 'stablefluids') title = 'Stable Fluids · Sim';
@@ -1244,6 +1247,8 @@ function renderTabForm(tab) {
     renderWatermarkForm();
   } else if (tab === 'demucs') {
     renderDemucsForm();
+  } else if (tab === 'music') {
+    renderMusicForm();
   } else if (tab === 'erase') {
     renderEraseForm();
   } else if (tab === 'stablefluids') {
