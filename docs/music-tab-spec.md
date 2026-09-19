@@ -131,6 +131,13 @@ MUSIC_MODELS = {
 (textarea; pairs with prompt via the prompt-library component in v1.1), `steps`
 (8–60), `guidance` (1.0–15.0, APG note).
 
+**LoRA pairs (shipped `8.085`)**: the second dropdown is fed by auto-discovery —
+every `models/dit_lora/<stem>/openvino_model_f32.xml` (+ `pair.json` sidecar
+carrying model/adapter/strength) becomes an entry, overlaid with the static
+verdict catalog (static wins: GOOD/untested/BAD badges live there). No code
+change per new LoRA: build the IR (+ sidecar), it appears. Frontend renders
+purely from the status payload. Strength stays merge-time by design.
+
 ---
 
 ## 5. Why the device list has no GPU-only (do not "fix" this)

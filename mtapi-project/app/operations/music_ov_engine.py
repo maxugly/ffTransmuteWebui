@@ -101,6 +101,9 @@ MUSIC_MODELS: dict[str, dict] = {
 # LoRA pairs: baked checkpoint+adapter merges. One entry per validated IR —
 # strength is merge-time (static OV graphs can't do runtime strength).
 # verdict: GOOD (ear-verified) | untested | BAD (kept, flagged, runnable).
+# Static entries below carry verdicts/notes; _discover_pairs() picks up every
+# built IR (models/dit_lora/*/openvino_model_f32.xml + pair.json sidecar).
+# Static entries win on conflict (verdicts live here, not in sidecars).
 # New merges land here as "untested" once IR + probe pass; ears flip the badge.
 LORA_PAIRS: dict[str, dict] = {
     "turbo+rap_s08_short": {
@@ -134,6 +137,60 @@ LORA_PAIRS: dict[str, dict] = {
         "notes": "Queue-built. Wav exists, ear check pending.",
     },
 }
+
+
+def _discover_pairs() -> dict[str, dict]:
+    """Every built LoRA IR becomes a selectable pair.
+
+    models/dit_lora/<stem>/openvino_model_f32.xml (+ optional pair.json with
+    model/adapter/strength/trigger). Turbo runner hardcodes models/dit, so the
+    dit_dir points at the models/dit hardlink when present, else the dit_lora
+    path directly (both runners accept T2M_DIT_DIR).
+    """
+    found: dict[str, dict] = {}
+    base = SOURCE_DIR / "models" / "dit_lora"
+    if not base.is_dir():
+        return found
+    for d in sorted(base.iterdir()):
+        if not d.is_dir() or not (d / "openvino_model_f32.xml").is_file():
+            continue
+        stem = d.name
+        meta: dict = {}
+        sidecar = d / "pair.json"
+        if sidecar.is_file():
+            try:
+                import json as _json
+                meta = _json.load(open(sidecar))
+            except Exception:
+                meta = {}
+        model = meta.get("model") or ("acestep-v15-base" if stem.endswith("_base")
+                                      else "acestep-v15-turbo")
+        hl = SOURCE_DIR / "models" / "dit" / f"openvino_model_lora_{stem}_f32.xml"
+        if hl.is_file():
+            dit_dir, dit_file = "models/dit", hl.name
+        else:
+            dit_dir, dit_file = f"models/dit_lora/{stem}", "openvino_model_f32.xml"
+        pid = f"lora-{stem}"
+        found[pid] = {
+            "label": meta.get("label", stem),
+            "model": model,
+            "dit_dir": dit_dir,
+            "dit_file": dit_file,
+            "hetero_pin": "proj_out",
+            "trigger": meta.get("trigger", ""),
+            "verdict": meta.get("verdict", "untested"),
+            "notes": meta.get("notes", ""),
+            "adapter": meta.get("adapter", ""),
+            "strength": meta.get("strength"),
+        }
+    return found
+
+
+def all_lora_pairs() -> dict[str, dict]:
+    """Discovered IRs overlaid with the static catalog (static wins)."""
+    pairs = _discover_pairs()
+    pairs.update(LORA_PAIRS)
+    return pairs
 
 # Cover runner: same DiT IR, different conditioning (VAE-encoded src audio).
 # Only base/sft entries may use task=cover (turbo cover path is unvalidated).
@@ -218,7 +275,7 @@ def get_music_ov_status() -> dict:
              "ir_present": all(
                  ((SOURCE_DIR / p["dit_dir"] / p["dit_file"]).is_file(),
                   (SOURCE_DIR / p["dit_dir"] / p["dit_file"].replace(".xml", ".bin")).is_file()))}
-            for pid, p in LORA_PAIRS.items()
+            for pid, p in all_lora_pairs().items()
         ],
         "source_dir": str(SOURCE_DIR),
         "devices": available_devices(),
@@ -243,7 +300,7 @@ def build_env(*, prompt: str, lyrics: str, seed: int, duration_sec: float,
         runner = COVER_RUNNER
     dit_dir, dit_file, hetero_pin = spec["dit_dir"], spec["dit_file"], spec["hetero_pin"]
     if lora:
-        pair = LORA_PAIRS.get(lora)
+        pair = all_lora_pairs().get(lora)
         if pair is None:
             raise ValueError(f"Unknown LoRA pair {lora!r}")
         if pair["model"] != model:

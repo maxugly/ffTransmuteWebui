@@ -60,6 +60,15 @@ def test_lora_pairs_catalog_shape():
     for pid, p in ove.LORA_PAIRS.items():
         assert set(p) >= {"label", "model", "dit_dir", "dit_file",
                           "hetero_pin", "verdict"}
+
+
+def test_lora_discovery_lists_built_irs():
+    pairs = ove.all_lora_pairs()
+    assert len(pairs) >= 20, f"only {len(pairs)} pairs discovered"
+    assert any(pid.startswith("lora-") for pid in pairs)
+    for pid, p in pairs.items():
+        assert set(p) >= {"label", "model", "dit_dir", "dit_file",
+                          "hetero_pin", "verdict"}
         assert p["verdict"] in ("GOOD", "untested", "BAD")
 
 
