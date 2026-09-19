@@ -28,7 +28,7 @@ class MusicGenerateParams(BaseModel):
     seed: int = Field(42, ge=0, description="Initial-noise seed (same prompt+seed = bit-identical clip)")
     duration_sec: float = Field(12, ge=10, le=60,
                                description="Clip length in seconds (below 10 is under the model floor)")
-    model: Literal["acestep-v15-turbo", "acestep-v15-base"] = Field(
+    model: Literal["acestep-v15-turbo", "acestep-v15-base", "acestep-v15-sft"] = Field(
         "acestep-v15-turbo", description="Music checkpoint")
     negative: str = Field("", description="Negative prompt (CFG models only; ignored by turbo)")
     steps: int = Field(0, ge=0, le=60,

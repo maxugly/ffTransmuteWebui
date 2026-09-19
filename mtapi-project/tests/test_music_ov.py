@@ -41,8 +41,7 @@ def test_turbo_enabled_exact_knobs():
 
 
 def test_future_entries_disabled_with_reasons():
-    for name in ("acestep-v15-sft",
-                 "acestep-v15-turbo-shift1", "acestep-v15-xl-turbo"):
+    for name in ("acestep-v15-turbo-shift1", "acestep-v15-xl-turbo"):
         spec = ove.MUSIC_MODELS[name]
         assert spec["enabled"] is False
         assert spec.get("disabled_reason")
@@ -74,7 +73,9 @@ def test_unknown_model_rejected():
     with pytest.raises(ValidationError):
         MusicGenerateParams(model="nope")
     with pytest.raises(ValidationError):
-        MusicGenerateParams(model="acestep-v15-sft")  # not yet wired
+        MusicGenerateParams(model="acestep-v15-turbo-shift1")  # real entry, not yet wired
+    # wired models accept:
+    assert MusicGenerateParams(model="acestep-v15-sft").model == "acestep-v15-sft"
 
 
 def test_base_model_accepted_with_cfg_fields():
@@ -90,6 +91,19 @@ def test_base_catalog_declares_cfg_knobs_and_enabled():
         assert k in spec["knobs"]
     assert spec["runner"] == "scripts/generate_t2m_base.py"
     assert spec["dit_dir"] == "models/dit_base"
+
+
+def test_sft_enabled_with_ckpt_and_base_runner():
+    spec = ove.MUSIC_MODELS["acestep-v15-sft"]
+    assert spec["enabled"] is True
+    assert spec["runner"] == "scripts/generate_t2m_base.py"
+    assert spec["dit_dir"] == "models/dit_sft"
+    assert spec["ckpt"] == "models--ACE-Step--acestep-v15-sft"
+    e = ove.build_env(prompt="x", lyrics="[Instrumental]", seed=7,
+                      duration_sec=12, model="acestep-v15-sft",
+                      device="HETERO", out_path="/tmp/t.wav")
+    assert e["T2M_CKPT"] == "models--ACE-Step--acestep-v15-sft"
+    assert e["T2M_DIT_DIR"] == "models/dit_sft"
 
 
 def test_setup_params_defaults():
@@ -155,8 +169,10 @@ def test_status_shape():
 
 def test_generate_disabled_model_fails_loud():
     p = MusicGenerateParams(model="acestep-v15-turbo")
-    # Literal blocks sft at validation; force past it to test the op gate
-    p.__dict__["model"] = "acestep-v15-sft"
+    # Literal blocks shift1 at validation; force past it to test the op gate.
+    # (Must stay a DISABLED entry — otherwise this spawns a real generation.)
+    assert ove.MUSIC_MODELS["acestep-v15-turbo-shift1"]["enabled"] is False
+    p.__dict__["model"] = "acestep-v15-turbo-shift1"
     r = _run(mops.music_generate(p))
     assert r.ok is False and "disabled" in r.error
 
