@@ -40,6 +40,8 @@ function _muState() {
       outDir: '',
       format: 'wav-f32',
       lora: '',
+      task: 'text2music',
+      srcAudio: '',
       bpm: '',
       key: '',
       timesig: '',
@@ -199,6 +201,23 @@ async function renderMusicForm() {
       <span class="form-row-hint" id="muOvStatus">GPU status: checking…</span>
     </div>
     <div class="form-row-hint" id="muModelNote" style="margin:-4px 0 8px 0">${spec.notes || ''}</div>
+    ${spec.cover ? `
+    <div class="form-row">
+      <label for="muTask">Task</label>
+      <select id="muTask">
+        <option value="text2music">text2music</option>
+        <option value="cover"${st.task === 'cover' ? ' selected' : ''}>cover · restyle audio</option>
+      </select>
+    </div>
+    <div class="form-row" id="muSrcRow" style="${st.task === 'cover' ? '' : 'display:none'}">
+      <label for="muSrc">Source</label>
+      <div class="input-row">
+        <input type="text" id="muSrc" placeholder="audio file to restyle (48 kHz stereo ideal)"
+          value="${(st.srcAudio || '').replace(/"/g, '&quot;')}">
+        <button type="button" class="btn" id="btnMuSrcBrowse">Browse</button>
+      </div>
+      <span class="form-row-hint">Looped ×2 for a ~38 s output. Turbo can't do this (base/sft only).</span>
+    </div>` : ''}
     <div class="form-row" id="muLoraRow">
       <label for="muLora">LoRA</label>
       <select id="muLora">${loraHtml(st.model)}</select>
@@ -261,7 +280,34 @@ async function renderMusicForm() {
   document.getElementById('muModel')?.addEventListener('change', (e) => {
     _muState().model = e.target.value;
     _muState().lora = '';
+    _muState().task = 'text2music';
     renderMusicForm();
+  });
+  document.getElementById('muTask')?.addEventListener('change', (e) => {
+    _muState().task = e.target.value;
+    const row = document.getElementById('muSrcRow');
+    if (row) row.style.display = e.target.value === 'cover' ? '' : 'none';
+  });
+  document.getElementById('muSrc')?.addEventListener('input', (e) => {
+    _muState().srcAudio = e.target.value.trim();
+  });
+  document.getElementById('muSrc')?.addEventListener('change', (e) => {
+    _muState().srcAudio = e.target.value.trim();
+  });
+  document.getElementById('btnMuSrcBrowse')?.addEventListener('click', async () => {
+    try {
+      const res = await fetch('/api/picker?mode=files&filter=all&start_path=');
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      const p = (data.paths && data.paths[0]) || data.path;
+      if (p) {
+        _muState().srcAudio = p;
+        const el = document.getElementById('muSrc');
+        if (el) el.value = p;
+      }
+    } catch (err) {
+      alert(`Picker failed: ${err.message}`);
+    }
   });
   document.getElementById('muLora')?.addEventListener('change', (e) => {
     const id = e.target.value || '';
@@ -347,6 +393,14 @@ function collectMusicBody() {
   const st = _muState();
   const model = document.getElementById('muModel')?.value || st.model || 'acestep-v15-turbo';
   st.model = model;
+  const task = document.getElementById('muTask')?.value || 'text2music';
+  st.task = task;
+  const srcAudio = (document.getElementById('muSrc')?.value || st.srcAudio || '').trim();
+  st.srcAudio = srcAudio;
+  if (task === 'cover' && !srcAudio) {
+    alert('Pick a source audio file for cover mode.');
+    return null;
+  }
   const lora = document.getElementById('muLora')?.value || '';
   st.lora = lora;
   const prompt = (document.getElementById('muPrompt')?.value || st.prompt || '').trim();
@@ -385,6 +439,8 @@ function collectMusicBody() {
     model,
     device: document.getElementById('muDevice')?.value || st.device || 'HETERO',
     lora,
+    task,
+    src_audio: srcAudio,
     bpm, key, timesig,
     output_dir: document.getElementById('muOutDir')?.value?.trim() || null,
     output_format: document.getElementById('muFormat')?.value || 'wav-f32',

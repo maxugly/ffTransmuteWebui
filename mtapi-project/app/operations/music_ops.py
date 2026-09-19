@@ -39,6 +39,10 @@ class MusicGenerateParams(BaseModel):
     key: str = Field("", description="Key/scale for the SFT metas, e.g. E minor (blank = N/A)")
     timesig: str = Field("", description="Time signature for the SFT metas, e.g. 4/4 (blank = N/A)")
     lora: str = Field("", description="LoRA pair id for the selected model (blank = none)")
+    task: Literal["text2music", "cover"] = Field(
+        "text2music", description="text2music, or cover (base/sft only, needs src_audio)")
+    src_audio: str = Field("", description="Source audio file for cover mode (48 kHz stereo expected)")
+    repeat: int = Field(2, ge=1, le=4, description="Loop tiling count for cover output length")
     device: Literal["HETERO", "CPU"] = Field(
         "HETERO",
         description="HETERO = iGPU with proj_out CPU pin (proven); CPU = explicit slow path",
@@ -88,18 +92,32 @@ async def music_generate(p: MusicGenerateParams) -> OperationResult:
     out_wav = _out_wav_path(p.prompt, p.seed, p.output_dir, p.overwrite)
     if p.output_dir:
         out_wav.parent.mkdir(parents=True, exist_ok=True)
+    runner = spec["runner"]
+    if p.task == "cover":
+        if not spec.get("cover"):
+            return OperationResult(ok=False, operation=op,
+                                   error=f"Cover mode is not validated for {p.model} (base/sft only)")
+        if not p.src_audio:
+            return OperationResult(ok=False, operation=op,
+                                   error="Cover mode needs src_audio — pick an audio file")
+        src = Path(p.src_audio).expanduser()
+        if not src.is_file():
+            return OperationResult(ok=False, operation=op,
+                                   error=f"src_audio not found: {src}")
+        runner = ove.COVER_RUNNER
     try:
         env = ove.build_env(prompt=p.prompt, lyrics=p.lyrics, seed=p.seed,
                             duration_sec=p.duration_sec, model=p.model,
                             device=p.device, out_path=str(out_wav),
                             negative=p.negative, steps=p.steps, guidance=p.guidance,
                             bpm=p.bpm.strip(), key=p.key.strip(), timesig=p.timesig.strip(),
-                            lora=p.lora)
+                            lora=p.lora, task=p.task, src_audio=p.src_audio,
+                            repeat=p.repeat)
     except ValueError as e:
         return OperationResult(ok=False, operation=op, error=str(e))
     total_steps = p.steps if p.steps > 0 else 8
     if p.dry_run:
-        cmd = " ".join(["python", spec["runner"],
+        cmd = " ".join(["python", runner,
                         f"T2M_PROMPT={p.prompt!r}", f"T2M_SEED={p.seed}",
                         f"T2M_DURATION_SEC={p.duration_sec}",
                         f"device={p.device}", f"out={out_wav}"])
@@ -116,7 +134,7 @@ async def music_generate(p: MusicGenerateParams) -> OperationResult:
                                         current=0, total=total_steps, unit="steps", token=token)
         rc, text, wav = await ove.run_generation(env, token,
                                                  total_steps=total_steps,
-                                                 runner=spec["runner"])
+                                                 runner=runner)
     except job_control.JobCancelled as e:
         return OperationResult(ok=False, operation=op, error=str(e))
     if rc != 0 or wav is None or not wav.is_file():

@@ -51,6 +51,7 @@ MUSIC_MODELS: dict[str, dict] = {
         "hetero_pin": "proj_out",
         "runner": "scripts/generate_t2m.py",
         "ckpt": "models--ACE-Step--Ace-Step1.5",
+        "cover": False,
         "notes": "Guidance-distilled: 8 Euler steps, shift 3.0, no CFG. f32 locked. "
                  "proj_out runs on CPU via HETERO pin (measured fix).",
     },
@@ -64,6 +65,7 @@ MUSIC_MODELS: dict[str, dict] = {
         "hetero_pin": "proj_out",
         "runner": "scripts/generate_t2m_base.py",
         "ckpt": "models--ACE-Step--acestep-v15-base",
+        "cover": True,
         "notes": "CFG (APG, null_condition_emb). Steps 8-60 (30-50 recommended).",
     },
     "acestep-v15-sft": {
@@ -76,6 +78,7 @@ MUSIC_MODELS: dict[str, dict] = {
         "hetero_pin": "proj_out",
         "runner": "scripts/generate_t2m_base.py",
         "ckpt": "models--ACE-Step--acestep-v15-sft",
+        "cover": True,
         "notes": "CFG (APG). Same runner as base + T2M_CKPT switch.",
     },
     "acestep-v15-turbo-shift1": {
@@ -132,6 +135,11 @@ LORA_PAIRS: dict[str, dict] = {
     },
 }
 
+# Cover runner: same DiT IR, different conditioning (VAE-encoded src audio).
+# Only base/sft entries may use task=cover (turbo cover path is unvalidated).
+COVER_RUNNER = "scripts/generate_cover_base.py"
+COVER_TASKS = ("text2music", "cover")
+
 # Files the setup op verifies (relative to SOURCE_DIR). DiT .bins are ~6 GB
 # each — verified in place, never copied. Shared pieces (text encoder, decoder,
 # runner entry is per-model) are listed once.
@@ -186,6 +194,7 @@ def get_music_ov_status() -> dict:
             "enabled": spec["enabled"],
             "knobs": list(spec["knobs"]),
             "notes": spec.get("notes", ""),
+            "cover": bool(spec.get("cover", False)),
         }
         if not spec["enabled"]:
             entry["disabled_reason"] = spec.get("disabled_reason", "")
@@ -198,6 +207,10 @@ def get_music_ov_status() -> dict:
     return {
         "ok": True,
         "models": models,
+        "vae_encoder_present": all(
+            (SOURCE_DIR / n).is_file()
+            for n in ("models/vae_encoder/openvino_model.xml",
+                      "models/vae_encoder/openvino_model.bin")),
         "loras": [
             {"id": pid, "label": p["label"], "model": p["model"],
              "verdict": p["verdict"], "trigger": p.get("trigger", ""),
@@ -220,9 +233,14 @@ def manifest_state() -> dict[str, bool]:
 def build_env(*, prompt: str, lyrics: str, seed: int, duration_sec: float,
               model: str, device: str, out_path: str, negative: str = "",
               steps: int = 0, guidance: float = 0.0, bpm: str = "",
-              key: str = "", timesig: str = "", lora: str = "") -> dict[str, str]:
+              key: str = "", timesig: str = "", lora: str = "",
+              task: str = "text2music", src_audio: str = "",
+              repeat: int = 2) -> dict[str, str]:
     """Params -> T2M_* env for the runner subprocess. No other channel exists."""
     spec = MUSIC_MODELS[model]
+    runner = spec["runner"]
+    if task == "cover":
+        runner = COVER_RUNNER
     dit_dir, dit_file, hetero_pin = spec["dit_dir"], spec["dit_file"], spec["hetero_pin"]
     if lora:
         pair = LORA_PAIRS.get(lora)
@@ -247,7 +265,11 @@ def build_env(*, prompt: str, lyrics: str, seed: int, duration_sec: float,
         "T2M_TRIM_COND": "1",
         "T2M_MAX_STEPS": "0",
         "T2M_OUT": out_path,
+        "T2M_RUNNER_TASK": task,
     })
+    if task == "cover":
+        env["T2M_SRC_AUDIO"] = src_audio
+        env["T2M_REPEAT"] = str(repeat)
     if steps > 0:
         env["T2M_STEPS"] = str(steps)
     if negative:

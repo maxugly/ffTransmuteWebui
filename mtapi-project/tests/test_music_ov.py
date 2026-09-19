@@ -247,3 +247,39 @@ def test_generate_dry_run_ok(monkeypatch, tmp_path):
     r = _run(mops.music_generate(p))
     assert r.ok is True and r.dry_run is True
     assert r.output_path and r.output_path.endswith(".wav")
+
+
+def test_cover_flag_per_model():
+    assert ove.MUSIC_MODELS["acestep-v15-turbo"]["cover"] is False
+    assert ove.MUSIC_MODELS["acestep-v15-base"]["cover"] is True
+    assert ove.MUSIC_MODELS["acestep-v15-sft"]["cover"] is True
+    s = ove.get_music_ov_status()
+    assert s["models"]["acestep-v15-base"]["cover"] is True
+    assert s["vae_encoder_present"] in (True, False)
+
+
+def test_build_env_cover_mapping():
+    e = ove.build_env(prompt="x", lyrics="[Instrumental]", seed=7,
+                      duration_sec=12, model="acestep-v15-base",
+                      device="HETERO", out_path="/tmp/t.wav",
+                      task="cover", src_audio="/m/guillotine.wav", repeat=2)
+    assert e["T2M_SRC_AUDIO"] == "/m/guillotine.wav"
+    assert e["T2M_REPEAT"] == "2"
+
+
+def test_cover_rejected_for_turbo(monkeypatch, tmp_path):
+    monkeypatch.setattr(ove, "manifest_for",
+                        lambda model: ["scripts/generate_t2m.py"])
+    p = MusicGenerateParams(model="acestep-v15-turbo", task="cover",
+                            src_audio="x.wav", output_dir=str(tmp_path))
+    r = _run(mops.music_generate(p))
+    assert r.ok is False and "base/sft" in r.error
+
+
+def test_cover_needs_src_audio(monkeypatch, tmp_path):
+    monkeypatch.setattr(ove, "manifest_for",
+                        lambda model: ["scripts/generate_t2m.py"])
+    p = MusicGenerateParams(model="acestep-v15-base", task="cover",
+                            output_dir=str(tmp_path))
+    r = _run(mops.music_generate(p))
+    assert r.ok is False and "src_audio" in r.error
