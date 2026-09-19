@@ -34,10 +34,64 @@ def _run(coro):
 def test_turbo_enabled_exact_knobs():
     spec = ove.MUSIC_MODELS["acestep-v15-turbo"]
     assert spec["enabled"] is True
-    assert spec["knobs"] == ["prompt", "lyrics", "seed", "duration", "device",
-                             "outdir", "format", "overwrite", "dryrun"]
+    assert spec["knobs"] == ["prompt", "lyrics", "seed", "duration", "bpm",
+                             "key", "timesig", "device", "outdir", "format",
+                             "overwrite", "dryrun"]
     for dead in ("guidance", "negative", "steps", "shift"):
         assert dead not in spec["knobs"]
+
+
+def test_build_env_metas_passthrough():
+    e = ove.build_env(prompt="x", lyrics="[Instrumental]", seed=7,
+                      duration_sec=12, model="acestep-v15-turbo",
+                      device="HETERO", out_path="/tmp/t.wav",
+                      bpm="95", key="E minor", timesig="4/4")
+    assert e["T2M_BPM"] == "95" and e["T2M_KEY"] == "E minor"
+    assert e["T2M_TIMESIG"] == "4/4"
+    e2 = ove.build_env(prompt="x", lyrics="[Instrumental]", seed=7,
+                       duration_sec=12, model="acestep-v15-turbo",
+                       device="HETERO", out_path="/tmp/t.wav")
+    assert e2["T2M_BPM"] == "" and e2["T2M_KEY"] == "" and e2["T2M_TIMESIG"] == ""
+
+
+def test_lora_pairs_catalog_shape():
+    assert set(ove.LORA_PAIRS) >= {"turbo+rap_s08_short", "base+rap_s08_base",
+                                   "turbo+psychrock_v1"}
+    for pid, p in ove.LORA_PAIRS.items():
+        assert set(p) >= {"label", "model", "dit_dir", "dit_file",
+                          "hetero_pin", "verdict"}
+        assert p["verdict"] in ("GOOD", "untested", "BAD")
+
+
+def test_build_env_lora_overrides_dit():
+    e = ove.build_env(prompt="x", lyrics="[Instrumental]", seed=7,
+                      duration_sec=12, model="acestep-v15-turbo",
+                      device="HETERO", out_path="/tmp/t.wav",
+                      lora="turbo+psychrock_v1")
+    assert e["T2M_DIT"] == "openvino_model_lora_psychrock_v1_f32.xml"
+    assert e["T2M_DIT_DIR"] == "models/dit"
+
+
+def test_build_env_lora_wrong_model_raises():
+    import pytest as _pt
+    with _pt.raises(ValueError):
+        ove.build_env(prompt="x", lyrics="[Instrumental]", seed=7,
+                      duration_sec=12, model="acestep-v15-base",
+                      device="HETERO", out_path="/tmp/t.wav",
+                      lora="turbo+psychrock_v1")
+    with _pt.raises(ValueError):
+        ove.build_env(prompt="x", lyrics="[Instrumental]", seed=7,
+                      duration_sec=12, model="acestep-v15-turbo",
+                      device="HETERO", out_path="/tmp/t.wav", lora="nope")
+
+
+def test_status_includes_loras():
+    s = ove.get_music_ov_status()
+    assert isinstance(s["loras"], list) and len(s["loras"]) >= 3
+    by_id = {l["id"]: l for l in s["loras"]}
+    assert by_id["base+rap_s08_base"]["verdict"] == "BAD"
+    assert by_id["base+rap_s08_base"]["trigger"] == "roti-r4pz"
+    assert isinstance(by_id["turbo+psychrock_v1"]["ir_present"], bool)
 
 
 def test_future_entries_disabled_with_reasons():

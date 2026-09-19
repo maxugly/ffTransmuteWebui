@@ -10,6 +10,23 @@ import { runOpWithCancel } from '/js/job-control.js';
 // guidance/negative/steps/shift do not exist for it (baked out by distillation).
 
 let MUSIC_CATALOG = null;
+let MUSIC_LORAS = [];
+
+function loraHtml(model) {
+  const pairs = MUSIC_LORAS.filter((p) => p.model === model);
+  const sel = (_muState().lora) || '';
+  const badge = { GOOD: '✅', untested: '🆕', BAD: '❌' };
+  let html = `<option value="">none</option>`;
+  for (const p of pairs) {
+    const missing = p.ir_present === false ? ' (IR missing)' : '';
+    const s = p.id === sel ? ' selected' : '';
+    html += `<option value="${p.id}"${s}>${badge[p.verdict] || '?'} ${p.label}${missing}</option>`;
+  }
+  if (!pairs.length) {
+    html += `<option value="" disabled>no pairs for this model yet</option>`;
+  }
+  return html;
+}
 
 function _muState() {
   if (!state.music || typeof state.music !== 'object') {
@@ -22,6 +39,10 @@ function _muState() {
       device: 'HETERO',
       outDir: '',
       format: 'wav-f32',
+      lora: '',
+      bpm: '',
+      key: '',
+      timesig: '',
       negative: '',
       steps: 50,
       guidance: 7.0,
@@ -36,6 +57,7 @@ async function _muCatalog() {
   const data = await res.json();
   MUSIC_CATALOG = data.models || {};
   MUSIC_CATALOG.__devices = data.devices || [];
+  MUSIC_LORAS = data.loras || [];
   return MUSIC_CATALOG;
 }
 
@@ -65,6 +87,24 @@ const KNOB_RENDER = {
       <label for="muDuration">Duration</label>
       ${knobUnitHtml({ id: 'muDuration', label: 'Seconds', value: String(st.duration ?? 12) })}
       <span class="form-row-hint">10–60 s (below 10 is under the model floor).</span>
+    </div>`,
+  bpm: (st) => `
+    <div class="form-row">
+      <label for="muBpm">BPM</label>
+      <input type="text" id="muBpm" inputmode="numeric" placeholder="95 (blank = N/A)"
+        value="${(st.bpm || '').replace(/"/g, '&quot;')}">
+    </div>`,
+  key: (st) => `
+    <div class="form-row">
+      <label for="muKey">Key</label>
+      <input type="text" id="muKey" placeholder="E minor (blank = N/A)"
+        value="${(st.key || '').replace(/"/g, '&quot;')}">
+    </div>`,
+  timesig: (st) => `
+    <div class="form-row">
+      <label for="muTimesig">Timesig</label>
+      <input type="text" id="muTimesig" placeholder="4/4 (blank = N/A)"
+        value="${(st.timesig || '').replace(/"/g, '&quot;')}">
     </div>`,
   device: (st) => `
     <div class="form-row">
@@ -159,6 +199,11 @@ async function renderMusicForm() {
       <span class="form-row-hint" id="muOvStatus">GPU status: checking…</span>
     </div>
     <div class="form-row-hint" id="muModelNote" style="margin:-4px 0 8px 0">${spec.notes || ''}</div>
+    <div class="form-row" id="muLoraRow">
+      <label for="muLora">LoRA</label>
+      <select id="muLora">${loraHtml(st.model)}</select>
+      <span class="form-row-hint">Baked checkpoint+adapter pairs. Strength is merge-time.</span>
+    </div>
     ${knobs.map((k) => (KNOB_RENDER[k] ? KNOB_RENDER[k](st) : '')).join('')}
     <div class="form-row" id="muGpuSetupRow">
       <button type="button" class="btn" id="btnMuOvSetup">GPU Setup</button>
@@ -215,12 +260,30 @@ async function renderMusicForm() {
 
   document.getElementById('muModel')?.addEventListener('change', (e) => {
     _muState().model = e.target.value;
+    _muState().lora = '';
     renderMusicForm();
+  });
+  document.getElementById('muLora')?.addEventListener('change', (e) => {
+    const id = e.target.value || '';
+    _muState().lora = id;
+    const pair = MUSIC_LORAS.find((p) => p.id === id);
+    if (pair && pair.trigger) {
+      const cur = document.getElementById('muPrompt')?.value || _muState().prompt || '';
+      if (!cur.trimStart().startsWith(pair.trigger)) {
+        const next = `${pair.trigger}, ${cur}`.trim();
+        _muState().prompt = next;
+        const el = document.getElementById('muPrompt');
+        if (el) el.value = next;
+      }
+    }
   });
   for (const [id, key, parse] of [
     ['muPrompt', 'prompt', (v) => v],
     ['muLyrics', 'lyrics', (v) => v],
     ['muNegative', 'negative', (v) => v],
+    ['muBpm', 'bpm', (v) => v.trim()],
+    ['muKey', 'key', (v) => v.trim()],
+    ['muTimesig', 'timesig', (v) => v.trim()],
     ['muOutDir', 'outDir', (v) => v],
     ['muDevice', 'device', (v) => v],
     ['muFormat', 'format', (v) => v],
@@ -284,6 +347,8 @@ function collectMusicBody() {
   const st = _muState();
   const model = document.getElementById('muModel')?.value || st.model || 'acestep-v15-turbo';
   st.model = model;
+  const lora = document.getElementById('muLora')?.value || '';
+  st.lora = lora;
   const prompt = (document.getElementById('muPrompt')?.value || st.prompt || '').trim();
   if (!prompt) {
     alert('Type a prompt first.');
@@ -297,6 +362,10 @@ function collectMusicBody() {
   const duration = Math.min(60, Math.max(10,
     parseFloat(document.getElementById('muDuration')?.value ?? String(st.duration ?? 12))));
   st.duration = duration;
+  const bpm = (document.getElementById('muBpm')?.value ?? st.bpm ?? '').trim();
+  const key = (document.getElementById('muKey')?.value ?? st.key ?? '').trim();
+  const timesig = (document.getElementById('muTimesig')?.value ?? st.timesig ?? '').trim();
+  st.bpm = bpm; st.key = key; st.timesig = timesig;
   const negative = (document.getElementById('muNegative')?.value ?? st.negative ?? '').trim();
   st.negative = negative;
   const steps = Math.min(60, Math.max(8,
@@ -315,6 +384,8 @@ function collectMusicBody() {
     duration_sec: duration,
     model,
     device: document.getElementById('muDevice')?.value || st.device || 'HETERO',
+    lora,
+    bpm, key, timesig,
     output_dir: document.getElementById('muOutDir')?.value?.trim() || null,
     output_format: document.getElementById('muFormat')?.value || 'wav-f32',
     overwrite: document.getElementById('muOverwrite')?.value === '1',

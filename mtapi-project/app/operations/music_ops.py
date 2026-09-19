@@ -35,6 +35,10 @@ class MusicGenerateParams(BaseModel):
                        description="Denoising steps for CFG models (0 = model default; turbo ignores)")
     guidance: float = Field(0.0, ge=0.0, le=15.0,
                             description="Guidance scale for CFG models (0 = model default; turbo ignores)")
+    bpm: str = Field("", description="Tempo for the SFT metas (blank = N/A)")
+    key: str = Field("", description="Key/scale for the SFT metas, e.g. E minor (blank = N/A)")
+    timesig: str = Field("", description="Time signature for the SFT metas, e.g. 4/4 (blank = N/A)")
+    lora: str = Field("", description="LoRA pair id for the selected model (blank = none)")
     device: Literal["HETERO", "CPU"] = Field(
         "HETERO",
         description="HETERO = iGPU with proj_out CPU pin (proven); CPU = explicit slow path",
@@ -84,10 +88,15 @@ async def music_generate(p: MusicGenerateParams) -> OperationResult:
     out_wav = _out_wav_path(p.prompt, p.seed, p.output_dir, p.overwrite)
     if p.output_dir:
         out_wav.parent.mkdir(parents=True, exist_ok=True)
-    env = ove.build_env(prompt=p.prompt, lyrics=p.lyrics, seed=p.seed,
-                        duration_sec=p.duration_sec, model=p.model,
-                        device=p.device, out_path=str(out_wav),
-                        negative=p.negative, steps=p.steps, guidance=p.guidance)
+    try:
+        env = ove.build_env(prompt=p.prompt, lyrics=p.lyrics, seed=p.seed,
+                            duration_sec=p.duration_sec, model=p.model,
+                            device=p.device, out_path=str(out_wav),
+                            negative=p.negative, steps=p.steps, guidance=p.guidance,
+                            bpm=p.bpm.strip(), key=p.key.strip(), timesig=p.timesig.strip(),
+                            lora=p.lora)
+    except ValueError as e:
+        return OperationResult(ok=False, operation=op, error=str(e))
     total_steps = p.steps if p.steps > 0 else 8
     if p.dry_run:
         cmd = " ".join(["python", spec["runner"],

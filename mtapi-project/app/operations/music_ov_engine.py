@@ -44,7 +44,7 @@ MUSIC_MODELS: dict[str, dict] = {
     "acestep-v15-turbo": {
         "label": "ACE-Step 1.5 turbo · 2B (proven)",
         "enabled": True,
-        "knobs": ["prompt", "lyrics", "seed", "duration", "device", "outdir",
+        "knobs": ["prompt", "lyrics", "seed", "duration", "bpm", "key", "timesig", "device", "outdir",
                   "format", "overwrite", "dryrun"],
         "dit_dir": "models/dit",
         "dit_file": "openvino_model_f32_grok_fixed.xml",
@@ -57,7 +57,7 @@ MUSIC_MODELS: dict[str, dict] = {
     "acestep-v15-base": {
         "label": "ACE-Step 1.5 base · 2B (CFG, ear-verified)",
         "enabled": True,
-        "knobs": ["prompt", "negative", "lyrics", "seed", "duration", "steps",
+        "knobs": ["prompt", "negative", "lyrics", "seed", "duration", "bpm", "key", "timesig", "steps",
                   "guidance", "device", "outdir", "format", "overwrite", "dryrun"],
         "dit_dir": "models/dit_base",
         "dit_file": "openvino_model_base_f32.xml",
@@ -69,7 +69,7 @@ MUSIC_MODELS: dict[str, dict] = {
     "acestep-v15-sft": {
         "label": "ACE-Step 1.5 sft · 2B (CFG, ear-verified)",
         "enabled": True,
-        "knobs": ["prompt", "negative", "lyrics", "seed", "duration", "steps",
+        "knobs": ["prompt", "negative", "lyrics", "seed", "duration", "bpm", "key", "timesig", "steps",
                   "guidance", "device", "outdir", "format", "overwrite", "dryrun"],
         "dit_dir": "models/dit_sft",
         "dit_file": "openvino_model_sft_f32.xml",
@@ -82,7 +82,7 @@ MUSIC_MODELS: dict[str, dict] = {
         "label": "turbo shift-1.0 recipe (needs export)",
         "enabled": False,
         "disabled_reason": "IR not exported",
-        "knobs": ["prompt", "lyrics", "seed", "duration", "device", "outdir",
+        "knobs": ["prompt", "lyrics", "seed", "duration", "bpm", "key", "timesig", "device", "outdir",
                   "format", "overwrite", "dryrun"],
         "notes": "Same turbo weights, shift=1.0 sampling recipe.",
     },
@@ -92,6 +92,43 @@ MUSIC_MODELS: dict[str, dict] = {
         "disabled_reason": "~9 GB weights need >=12 GB VRAM",
         "knobs": [],
         "notes": "Parked until bigger hardware.",
+    },
+}
+
+# LoRA pairs: baked checkpoint+adapter merges. One entry per validated IR —
+# strength is merge-time (static OV graphs can't do runtime strength).
+# verdict: GOOD (ear-verified) | untested | BAD (kept, flagged, runnable).
+# New merges land here as "untested" once IR + probe pass; ears flip the badge.
+LORA_PAIRS: dict[str, dict] = {
+    "turbo+rap_s08_short": {
+        "label": "rap '88 v1 (turbo)",
+        "model": "acestep-v15-turbo",
+        "dit_dir": "models/dit",
+        "dit_file": "openvino_model_rap_s08_short_f32.xml",
+        "hetero_pin": "proj_out",
+        "trigger": "",
+        "verdict": "BAD",
+        "notes": "Plain LoRA r64, alpha assumed 64, strength 0.8. Ear: BAD (cause unknown, parked).",
+    },
+    "base+rap_s08_base": {
+        "label": "rap '88 v1 (base)",
+        "model": "acestep-v15-base",
+        "dit_dir": "models/dit_lora/rap_s08_base",
+        "dit_file": "openvino_model_f32.xml",
+        "hetero_pin": "proj_out",
+        "trigger": "roti-r4pz",
+        "verdict": "BAD",
+        "notes": "Documented alpha 128, strength 0.8, trigger in prompt. Ear: BAD (parked).",
+    },
+    "turbo+psychrock_v1": {
+        "label": "psych-rock v1 (turbo)",
+        "model": "acestep-v15-turbo",
+        "dit_dir": "models/dit",
+        "dit_file": "openvino_model_lora_psychrock_v1_f32.xml",
+        "hetero_pin": "proj_out",
+        "trigger": "",
+        "verdict": "untested",
+        "notes": "Queue-built. Wav exists, ear check pending.",
     },
 }
 
@@ -161,6 +198,15 @@ def get_music_ov_status() -> dict:
     return {
         "ok": True,
         "models": models,
+        "loras": [
+            {"id": pid, "label": p["label"], "model": p["model"],
+             "verdict": p["verdict"], "trigger": p.get("trigger", ""),
+             "notes": p.get("notes", ""),
+             "ir_present": all(
+                 ((SOURCE_DIR / p["dit_dir"] / p["dit_file"]).is_file(),
+                  (SOURCE_DIR / p["dit_dir"] / p["dit_file"].replace(".xml", ".bin")).is_file()))}
+            for pid, p in LORA_PAIRS.items()
+        ],
         "source_dir": str(SOURCE_DIR),
         "devices": available_devices(),
     }
@@ -173,9 +219,18 @@ def manifest_state() -> dict[str, bool]:
 
 def build_env(*, prompt: str, lyrics: str, seed: int, duration_sec: float,
               model: str, device: str, out_path: str, negative: str = "",
-              steps: int = 0, guidance: float = 0.0) -> dict[str, str]:
+              steps: int = 0, guidance: float = 0.0, bpm: str = "",
+              key: str = "", timesig: str = "", lora: str = "") -> dict[str, str]:
     """Params -> T2M_* env for the runner subprocess. No other channel exists."""
     spec = MUSIC_MODELS[model]
+    dit_dir, dit_file, hetero_pin = spec["dit_dir"], spec["dit_file"], spec["hetero_pin"]
+    if lora:
+        pair = LORA_PAIRS.get(lora)
+        if pair is None:
+            raise ValueError(f"Unknown LoRA pair {lora!r}")
+        if pair["model"] != model:
+            raise ValueError(f"LoRA pair {lora!r} belongs to {pair['model']}, not {model}")
+        dit_dir, dit_file, hetero_pin = pair["dit_dir"], pair["dit_file"], pair["hetero_pin"]
     env = dict(os.environ)
     env.update({
         "T2M_PROMPT": prompt,
@@ -183,9 +238,12 @@ def build_env(*, prompt: str, lyrics: str, seed: int, duration_sec: float,
         "T2M_SEED": str(seed),
         "T2M_DURATION_SEC": str(duration_sec),
         "T2M_PREC_HINT": "f32",  # locked: f16 NaNs at step 3 (measured)
-        "T2M_DIT_DIR": spec["dit_dir"],
-        "T2M_DIT": spec["dit_file"],
+        "T2M_DIT_DIR": dit_dir,
+        "T2M_DIT": dit_file,
         "T2M_CKPT": spec.get("ckpt", ""),
+        "T2M_BPM": bpm,
+        "T2M_KEY": key,
+        "T2M_TIMESIG": timesig,
         "T2M_TRIM_COND": "1",
         "T2M_MAX_STEPS": "0",
         "T2M_OUT": out_path,
@@ -198,7 +256,7 @@ def build_env(*, prompt: str, lyrics: str, seed: int, duration_sec: float,
         env["T2M_GUIDANCE"] = str(guidance)
     if device == "HETERO":
         env["T2M_DIT_DEVICE"] = "GPU"
-        env["T2M_HETERO_PIN"] = spec["hetero_pin"]
+        env["T2M_HETERO_PIN"] = hetero_pin
     else:  # CPU explicit fallback — no pin, whole DiT on CPU
         env["T2M_DIT_DEVICE"] = "CPU"
         env["T2M_HETERO_PIN"] = ""
