@@ -768,3 +768,31 @@ body.references-tab-active .tool-input-preview {
   background: rgba(16, 185, 129, 0.30) !important;
   transition: background 0.6s;
 }
+
+/* ── Music Prompts cheat-sheet: full-bleed page, self-limiting cards ──
+   The workspace stays uncapped (ref-workspace-wide); each card caps its own
+   line length. No horizontal scrolling anywhere on this sub-tab. */
+.ref-music-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(430px, 100%), 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.ref-music-card {
+  max-width: 72ch;
+}
+.ref-music-card .ref-card-body p {
+  max-width: 68ch;
+}
+.ref-music-bank {
+  grid-column: 1 / -1;
+  max-width: none;
+}
+.ref-music-bank .ref-table-scroll {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+#muBankFilter {
+  width: 100%;
+  max-width: 480px;
+}

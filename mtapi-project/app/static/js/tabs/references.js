@@ -7,6 +7,7 @@
  */
 import { state, elements, switchTab } from '/app.js';
 import { escapeHtml } from '/js/utils.js';
+import { MUSIC_PROMPT_EXAMPLES } from '/js/ref-music-prompts.js';
 
 const SVG_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
 const SVG_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
@@ -22,7 +23,8 @@ const SVG_FILM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 function renderReferencesForm() {
   const sub = state.activeTab === 'refs-models' ? 'models'
     : state.activeTab === 'refs-images' ? 'imgmodels'
-    : state.activeTab === 'refs-code' ? 'code' : 'yt';
+    : state.activeTab === 'refs-code' ? 'code'
+    : state.activeTab === 'refs-music' ? 'music' : 'yt';
   const wide = sub !== 'yt';
   const html = `
     <div class="ref-workspace${wide ? ' ref-workspace-wide' : ''}">
@@ -31,8 +33,9 @@ function renderReferencesForm() {
         <button class="ref-subtab${sub === 'models' ? ' active' : ''}" data-ref-tab="refs-models">Video Models</button>
         <button class="ref-subtab${sub === 'imgmodels' ? ' active' : ''}" data-ref-tab="refs-images">Image Models</button>
         <button class="ref-subtab${sub === 'code' ? ' active' : ''}" data-ref-tab="refs-code">Coding Models</button>
+        <button class="ref-subtab${sub === 'music' ? ' active' : ''}" data-ref-tab="refs-music">Music Prompts</button>
       </div>
-      ${sub === 'models' ? buildModelsSection() : sub === 'imgmodels' ? buildImageModelsSection() : sub === 'code' ? buildCodeModelsSection() : buildYtSections()}
+      ${sub === 'models' ? buildModelsSection() : sub === 'imgmodels' ? buildImageModelsSection() : sub === 'code' ? buildCodeModelsSection() : sub === 'music' ? buildMusicSection() : buildYtSections()}
     </div>
   `;
   elements.actionPanel.innerHTML = html;
@@ -44,6 +47,7 @@ function renderReferencesForm() {
     });
   });
   bindSortableTables();
+  bindMusicBank();
 }
 
 function buildYtSections() {
@@ -978,6 +982,132 @@ function buildStrategySection() {
 
 function esc(s) {
   return escapeHtml(String(s || ''));
+}
+
+/* ═══════════════════════════════════════════════
+   Music Prompts — ACE-Step prompting cheat-sheet.
+   Static doctrine (official Tutorial + community) + the full example bank
+   harvested from local LoRA metadata (tools/gen_music_prompt_bank.py).
+   Full-bleed workspace; cards cap their own line length (never the page).
+   ═══════════════════════════════════════════════ */
+const MU_DIMENSIONS = [
+  ['Style / Genre', 'pop, rock, jazz, electronic, hip-hop, boom bap, lo-fi, synthwave'],
+  ['Emotion / Atmosphere', 'melancholic, uplifting, energetic, dreamy, dark, nostalgic, intimate'],
+  ['Instruments (name them)', 'fingerpicked acoustic guitar, felt piano, 808 drums, strings, brass'],
+  ['Timbre / Texture', 'warm, bright, crisp, dusty, airy, punchy, vinyl crackle, compressed'],
+  ['Era reference', '80s synth-pop, 90s grunge, vintage soul, modern trap'],
+  ['Production', 'lo-fi, hi-fi, bedroom pop, studio-polished, analog warmth, wide stereo'],
+  ['Vocals', 'female breathy vocal, male raspy vocal, choir, falsetto — or no vocals'],
+  ['Speed / Rhythm', 'slow tempo, groovy, driving, laid-back (BPM itself goes in metas, not caption)'],
+  ['Structure hints', 'building intro, catchy chorus, dramatic bridge, fade-out ending'],
+];
+
+const MU_GENRES = [
+  ['Electronic', 'techno, progressive house, trance, drum and bass, breakcore, darkwave, synthwave'],
+  ['Hip-hop', 'trap, boom bap, drill, phonk, lo-fi hip-hop, cloud rap, uk drill'],
+  ['Rock', 'indie rock, post-rock, shoegaze, dream pop, post-punk, grunge, doom metal'],
+  ['Pop', 'synth-pop, city pop, k-pop, j-pop, indie pop, hyperpop'],
+  ['Jazz', 'bebop, fusion, smooth jazz, gypsy jazz, cool jazz'],
+  ['Orchestral', 'cinematic, trailer music, orchestral score, baroque, minimalist'],
+  ['Acoustic', 'indie folk, bluegrass, bossa nova, americana, sea shanty'],
+  ['Ambient', 'dark ambient, drone, new age, evolving pads, ethereal textures'],
+];
+
+const MU_STRUCTURE = [
+  ['[intro] / [outro]', 'opening / ending, establishes atmosphere'],
+  ['[verse] / [chorus] / [bridge]', 'narrative / hook (repeat it) / contrasting section'],
+  ['[inst]', 'instrumental passage — solos, breaks, interludes (marker alone = no vocals)'],
+  ['[build-up] / [drop] / [breakdown]', 'rise / peak release / strip back (electronic arcs)'],
+  ['Language', '[en] [zh] [ja]… at section start, never mid-line'],
+];
+
+function buildMusicSection() {
+  const dims = MU_DIMENSIONS.map(([k, v]) =>
+    `<tr><td><strong>${esc(k)}</strong></td><td>${esc(v)}</td></tr>`).join('');
+  const genres = MU_GENRES.map(([k, v]) =>
+    `<tr><td><strong>${esc(k)}</strong></td><td>${esc(v)}</td></tr>`).join('');
+  const struct = MU_STRUCTURE.map(([k, v]) =>
+    `<tr><td><code>${esc(k)}</code></td><td>${esc(v)}</td></tr>`).join('');
+  const bank = MUSIC_PROMPT_EXAMPLES.map((e, i) => {
+    const meta = [e.bpm ? `${e.bpm} bpm` : '', e.key || ''].filter(Boolean).join(' · ');
+    return `<tr data-mu-bank="${i}">
+      <td>${esc(e.caption)}${e.trigger ? ` <code>${esc(e.trigger)}</code>` : ''}</td>
+      <td class="ref-nowrap">${esc(meta)}<br><span class="ref-muted">${esc((e.source || '').replace('.metadata', ''))}</span></td>
+      <td class="ref-nowrap">
+        <button class="btn" data-mu-copy="${i}" title="Copy caption">copy</button>
+        <button class="btn" data-mu-send="${i}" title="Send to Music tab">→ Music</button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `
+  <div class="ref-music-grid">
+    <div class="ref-card ref-music-card">
+      <div class="ref-card-head"><div class="ref-card-head-icon">${SVG_INFO}</div><h4>Anatomy: caption / lyrics / metas</h4></div>
+      <div class="ref-card-body">
+        <p><strong>Caption</strong> = the sound (tags below). <strong>Lyrics</strong> = structure + words ([verse]/[chorus]/[inst]). <strong>Metas knobs</strong> (BPM/key/timesig on the Music tab) = musical facts. Never put BPM in the caption — it belongs in metas.</p>
+        <p><strong>Granularity = control.</strong> Write less → surprises (seed rules). Write more → control. 5–12 keywords is the sweet spot; past 15 they dilute. One lead voice per short clip; conflicting styles degrade — evolve them over time instead ("starts strings, ends hip-hop").</p>
+      </div>
+    </div>
+    <div class="ref-card ref-music-card">
+      <div class="ref-card-head"><div class="ref-card-head-icon">${SVG_LAYERS}</div><h4>Caption dimensions</h4></div>
+      <div class="ref-card-body"><table class="ref-table"><tbody>${dims}</tbody></table></div>
+    </div>
+    <div class="ref-card ref-music-card">
+      <div class="ref-card-head"><div class="ref-card-head-icon">${SVG_FILM}</div><h4>Genre tag banks</h4></div>
+      <div class="ref-card-body"><table class="ref-table"><tbody>${genres}</tbody></table></div>
+    </div>
+    <div class="ref-card ref-music-card">
+      <div class="ref-card-head"><div class="ref-card-head-icon">${SVG_EYE}</div><h4>Structure &amp; lyric tags</h4></div>
+      <div class="ref-card-body"><table class="ref-table"><tbody>${struct}</tbody></table>
+        <p>Lines 4–8 syllables (6–10 for sung verses); repeat the chorus; keep caption↔lyrics consistent or the model gets confused. Instrumental = <code>[Instrumental]</code> lyrics + no vocal tags (never both).</p>
+      </div>
+    </div>
+    <div class="ref-card ref-music-card">
+      <div class="ref-card-head"><div class="ref-card-head-icon">${SVG_SHIELD}</div><h4>House rules (measured here)</h4></div>
+      <div class="ref-card-body">
+        <p>Seed = dice (same prompt+seed = bit-identical clip). CFG 5–7 loose/musical, 10–12 tight, 15+ rigid. LoRA trigger words prepend the caption. Turbo: 8 fixed steps, no CFG. Base/sft: 30–50 steps for finals.</p>
+      </div>
+    </div>
+    <div class="ref-card ref-music-card ref-music-bank">
+      <div class="ref-card-head"><div class="ref-card-head-icon">${SVG_CHECK}</div><h4>Example bank · ${MUSIC_PROMPT_EXAMPLES.length} harvested prompts</h4></div>
+      <div class="ref-card-body">
+        <p><input type="text" id="muBankFilter" placeholder="filter (e.g. boom bap, 95, minor)…"></p>
+        <div class="ref-table-scroll"><table class="ref-table"><tbody id="muBankBody">${bank}</tbody></table></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function bindMusicBank() {
+  const filter = document.getElementById('muBankFilter');
+  if (filter) {
+    filter.addEventListener('input', () => {
+      const q = filter.value.trim().toLowerCase();
+      document.querySelectorAll('#muBankBody tr').forEach((tr) => {
+        tr.style.display = !q || tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+      });
+    });
+  }
+  document.querySelectorAll('[data-mu-copy]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const e = MUSIC_PROMPT_EXAMPLES[parseInt(btn.getAttribute('data-mu-copy'), 10)];
+      if (e) copyCellText(e.caption);
+    });
+  });
+  document.querySelectorAll('[data-mu-send]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const e = MUSIC_PROMPT_EXAMPLES[parseInt(btn.getAttribute('data-mu-send'), 10)];
+      if (!e) return;
+      try {
+        state.music = Object.assign({}, state.music, {
+          prompt: (e.trigger ? e.trigger + ', ' : '') + e.caption,
+          bpm: e.bpm != null ? String(e.bpm).replace(/\.0$/, '') : (state.music || {}).bpm || '',
+          key: e.key || (state.music || {}).key || '',
+        });
+      } catch (_) { /* state unavailable */ }
+      switchTab('music');
+    });
+  });
 }
 
 export { renderReferencesForm };
