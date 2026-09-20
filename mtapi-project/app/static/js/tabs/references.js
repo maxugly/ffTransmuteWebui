@@ -1068,6 +1068,38 @@ function buildMusicSection() {
         <p>Seed = dice (same prompt+seed = bit-identical clip). CFG 5–7 loose/musical, 10–12 tight, 15+ rigid. LoRA trigger words prepend the caption. Turbo: 8 fixed steps, no CFG. Base/sft: 30–50 steps for finals.</p>
       </div>
     </div>
+    <div class="ref-card ref-music-card">
+      <div class="ref-card-head"><div class="ref-card-head-icon">${SVG_LAYERS}</div><h4>Official: the herd (LM planner + DiT executor)</h4></div>
+      <div class="ref-card-body">
+        <p>User input → <strong>5Hz LM</strong> (planner: CoT metas, caption rewrite, semantic codes) → <strong>DiT</strong> (executor: carves audio from noise). LM optional — Cover/Repaint replace planning with audio. We run DiT-only.</p>
+        <table class="ref-table"><tbody>
+          <tr><td><strong>No LM</strong></td><td>you plan (covers). Fastest.</td></tr>
+          <tr><td><strong>0.6B / 1.7B / 4B</strong></td><td>basic / <strong>default pick</strong> / rich world knowledge</td></tr>
+          <tr><td><strong>turbo / shift1 / shift3</strong></td><td>balanced 8-step / detail-rich / clear timbre, dry</td></tr>
+          <tr><td><strong>sft / base</strong></td><td>CFG + 50 steps, detail / all tasks (extract, lego, complete)</td></tr>
+        </tbody></table>
+        <p class="ref-muted">Source: ACE-Step 1.5 Tutorial (full text below in spirit; upstream may update).</p>
+      </div>
+    </div>
+    <div class="ref-card ref-music-card">
+      <div class="ref-card-head"><div class="ref-card-head-icon">${SVG_EYE}</div><h4>Official: inference knobs</h4></div>
+      <div class="ref-card-body">
+        <table class="ref-table"><tbody>
+          <tr><td><strong>steps</strong></td><td>8 turbo; 32–100 base. More = finer, slower.</td></tr>
+          <tr><td><strong>guidance</strong></td><td>7 default; higher = adherence, may overfit. Base only.</td></tr>
+          <tr><td><strong>shift</strong></td><td>big = structure first; small = detail-first (can noise).</td></tr>
+          <tr><td><strong>ode / sde</strong></td><td>deterministic / extra randomness injections.</td></tr>
+          <tr><td><strong>cover_strength</strong></td><td>0–1: higher = stick to source, lower = freer.</td></tr>
+          <tr><td><strong>seed</strong></td><td>fix it while tuning (isolates knob effects); vary it to explore.</td></tr>
+        </tbody></table>
+      </div>
+    </div>
+    <div class="ref-card ref-music-card">
+      <div class="ref-card-head"><div class="ref-card-head-icon">${SVG_FILM}</div><h4>Official: audio control</h4></div>
+      <div class="ref-card-body">
+        <p><strong>reference_audio</strong> = global timbre/mix (averaged over time). <strong>src_audio</strong> = melody/rhythm/chords for Cover. <strong>repaint</strong> = regenerate 3–90 s regions in context. <strong>lego/complete/extract</strong> (base only) = add tracks, finish songs, pull stems.</p>
+      </div>
+    </div>
     <div class="ref-card ref-music-card ref-music-bank">
       <div class="ref-card-head"><div class="ref-card-head-icon">${SVG_CHECK}</div><h4>Example bank · ${MUSIC_PROMPT_EXAMPLES.length} harvested prompts</h4></div>
       <div class="ref-card-body">
