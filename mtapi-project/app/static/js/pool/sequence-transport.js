@@ -157,9 +157,9 @@ function updateSeqClipSettings() {
     const tag = normTagColor(entry.tagColor);
     tagBtn.classList.toggle('is-tagged', !!tag);
     tagBtn.style.background = tag || '';
-    tagBtn.title = tag
+    tagBtn.setAttribute('data-help-title', tag
       ? `Tag: ${tag} — click to change the revisit mark`
-      : 'Tag this clip — click to pick a revisit color';
+      : 'Tag this clip — click to pick a revisit color');
     tagBtn.dataset.seqId = String(entry.id);
   }
   // Erase pipeline panel (dynamic import: erase.js also touches the composer).
@@ -175,9 +175,9 @@ function updateSeqClipSettings() {
     const n = rec ? rec.count : 1;
     const pos = rec ? rec.positions : [idx + 1];
     useEl.textContent = `in sequence ${n}× (#${pos.join(', #')})`;
-    useEl.title = n > 1
+    useEl.setAttribute('data-help-title', n > 1
       ? `This clip appears ${n} times in the sequence at positions ${pos.join(', ')}`
-      : 'This clip appears once in the sequence';
+      : 'This clip appears once in the sequence');
   }
 }
 
@@ -269,7 +269,7 @@ function applySeqTokenTimeStyles() {
       tok.style.background = '';
       tok.style.borderColor = '';
     }
-    tok.title = seqClipTokenTitle(entry, speedInfo);
+    tok.setAttribute('data-help-title', seqClipTokenTitle(entry, speedInfo));
 
     // LIVE UPDATE: push new speed to every visible video for this clip.
     // playback.video is the authoritative sequence-player element, but the

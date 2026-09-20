@@ -108,7 +108,7 @@ function _showSeqVariantMenu(anchor, entry, variants, currentPath) {
       ? `Original — ${base}`
       : `${kind || 'variant'} — ${base}${detail ? ' · ' + Object.entries(detail).map(([k, val]) => `${k}=${val}`).join(' · ') : ''}`;
     const mAttr = (m >= 2) ? ` data-multiplier="${m}"` : '';
-    return `<button type="button" class="seq-var-opt${selected ? ' selected' : ''}" data-vpath="${escapeHtml(vPath)}"${mAttr} data-kind="${escapeHtml(kind || '')}" title="${escapeHtml(vPath)}">${escapeHtml(label)}</button>`;
+    return `<button type="button" class="seq-var-opt${selected ? ' selected' : ''}" data-vpath="${escapeHtml(vPath)}"${mAttr} data-kind="${escapeHtml(kind || '')}" data-help-title="${escapeHtml(vPath)}">${escapeHtml(label)}</button>`;
   };
 
   let rows = makeRow(entry.path, 'original', null);

@@ -172,12 +172,12 @@ function sortHeaders(cols, sort, tableType) {
     return `<th data-sort="${c.key}" class="sortable${sort.key === c.key ? ' sorted' : ''}${c.cls ? ' ' + c.cls : ''}${visible ? '' : ' ref-col-collapsed'}" data-col-key="${c.key}">
       <div class="ref-col-head">
         <span class="ref-col-top">
-          <label class="ref-col-toggle" title="Toggle column">
+          <label class="ref-col-toggle" data-help-title="Toggle column">
             <input type="checkbox" ${checked} data-table="${tableType}" data-col="${c.key}">
           </label>
           <span class="ref-sort-arrow${sort.key === c.key ? '' : ' dim'}">${sort.key === c.key ? (sort.dir === 1 ? ' ▲' : ' ▼') : ' ⇅'}</span>
         </span>
-        <span class="ref-col-label" title="${esc(c.label)}">${esc(c.label)}</span>
+        <span class="ref-col-label" data-help-title="${esc(c.label)}">${esc(c.label)}</span>
       </div>
     </th>`;
   }).join('');
@@ -1034,8 +1034,8 @@ function buildMusicSection() {
       <td>${esc(e.caption)}${e.trigger ? ` <code>${esc(e.trigger)}</code>` : ''}</td>
       <td class="ref-nowrap">${esc(meta)}<br><span class="ref-muted">${esc((e.source || '').replace('.metadata', ''))}</span></td>
       <td class="ref-nowrap">
-        <button class="btn" data-mu-copy="${i}" title="Copy caption">copy</button>
-        <button class="btn" data-mu-send="${i}" title="Send to Music tab">→ Music</button>
+        <button class="btn" data-mu-copy="${i}" data-help-title="Copy caption">copy</button>
+        <button class="btn" data-mu-send="${i}" data-help-title="Send to Music tab">→ Music</button>
       </td>
     </tr>`;
   }).join('');

@@ -98,13 +98,13 @@ export function updateStitchButton() {
   } else {
     btn.textContent = label;
   }
-  btn.title = pred.mode === 'copy'
+  btn.setAttribute('data-help-title', pred.mode === 'copy'
     ? 'Every clip has a valid conformed sibling — Stitch will try the concat-copy fast path (falls back to re-encode if the gate fails).'
     : pred.mode === 'reencode'
       ? 'Conform is on but some clips lack a valid conform — Stitch regenerates them first, else re-encodes.'
       : pred.mode === 'working'
         ? 'Conform cache-fill running…'
-        : 'Stitch clips end-to-end';
+        : 'Stitch clips end-to-end');
 }
 
 /** Mark entries stale when conform inputs change (mode/aspect/fps/duration). */

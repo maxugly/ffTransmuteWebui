@@ -29,12 +29,16 @@ class MusicGenerateParams(BaseModel):
     duration_sec: float = Field(12, ge=10, le=60,
                                description="Clip length in seconds (below 10 is under the model floor)")
     model: Literal["acestep-v15-turbo", "acestep-v15-base", "acestep-v15-sft"] = Field(
-        "acestep-v15-turbo", description="Music checkpoint")
+        "acestep-v15-base", description="Music checkpoint")
     negative: str = Field("", description="Negative prompt (CFG models only; ignored by turbo)")
     steps: int = Field(0, ge=0, le=60,
                        description="Denoising steps for CFG models (0 = model default; turbo ignores)")
     guidance: float = Field(0.0, ge=0.0, le=15.0,
                             description="Guidance scale for CFG models (0 = model default; turbo ignores)")
+    shift: float = Field(3.0, ge=0.5, le=8.0,
+                         description="Schedule shift for CFG models (3.0 default, 1.0 = turbo-shift1 recipe; turbo ignores)")
+    apg: bool = Field(True,
+                      description="APG adaptive guidance for CFG models (off = plain CFG; turbo ignores)")
     bpm: str = Field("", description="Tempo for the SFT metas (blank = N/A)")
     key: str = Field("", description="Key/scale for the SFT metas, e.g. E minor (blank = N/A)")
     timesig: str = Field("", description="Time signature for the SFT metas, e.g. 4/4 (blank = N/A)")
@@ -112,7 +116,7 @@ async def music_generate(p: MusicGenerateParams) -> OperationResult:
                             negative=p.negative, steps=p.steps, guidance=p.guidance,
                             bpm=p.bpm.strip(), key=p.key.strip(), timesig=p.timesig.strip(),
                             lora=p.lora, task=p.task, src_audio=p.src_audio,
-                            repeat=p.repeat)
+                            repeat=p.repeat, shift=p.shift, apg=p.apg)
     except ValueError as e:
         return OperationResult(ok=False, operation=op, error=str(e))
     total_steps = p.steps if p.steps > 0 else 8

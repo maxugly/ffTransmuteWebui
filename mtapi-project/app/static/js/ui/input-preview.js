@@ -266,12 +266,12 @@ function refreshInputPreview() {
     return `
       <div class="tool-input-slot" data-path="${escapeHtml(s.path)}">
         <div class="tool-input-slot-label">${label}</div>
-        <div class="tool-input-slot-frame" data-preview-path="${escapeHtml(s.path)}" title="${title}">
+        <div class="tool-input-slot-frame" data-preview-path="${escapeHtml(s.path)}" data-help-title="${title}">
           <span class="tool-input-slot-badge">${badge}</span>
           <img src="${src}" alt="${name}" loading="lazy"
             onerror="this.style.display='none'; this.parentElement.classList.add('is-broken')">
         </div>
-        <div class="tool-input-slot-name" title="${title}">${name}</div>
+        <div class="tool-input-slot-name" data-help-title="${title}">${name}</div>
       </div>`;
   }).join('');
 

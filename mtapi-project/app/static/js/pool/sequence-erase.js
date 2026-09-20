@@ -200,7 +200,7 @@ function openEraseMaskEditor(entry) {
         <label>Brush <input type="number" id="seqEraseBrush" min="2" max="120" value="24"></label>
         <button type="button" class="btn pool-info-mini" id="seqEraseUndo">Undo</button>
         <button type="button" class="btn pool-info-mini" id="seqEraseClearC">Clear</button>
-        <label title="Rect fallback when nothing is painted (area capped 25%)">Rect
+        <label data-help-title="Rect fallback when nothing is painted (area capped 25%)">Rect
           <input type="text" id="seqEraseRect" value="0.80,0.84,0.17,0.12" size="20">
         </label>
       </div>

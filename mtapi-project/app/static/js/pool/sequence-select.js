@@ -166,8 +166,8 @@ function updatePoolFocusFrame(path) {
       </div>
     </div>
     <div class="pool-focus-meta pool-overlay-text">
-      <div class="pool-meta-name" title="${escapeHtml(name)}">${escapeHtml(name)}</div>
-      <div class="pool-meta-path" title="${escapeHtml(path)}">${escapeHtml(path)}</div>
+      <div class="pool-meta-name" data-help-title="${escapeHtml(name)}">${escapeHtml(name)}</div>
+      <div class="pool-meta-path" data-help-title="${escapeHtml(path)}">${escapeHtml(path)}</div>
       ${hasMeta ? `<div class="pool-meta-row">
         ${hash ? `<span class="pool-hash">#${escapeHtml(shortHash(hash))}</span>` : ''}
         ${dur ? `<span>${dur}</span>` : ''}

@@ -81,11 +81,11 @@ function openTagPicker(anchorEl, entryId) {
   const swatches = SEQ_TAG_COLORS.map((c) => {
     const sel = current === c ? ' is-selected' : '';
     return `<button type="button" class="seq-tag-swatch${sel}" data-tag="${c}"`
-      + ` style="background:${c}" title="${c}" aria-label="Tag ${c}"></button>`;
+      + ` style="background:${c}" data-help-title="${c}" aria-label="Tag ${c}"></button>`;
   }).join('');
   pop.innerHTML = `
     <div class="seq-tag-grid">${swatches}</div>
-    <button type="button" class="seq-tag-clear" title="Remove tag color">Clear</button>
+    <button type="button" class="seq-tag-clear" data-help-title="Remove tag color">Clear</button>
   `;
   pop.addEventListener('click', (e) => e.stopPropagation());
   pop.querySelectorAll('.seq-tag-swatch').forEach((btn) => {

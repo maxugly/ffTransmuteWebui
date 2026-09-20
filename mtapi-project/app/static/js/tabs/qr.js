@@ -39,7 +39,7 @@ function renderQrArtForm() {
       <div class="input-row">
         <input type="text" id="qrPatternImage" placeholder="/path/to/pattern.png" style="flex:1 1 16rem">
         <button class="btn" type="button" id="btnQrBrowsePattern">Browse</button>
-        <button class="btn btn-clear" type="button" id="btnQrClearPattern" title="Clear" aria-label="Clear Pattern">×</button>
+        <button class="btn btn-clear" type="button" id="btnQrClearPattern" data-help-title="Clear" aria-label="Clear Pattern">×</button>
       </div>
     </div>
     <div class="form-row" id="qrAppearanceRow" style="display:none">
@@ -47,7 +47,7 @@ function renderQrArtForm() {
       <div class="input-row">
         <input type="text" id="qrAppearanceImage" placeholder="/path/to/appearance.png" style="flex:1 1 16rem">
         <button class="btn" type="button" id="btnQrBrowseAppearance">Browse</button>
-        <button class="btn btn-clear" type="button" id="btnQrClearAppearance" title="Clear" aria-label="Clear Appearance">×</button>
+        <button class="btn btn-clear" type="button" id="btnQrClearAppearance" data-help-title="Clear" aria-label="Clear Appearance">×</button>
       </div>
     </div>
     <div class="form-row" id="qrPromptRow">
@@ -64,7 +64,7 @@ function renderQrArtForm() {
       <div class="input-row">
         <input type="text" id="qrOutput" placeholder="blank = /tmp/mtapi_gen/…">
         <button class="btn" type="button" id="btnQrBrowseOut">Save As</button>
-        <button class="btn btn-clear" type="button" id="btnQrClearOutput" title="Clear" aria-label="Clear Output">×</button>
+        <button class="btn btn-clear" type="button" id="btnQrClearOutput" data-help-title="Clear" aria-label="Clear Output">×</button>
       </div>
     </div>
 
@@ -83,7 +83,7 @@ function renderQrArtForm() {
       <div class="input-row">
         <input type="text" id="qrRefImage" placeholder="/path/to/reference.png" style="flex:1 1 16rem">
         <button class="btn" type="button" id="btnQrBrowseRef">Browse</button>
-        <button class="btn btn-clear" type="button" id="btnQrClearRef" title="Clear" aria-label="Clear Reference Image">×</button>
+        <button class="btn btn-clear" type="button" id="btnQrClearRef" data-help-title="Clear" aria-label="Clear Reference Image">×</button>
       </div>
       <p class="form-row-hint">Drop any texture/photo here. Low scale = subtle style, High scale = clone the photo</p>
     </div>

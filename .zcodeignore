@@ -1,0 +1,128 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+env/
+*.egg
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Runtime / cache
+*.log
+.cache/
+*.tmp
+tmp/
+mtapi-project/data/
+
+# Local media / test outputs (keep fixtures intentionally tracked if small)
+mtapi-project/test*.mp4
+mtapi-project/test*.m4v
+mtapi-project/test*.m2v
+mtapi-project/test*.json
+
+# Zip dumps / scratch
+*.zip
+asdg
+respones001.txt
+
+mtapi-project/test_small.mp4
+mtapi-project/test_big.mp4
+mtapi-project/join-*.mp4
+1.mp4
+.coms.md
+.presence.json
+
+# Agent runtime lock state
+mtapi-project/.codewhale/state/*.lock
+.aider*
+
+# Screenshots / browser captures → put under mtapi-project/junk/ (see AGENTS.md §3.11)
+# Never leave these at monorepo root or mtapi-project root.
+.playwright-mcp/
+Screenshot_*.png
+*_tab.png
+*_run_state.png
+/compare_*.png
+/example*.png
+/mtapi_ui.png
+/sorry2bugYa.png
+/theLeftOneIsSelected.png
+/wrongColor.png
+
+mtapi-project/bin/realesrgan-ncnn-vulkan
+mtapi-project/bin/realesr-ncnn-vulkan
+mtapi-project/bin/srmd-ncnn-vulkan
+
+# Self-hosted keijiro Stable Fluids WebGL build (~8 MB).
+# Fetch commands are in the tab's placeholder / docs/stablefluids-sim-spec.md §2.1.
+mtapi-project/app/static/stablefluids/
+
+# Node modules
+/node_modules/
+mtapi-project/tools/**/node_modules/
+# Vendored gemini-watermark-remover: track runtime files only (bin/src minus
+# sample fixtures + manifests). Dev weight, nested git, and install outputs
+# stay local — the tab installer card rebuilds them via /ops/watermark_setup.
+mtapi-project/tools/gemini-watermark-remover/.git/
+mtapi-project/tools/gemini-watermark-remover/release/
+mtapi-project/tools/gemini-watermark-remover/public/
+mtapi-project/tools/gemini-watermark-remover/tests/
+mtapi-project/tools/gemini-watermark-remover/docs/
+mtapi-project/tools/gemini-watermark-remover/examples/
+mtapi-project/tools/gemini-watermark-remover/scripts/
+mtapi-project/tools/gemini-watermark-remover/.github/
+mtapi-project/tools/gemini-watermark-remover/src/assets/samples/
+mtapi-project/tools/gemini-watermark-remover/src/assets/video-samples/
+mtapi-project/tools/gemini-watermark-remover/AGENTS.md
+mtapi-project/tools/gemini-watermark-remover/CHANGELOG.md
+mtapi-project/tools/gemini-watermark-remover/CHANGELOG_zh.md
+mtapi-project/tools/gemini-watermark-remover/RELEASE.md
+mtapi-project/tools/gemini-watermark-remover/RELEASE_zh.md
+mtapi-project/tools/gemini-watermark-remover/README_zh.md
+mtapi-project/tools/gemini-watermark-remover/build.js
+mtapi-project/tools/gemini-watermark-remover/package-lock.json
+mtapi-project/tools/gemini-watermark-remover/pnpm-lock.yaml
+mtapi-project/tools/gemini-watermark-remover/pnpm-workspace.yaml
+
+# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
+.git/
+.hg/
+.svn/
+node_modules/
+bower_components/
+jspm_packages/
+site-packages/
+coverage/
+htmlcov/
+lcov-report/
+cmakefiles/
+cmake-build-*/
+bazel-*/
+pods/
+deriveddata/
+storybook-static/
+playwright-report/
+test-results/
+allure-results/
+allure-report/
+cdk.out/
+*.dist-info/
+eggs/
+pip-wheel-metadata/
+wheels/
+# ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
+# 自定义规则写在下方（本行提示可删除）

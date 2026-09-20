@@ -148,7 +148,7 @@ function setupGlobalTimeline() {
     if (totalEl) {
       var selected = Math.max(1, e - s + 1);
       totalEl.textContent = selected;
-      totalEl.title = selected + ' selected of ' + m + ' in clip';
+      totalEl.setAttribute('data-help-title', selected + ' selected of ' + m + ' in clip');
     }
 
     // Notify Cut / other listeners that the working range moved

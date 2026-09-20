@@ -36,7 +36,7 @@ function updateSeqTotalTime() {
   el.textContent = unknown
     ? `${formatDurationExact(total)} total · ${unknown} unknown`
     : `${formatDurationExact(total)} total`;
-  el.title = 'Sum of clip times (Time override if set, else native duration)';
+  el.setAttribute('data-help-title', 'Sum of clip times (Time override if set, else native duration)');
 }
 
 function _getNativeMeta(path) {

@@ -118,7 +118,7 @@ const KNOB_RENDER = {
       <label for="muSeed">Seed</label>
       <div class="input-row">
         ${knobUnitHtml({ id: 'muSeed', label: 'Seed', value: String(st.seed ?? 42) })}
-        <button type="button" class="btn" id="btnMuDice" title="Random seed">🎲</button>
+        <button type="button" class="btn" id="btnMuDice" data-help-title="Random seed">🎲</button>
       </div>
       <span class="form-row-hint">Same prompt + seed = bit-identical clip.</span>
     </div>`,
@@ -236,7 +236,7 @@ function muBankHtml(st, knobs) {
   if (!bank.length) return '';
   const units = {
     seed: `<span class="mu-seed-wrap">${knobUnitHtml({ id: 'muSeed', label: 'Seed', value: String(st.seed ?? 42) })}
-      <button type="button" class="btn mu-dice" id="btnMuDice" title="Random seed">🎲</button></span>`,
+      <button type="button" class="btn mu-dice" id="btnMuDice" data-help-title="Random seed">🎲</button></span>`,
     seedrand: knobUnitHtml({ id: 'muSeedRand', label: 'Seed?', value: (st.seedRand ?? '1'), binary: true, leftCap: 'Fixed', rightCap: 'Rand' }),
     duration: knobUnitHtml({ id: 'muDuration', label: 'Seconds', value: String(st.duration ?? 12) }),
     bpm: knobUnitHtml({ id: 'muBpm', label: 'BPM', value: String(st.bpm ?? '0') }),
@@ -313,7 +313,7 @@ async function renderMusicForm() {
 
   const modelHtml = names.map((name) => {
     const m = catalog[name] || {};
-    const dis = m.enabled === false ? ` disabled title="${(m.disabled_reason || 'unavailable').replace(/"/g, '&quot;')}"` : '';
+    const dis = m.enabled === false ? ` disabled data-help-title="${(m.disabled_reason || 'unavailable').replace(/"/g, '&quot;')}"` : '';
     const suffix = m.enabled === false ? ` (needs: ${m.disabled_reason || 'export'})` : '';
     return `<option value="${name}"${name === st.model ? ' selected' : ''}${dis}>${m.label || name}${suffix}</option>`;
   }).join('');

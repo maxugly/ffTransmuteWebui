@@ -839,7 +839,7 @@ function renderMultiClipsList() {
     const item = document.createElement('div');
     item.className = 'multi-item';
     item.innerHTML = `
-      <span title="${path}">${positionLabel}${idx+1}. ${filename}</span>
+      <span data-help-title="${path}">${positionLabel}${idx+1}. ${filename}</span>
       <div style="display:flex; gap: 4px;">
         <button class="btn" style="padding: 2px 6px; font-size:0.7rem;" onclick="moveMultiClip(${idx}, -1)" ${idx === 0 ? 'disabled' : ''}>▲</button>
         <button class="btn" style="padding: 2px 6px; font-size:0.7rem;" onclick="moveMultiClip(${idx}, 1)" ${idx === state.multiClips.length - 1 ? 'disabled' : ''}>▼</button>

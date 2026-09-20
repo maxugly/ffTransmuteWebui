@@ -69,7 +69,7 @@ function renderConvertForm() {
         ${Object.entries(GROUP_LABELS).map(([group, groupLabel]) => `
           <optgroup label="${groupLabel}">
             ${(PRESETS_BY_GROUP[group] || []).map(p => `
-              <option value="${p.id}" title="${p.blurb.replace(/"/g, '&quot;')}">${p.label}</option>
+              <option value="${p.id}" data-help-title="${p.blurb.replace(/"/g, '&quot;')}">${p.label}</option>
             `).join('')}
           </optgroup>
         `).join('')}

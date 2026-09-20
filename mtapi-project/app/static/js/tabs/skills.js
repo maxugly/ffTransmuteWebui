@@ -180,7 +180,7 @@ function _paintList() {
     var n = Object.keys(e.files || {}).length;
     var upd = String(e.updated_at || '').slice(0, 10);
     var active = s.selectedId === e.id ? ' skill-row-active' : '';
-    return `<div class="skill-row${active}" data-id="${escapeHtml(e.id)}" role="button" tabindex="0" title="${escapeHtml(e.description || '')}">
+    return `<div class="skill-row${active}" data-id="${escapeHtml(e.id)}" role="button" tabindex="0" data-help-title="${escapeHtml(e.description || '')}">
       <div class="skill-row-main">
         <span class="skill-row-name">${escapeHtml(e.name || '(unnamed)')}</span>
         <span class="skill-row-meta">${n} file${n === 1 ? '' : 's'} · ${escapeHtml(upd)}</span>

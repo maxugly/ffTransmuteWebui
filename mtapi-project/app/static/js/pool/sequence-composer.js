@@ -288,7 +288,7 @@ function renderSequenceBox(opts) {
     tok.dataset.id = String(entry.id);
     tok.dataset.path = entry.path;
     tok.dataset.idx = String(idx);
-    tok.title = seqClipTokenTitle(entry, speedInfo);
+    tok.setAttribute('data-help-title', seqClipTokenTitle(entry, speedInfo));
 
     const usingRifed = !!(entry.variantPath && entry.variantPath !== entry.path);
     const fileBtnLabel = usingRifed ? 'RIFED' : 'ORIG';
@@ -315,7 +315,7 @@ function renderSequenceBox(opts) {
     const _tag = normTagColor(entry.tagColor);
     const _use = _useCounts.get(entry.path);
     const _useBadge = (_use && _use.count > 1)
-      ? `<span class="seq-use-badge" title="In sequence ${_use.count}× (#${_use.positions.join(', #')})">&times;${_use.count}</span>`
+      ? `<span class="seq-use-badge" data-help-title="In sequence ${_use.count}× (#${_use.positions.join(', #')})">&times;${_use.count}</span>`
       : '';
     const _tagTitle = _tag
       ? `Tag: ${_tag} — click to change the revisit mark`
@@ -323,10 +323,10 @@ function renderSequenceBox(opts) {
     tok.innerHTML = `
       <span class="seq-token-row seq-token-row-top">
         <span class="seq-token-idx">${idx + 1}</span>
-        <button type="button" class="seq-token-tag${_tag ? ' is-tagged' : ''}"${_tag ? ` style="background:${_tag}"` : ''} title="${escapeHtml(_tagTitle)}" aria-label="${escapeHtml(_tagTitle)}"></button>
+        <button type="button" class="seq-token-tag${_tag ? ' is-tagged' : ''}"${_tag ? ` style="background:${_tag}"` : ''} data-help-title="${escapeHtml(_tagTitle)}" aria-label="${escapeHtml(_tagTitle)}"></button>
         <span class="seq-token-name">${escapeHtml(entry.name)}</span>
         ${_useBadge}
-        <button type="button" class="seq-token-x" title="Remove from sequence">&cross;</button>
+        <button type="button" class="seq-token-x" data-help-title="Remove from sequence">&cross;</button>
       </span>
       <span class="seq-token-row seq-token-row-bot">
         <span class="seq-token-dur${speedInfo.stretched ? ' timed' : ''}">${speedInfo.durLabel}</span>
@@ -337,7 +337,7 @@ function renderSequenceBox(opts) {
 
     const varBtn = tok.querySelector('.seq-token-var');
     if (varBtn) {
-      varBtn.title = fileBtnTitle;
+      varBtn.setAttribute('data-help-title', fileBtnTitle);
       varBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
         const currentPath = entry.variantPath || entry.path;
@@ -364,7 +364,7 @@ function renderSequenceBox(opts) {
       const el = document.createElement('span');
       el.className = badge.cls;
       el.textContent = badge.text;
-      el.title = badge.title;
+      el.setAttribute('data-help-title', badge.title);
       el.setAttribute('role', 'status');
       host.appendChild(el);
     }
@@ -374,7 +374,7 @@ function renderSequenceBox(opts) {
       const cel = document.createElement('span');
       cel.className = cbadge.cls;
       cel.textContent = cbadge.text;
-      cel.title = cbadge.title;
+      cel.setAttribute('data-help-title', cbadge.title);
       cel.setAttribute('role', 'status');
       host.appendChild(cel);
     }
@@ -385,7 +385,7 @@ function renderSequenceBox(opts) {
         const eel = document.createElement('span');
         eel.className = ebadge.cls;
         eel.textContent = ebadge.text;
-        eel.title = ebadge.title;
+        eel.setAttribute('data-help-title', ebadge.title);
         eel.setAttribute('role', 'status');
         host.appendChild(eel);
       }
@@ -510,8 +510,8 @@ async function _updateSeqVariantBadges() {
       const local = peekVariants(path);
       if (local) {
         const n = Object.values(local).reduce((a, arr) => a + (arr?.length || 0), 0);
-        if (n > 0 && !btn.title.includes('Registered variants')) {
-          btn.title = (btn.title || '') + `\nRegistered variants: ${n}`;
+        if (n > 0 && !(btn.getAttribute('data-help-title') || '').includes('Registered variants')) {
+          btn.setAttribute('data-help-title', (btn.getAttribute('data-help-title') || '') + `\nRegistered variants: ${n}`);
         }
         continue;
       }
@@ -531,8 +531,8 @@ async function _updateSeqVariantBadges() {
       if (!path || !entry || !btn) continue;
       const variants = map.get(_normVariantKey(path)) || peekVariants(path) || {};
       const n = Object.values(variants).reduce((a, arr) => a + (arr?.length || 0), 0);
-      if (n > 0 && !btn.title.includes('Registered variants')) {
-        btn.title = (btn.title || '') + `\nRegistered variants: ${n}`;
+      if (n > 0 && !(btn.getAttribute('data-help-title') || '').includes('Registered variants')) {
+        btn.setAttribute('data-help-title', (btn.getAttribute('data-help-title') || '') + `\nRegistered variants: ${n}`);
       }
     }
   } catch (e) {

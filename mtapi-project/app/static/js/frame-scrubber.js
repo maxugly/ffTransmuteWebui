@@ -64,18 +64,18 @@ async function fetchFrameStrip(btn) {
       btn.classList.remove('loading');
       btn.classList.add('done');
       btn.textContent = '\u2713';
-      btn.title = `${data.frame_count} frame thumbnails ready` +
-        (data.cached ? ' (cached)' : '');
+      btn.setAttribute('data-help-title', `${data.frame_count} frame thumbnails ready` +
+        (data.cached ? ' (cached)' : ''));
     } else {
       btn.classList.remove('loading');
       btn.textContent = '[x]';
-      btn.title = data.error || 'Failed to extract frames';
+      btn.setAttribute('data-help-title', data.error || 'Failed to extract frames');
       console.warn('frame-scrubber:', data.error);
     }
   } catch (err) {
     btn.classList.remove('loading');
     btn.textContent = '[x]';
-    btn.title = 'Network error';
+    btn.setAttribute('data-help-title', 'Network error');
     console.error('frame-scrubber:', err);
   }
 }
@@ -135,7 +135,7 @@ export function resetFrameScrubber() {
   if (btn) {
     btn.classList.remove('loading', 'done');
     btn.textContent = '[+]';
-    btn.title = 'Generate frame thumbnails for hover preview';
+    btn.setAttribute('data-help-title', 'Generate frame thumbnails for hover preview');
   }
   const popup = document.getElementById('scrubPopup');
   if (popup) popup.style.display = 'none';

@@ -7,7 +7,7 @@
   <meta name="color-scheme" content="dark">
   <title>ffTransmute WebUI</title>
   <link rel="stylesheet" href="/css/base.css">
-  <link rel="stylesheet" href="/css/layout.css">
+  <link rel="stylesheet" href="/css/layout.css?v=3">
   <link rel="stylesheet" href="/css/forms.css">
   <link rel="stylesheet" href="/css/console.css">
   <link rel="stylesheet" href="/css/modals.css">
@@ -25,7 +25,7 @@
   <!-- Sidebar Nav -->
   <aside class="app-sidebar">
     <div class="brand">
-      <button class="sidebar-collapse-btn" id="btnSidebarCollapse" title="Collapse sidebar" aria-label="Toggle sidebar">◀</button>
+ <button class="sidebar-collapse-btn" id="btnSidebarCollapse" data-help-title="Collapse sidebar" aria-label="Toggle sidebar">◀</button>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M23 7H1v10h22V7Z"/>
         <path d="M8 7v10"/>
@@ -40,33 +40,33 @@
     
     <div class="nav-menu">
       <div class="nav-section" data-section="mosh">
-        <div class="nav-header" role="button" tabindex="0" aria-expanded="true" aria-controls="nav-items-mosh">
+ <div class="nav-header" role="button" tabindex="0" aria-expanded="true" aria-controls="nav-items-mosh" data-help-title="Section — Video Moshing" data-help-text="Click to collapse or expand the Video Moshing section.">
           <svg class="nav-chevron" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
           <span class="nav-header-label">Video Moshing</span>
         </div>
         <div class="nav-section-items" id="nav-items-mosh">
-          <div class="nav-item active" data-tab="mosh">
+ <div class="nav-item active" data-tab="mosh" data-help-title="Datamosh Smear" data-help-text="Switch to the Datamosh Smear tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
               <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
               <line x1="12" y1="22.08" x2="12" y2="12"/>
             </svg>
             Datamosh Smear
-          </div>
+          
         </div>
       </div>
 
       <div class="nav-section" data-section="neural">
-        <div class="nav-header" role="button" tabindex="0" aria-expanded="true" aria-controls="nav-items-neural">
+ <div class="nav-header" role="button" tabindex="0" aria-expanded="true" aria-controls="nav-items-neural" data-help-title="Section — Neural FX" data-help-text="Click to collapse or expand the Neural FX section.">
           <svg class="nav-chevron" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
           <span class="nav-header-label">Neural FX</span>
         </div>
         <div class="nav-section-items" id="nav-items-neural">
-          <div class="nav-item" data-tab="deepdream">
+ <div class="nav-item" data-tab="deepdream" data-help-title="DeepDream" data-help-text="Switch to the DeepDream tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"/>
               <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
@@ -75,8 +75,8 @@
               <path d="M12 2a4 4 0 0 1 0 8"/>
             </svg>
             DeepDream
-          </div>
-          <div class="nav-item" data-tab="facemorph">
+          
+ <div class="nav-item" data-tab="facemorph" data-help-title="Face Morph" data-help-text="Switch to the Face Morph tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="9" cy="9" r="3"/>
               <circle cx="15" cy="15" r="3"/>
@@ -84,22 +84,22 @@
               <path d="M12 9c0-1.5 1.5-3 3-3"/>
             </svg>
             Face Morph
-          </div>
-          <div class="nav-item" data-tab="withoutbg">
+          
+ <div class="nav-item" data-tab="withoutbg" data-help-title="withoutBG" data-help-text="Switch to the withoutBG tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="3" width="18" height="18" rx="2"/>
               <circle cx="12" cy="12" r="5"/>
               <path d="M3 15c2-2 4-3 9-3s7 1 9 3"/>
             </svg>
             withoutBG
-          </div>
-          <div class="nav-item" data-tab="fastsam">
+          
+ <div class="nav-item" data-tab="fastsam" data-help-title="FastSAM (OV)" data-help-text="Switch to the FastSAM (OV) tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
             </svg>
             FastSAM (OV)
-          </div>
-          <div class="nav-item" data-tab="styletransfer">
+          
+ <div class="nav-item" data-tab="styletransfer" data-help-title="Style Transfer" data-help-text="Switch to the Style Transfer tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 19l7-7 3 3-7 7-3-3z"/>
               <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
@@ -107,53 +107,53 @@
               <circle cx="11" cy="11" r="2"/>
             </svg>
             Style Transfer
-          </div>
-          <div class="nav-item" data-tab="demucs">
+          
+ <div class="nav-item" data-tab="demucs" data-help-title="Stems" data-help-text="Switch to the Stems tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M9 18V5l12-2v13"/>
               <circle cx="6" cy="18" r="3"/>
               <circle cx="18" cy="16" r="3"/>
             </svg>
             Stems
-          </div>
-          <div class="nav-item" data-tab="music">
+          
+ <div class="nav-item" data-tab="music" data-help-title="Music" data-help-text="Switch to the Music tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M9 18V5l12-2v13"/>
               <circle cx="6" cy="18" r="3"/>
               <circle cx="18" cy="16" r="3"/>
             </svg>
             Music
-          </div>
-          <div class="nav-item" data-tab="agent">
+          
+ <div class="nav-item" data-tab="agent" data-help-title="Agent" data-help-text="Switch to the Agent tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
             Agent
-          </div>
-          <div class="nav-item" data-tab="txt2img">
+          
+ <div class="nav-item" data-tab="txt2img" data-help-title="Txt2Img" data-help-text="Switch to the Txt2Img tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4 7V4h16v3"/>
               <path d="M9 20h6"/>
               <path d="M12 4v16"/>
             </svg>
             Txt2Img
-          </div>
-          <div class="nav-item" data-tab="img2img">
+          
+ <div class="nav-item" data-tab="img2img" data-help-title="Img2Img" data-help-text="Switch to the Img2Img tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="3" width="18" height="18" rx="2"/>
               <circle cx="8.5" cy="8.5" r="1.5"/>
               <path d="M21 15l-5-5L5 21"/>
             </svg>
             Img2Img
-          </div>
-          <div class="nav-item" data-tab="qr_art">
+          
+ <div class="nav-item" data-tab="qr_art" data-help-title="QR Art" data-help-text="Switch to the QR Art tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="3" width="18" height="18" rx="2"/>
               <path d="M3 7h18M7 3v18"/>
             </svg>
             QR Art
-          </div>
-          <div class="nav-item" data-tab="upscale">
+          
+ <div class="nav-item" data-tab="upscale" data-help-title="Upscale" data-help-text="Switch to the Upscale tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="15 3 21 3 21 9"/>
               <polyline points="9 21 3 21 3 15"/>
@@ -161,36 +161,36 @@
               <line x1="3" y1="21" x2="10" y2="14"/>
             </svg>
             Upscale
-          </div>
-          <div class="nav-item" data-tab="riferecohere">
+          
+ <div class="nav-item" data-tab="riferecohere" data-help-title="RIFE Recohere" data-help-text="Switch to the RIFE Recohere tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
               <path d="M15 5l4 4"/>
             </svg>
             RIFE Recohere
-          </div>
-          <div class="nav-item" data-tab="rife">
+          
+ <div class="nav-item" data-tab="rife" data-help-title="RIFE Slow-Mo" data-help-text="Switch to the RIFE Slow-Mo tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
             </svg>
             RIFE Slow-Mo
-          </div>
-          <div class="nav-item" data-tab="stablefluids">
+          
+ <div class="nav-item" data-tab="stablefluids" data-help-title="Stable Fluids" data-help-text="Switch to the Stable Fluids tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M2 12c2-2 4-3 6-3s4 1 6 3 4 3 6 3 4 1 6-3"/>
               <path d="M2 17c2-2 4-3 6-3s4 1 6 3 4 3 6 3 4 1 6-3"/>
             </svg>
             Stable Fluids
-          </div>
-          <div class="nav-item" data-tab="speedchange">
+          
+ <div class="nav-item" data-tab="speedchange" data-help-title="Speed" data-help-text="Switch to the Speed tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"/>
               <polyline points="12 6 12 12 16 14"/>
               <path d="M8 16l2-2 2 2 2-2"/>
             </svg>
             Speed
-          </div>
-          <div class="nav-item" data-tab="imagesort">
+          
+ <div class="nav-item" data-tab="imagesort" data-help-title="Image Sort" data-help-text="Switch to the Image Sort tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"/>
               <path d="M12 6v6l4 2"/>
@@ -200,25 +200,25 @@
               <path d="M20 20l-4-4"/>
             </svg>
             Image Sort
-          </div>
+          
         </div>
       </div>
 
       <div class="nav-section" data-section="transmute">
-        <div class="nav-header" role="button" tabindex="0" aria-expanded="true" aria-controls="nav-items-transmute">
+ <div class="nav-header" role="button" tabindex="0" aria-expanded="true" aria-controls="nav-items-transmute" data-help-title="Section — Transmutations" data-help-text="Click to collapse or expand the Transmutations section.">
           <svg class="nav-chevron" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
           <span class="nav-header-label">Transmutations</span>
         </div>
         <div class="nav-section-items" id="nav-items-transmute">
-          <div class="nav-item" data-tab="transmute">
+ <div class="nav-item" data-tab="transmute" data-help-title="Single-Clip Ops" data-help-text="Switch to the Single-Clip Ops tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
             </svg>
             Single-Clip Ops
-          </div>
-          <div class="nav-item" data-tab="multi">
+          
+ <div class="nav-item" data-tab="multi" data-help-title="Layouts (Join/Grid)" data-help-text="Switch to the Layouts (Join/Grid) tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="3" width="7" height="7"/>
               <rect x="14" y="3" width="7" height="7"/>
@@ -226,14 +226,14 @@
               <rect x="3" y="14" width="7" height="7"/>
             </svg>
             Layouts (Join/Grid)
-          </div>
-          <div class="nav-item" data-tab="quick">
+          
+ <div class="nav-item" data-tab="quick" data-help-title="Quick Transmute" data-help-text="Switch to the Quick Transmute tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
             </svg>
             Quick Transmute
-          </div>
-          <div class="nav-item" data-tab="convert">
+          
+ <div class="nav-item" data-tab="convert" data-help-title="Convert / Export" data-help-text="Switch to the Convert / Export tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="16 3 21 3 21 8"/>
               <line x1="4" y1="20" x2="21" y2="3"/>
@@ -242,70 +242,70 @@
               <line x1="4" y1="4" x2="9" y2="9"/>
             </svg>
             Convert / Export
-          </div>
-          <div class="nav-item" data-tab="imageedit">
+          
+ <div class="nav-item" data-tab="imageedit" data-help-title="Image Edit" data-help-text="Switch to the Image Edit tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
               <circle cx="8.5" cy="8.5" r="1.5"/>
               <polyline points="21 15 16 10 5 21"/>
             </svg>
             Image Edit
-          </div>
+          
         </div>
       </div>
 
       <div class="nav-section" data-section="clean">
-        <div class="nav-header" role="button" tabindex="0" aria-expanded="true" aria-controls="nav-items-clean">
+ <div class="nav-header" role="button" tabindex="0" aria-expanded="true" aria-controls="nav-items-clean" data-help-title="Section — Clean" data-help-text="Click to collapse or expand the Clean section.">
           <svg class="nav-chevron" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
           <span class="nav-header-label">Clean</span>
         </div>
         <div class="nav-section-items" id="nav-items-clean">
-          <div class="nav-item" data-tab="watermark">
+ <div class="nav-item" data-tab="watermark" data-help-title="Watermark" data-help-text="Switch to the Watermark tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 3l1.9 5.8 5.8 1.9-5.8 1.9L12 18.4l-1.9-5.8L4.3 10.7l5.8-1.9z"/>
               <path d="M19 15l.9 2.6 2.6.9-2.6.9L19 22l-.9-2.6-2.6-.9 2.6-.9z"/>
             </svg>
             Watermark
-          </div>
-          <div class="nav-item" data-tab="erase">
+          
+ <div class="nav-item" data-tab="erase" data-help-title="Erase" data-help-text="Switch to the Erase tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 3l1.9 5.8 5.8 1.9-5.8 1.9L12 18.4l-1.9-5.8L4.3 10.7l5.8-1.9z"/>
             </svg>
             Erase
-          </div>
+          
         </div>
       </div>
 
       <div class="nav-section" data-section="scripts">
-        <div class="nav-header" role="button" tabindex="0" aria-expanded="true" aria-controls="nav-items-scripts">
+ <div class="nav-header" role="button" tabindex="0" aria-expanded="true" aria-controls="nav-items-scripts" data-help-title="Section — Scripts" data-help-text="Click to collapse or expand the Scripts section.">
           <svg class="nav-chevron" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
           <span class="nav-header-label">Scripts</span>
         </div>
         <div class="nav-section-items" id="nav-items-scripts">
-          <div class="nav-item" data-tab="scripts">
+ <div class="nav-item" data-tab="scripts" data-help-title="Script Runner" data-help-text="Switch to the Script Runner tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M9 18V5l12-2v13"/>
               <circle cx="6" cy="18" r="3"/>
               <path d="M18 16a6 6 0 0 0-6-6"/>
             </svg>
             Script Runner
-          </div>
+          
         </div>
       </div>
 
       <div class="nav-section" data-section="library">
-        <div class="nav-header" role="button" tabindex="0" aria-expanded="true" aria-controls="nav-items-library">
+ <div class="nav-header" role="button" tabindex="0" aria-expanded="true" aria-controls="nav-items-library" data-help-title="Section — Library" data-help-text="Click to collapse or expand the Library section.">
           <svg class="nav-chevron" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
           <span class="nav-header-label">Library</span>
         </div>
         <div class="nav-section-items" id="nav-items-library">
-          <div class="nav-item" data-tab="pool">
+ <div class="nav-item" data-tab="pool" data-help-title="Video Pool" data-help-text="Switch to the Video Pool tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="3" width="7" height="7" rx="1"/>
               <rect x="14" y="3" width="7" height="7" rx="1"/>
@@ -313,23 +313,23 @@
               <rect x="14" y="14" width="7" height="7" rx="1"/>
             </svg>
             Video Pool
-          </div>
-          <div class="nav-item" data-tab="images">
+          
+ <div class="nav-item" data-tab="images" data-help-title="Image Pool" data-help-text="Switch to the Image Pool tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="3" width="18" height="18" rx="2"/>
               <circle cx="8.5" cy="8.5" r="1.5"/>
               <polyline points="21 15 16 10 5 21"/>
             </svg>
             Image Pool
-          </div>
-          <div class="nav-item" data-tab="sequence">
+          
+ <div class="nav-item" data-tab="sequence" data-help-title="Sequence" data-help-text="Switch to the Sequence tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="4 17 10 11 4 5"/>
               <line x1="12" y1="19" x2="20" y2="19"/>
             </svg>
             Sequence
-          </div>
-          <div class="nav-item" data-tab="cut">
+          
+ <div class="nav-item" data-tab="cut" data-help-title="Cut" data-help-text="Switch to the Cut tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="6" cy="6" r="3"/>
               <circle cx="6" cy="18" r="3"/>
@@ -338,16 +338,16 @@
               <line x1="8.12" y1="8.12" x2="12" y2="12"/>
             </svg>
             Cut
-          </div>
-          <div class="nav-item" data-tab="imgcompare">
+          
+ <div class="nav-item" data-tab="imgcompare" data-help-title="Compare" data-help-text="Switch to the Compare tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="3" width="7" height="18" rx="1"/>
               <rect x="14" y="3" width="7" height="18" rx="1"/>
               <line x1="10" y1="12" x2="14" y2="12"/>
             </svg>
             Compare
-          </div>
-          <div class="nav-item" data-tab="zoompan">
+          
+ <div class="nav-item" data-tab="zoompan" data-help-title="Pan &amp; Zoom" data-help-text="Switch to the Pan &amp; Zoom tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="11" cy="11" r="8"/>
               <line x1="21" y1="21" x2="16.65" y2="16.65"/>
@@ -355,84 +355,84 @@
               <line x1="8" y1="11" x2="14" y2="11"/>
             </svg>
             Pan &amp; Zoom
-          </div>
-          <div class="nav-item" data-tab="watcher">
+          
+ <div class="nav-item" data-tab="watcher" data-help-title="Watcher" data-help-text="Switch to the Watcher tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
               <circle cx="12" cy="12" r="3"/>
             </svg>
             Watcher
-          </div>
+          
         </div>
       </div>
 
       <div class="nav-section" data-section="refs">
-        <div class="nav-header" role="button" tabindex="0" aria-expanded="true" aria-controls="nav-items-refs">
+ <div class="nav-header" role="button" tabindex="0" aria-expanded="true" aria-controls="nav-items-refs" data-help-title="Section — References" data-help-text="Click to collapse or expand the References section.">
           <svg class="nav-chevron" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
           <span class="nav-header-label">References</span>
         </div>
         <div class="nav-section-items" id="nav-items-refs">
-          <div class="nav-item" data-tab="refs">
+ <div class="nav-item" data-tab="refs" data-help-title="YT Footage" data-help-text="Switch to the YT Footage tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>
               <path d="M8 7h6"/>
               <path d="M8 11h8"/>
             </svg>
             YT Footage
-          </div>
-          <div class="nav-item" data-tab="refs-models">
+          
+ <div class="nav-item" data-tab="refs-models" data-help-title="Video Models" data-help-text="Switch to the Video Models tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="2" y="4" width="20" height="14" rx="2"/>
               <line x1="8" y1="22" x2="16" y2="22"/>
               <line x1="12" y1="18" x2="12" y2="22"/>
             </svg>
             Video Models
-          </div>
-          <div class="nav-item" data-tab="refs-images">
+          
+ <div class="nav-item" data-tab="refs-images" data-help-title="Image Models" data-help-text="Switch to the Image Models tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="3" width="18" height="18" rx="2"/>
               <circle cx="8.5" cy="8.5" r="1.5"/>
               <polyline points="21 15 16 10 5 21"/>
             </svg>
             Image Models
-          </div>
-          <div class="nav-item" data-tab="refs-code">
+          
+ <div class="nav-item" data-tab="refs-code" data-help-title="Coding Models" data-help-text="Switch to the Coding Models tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="16 18 22 12 16 6"/>
               <polyline points="8 6 2 12 8 18"/>
             </svg>
             Coding Models
-          </div>
-          <div class="nav-item" data-tab="refs-music">
+          
+ <div class="nav-item" data-tab="refs-music" data-help-title="Music Prompts" data-help-text="Switch to the Music Prompts tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M9 18V5l12-2v13"/>
               <circle cx="6" cy="18" r="3"/>
               <circle cx="18" cy="16" r="3"/>
             </svg>
             Music Prompts
-          </div>
+          
         </div>
       </div>
 
       <div class="nav-section" data-section="workspace">
-        <div class="nav-header" role="button" tabindex="0" aria-expanded="true" aria-controls="nav-items-workspace">
+ <div class="nav-header" role="button" tabindex="0" aria-expanded="true" aria-controls="nav-items-workspace" data-help-title="Section — Workspace" data-help-text="Click to collapse or expand the Workspace section.">
           <svg class="nav-chevron" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
           <span class="nav-header-label">Workspace</span>
         </div>
         <div class="nav-section-items" id="nav-items-workspace">
-          <div class="nav-item" data-tab="jobs">
+ <div class="nav-item" data-tab="jobs" data-help-title="Jobs" data-help-text="Switch to the Jobs tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="4" width="18" height="4" rx="1"/>
               <rect x="3" y="10" width="18" height="4" rx="1"/>
               <rect x="3" y="16" width="18" height="4" rx="1"/>
             </svg>
             Jobs
-          </div>
-          <div class="nav-item" data-tab="notes">
+          
+ <div class="nav-item" data-tab="notes" data-help-title="Notes" data-help-text="Switch to the Notes tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
               <polyline points="14 2 14 8 20 8"/>
@@ -441,38 +441,38 @@
               <line x1="10" y1="9" x2="8" y2="9"/>
             </svg>
             Notes
-          </div>
-          <div class="nav-item" data-tab="skills">
+          
+ <div class="nav-item" data-tab="skills" data-help-title="Skills" data-help-text="Switch to the Skills tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12 2l2.4 4.9 5.4.8-3.9 3.8.9 5.4-4.8-2.5-4.8 2.5.9-5.4L4.2 7.7l5.4-.8z"/>
             </svg>
             Skills
-          </div>
-          <div class="nav-item" data-tab="settings">
+          
+ <div class="nav-item" data-tab="settings" data-help-title="Settings" data-help-text="Switch to the Settings tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
               <circle cx="12" cy="12" r="3"/>
             </svg>
             Settings
-          </div>
+          
         </div>
       </div>
 
       <div class="nav-section" data-section="advanced">
-        <div class="nav-header" role="button" tabindex="0" aria-expanded="true" aria-controls="nav-items-advanced">
+ <div class="nav-header" role="button" tabindex="0" aria-expanded="true" aria-controls="nav-items-advanced" data-help-title="Section — Advanced" data-help-text="Click to collapse or expand the Advanced section.">
           <svg class="nav-chevron" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="6 9 12 15 18 9"/>
           </svg>
           <span class="nav-header-label">Advanced</span>
         </div>
         <div class="nav-section-items" id="nav-items-advanced">
-          <div class="nav-item" data-tab="advanced">
+ <div class="nav-item" data-tab="advanced" data-help-title="Raw transmute CLI" data-help-text="Switch to the Raw transmute CLI tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="16 18 22 12 16 6"/>
               <polyline points="8 6 2 12 8 18"/>
             </svg>
             Raw transmute CLI
-          </div>
+          
         </div>
       </div>
     </div>
@@ -489,10 +489,10 @@
   <main>
     <header>
       <div class="global-quick-btns">
-        <button class="btn btn-quick" id="btnQuickVIn" title="Pick video input(s)">V-in</button>
-        <button class="btn btn-quick" id="btnQuickVOut" title="Pick output path">V-out</button>
-        <button class="btn btn-quick" id="btnQuickIIn" title="Pick image input(s)">I-in</button>
-        <button class="btn btn-quick" id="btnQuickIOut" title="Pick input directory">I-out</button>
+ <button class="btn btn-quick" id="btnQuickVIn" data-help-title="Pick video input(s)">V-in</button>
+ <button class="btn btn-quick" id="btnQuickVOut" data-help-title="Pick output path">V-out</button>
+ <button class="btn btn-quick" id="btnQuickIIn" data-help-title="Pick image input(s)">I-in</button>
+ <button class="btn btn-quick" id="btnQuickIOut" data-help-title="Pick input directory">I-out</button>
       </div>
       <div id="globalProbeOverlay" class="global-probe-overlay" style="display: none;"></div>
       <div class="header-actions">
@@ -502,59 +502,59 @@
           </svg>
           Run Operation
         </button>
-        <button class="btn" id="btnQueue" type="button" title="Add current op to FIFO queue">
+ <button class="btn" id="btnQueue" type="button" data-help-title="Add current op to FIFO queue">
           Add to Queue
         </button>
-        <button class="btn btn-stop" id="btnStop" type="button" title="Request cooperative stop (DeepDream loops honor this; ffmpeg may finish current step)" hidden>
+ <button class="btn btn-stop" id="btnStop" type="button" data-help-title="Request cooperative stop (DeepDream loops honor this; ffmpeg may finish current step)" hidden>
           <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" width="14" height="14">
             <rect x="6" y="6" width="12" height="12" rx="1"/>
           </svg>
           Stop
         </button>
-        <button class="preview-collapse-btn" id="btnPreviewCollapse" type="button" title="Hide Media Output Preview" aria-label="Hide Media Output Preview" aria-expanded="true">▲</button>
+ <button class="preview-collapse-btn" id="btnPreviewCollapse" type="button" data-help-title="Hide Media Output Preview" aria-label="Hide Media Output Preview" aria-expanded="true">▲</button>
       </div>
     </header>
 
     <!-- Global universal inputs — persist across all tabs -->
     <div class="global-inputs-panel" id="globalInputsPanel">
-      <button class="global-toggle" id="btnGlobalToggle" title="Collapse / expand global inputs">▼</button>
+ <button class="global-toggle" id="btnGlobalToggle" data-help-title="Collapse / expand global inputs">▼</button>
       <div class="global-inputs-inner" id="globalInputsInner">
         <!-- Row 1: Video file(s) -->
         <div class="global-row" data-input="video">
           <label>Video file(s):</label>
-          <textarea id="giVideo" rows="3" placeholder="One absolute path per line…" title="Type one absolute path per line. Use Browse to select multiple files at once. For image ops, files are processed one at a time." autocomplete="off" spellcheck="false" data-clearable></textarea>
-          <button class="btn" id="btnGiVideoBrowse" title="Pick one or more video files">Browse</button>
-          <span class="gi-status" id="giVideoStatus" title=""></span>
+ <textarea id="giVideo" rows="3" placeholder="One absolute path per line…" data-help-title="Type one absolute path per line. Use Browse to select multiple files at once. For image ops, files are processed one at a time." autocomplete="off" spellcheck="false" data-clearable></textarea>
+ <button class="btn" id="btnGiVideoBrowse" data-help-title="Pick one or more video files">Browse</button>
+ <span class="gi-status" id="giVideoStatus" data-help-title=""></span>
         </div>
         <!-- Row 2: Image file(s) -->
         <div class="global-row" data-input="image">
           <label>Image file(s):</label>
-          <textarea id="giImage" rows="3" placeholder="One absolute path per line…" title="Type one absolute path per line. Use Browse to select multiple files at once. For image ops, files are processed one at a time." autocomplete="off" spellcheck="false" data-clearable></textarea>
-          <button class="btn" id="btnGiImageBrowse" title="Pick one or more images">Browse</button>
-          <span class="gi-status" id="giImageStatus" title=""></span>
+ <textarea id="giImage" rows="3" placeholder="One absolute path per line…" data-help-title="Type one absolute path per line. Use Browse to select multiple files at once. For image ops, files are processed one at a time." autocomplete="off" spellcheck="false" data-clearable></textarea>
+ <button class="btn" id="btnGiImageBrowse" data-help-title="Pick one or more images">Browse</button>
+ <span class="gi-status" id="giImageStatus" data-help-title=""></span>
         </div>
         <!-- Row 3: Path in -->
         <div class="global-row" data-input="pathIn">
           <label>Path in:</label>
           <input type="text" id="giPathIn" placeholder="Scan this directory for input files…" autocomplete="off" spellcheck="false" data-clearable>
-          <button class="btn" id="btnGiPathInBrowse" title="Pick input directory">Browse</button>
-          <span class="gi-status" id="giPathInStatus" title=""></span>
+ <button class="btn" id="btnGiPathInBrowse" data-help-title="Pick input directory">Browse</button>
+ <span class="gi-status" id="giPathInStatus" data-help-title=""></span>
         </div>
         <!-- Row 4: Path out -->
         <div class="global-row" data-input="pathOut">
           <label>Path out:</label>
           <input type="text" id="giPathOut" placeholder="All outputs land here (auto: next to input)…" autocomplete="off" spellcheck="false" data-clearable>
-          <button class="btn" id="btnGiPathOutBrowse" title="Pick output directory">Browse</button>
-          <span class="gi-status" id="giPathOutStatus" title=""></span>
+ <button class="btn" id="btnGiPathOutBrowse" data-help-title="Pick output directory">Browse</button>
+ <span class="gi-status" id="giPathOutStatus" data-help-title=""></span>
         </div>
         <!-- Row 5: Frame range (mosh + video-pipeline tabs: rife, deepdream, convert, …)
              Layout: [<][start][>]  track  [<][end][>] / selected [+] -->
         <div class="global-row" data-input="frames" id="giFramesRow" style="display:none">
           <label>Frame range:</label>
-          <div class="gi-frame-stepper" data-for="start" title="In point (1-based)">
-            <button type="button" class="gi-step-btn" id="btnGiStartDec" aria-label="Start frame minus one" title="Start −1">‹</button>
+ <div class="gi-frame-stepper" data-for="start" data-help-title="In point (1-based)">
+ <button type="button" class="gi-step-btn" id="btnGiStartDec" aria-label="Start frame minus one" data-help-title="Start −1">‹</button>
             <input type="text" class="timeline-value-input" id="giValStartFrame" value="1" inputmode="numeric" aria-label="Start frame">
-            <button type="button" class="gi-step-btn" id="btnGiStartInc" aria-label="Start frame plus one" title="Start +1">›</button>
+ <button type="button" class="gi-step-btn" id="btnGiStartInc" aria-label="Start frame plus one" data-help-title="Start +1">›</button>
           </div>
           <div class="timeline-container" style="flex:1; min-width:0; height:24px; position:relative; margin-bottom:0;">
             <div class="timeline-track"></div>
@@ -562,15 +562,15 @@
             <input type="range" id="giTimelineStart" class="timeline-thumb" min="1" max="100" value="1" aria-label="Range start">
             <input type="range" id="giTimelineEnd" class="timeline-thumb" min="1" max="100" value="100" aria-label="Range end">
           </div>
-          <div class="gi-frame-stepper" data-for="end" title="Out point (1-based)">
-            <button type="button" class="gi-step-btn" id="btnGiEndDec" aria-label="End frame minus one" title="End −1">‹</button>
+ <div class="gi-frame-stepper" data-for="end" data-help-title="Out point (1-based)">
+ <button type="button" class="gi-step-btn" id="btnGiEndDec" aria-label="End frame minus one" data-help-title="End −1">‹</button>
             <input type="text" class="timeline-value-input" id="giValEndFrame" value="100" inputmode="numeric" aria-label="End frame">
-            <button type="button" class="gi-step-btn" id="btnGiEndInc" aria-label="End frame plus one" title="End +1">›</button>
+ <button type="button" class="gi-step-btn" id="btnGiEndInc" aria-label="End frame plus one" data-help-title="End +1">›</button>
           </div>
           <span class="gi-frames-display">
-            / <span id="giTotalFrames" title="Selected frame count">100</span>
+ / <span id="giTotalFrames" data-help-title="Selected frame count">100</span>
           </span>
-          <button class="btn-scrub" id="btnFrameScrub" title="Generate frame thumbnails for hover preview">[+]</button>
+ <button class="btn-scrub" id="btnFrameScrub" data-help-title="Generate frame thumbnails for hover preview">[+]</button>
         </div>
       </div>
     </div>
@@ -591,7 +591,7 @@
         <div class="panel-title-desc preview-panel-title">
           <h3>Media Output Preview</h3>
           <p>Play processed videos or view extracted frames · drag bar to resize terminal</p>
-          <button class="btn btn-sm btn-preview-live" id="btnPreviewLive" title="Live: show frames as they generate · Archive: show last output">Live: OFF</button>
+ <button class="btn btn-sm btn-preview-live" id="btnPreviewLive" data-help-title="Live: show frames as they generate · Archive: show last output">Live: OFF</button>
         </div>
 
         <div class="media-viewer-stage" id="mediaViewerStage">
@@ -614,17 +614,17 @@
             <h4 id="mediaName">output.mp4</h4>
             <p id="mediaPath">/absolute/path/to/output.mp4</p>
           </div>
-          <span class="media-ar-badge" id="mediaArBadge" title="Source aspect ratio"></span>
-          <button class="btn btn-icon-only" title="Open in local file browser (not Web)" id="btnOpenFolder">
+ <span class="media-ar-badge" id="mediaArBadge" data-help-title="Source aspect ratio"></span>
+ <button class="btn btn-icon-only" data-help-title="Open in local file browser (not Web)" id="btnOpenFolder">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
             </svg>
           </button>
-          <button class="btn btn-sm" id="btnPreviewToVIn" title="Send this file to global Video inputs (V-in)">→V-in</button>
-          <button class="btn btn-sm" id="btnPreviewToIIn" title="Send this file to global Image inputs (I-in)">→I-in</button>
+ <button class="btn btn-sm" id="btnPreviewToVIn" data-help-title="Send this file to global Video inputs (V-in)">→V-in</button>
+ <button class="btn btn-sm" id="btnPreviewToIIn" data-help-title="Send this file to global Image inputs (I-in)">→I-in</button>
         </div>
 
-        <div class="preview-console-resize" id="previewConsoleResize" title="Drag to resize preview / terminal"></div>
+ <div class="preview-console-resize" id="previewConsoleResize" data-help-title="Drag to resize preview / terminal"></div>
 
         <div class="console-box" id="consoleBox">
           <div class="console-header">
@@ -635,6 +635,12 @@
         </div>
       </div>
 
+    </div>
+
+    <!-- Context-sensitive help strip (hover help bar) — replaces all native title= tooltips -->
+    <div id="help-strip" aria-live="polite">
+      <span class="help-title"></span>
+      <span class="help-text"></span>
     </div>
   </main>
 
@@ -647,7 +653,7 @@
       </div>
       
       <div class="fb-nav">
-        <button class="btn" id="fbUpBtn" title="Go up one folder">
+ <button class="btn" id="fbUpBtn" data-help-title="Go up one folder">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="19" x2="12" y2="5"/>
             <polyline points="5 12 12 5 19 12"/>
@@ -673,6 +679,6 @@
     </div>
   </div>
 
-  <script type="module" src="/js/main.js"></script>
+  <script type="module" src="/js/main.js?v=3"></script>
 </body>
 </html>

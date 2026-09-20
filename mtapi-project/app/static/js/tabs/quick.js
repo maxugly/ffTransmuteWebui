@@ -87,7 +87,7 @@ function renderQuickTransmuteForm() {
           <option value="custom" ${aspect === 'custom' ? 'selected' : ''}>Custom…</option>
         </select>
         <input type="text" id="quickAspectCustom" class="pool-aspect-custom"
-          placeholder="W:H or WxH" title="Custom aspect e.g. 5:4 or 1080x1920"
+          placeholder="W:H or WxH" data-help-title="Custom aspect e.g. 5:4 or 1080x1920"
           value="${escapeHtml(custom)}"
           style="display:${aspect === 'custom' ? 'inline-block' : 'none'}; width: 140px;">
       </div>

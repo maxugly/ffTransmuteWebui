@@ -29,8 +29,8 @@ function renderAgentForm() {
   var imgHtml = (a.images || []).map(function(p, i) {
     var name = p.split('/').pop();
     return `<div class="agent-img-row" data-idx="${i}">
-      <span class="agent-img-path" title="${escapeAgent(p)}">${escapeAgent(name)}</span>
-      <button type="button" class="btn agent-img-rm" data-idx="${i}" title="Remove">✕</button>
+      <span class="agent-img-path" data-help-title="${escapeAgent(p)}">${escapeAgent(name)}</span>
+      <button type="button" class="btn agent-img-rm" data-idx="${i}" data-help-title="Remove">✕</button>
     </div>`;
   }).join('') || '<div class="form-row-hint">No images attached</div>';
 

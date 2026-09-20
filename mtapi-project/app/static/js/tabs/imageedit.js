@@ -288,13 +288,13 @@ function renderStack() {
       `;
     } else if (op.type === 'crop') {
       const anchorBtn = (fn, anchor, label, title) =>
-        `<button class="btn btn-sm" style="padding: 1px 6px; font-size:0.7rem; line-height:1.2;" onclick="${fn}(${idx}, '${anchor}')" title="${title}">${label}</button>`;
+        `<button class="btn btn-sm" style="padding: 1px 6px; font-size:0.7rem; line-height:1.2;" onclick="${fn}(${idx}, '${anchor}')" data-help-title="${title}">${label}</button>`;
       content = `
         <div style="display:flex; flex-direction:column; gap:6px;">
           <div style="display:flex; gap:8px; align-items:center;">
             W: <input id="ieW_${idx}" type="number" class="timeline-value-input" value="${op.width}" onchange="ieUpdateOp(${idx}, 'width', this.value)" oninput="ieSyncCropPreview()" style="width: 60px;">
             H: <input id="ieH_${idx}" type="number" class="timeline-value-input" value="${op.height}" onchange="ieUpdateOp(${idx}, 'height', this.value)" oninput="ieSyncCropPreview()" style="width: 60px;">
-            <button class="btn btn-sm" style="padding: 1px 6px; font-size:0.7rem; line-height:1.2;" onclick="ieSquareCrop(${idx})" title="Set W=H to a square (min source side if known)">▣ Square</button>
+            <button class="btn btn-sm" style="padding: 1px 6px; font-size:0.7rem; line-height:1.2;" onclick="ieSquareCrop(${idx})" data-help-title="Set W=H to a square (min source side if known)">▣ Square</button>
           </div>
           <div style="display:flex; gap:6px; align-items:center;">
             X:

@@ -1,5 +1,7 @@
 // ── Generic DAW knobs ─────────────────────────────────────────────────────
 
+import { HelpStrip } from './help-strip.js';
+
 /**
  * Continuous rotary knob bound to a hidden input.
  * opts: { knobId, indicatorId, valueId, hiddenId, min, max, step?, decimals?, format?, sensitivity? }
@@ -43,6 +45,7 @@ function setupContinuousKnob(opts) {
     // store raw number (preserve decimals for backend)
     if (decimals <= 0) hiddenInput.value = String(Math.round(val));
     else hiddenInput.value = String(Number(val.toFixed(Math.max(decimals, 4))));
+    HelpStrip.update(knob);
     if (typeof opts.onChange === 'function') opts.onChange(currentVal);
   }
 
@@ -50,6 +53,7 @@ function setupContinuousKnob(opts) {
     knob.classList.add('active');
     startY = e.clientY;
     startVal = currentVal;
+    HelpStrip.pin(knob);
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
     e.preventDefault();
@@ -68,6 +72,7 @@ function setupContinuousKnob(opts) {
     knob.classList.remove('active');
     window.removeEventListener('mousemove', onMouseMove);
     window.removeEventListener('mouseup', onMouseUp);
+    HelpStrip.unpin();
   }
   function onTextSubmit() {
     let raw = valueDisplay.value.replace(/[^0-9.+\-eE]/g, '').trim();
@@ -116,6 +121,11 @@ function setupContinuousKnob(opts) {
   valueDisplay.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { valueDisplay.blur(); e.preventDefault(); }
   });
+  // Live value in the help strip while hovering/dragging
+  HelpStrip.register(knob, {
+    title: () => knob.parentElement?.querySelector('.knob-unit-label')?.textContent || 'Knob',
+    getDynamicText: () => `Value: ${format(currentVal)}`,
+  });
   updateUI(currentVal);
 }
 
@@ -154,6 +164,7 @@ function setupBinaryKnob(opts) {
     const rightCap = knob.parentElement?.querySelector('.cap-right');
     if (leftCap) leftCap.classList.toggle('cap-on', !right);
     if (rightCap) rightCap.classList.toggle('cap-on', right);
+    HelpStrip.update(knob);
   }
 
   function toggle() {
@@ -170,6 +181,7 @@ function setupBinaryKnob(opts) {
     startX = e.clientX;
     startRight = isRight(hiddenInput.value);
     dragged = false;
+    HelpStrip.pin(knob);
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
     e.preventDefault();
@@ -180,11 +192,13 @@ function setupBinaryKnob(opts) {
     // live preview toward nearer side
     if (dx > 12) updateUI(rightVal);
     else if (dx < -12) updateUI(leftVal);
+    HelpStrip.update(knob);
   }
   function onMouseUp(e) {
     knob.classList.remove('active');
     window.removeEventListener('mousemove', onMouseMove);
     window.removeEventListener('mouseup', onMouseUp);
+    HelpStrip.unpin();
     if (knob._binaryEpoch !== epoch || !knob.isConnected) return;
     if (!dragged) {
       toggle();
@@ -210,8 +224,13 @@ function setupBinaryKnob(opts) {
   knob.addEventListener('mousedown', onMouseDown);
   knob.addEventListener('wheel', onWheel, { passive: false });
   if (!knob.getAttribute('title') || /click to toggle/i.test(knob.getAttribute('title') || '')) {
-    knob.title = 'Click to toggle · scroll wheel';
+    knob.setAttribute('data-help-title', 'Click to toggle · scroll wheel');
   }
+  // Side state in the help strip while hovering/dragging
+  HelpStrip.register(knob, {
+    title: () => knob.parentElement?.querySelector('.knob-unit-label')?.textContent || 'Toggle',
+    getDynamicText: () => `Mode: ${isRight(hiddenInput.value) ? (opts.rightLabel || 'right') : (opts.leftLabel || 'left')}`,
+  });
   // initial
   const init = opts.initial != null ? opts.initial : hiddenInput.value;
   updateUI(init);
@@ -222,7 +241,7 @@ function knobUnitHtml({ id, label, value, binary = false, leftCap = '', rightCap
     return `
       <div class="knob-unit">
         <span class="knob-unit-label">${label}</span>
-        <div class="daw-knob binary-knob" id="${id}Knob" title="Click to toggle · scroll wheel">
+        <div class="daw-knob binary-knob" id="${id}Knob" data-help-title="Click to toggle · scroll wheel">
           <div class="daw-knob-dial"></div>
           <div class="daw-knob-indicator" id="${id}KnobInd"></div>
         </div>
@@ -236,7 +255,7 @@ function knobUnitHtml({ id, label, value, binary = false, leftCap = '', rightCap
   return `
     <div class="knob-unit">
       <span class="knob-unit-label">${label}</span>
-      <div class="daw-knob" id="${id}Knob" title="Drag up/down · scroll wheel · Shift+scroll for fine">
+      <div class="daw-knob" id="${id}Knob" data-help-title="Drag up/down · scroll wheel · Shift+scroll for fine">
         <div class="daw-knob-dial"></div>
         <div class="daw-knob-indicator" id="${id}KnobInd"></div>
       </div>

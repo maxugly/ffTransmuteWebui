@@ -208,12 +208,12 @@ function buildImageMetaHtml(item) {
   const size = m.size != null ? formatBytes(m.size) : (item.size != null ? formatBytes(item.size) : '');
   const hash = item.hash || m.hash || '';
   const parts = [
-    `<div class="pool-meta-name" title="${escapeHtml(name)}">${escapeHtml(name)}</div>`,
+    `<div class="pool-meta-name" data-help-title="${escapeHtml(name)}">${escapeHtml(name)}</div>`,
   ];
   const row = [];
   if (dims) row.push(`<span>${dims}</span>`);
   if (size) row.push(`<span>${size}</span>`);
-  if (hash) row.push(`<span class="pool-hash" title="${escapeHtml(hash)}">#${escapeHtml(shortHash(hash))}</span>`);
+  if (hash) row.push(`<span class="pool-hash" data-help-title="${escapeHtml(hash)}">#${escapeHtml(shortHash(hash))}</span>`);
   if (row.length) parts.push(`<div class="pool-meta-row">${row.join('')}</div>`);
   return parts.join('');
 }
@@ -608,19 +608,19 @@ function renderImagePoolForm() {
         <div class="pool-toolbar">
           <div class="pool-toolbar-actions">
             <div class="pool-project-group">
-              <button type="button" class="btn" id="btnProjectNew" title="New empty project">New</button>
-              <button type="button" class="btn" id="btnProjectOpen" title="Open .ffproject.json">Open…</button>
-              <button type="button" class="btn btn-primary" id="btnProjectSave" title="Save project (includes image pool)">Save</button>
-              <button type="button" class="btn" id="btnProjectSaveAs" title="Save project as…">Save As…</button>
-              <span class="pool-project-name" id="poolProjectName" title="${escapeHtml(state.project.path || '')}">${escapeHtml(projectLabel())}</span>
+              <button type="button" class="btn" id="btnProjectNew" data-help-title="New empty project">New</button>
+              <button type="button" class="btn" id="btnProjectOpen" data-help-title="Open .ffproject.json">Open…</button>
+              <button type="button" class="btn btn-primary" id="btnProjectSave" data-help-title="Save project (includes image pool)">Save</button>
+              <button type="button" class="btn" id="btnProjectSaveAs" data-help-title="Save project as…">Save As…</button>
+              <span class="pool-project-name" id="poolProjectName" data-help-title="${escapeHtml(state.project.path || '')}">${escapeHtml(projectLabel())}</span>
             </div>
             <input type="search" class="pool-filter-input" id="imgPoolFilterInput"
               placeholder="Filter images…" value="${escapeHtml(q)}"
-              title="Instant fuzzy filter (name, path, hash…)"
+              data-help-title="Instant fuzzy filter (name, path, hash…)"
               autocomplete="off" spellcheck="false">
             <button class="btn btn-primary" id="btnImgPoolImportFiles" type="button">+ Files</button>
             <button class="btn" id="btnImgPoolImportFolder" type="button">+ Folder</button>
-            <label class="pool-recursive-toggle" title="Also scan subdirectories">
+            <label class="pool-recursive-toggle" data-help-title="Also scan subdirectories">
               <input type="checkbox" id="imgPoolRecursiveScan"> Subfolders
             </label>
             <button class="btn" id="btnImgPoolClear" type="button" ${count === 0 ? 'disabled' : ''}>Clear</button>
@@ -718,9 +718,9 @@ function ensureImageCardSkeleton(card) {
   card.innerHTML = `
       <div class="pool-card-actions">
         <div class="pool-send-wrap">
-          <button type="button" class="btn pool-send-btn" title="Send this image">Send to ▾</button>
+          <button type="button" class="btn pool-send-btn" data-help-title="Send this image">Send to ▾</button>
         </div>
-        <button class="pool-card-remove" type="button" title="Remove from image pool">✕</button>
+        <button class="pool-card-remove" type="button" data-help-title="Remove from image pool">✕</button>
       </div>
       <div class="pool-frames img-pool-single pool-wall">
         <div class="pool-frame"></div>

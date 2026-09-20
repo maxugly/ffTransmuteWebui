@@ -204,7 +204,7 @@ function _refCardHtml(letter, path, src) {
         <button type="button" class="btn btn-sm" id="btnCutRef${letter}Browse">Browse…</button>
         <button type="button" class="btn btn-sm" id="btnCutRef${letter}Clear" ${path ? '' : 'disabled'}>Clear</button>
       </div>
-      <div class="cut-ref-path" title="${escapeHtml(path || '')}">${escapeHtml(path || '—')}</div>
+      <div class="cut-ref-path" data-help-title="${escapeHtml(path || '')}">${escapeHtml(path || '—')}</div>
     </div>
   `;
 }
@@ -216,7 +216,7 @@ function _refToolbarHtml(letter, path) {
       <button type="button" class="btn btn-sm" id="btnCutRef${letter}Pool">Pool</button>
       <button type="button" class="btn btn-sm" id="btnCutRef${letter}Browse">Browse…</button>
       <button type="button" class="btn btn-sm" id="btnCutRef${letter}Clear" ${path ? '' : 'disabled'}>Clear</button>
-      <span class="cut-ref-path" title="${escapeHtml(path || '')}">${escapeHtml(path ? basename(path) : '—')}</span>
+      <span class="cut-ref-path" data-help-title="${escapeHtml(path || '')}">${escapeHtml(path ? basename(path) : '—')}</span>
     </div>
   `;
 }

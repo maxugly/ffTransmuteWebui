@@ -37,7 +37,7 @@ def test_turbo_enabled_exact_knobs():
     assert spec["knobs"] == ["prompt", "lyrics", "seed", "duration", "bpm",
                              "key", "timesig", "device", "outdir", "format",
                              "overwrite", "dryrun"]
-    for dead in ("guidance", "negative", "steps", "shift"):
+    for dead in ("guidance", "negative", "steps", "shift", "apg"):
         assert dead not in spec["knobs"]
 
 
@@ -113,7 +113,7 @@ def test_future_entries_disabled_with_reasons():
 def test_sft_base_expose_cfg_knobs_when_enabled():
     for name in ("acestep-v15-sft", "acestep-v15-base"):
         knobs = ove.MUSIC_MODELS[name]["knobs"]
-        for k in ("negative", "steps", "guidance"):
+        for k in ("negative", "steps", "guidance", "shift", "apg"):
             assert k in knobs
 
 
@@ -143,14 +143,26 @@ def test_unknown_model_rejected():
 
 def test_base_model_accepted_with_cfg_fields():
     p = MusicGenerateParams(model="acestep-v15-base", negative="muddy",
-                            steps=30, guidance=5.0)
+                            steps=30, guidance=5.0, shift=1.0, apg=False)
     assert p.negative == "muddy" and p.steps == 30 and p.guidance == 5.0
+    assert p.shift == 1.0 and p.apg is False
+
+
+def test_default_model_is_base_with_cfg_defaults():
+    p = MusicGenerateParams()
+    assert p.model == "acestep-v15-base"
+    assert p.shift == 3.0 and p.apg is True
+    with pytest.raises(ValidationError):
+        MusicGenerateParams(shift=0.4)
+    with pytest.raises(ValidationError):
+        MusicGenerateParams(shift=8.1)
+    assert MusicGenerateParams(seed=4294967295).seed == 4294967295
 
 
 def test_base_catalog_declares_cfg_knobs_and_enabled():
     spec = ove.MUSIC_MODELS["acestep-v15-base"]
     assert spec["enabled"] is True
-    for k in ("negative", "steps", "guidance"):
+    for k in ("negative", "steps", "guidance", "shift", "apg"):
         assert k in spec["knobs"]
     assert spec["runner"] == "scripts/generate_t2m_base.py"
     assert spec["dit_dir"] == "models/dit_base"
@@ -203,6 +215,15 @@ def test_build_env_base_maps_cfg_and_dit_dir():
     assert e["T2M_NEGATIVE"] == "muddy"
     assert e["T2M_STEPS"] == "30" and e["T2M_GUIDANCE"] == "5.0"
     assert e["T2M_HETERO_PIN"] == "proj_out"
+    assert e["T2M_SHIFT"] == "3.0" and e["T2M_APG"] == "1"  # runner defaults, always emitted
+
+
+def test_build_env_shift_apg_mapping():
+    e = ove.build_env(prompt="x", lyrics="[Instrumental]", seed=7,
+                      duration_sec=12, model="acestep-v15-sft",
+                      device="HETERO", out_path="/tmp/t.wav",
+                      shift=1.0, apg=False)
+    assert e["T2M_SHIFT"] == "1.0" and e["T2M_APG"] == "0"
 
 
 def test_build_env_turbo_omits_cfg_keys():

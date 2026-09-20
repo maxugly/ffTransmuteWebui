@@ -650,17 +650,21 @@ function updateStatusIndicators() {
   rows.forEach(function(r) {
     var el = document.getElementById(r.elId);
     if (!el) return;
+    function setHelp(v) {
+      if (v) el.setAttribute('data-help-title', v);
+      else el.removeAttribute('data-help-title');
+    }
     if (accepts === 'none') {
       el.textContent = '';
-      el.title = '';
+      setHelp('');
       return;
     }
     var val = (gi[r.key] || '').trim();
     // Clear/status cells no longer render a dead red ✗ (it read as a clear
     // button). The ✕ inside the box (js/ui/clearable.js) is the clear affordance.
-    if (!r.needs)      { el.textContent = ''; el.title = 'Not used by this tab'; }
-    else if (val)      { el.textContent = '\u2705'; el.title = 'Active'; }
-    else               { el.textContent = ''; el.title = ''; }
+    if (!r.needs)      { el.textContent = ''; setHelp('Not used by this tab'); }
+    else if (val)      { el.textContent = '\u2705'; setHelp('Active'); }
+    else               { el.textContent = ''; setHelp(''); }
   });
 }
 
@@ -887,7 +891,8 @@ function setupEventListeners() {
       if (inner) {
         var collapsed = inner.classList.toggle('collapsed');
         btnToggle.textContent = collapsed ? '\u25B6' : '\u25BC';
-        btnToggle.title = collapsed ? 'Expand global inputs' : 'Collapse global inputs';
+        if (collapsed) btnToggle.setAttribute('data-help-title', 'Expand global inputs');
+        else btnToggle.setAttribute('data-help-title', 'Collapse global inputs');
       }
     });
   }
@@ -914,7 +919,7 @@ async function checkHealth() {
     const verEl = document.getElementById('appVersion');
     if (verEl && data.version) {
       verEl.textContent = data.version;
-      verEl.title = data.version;
+      verEl.setAttribute('data-help-title', data.version);
     }
     if (data.warnings && data.warnings.length > 0) {
       elements.statusDot.className = 'status-dot loading';
@@ -1305,7 +1310,7 @@ function toggleSidebarCollapse() {
   const btn = document.getElementById('btnSidebarCollapse');
   if (btn) {
     btn.textContent = collapsed ? '▶' : '◀';
-    btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+    btn.setAttribute('data-help-title', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
   }
   applySidebarExpandedWidth();
   try { localStorage.setItem('mtapi_sidebar_collapsed', collapsed ? '1' : '0'); } catch (_) {}
@@ -1317,8 +1322,8 @@ function syncPreviewCollapseBtn() {
   const btn = document.getElementById('btnPreviewCollapse');
   if (!btn) return;
   btn.textContent = collapsed ? '▼' : '▲';
-  btn.title = collapsed ? 'Show Media Output Preview' : 'Hide Media Output Preview';
-  btn.setAttribute('aria-label', btn.title);
+  btn.setAttribute('data-help-title', collapsed ? 'Show Media Output Preview' : 'Hide Media Output Preview');
+  btn.setAttribute('aria-label', collapsed ? 'Show Media Output Preview' : 'Hide Media Output Preview');
   btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
 }
 
@@ -1339,7 +1344,7 @@ function loadSavedCollapseState() {
     if (localStorage.getItem('mtapi_sidebar_collapsed') === '1') {
       document.body.classList.add('sidebar-collapsed');
       const sb = document.getElementById('btnSidebarCollapse');
-      if (sb) { sb.textContent = '▶'; sb.title = 'Expand sidebar'; }
+      if (sb) { sb.textContent = '▶'; sb.setAttribute('data-help-title', 'Expand sidebar'); }
     }
     applySidebarExpandedWidth();
     if (localStorage.getItem('mtapi_preview_collapsed') === '1') {

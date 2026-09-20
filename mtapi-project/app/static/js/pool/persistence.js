@@ -431,7 +431,7 @@ function updateProjectNameUI() {
   // update every instance, not just the first in document order.
   document.querySelectorAll('#poolProjectName').forEach((el) => {
     el.textContent = projectLabel();
-    el.title = state.project.path || '';
+    el.setAttribute('data-help-title', state.project.path || '');
   });
 }
 
@@ -1214,20 +1214,20 @@ function buildPoolMetaHtml(item) {
 
   const parts = [];
   if (info.name) {
-    parts.push(`<div class="pool-meta-name" title="${escapeHtml(name)}">${escapeHtml(name)}</div>`);
+    parts.push(`<div class="pool-meta-name" data-help-title="${escapeHtml(name)}">${escapeHtml(name)}</div>`);
   }
   if (info.path) {
-    parts.push(`<div class="pool-meta-path" title="${escapeHtml(path)}">${escapeHtml(path)}</div>`);
+    parts.push(`<div class="pool-meta-path" data-help-title="${escapeHtml(path)}">${escapeHtml(path)}</div>`);
   }
 
   const row1 = [];
   if (info.hash && hash) {
-    row1.push(`<span class="pool-hash" title="${escapeHtml(hash)}">#${escapeHtml(shortHash(hash))}${cacheTag ? ` · ${cacheTag}` : ''}</span>`);
+    row1.push(`<span class="pool-hash" data-help-title="${escapeHtml(hash)}">#${escapeHtml(shortHash(hash))}${cacheTag ? ` · ${cacheTag}` : ''}</span>`);
   } else if (info.hash && !hash) {
     row1.push(`<span class="pool-hash">#—</span>`);
   }
   if (info.opens) {
-    row1.push(`<span title="times opened / history events">${opens} open · ${histN} hist</span>`);
+    row1.push(`<span data-help-title="times opened / history events">${opens} open · ${histN} hist</span>`);
   }
   if (row1.length) parts.push(`<div class="pool-meta-row">${row1.join('')}</div>`);
 

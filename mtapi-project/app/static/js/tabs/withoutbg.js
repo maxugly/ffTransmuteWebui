@@ -16,7 +16,7 @@ function renderWithoutBgForm() {
     ? imgs.map((it, i) => `
         <div class="fm-item${i === sel ? ' is-selected' : ''}" data-idx="${i}">
           <span class="fm-ord">${String(i + 1).padStart(2, '0')}</span>
-          <span class="fm-name" title="${escapeHtml(it.path)}">${escapeHtml(it.name || basename(it.path))}</span>
+          <span class="fm-name" data-help-title="${escapeHtml(it.path)}">${escapeHtml(it.name || basename(it.path))}</span>
           <button type="button" class="btn fm-rm" data-idx="${i}" data-wbg="1">✕</button>
         </div>`).join('')
     : `<div class="fm-empty">Add images or a folder. Arrows select · Ctrl+arrows reorder.</div>`;

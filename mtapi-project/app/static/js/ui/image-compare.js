@@ -103,7 +103,7 @@ export function compareToolbarHtml(opts) {
     const active = mode === m ? ' active' : '';
     return (
       `<button type="button" class="img-compare-mode-btn${active}" data-mode="${m}" ` +
-      `data-cmp-prefix="${escapeHtml(idPrefix)}" title="${escapeHtml(titles[m] || m)}">` +
+      `data-cmp-prefix="${escapeHtml(idPrefix)}" data-help-title="${escapeHtml(titles[m] || m)}">` +
       `${MODE_LABELS[m] || m}</button>`
     );
   }).join('');
@@ -187,12 +187,12 @@ export function syncCompareToolbar(idPrefix, state, root) {
     if (sliderLabel) sliderLabel.textContent = 'Ref opacity';
     slider.value = String(s.overlayOpacity);
     if (sliderVal) sliderVal.textContent = `${s.overlayOpacity}%`;
-    slider.title = 'Reference transparency over the base (0 = base only, 100 = ref only)';
+    slider.setAttribute('data-help-title', 'Reference transparency over the base (0 = base only, 100 = ref only)');
   } else {
     if (sliderLabel) sliderLabel.textContent = 'A/B wipe';
     slider.value = String(s.abPosition);
     if (sliderVal) sliderVal.textContent = `${s.abPosition}%`;
-    slider.title = 'Wipe handle: left of line = base, right = reference';
+    slider.setAttribute('data-help-title', 'Wipe handle: left of line = base, right = reference');
   }
 }
 

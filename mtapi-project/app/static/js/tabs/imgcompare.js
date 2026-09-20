@@ -233,7 +233,7 @@ function _paintScoreUi() {
     : (Number.isInteger(ic.lastScore) ? String(ic.lastScore) : ic.lastScore.toFixed(2));
   el.innerHTML = `
     <span class="ic-score-mode">${escapeHtml(mode)}</span>
-    <span class="ic-score-value" title="Lower = more similar for all modes">${escapeHtml(fmt)}</span>
+    <span class="ic-score-value" data-help-title="Lower = more similar for all modes">${escapeHtml(fmt)}</span>
     <span class="ic-score-hint">${escapeHtml(hint)}</span>
   `;
 }
@@ -393,13 +393,13 @@ function renderImgCompareForm() {
             <input type="text" id="icPathA" placeholder="/absolute/path/a.png"
               value="${escapeHtml(pathA)}">
             <button type="button" class="btn" id="btnIcBrowseA">Browse</button>
-            <button type="button" class="btn" id="btnIcPoolA" title="Use Image Pool selection">Pool</button>
+            <button type="button" class="btn" id="btnIcPoolA" data-help-title="Use Image Pool selection">Pool</button>
             <button type="button" class="btn" id="btnIcClearA" ${pathA ? '' : 'disabled'}>Clear</button>
           </div>
-          <div class="ic-path-name" title="${escapeHtml(pathA)}">${escapeHtml(pathA ? basename(pathA) : '—')}</div>
+          <div class="ic-path-name" data-help-title="${escapeHtml(pathA)}">${escapeHtml(pathA ? basename(pathA) : '—')}</div>
         </div>
         <div class="ic-pick-mid">
-          <button type="button" class="btn" id="btnIcSwap" title="Swap A ↔ B">⇄</button>
+          <button type="button" class="btn" id="btnIcSwap" data-help-title="Swap A ↔ B">⇄</button>
         </div>
         <div class="ic-pick-card">
           <label class="ic-pick-label" for="icPathB">Image B <span class="ic-dim" id="icDimB"></span></label>
@@ -407,10 +407,10 @@ function renderImgCompareForm() {
             <input type="text" id="icPathB" placeholder="/absolute/path/b.png"
               value="${escapeHtml(pathB)}">
             <button type="button" class="btn" id="btnIcBrowseB">Browse</button>
-            <button type="button" class="btn" id="btnIcPoolB" title="Use Image Pool selection">Pool</button>
+            <button type="button" class="btn" id="btnIcPoolB" data-help-title="Use Image Pool selection">Pool</button>
             <button type="button" class="btn" id="btnIcClearB" ${pathB ? '' : 'disabled'}>Clear</button>
           </div>
-          <div class="ic-path-name" title="${escapeHtml(pathB)}">${escapeHtml(pathB ? basename(pathB) : '—')}</div>
+          <div class="ic-path-name" data-help-title="${escapeHtml(pathB)}">${escapeHtml(pathB ? basename(pathB) : '—')}</div>
         </div>
       </div>
 
@@ -495,7 +495,7 @@ function renderImgCompareForm() {
       const name = el.closest('.ic-pick-card')?.querySelector('.ic-path-name');
       if (name) {
         name.textContent = v ? basename(v) : '—';
-        name.title = v || '';
+        if (v) { name.setAttribute('data-help-title', v); } else { name.removeAttribute('data-help-title'); }
       }
     });
     el?.addEventListener('input', () => {

@@ -38,7 +38,7 @@ function renderImg2ImgForm() {
     <div class="form-row">
       <label for="i2iPrompt">Prompt</label>
       <input type="text" id="i2iPrompt" placeholder="watercolor illustration, soft light" style="flex:1 1 16rem">
-      <button type="button" class="btn" id="btnI2iFromImage" title="Vision CLI writes SD1.5 prompt from input image">Prompt from image</button>
+      <button type="button" class="btn" id="btnI2iFromImage" data-help-title="Vision CLI writes SD1.5 prompt from input image">Prompt from image</button>
     </div>
     <div class="form-row">
       <label for="i2iNeg">Negative</label>

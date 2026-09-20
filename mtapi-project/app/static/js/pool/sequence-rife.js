@@ -500,7 +500,7 @@ function _updateInstantRifeStrip() {
 
   strip.className = cls;
   strip.textContent = text;
-  strip.title = title;
+  strip.setAttribute('data-help-title', title);
 }
 
 function _bindInstantRifeStopHook() {

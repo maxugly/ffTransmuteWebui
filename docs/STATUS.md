@@ -1,6 +1,6 @@
 # Project status — agent & human source of truth
 
-> **Updated:** 2026-09-17  \
+> **Updated:** 2026-09-20  \
 > **VERSION:** root `VERSION` file (do not copy the digits here)  \
 > **Branch:** `wip`  
 > **Purpose:** Where we are. **Shipped / partial / remaining roadmap.** Agents **must** read this before inventing features or re-speccing shipped work.
@@ -13,6 +13,7 @@
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
+| **Settings tab: knob-law + knob-sensitivity engine (`8.093`)** | Settings' own Knob Sensitivity card rebuilt on the standard knob system (`knobUnitHtml` + `setupContinuousKnob`) — Bot curve / Mid setpt / Top curve / Ceiling as real knobs with ⟲ reset, editable values, no native selects. Same for Thumbnail / Autosave / Scrollbar. **`knobs.js` sensitivity engine now settings-aware:** reads `knobBotCurve/knobMidSet/knobTopCurve/knobMax` from `window.state.settings` with `localStorage['mtapi.settings']` fallback (500 ms cache), drag-right clamps at the configured ceiling (default 125%, was hardcoded 300%), piecewise lin/log2/log10 curves via `solveX/solveS`. `setupContinuousKnob` now fires `opts.onChange` at every commit (mouseup/wheel/text-submit/reset) — previously dead, which had silently broken the scrollbar-width knob's persistence. Caught live: `bindSwitch` was called before its `const` declaration (TDZ ReferenceError) — the entire Settings switch wiring (import toggles, VFR, op-outputs, warm models, restore-session, Duke Nukem) never bound; fixed. Settings workspace is now a wrapping grid (auto-fill 320px, 3→2→1 columns on resize). Duke Nukem ☢ wipes localStorage + reloads (proven). `restoreSession` toggle verified to gate `applyDeskSnapshot` (global inputs / form state / tab hydration). All importers bumped `knobs.js?v=4`→`?v=5` (cache-bust), settings.js import `?v=2`. Playwright-proven on live :24591: knob card render (4 units + reset), Ceiling typed 200→persisted (state+localStorage), real drag (sens 15.8%↔152%, value+persist on release), ⟲ reset round-trip, curve wheel log10→log2→log10 persisted, restore-session toggle round-trip, Duke Nukem dialog+wipe+reload, grid reflow at 4 widths, mosh-tab knob drag regression-clean, zero new console errors. | `js/tabs/settings.js` · `js/ui/knobs.js` · `css/settings.css` · `app.js` (import) · 25 tab files (cache-bust) · **`8.093`** |
 | **Knob panel boxes (`8.092`)** | Every knob gets a panel box (dark brownish-blue `#2b2a38`, grey 1px outline, 6px radius). Shared `.knob-unit` rule, all tabs inherit. Live proof + screenshot. | `forms.css` · **`8.092`** |
 | **Binary knob captions (`8.091`)** | Caption pairs meet at center (left right-aligned, right left-aligned, seam ±0px) instead of space-between spread. All 4 music-tab pairs verified live. | `forms.css` · **`8.091`** |
 | **Music tab dice overlay (`8.090`)** | Dice keeps its size but overlays the seed knob's top-right corner (absolute) — all bank knobs sit on even horizontal pitch. Click still rolls. Playwright-proven, zero errors. | `js/tabs/music.js` · `forms.css` · **`8.090`** |

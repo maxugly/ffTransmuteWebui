@@ -315,7 +315,7 @@ function boxInputsHtml(side, box) {
       <label>x <input type="number" id="${pre}X" step="1" value="${Math.round(b.x)}"></label>
       <label>y <input type="number" id="${pre}Y" step="1" value="${Math.round(b.y)}"></label>
       <label>w <input type="number" id="${pre}W" step="1" value="${Math.round(b.w)}"></label>
-      <label>h <input type="number" id="${pre}H" step="1" value="${Math.round(b.h)}" readonly title="Locked to aspect ratio"></label>
+      <label>h <input type="number" id="${pre}H" step="1" value="${Math.round(b.h)}" readonly data-help-title="Locked to aspect ratio"></label>
     </div>
   `;
 }
@@ -332,9 +332,9 @@ function viewportCardHtml(side, label, viewMode) {
         <div class="zp-card-title">${escapeHtml(label)}</div>
         <div class="zp-view-toggle" role="group" aria-label="${escapeHtml(label)} view mode">
           <button type="button" class="zp-view-btn${fullActive}" data-side="${side}" data-mode="full"
-            title="Full source image with viewport box">Zoomed Out</button>
+            data-help-title="Full source image with viewport box">Zoomed Out</button>
           <button type="button" class="zp-view-btn${zoomActive}" data-side="${side}" data-mode="zoomed"
-            title="Exactly the pixels inside the box (output frame)">Zoomed In</button>
+            data-help-title="Exactly the pixels inside the box (output frame)">Zoomed In</button>
         </div>
       </div>
       <div class="zp-viewport" id="zpView${id}" data-side="${side}" data-view="${viewMode}">
@@ -464,7 +464,7 @@ async function renderZoompanForm() {
 
       <div class="zp-source-row">
         <label class="zp-field-label">Source</label>
-        <div class="zp-global-path" id="zpImagePath" title="${escapeHtml(path || '')}">
+        <div class="zp-global-path" id="zpImagePath" data-help-title="${escapeHtml(path || '')}">
           ${escapeHtml(path || '— set Image in the global bar above —')}
         </div>
         <span class="zp-meta-line" id="zpImageMeta">
@@ -474,7 +474,7 @@ async function renderZoompanForm() {
 
       <div class="zp-source-row zp-ref-row">
         <label class="zp-field-label">Reference</label>
-        <div class="zp-global-path" id="zpRefPath" title="${escapeHtml(z.refPath || '')}">
+        <div class="zp-global-path" id="zpRefPath" data-help-title="${escapeHtml(z.refPath || '')}">
           ${escapeHtml(z.refPath || '— optional: still from the other scene to match against —')}
         </div>
         <div class="zp-ref-actions">
@@ -506,7 +506,7 @@ async function renderZoompanForm() {
       <div class="zp-compare-controls">
         ${toolbar}
         <label class="zp-pair-label">Pair
-          <select id="zpCompareTarget" title="What Overlay / A/B compares">
+          <select id="zpCompareTarget" data-help-title="What Overlay / A/B compares">
             ${targetOpts}
           </select>
         </label>

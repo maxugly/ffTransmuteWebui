@@ -128,7 +128,7 @@ function _setRemoteBusy(label) {
     elements.btnRun.disabled = true;
     elements.btnRun.classList.toggle('is-job-busy', true);
     elements.btnRun.innerHTML = '<span class="job-pulse-dot" aria-hidden="true">●</span> Server busy';
-    elements.btnRun.title = `${label} — see the Jobs tab (server work from another tab/queue)`;
+    elements.btnRun.setAttribute('data-help-title', `${label} — see the Jobs tab (server work from another tab/queue)`);
   }
   if (elements.statusDot) elements.statusDot.className = 'status-dot loading';
 }
@@ -349,9 +349,9 @@ function setRunUiBusy(busy, { stopping = false } = {}) {
       elements.btnRun.innerHTML = stopping
         ? `<span class="job-pulse-dot" aria-hidden="true">●</span> Stopping… ${elapsed}`
         : `<span class="job-pulse-dot" aria-hidden="true">●</span> ${elapsed}`;
-      elements.btnRun.title = stopping
+      elements.btnRun.setAttribute('data-help-title', stopping
         ? 'Stopping current job…'
-        : (clientBusyLabel || activeJob.label || 'Job running — use Stop to cancel');
+        : (clientBusyLabel || activeJob.label || 'Job running — use Stop to cancel'));
     } else {
       elements.btnRun.innerHTML = `
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -359,7 +359,7 @@ function setRunUiBusy(busy, { stopping = false } = {}) {
         </svg>
         Run Operation
       `;
-      elements.btnRun.title = 'Run the active tab operation';
+      elements.btnRun.setAttribute('data-help-title', 'Run the active tab operation');
     }
   }
   if (elements.btnStop) {
@@ -374,9 +374,9 @@ function setRunUiBusy(busy, { stopping = false } = {}) {
       elements.btnStop.innerHTML = stopping
         ? `<span class="job-pulse-dot" aria-hidden="true">■</span> Stopping…`
         : `<span class="job-pulse-dot" aria-hidden="true">■</span> Stop ${elapsed}`;
-      elements.btnStop.title = stopping
+      elements.btnStop.setAttribute('data-help-title', stopping
         ? 'Cancel already requested — waiting for cooperative exit'
-        : 'STOP — cancel current encode and any Instant RIFE queue';
+        : 'STOP — cancel current encode and any Instant RIFE queue');
     } else {
       elements.btnStop.innerHTML = `
         <svg viewBox="0 0 24 24" fill="currentColor" stroke="none" width="14" height="14">
@@ -384,7 +384,7 @@ function setRunUiBusy(busy, { stopping = false } = {}) {
         </svg>
         Stop
       `;
-      elements.btnStop.title = 'Stop (shown when a job is running)';
+      elements.btnStop.setAttribute('data-help-title', 'Stop (shown when a job is running)');
     }
   }
   if (elements.statusDot) {

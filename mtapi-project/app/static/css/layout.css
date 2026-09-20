@@ -871,3 +871,39 @@ body.preview-resizing {
   min-width: 44px;
   max-width: 52px;
 }
+
+/* ── Context-sensitive help strip (hover help bar) ──────────────────────────
+   Fixed two-line strip at the bottom of <main>, right of the sidebar.
+   Replaces every native title= tooltip. See js/ui/help-strip.js. */
+#help-strip {
+  flex: 0 0 40px;
+  height: 40px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  padding: 2px 12px;
+  background: #1e1e26;
+  border-top: 1px solid var(--panel-border);
+  font-size: 12px;
+  line-height: 1.25;
+  overflow: hidden;
+  white-space: nowrap;
+  user-select: none;
+}
+#help-strip .help-title {
+  font-weight: 600;
+  color: #e6e6f0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#help-strip .help-text {
+  font-weight: 400;
+  color: #9a9ab0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 900px) {
+  #help-strip { height: 22px; flex-basis: 22px; }
+  #help-strip .help-text { display: none; }
+}

@@ -59,7 +59,7 @@ MUSIC_MODELS: dict[str, dict] = {
         "label": "ACE-Step 1.5 base · 2B (CFG, ear-verified)",
         "enabled": True,
         "knobs": ["prompt", "negative", "lyrics", "seed", "duration", "bpm", "key", "timesig", "steps",
-                  "guidance", "device", "outdir", "format", "overwrite", "dryrun"],
+                  "guidance", "shift", "apg", "device", "outdir", "format", "overwrite", "dryrun"],
         "dit_dir": "models/dit_base",
         "dit_file": "openvino_model_base_f32.xml",
         "hetero_pin": "proj_out",
@@ -72,7 +72,7 @@ MUSIC_MODELS: dict[str, dict] = {
         "label": "ACE-Step 1.5 sft · 2B (CFG, ear-verified)",
         "enabled": True,
         "knobs": ["prompt", "negative", "lyrics", "seed", "duration", "bpm", "key", "timesig", "steps",
-                  "guidance", "device", "outdir", "format", "overwrite", "dryrun"],
+                  "guidance", "shift", "apg", "device", "outdir", "format", "overwrite", "dryrun"],
         "dit_dir": "models/dit_sft",
         "dit_file": "openvino_model_sft_f32.xml",
         "hetero_pin": "proj_out",
@@ -292,7 +292,7 @@ def build_env(*, prompt: str, lyrics: str, seed: int, duration_sec: float,
               steps: int = 0, guidance: float = 0.0, bpm: str = "",
               key: str = "", timesig: str = "", lora: str = "",
               task: str = "text2music", src_audio: str = "",
-              repeat: int = 2) -> dict[str, str]:
+              repeat: int = 2, shift: float = 3.0, apg: bool = True) -> dict[str, str]:
     """Params -> T2M_* env for the runner subprocess. No other channel exists."""
     spec = MUSIC_MODELS[model]
     runner = spec["runner"]
@@ -333,6 +333,11 @@ def build_env(*, prompt: str, lyrics: str, seed: int, duration_sec: float,
         env["T2M_NEGATIVE"] = negative
     if guidance > 0:
         env["T2M_GUIDANCE"] = str(guidance)
+    # Schedule shift + APG guidance are read by the CFG runners
+    # (generate_t2m_base.py, cover); the turbo runner ignores them.
+    # Always emitted so the env is the full record of the run.
+    env["T2M_SHIFT"] = str(shift)
+    env["T2M_APG"] = "1" if apg else "0"
     if device == "HETERO":
         env["T2M_DIT_DEVICE"] = "GPU"
         env["T2M_HETERO_PIN"] = hetero_pin

@@ -223,7 +223,7 @@ function renderImageSortForm() {
         return `
         <div class="${classes}" data-idx="${i}" role="option" aria-selected="${i === sel ? 'true' : 'false'}">
           <span class="fm-ord">${String(i + 1).padStart(2, '0')}</span>
-          <span class="fm-name" title="${escapeHtml(it.path)}">${escapeHtml(it.name || basename(it.path))}${scoreStr}${baseBadge}</span>
+          <span class="fm-name" data-help-title="${escapeHtml(it.path)}">${escapeHtml(it.name || basename(it.path))}${scoreStr}${baseBadge}</span>
         </div>`;
       }).join('')
     : `<div class="fm-empty is-empty-hint">Add 2+ images. Slot #1 is the base (sort anchor + size reference). Click a row to select, then reorder with the buttons below.</div>`;
@@ -248,10 +248,10 @@ function renderImageSortForm() {
           <button type="button" class="btn btn-primary" id="btnIsAddFiles">+ Images</button>
           <button type="button" class="btn" id="btnIsAddFolder">+ Folder</button>
           <button type="button" class="btn" id="btnIsSort" ${images.length < 2 ? 'disabled' : ''}>Sort</button>
-          <button type="button" class="btn" id="btnIsNameAsc" title="Sort all by filename A→Z (natural: frame_2 before frame_10). New base = first." ${images.length < 2 ? 'disabled' : ''}>Name ↑</button>
-          <button type="button" class="btn" id="btnIsNameDesc" title="Sort all by filename Z→A (natural). New base = first." ${images.length < 2 ? 'disabled' : ''}>Name ↓</button>
-          <button type="button" class="btn" id="btnIsDateAsc" title="Sort all oldest→newest by file mtime. For frame-by-frame sets made in order. New base = first." ${images.length < 2 ? 'disabled' : ''}>Date ↑</button>
-          <button type="button" class="btn" id="btnIsDateDesc" title="Sort all newest→oldest by file mtime. New base = first." ${images.length < 2 ? 'disabled' : ''}>Date ↓</button>
+          <button type="button" class="btn" id="btnIsNameAsc" data-help-title="Sort all by filename A→Z (natural: frame_2 before frame_10). New base = first." ${images.length < 2 ? 'disabled' : ''}>Name ↑</button>
+          <button type="button" class="btn" id="btnIsNameDesc" data-help-title="Sort all by filename Z→A (natural). New base = first." ${images.length < 2 ? 'disabled' : ''}>Name ↓</button>
+          <button type="button" class="btn" id="btnIsDateAsc" data-help-title="Sort all oldest→newest by file mtime. For frame-by-frame sets made in order. New base = first." ${images.length < 2 ? 'disabled' : ''}>Date ↑</button>
+          <button type="button" class="btn" id="btnIsDateDesc" data-help-title="Sort all newest→oldest by file mtime. New base = first." ${images.length < 2 ? 'disabled' : ''}>Date ↓</button>
           <button type="button" class="btn" id="btnIsClear" ${images.length ? '' : 'disabled'}>Clear</button>
         </div>
         <p class="form-row-hint">Click row = select + preview · Sort re-ranks #2…N only · Name/Date reorder all (new #1 = base)</p>
@@ -259,11 +259,11 @@ function renderImageSortForm() {
       <div class="fm-list" id="isList" role="listbox">${listHtml}</div>
       <div class="is-order-bar" id="isOrderBar">
         <span class="is-order-label" id="isSelLabel">${escapeHtml(selName)}</span>
-        <button type="button" class="btn" id="btnIsTop" title="To top (new base)" ${!images.length || sel <= 0 ? 'disabled' : ''}>⤒</button>
-        <button type="button" class="btn" id="btnIsUp" title="Up" ${!images.length || sel <= 0 ? 'disabled' : ''}>↑</button>
-        <button type="button" class="btn" id="btnIsDown" title="Down" ${!images.length || sel >= images.length - 1 ? 'disabled' : ''}>↓</button>
-        <button type="button" class="btn" id="btnIsBtm" title="To bottom" ${!images.length || sel >= images.length - 1 ? 'disabled' : ''}>⤓</button>
-        <button type="button" class="btn" id="btnIsRm" title="Remove" ${!images.length ? 'disabled' : ''}>✕</button>
+        <button type="button" class="btn" id="btnIsTop" data-help-title="To top (new base)" ${!images.length || sel <= 0 ? 'disabled' : ''}>⤒</button>
+        <button type="button" class="btn" id="btnIsUp" data-help-title="Up" ${!images.length || sel <= 0 ? 'disabled' : ''}>↑</button>
+        <button type="button" class="btn" id="btnIsDown" data-help-title="Down" ${!images.length || sel >= images.length - 1 ? 'disabled' : ''}>↓</button>
+        <button type="button" class="btn" id="btnIsBtm" data-help-title="To bottom" ${!images.length || sel >= images.length - 1 ? 'disabled' : ''}>⤓</button>
+        <button type="button" class="btn" id="btnIsRm" data-help-title="Remove" ${!images.length ? 'disabled' : ''}>✕</button>
       </div>
     </div>
 
