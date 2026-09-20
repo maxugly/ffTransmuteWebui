@@ -93,21 +93,32 @@ const KNOB_RENDER = {
   bpm: (st) => `
     <div class="form-row">
       <label for="muBpm">BPM</label>
-      <input type="text" id="muBpm" inputmode="numeric" placeholder="95 (blank = N/A)"
-        value="${(st.bpm || '').replace(/"/g, '&quot;')}">
+      ${knobUnitHtml({ id: 'muBpm', label: 'BPM', value: String(st.bpm ?? '0') })}
+      <span class="form-row-hint">30–300 (0 = model estimates).</span>
     </div>`,
-  key: (st) => `
+  key: (st) => {
+    const scales = ['', 'C major', 'G major', 'D major', 'A major', 'E major',
+      'B major', 'F# major', 'Db major', 'Ab major', 'Eb major', 'Bb major',
+      'F major', 'A minor', 'E minor', 'B minor', 'F# minor', 'C# minor',
+      'G# minor', 'Eb minor', 'Bb minor', 'F minor', 'C minor', 'G minor', 'D minor'];
+    const opts = scales.map((s) =>
+      `<option value="${s}"${(st.key || '') === s ? ' selected' : ''}>${s || 'N/A (model estimates)'}</option>`).join('');
+    return `
     <div class="form-row">
-      <label for="muKey">Key</label>
-      <input type="text" id="muKey" placeholder="E minor (blank = N/A)"
-        value="${(st.key || '').replace(/"/g, '&quot;')}">
-    </div>`,
-  timesig: (st) => `
+      <label for="muKey">Scale</label>
+      <select id="muKey">${opts}</select>
+    </div>`;
+  },
+  timesig: (st) => {
+    const sigs = ['', '4/4', '3/4', '6/8', '2/4', '5/4', '7/8', '9/8', '12/8'];
+    const opts = sigs.map((s) =>
+      `<option value="${s}"${(st.timesig || '') === s ? ' selected' : ''}>${s || 'N/A (model estimates)'}</option>`).join('');
+    return `
     <div class="form-row">
-      <label for="muTimesig">Timesig</label>
-      <input type="text" id="muTimesig" placeholder="4/4 (blank = N/A)"
-        value="${(st.timesig || '').replace(/"/g, '&quot;')}">
-    </div>`,
+      <label for="muTimesig">Timing</label>
+      <select id="muTimesig">${opts}</select>
+    </div>`;
+  },
   device: (st) => `
     <div class="form-row">
       <label for="muDevice">Device</label>
@@ -250,6 +261,12 @@ async function renderMusicForm() {
     setupContinuousKnob({
       knobId: 'muDurationKnob', indicatorId: 'muDurationKnobInd', valueId: 'muDurationVal', hiddenId: 'muDuration',
       min: 10, max: 60, step: 1, decimals: 0,
+    });
+  }
+  if (knobs.includes('bpm')) {
+    setupContinuousKnob({
+      knobId: 'muBpmKnob', indicatorId: 'muBpmKnobInd', valueId: 'muBpmVal', hiddenId: 'muBpm',
+      min: 0, max: 300, step: 1, decimals: 0,
     });
   }
   if (knobs.includes('steps')) {
@@ -416,10 +433,11 @@ function collectMusicBody() {
   const duration = Math.min(60, Math.max(10,
     parseFloat(document.getElementById('muDuration')?.value ?? String(st.duration ?? 12))));
   st.duration = duration;
-  const bpm = (document.getElementById('muBpm')?.value ?? st.bpm ?? '').trim();
-  const key = (document.getElementById('muKey')?.value ?? st.key ?? '').trim();
-  const timesig = (document.getElementById('muTimesig')?.value ?? st.timesig ?? '').trim();
-  st.bpm = bpm; st.key = key; st.timesig = timesig;
+  const bpmRaw = (document.getElementById('muBpm')?.value ?? st.bpm ?? '').trim();
+  const bpm = (bpmRaw === '' || bpmRaw === '0') ? '' : bpmRaw;
+  const key = document.getElementById('muKey')?.value ?? st.key ?? '';
+  const timesig = document.getElementById('muTimesig')?.value ?? st.timesig ?? '';
+  st.bpm = bpmRaw; st.key = key; st.timesig = timesig;
   const negative = (document.getElementById('muNegative')?.value ?? st.negative ?? '').trim();
   st.negative = negative;
   const steps = Math.min(60, Math.max(8,
