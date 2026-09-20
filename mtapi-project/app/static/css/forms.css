@@ -591,6 +591,10 @@ body.job-stopping .status-dot.loading {
   gap: 4px;
   min-width: 72px;
   user-select: none;
+  background: #2b2a38;
+  border: 1px solid #6e6e7a;
+  border-radius: 6px;
+  padding: 6px 4px 5px;
 }
 
 .knob-unit-label {
