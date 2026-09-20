@@ -13,6 +13,7 @@
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
+| **Binary knob captions (`8.091`)** | Caption pairs meet at center (left right-aligned, right left-aligned, seam ±0px) instead of space-between spread. All 4 music-tab pairs verified live. | `forms.css` · **`8.091`** |
 | **Music tab dice overlay (`8.090`)** | Dice keeps its size but overlays the seed knob's top-right corner (absolute) — all bank knobs sit on even horizontal pitch. Click still rolls. Playwright-proven, zero errors. | `js/tabs/music.js` · `forms.css` · **`8.090`** |
 | **Music tab base/sft defaults (`8.089`)** | BPM defaults 95 (was 0=N/A), steps default 20 (was 50), new Seed Fixed/Rand toggle (default Rand; rolls per Run + updates display) — base/sft only, turbo keeps fixed seed + N/A BPM. Playwright-proven, zero errors. | `js/tabs/music.js` · **`8.089`** |
 | **Music tab layout densify (unshipped)** | 17 stacked rows → 9 full rows + 1 knob bank (9 knobs + dice) + 1 selects grid (device/format/scale/timing), DeepDream pattern. Proven live (bank/grid render, zero errors). NOT committed: tree contains another session's uncommitted work in the same files. | `js/tabs/music.js` · `forms.css` |

@@ -652,14 +652,22 @@ body.job-stopping .status-dot.loading {
 }
 
 .binary-knob-caption {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   width: 78px;
   font-size: 0.62rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.02em;
   color: var(--text-muted);
+}
+.binary-knob-caption .cap-left {
+  text-align: right;
+  padding-right: 3px;
+}
+.binary-knob-caption .cap-right {
+  text-align: left;
+  padding-left: 3px;
 }
 
 .binary-knob-caption .cap-on {
