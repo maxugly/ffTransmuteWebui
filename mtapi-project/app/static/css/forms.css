@@ -2050,3 +2050,45 @@ input.daw-knob-value-input:focus {
   border-color: rgba(74, 222, 128, 0.55);
   background: rgba(74, 222, 128, 0.10);
 }
+
+/* ── Music tab: selects grid (short dropdowns side-by-side, DeepDream density) ── */
+.mu-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-bottom: 5px;
+}
+.mu-grid > .mu-cell {
+  flex: 1 1 11rem;
+  min-width: 9rem;
+  display: flex;
+  align-items: center;
+  gap: 6px 8px;
+}
+.mu-grid > .mu-cell > label {
+  flex: 0 0 auto;
+  min-width: 3.2rem;
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.mu-grid > .mu-cell > select {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+}
+
+/* ── Music tab: dice overlays the seed knob's top-right corner ──
+   Same button size as before; absolute positioning keeps every knob
+   on identical horizontal pitch in the bank. */
+.mu-seed-wrap {
+  position: relative;
+  display: inline-block;
+}
+.mu-seed-wrap .mu-dice {
+  position: absolute;
+  top: 0;
+  right: 0;
+}

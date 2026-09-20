@@ -13,6 +13,8 @@
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|
+| **Music tab dice overlay (`8.090`)** | Dice keeps its size but overlays the seed knob's top-right corner (absolute) — all bank knobs sit on even horizontal pitch. Click still rolls. Playwright-proven, zero errors. | `js/tabs/music.js` · `forms.css` · **`8.090`** |
+| **Music tab base/sft defaults (`8.089`)** | BPM defaults 95 (was 0=N/A), steps default 20 (was 50), new Seed Fixed/Rand toggle (default Rand; rolls per Run + updates display) — base/sft only, turbo keeps fixed seed + N/A BPM. Playwright-proven, zero errors. | `js/tabs/music.js` · **`8.089`** |
 | **Music tab layout densify (unshipped)** | 17 stacked rows → 9 full rows + 1 knob bank (9 knobs + dice) + 1 selects grid (device/format/scale/timing), DeepDream pattern. Proven live (bank/grid render, zero errors). NOT committed: tree contains another session's uncommitted work in the same files. | `js/tabs/music.js` · `forms.css` |
 | **Music tab: metas controls (`8.088`)** | BPM text field → real knob (0–300, 0 = model estimates); key/timesig text fields → dropdowns (24 scales + N/A, 8 timings + N/A). Values flow to the SFT template; blank preserved as N/A. Playwright-proven (knob + 25 + 9 options, zero errors). | `js/tabs/music.js` · **`8.088`** |
 | **Refs: official tutorial cards (`8.087`)** | Music sub-tab grows 3 official cards (herd/LM table, inference knobs, audio control) condensed from the upstream ACE-Step 1.5 Tutorial. 9 cards total, example bank still last, 0px h-overflow. Shift-variant / ADG / cover-strength / lego-complete notes confirm our measured stack. Playwright-proven, zero errors. | `js/tabs/references.js` · **`8.087`** |

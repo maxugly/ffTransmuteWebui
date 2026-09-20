@@ -235,8 +235,8 @@ function muBankHtml(st, knobs) {
   }
   if (!bank.length) return '';
   const units = {
-    seed: `${knobUnitHtml({ id: 'muSeed', label: 'Seed', value: String(st.seed ?? 42) })}
-      <button type="button" class="btn" id="btnMuDice" title="Random seed">🎲</button>`,
+    seed: `<span class="mu-seed-wrap">${knobUnitHtml({ id: 'muSeed', label: 'Seed', value: String(st.seed ?? 42) })}
+      <button type="button" class="btn mu-dice" id="btnMuDice" title="Random seed">🎲</button></span>`,
     seedrand: knobUnitHtml({ id: 'muSeedRand', label: 'Seed?', value: (st.seedRand ?? '1'), binary: true, leftCap: 'Fixed', rightCap: 'Rand' }),
     duration: knobUnitHtml({ id: 'muDuration', label: 'Seconds', value: String(st.duration ?? 12) }),
     bpm: knobUnitHtml({ id: 'muBpm', label: 'BPM', value: String(st.bpm ?? '0') }),
