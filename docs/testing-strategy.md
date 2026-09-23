@@ -26,6 +26,7 @@ Copy and paste this exact prompt template when asking an agent to verify a WebUI
 
 ```markdown
 Run a browser smoke test for the {OPERATION_NAME} tab.
+0. Run `./check-gate.sh` from the repo root — must be green before connecting a browser. If it fails, fix those errors first (they would otherwise blank the whole UI at the module-graph level).
 1. Connect to Playwright MCP (`start_mcp_server with @playwright/mcp` if needed).
 2. Navigate to `http://localhost:24590/`
 3. Click the tab for {OPERATION_NAME}.

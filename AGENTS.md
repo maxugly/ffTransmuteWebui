@@ -29,7 +29,7 @@ Hats for a turn. The human names who wears which hat in the prompt.
 9. **Progress**: `report_progress()` every item. Directory frame-writers use `start_dir_watch`. RIFE M is 2–128.
 10. **HTTP ops**: failures are HTTP 200 + `{"ok": false}`.
 11. **`main.py`**: do not add `from __future__ import annotations` (breaks dynamic routes).
-12. **WebUI proof**: Playwright, click the real control. Curl is not UI proof.
+12. **WebUI proof**: Playwright, click the real control. Curl is not UI proof. **Gate first**: run `./check-gate.sh` (must be green) before pytest or any Playwright session — see `docs/fast-check-gate-spec.md`.
 
 ## 3. Versioning & Handoff
 
