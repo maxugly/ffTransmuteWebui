@@ -1,6 +1,6 @@
 # Fast check gate — Spec
 
-> **Status**: Implemented (built + proven 2026-09-23; **no VERSION bump** — tooling, ships nothing to users). Phase 2 items (§5) remain optional.
+> **Status**: Implemented (built + proven 2026-09-23; **no VERSION bump** — tooling, ships nothing to users). `--selftest` (7-case) + Stage 2 comment-hardening added 2026-09-23. Phase 2 items (§5) remain optional.
 > **Hat**: Spec writer. This document + STATUS queue entry only — **no app code**.
 > **Drives**: a root `check-gate.sh` that humans *and* agents run **before pytest and before every Playwright pass**. Optionally a git hook and (much later) a GitHub Actions mirror — see §5.
 > **Baseline today (verified 2026-09-23, Node v22.23.1):** all stages green, whole gate < 5 s across 82 JS modules + `index.html` + the whole Python `app/` tree.
@@ -35,7 +35,7 @@ Every one of those was found only at the **Playwright** stage, costing real iter
 1. JS **ESM compile scan** — every `app/static/**/*.js`, forced through V8's real ESM parser (same grammar Chromium uses). Catches unterminated strings, stray braces, unquoted keys, any SyntaxError.
 2. JS **import-resolution scan** — every static import specifier (`from '…'`, bare `import '…'`, quoted `import('…')`) resolves to a real file. Catches module-graph typos and cache-buster mistakes.
 3. **HTML tag balance** on `app/static/index.html` — catches the unclosed-`</div>` class.
-4. **Python syntax** — `python -m compileall` over `app/`, the milliliter version of what pytest does on import anyway.
+4. **Python syntax** — in-process `compile()` over `app/**/*.py` (src→AST, never executed, no `__pycache__` writes), the milliliter version of what pytest does on import anyway.
 5. `node` present-and-warn check (fail loudly with a hint, same posture as `check_tools()`).
 
 **Out (Phase 2, optional, named but not built — see §5):** ruff diff-gate on Python, git pre-commit hook, hosted GitHub Actions mirror. None are needed for Phase 1 to pay for itself.
@@ -46,6 +46,7 @@ Every one of those was found only at the **Playwright** stage, costing real iter
 
 - **One executable**: `check-gate.sh` at the **repo root** (root currently hosts the flat tooling: `lsp-check.sh`, `datamosh.sh`, `check_value_id.py`; there is no root `bin/`).
 - Run from repo root: `./check-gate.sh`. Exit non-zero if **any** stage failed. Runs **all** stages regardless (one failure pass fixes everything, not fail-fast).
+- `./check-gate.sh --selftest` re-proves the gate itself against a throwaway fixture tree (see §6.0) — run it before or after editing `check-gate.sh`.
 - Output: one `[PASS]`/`[FAIL]` line per stage; only failing stages print the offending file(s), capped (first ~10 each).
 - Whole-run budget: **< 5 s** (measured 1.94 s for the JS scan alone; most of the rest is node spawn).
 - `node` missing → Stage 1 fails at once: `node not found on PATH — required for ESM compile scan` (invariant 2 posture; the `shell.run_command`/`bin/transmute` world is untouched — this is a root bash script, not an app subprocess).
@@ -89,6 +90,8 @@ Implemented in Python (stdlib, one `python3 - <<'PY'` heredoc or small sibling f
 - **Exclusion: `stablefluids/Build/**`.** Verified: `StableFluids.loader.js` imports `./dictionary.bin.js`, which is not a real module (the file does not exist — it is a Unity-generated runtime data sibling). Any future pure-runtime/vendored trees go in the same exclusion list, not special-cased in code.
 - Bonus: also resolve `<script type="module" src="…">` in `index.html` (catches a wrong cache-buster before a reload).
 - Unresolved specifier → FAIL listing *importing file* + *specifier*.
+- **Comment-aware matching.** `//` and `/* … */` (incl. multi-line, tracked with a state flag) are stripped before the import/export match, so `/* lead */ import x from './a.js'` is seen (a plain line-start guard previously skipped it) and a JSDoc `* } from '/js/…'` example is not a false positive. Known heuristic boundary: a `//` or `/*` appearing *inside a string literal* on the same line as a real import (e.g. `const u = "https://x"`) truncates the line at that point — benign for the guard, since every real-line import check either already ran or never depended on the truncated tail.
+- Scan roots are overridable via `STATIC_ROOT` / `APP_ROOT` / `HTML_FILE` (default to the real tree) — this is what makes `--selftest` (below) run against a throwaway fixture tree instead of mutating the app.
 - Synthetic baseline: **359** local specifiers across 82 modules; the single unresolvable one is the excluded Unity import → green today.
 
 ### 4.4 Stage 3 — HTML tag balance
@@ -98,11 +101,8 @@ Implemented in Python (stdlib, one `python3 - <<'PY'` heredoc or small sibling f
 
 ### 4.5 Stage 4 — Python syntax
 
-```bash
-python3 -m compileall -q mtapi-project/app ...
-```
-
-- Stdlib, **0.09 s**, green today. Catches broke parens/indentation across `app/` — one sweep instead of pytest hitting the same error one `import` at a time.
+- Stdlib, **~0.2 s**, green today. Catches broke parens/indentation across `app/` — one sweep instead of pytest hitting the same error one `import` at a time.
+- Implemented as `compile(src, f, "exec")` in a `glob` walk (`app/**/*.py`), not `compileall` — identical SyntaxError coverage with **zero `__pycache__`/`*.pyc` writes** into the tree.
 - It does **not** type-check or catch unused/undefined names; that is deliberately Phase 2 (§5.2) because a full `ruff --select F` today surfaces pre-existing debt (verified: unused imports incl. a pile in `app/main.py`), which would make the gate chronically red.
 
 ---
@@ -117,15 +117,16 @@ python3 -m compileall -q mtapi-project/app ...
 
 ## 6. Test plan / acceptance (no Playwright needed — that's the point)
 
+0. **Self-test (`./check-gate.sh --selftest`, exit 0 = the gate is still trustworthy):** builds a throwaway fixture tree under `mktemp -d`, re-runs the real gate against it (`STATIC_ROOT`/`APP_ROOT`/`HTML_FILE` overrides), and asserts all seven cases: baseline green, Stage 1 catches bad syntax, Stage 2 catches a missing import, Stage 3 catches unbalanced HTML, Stage 4 catches a broken `.py`, restored fixture green again, and prereq fails without `node`. Cleanup even on failure (`rm -rf "$tmp"` guarded by case order; a mid-way crash only leaks a `/tmp` dir).
 1. **Baseline:** `./check-gate.sh` prints all `[PASS]` and exits 0 in < 5 s on the current tree.
-2. **Fault injection — each must FAIL naming the file:**
+2. **Fault injection — each must FAIL naming the file** (the same injections `--selftest` performs automatically):
    - Copy a real module into `app/static/js/tabs/` with `helpText: 'turbo's boost'` → Stage 1 fails on it.
    - Delete a stray `}` from any module → Stage 1 fails.
    - `import './does-not-exist.js'` added to any module → Stage 2 fails listing importer + specifier.
    - Delete one `</div>` in `index.html` → Stage 3 fails.
    - Append `def f(` to any `app/*.py` → Stage 4 fails.
 3. Remove the injected faults → green again.
-4. `PATH` without `node` → Stage 1 fails with the install hint.
+4. `PATH` without `node` → Stage 0 fails with the install hint and skips the rest.
 5. `check-gate.sh` must contain no `shell=True`, no `subprocess` (it is bash + node + python stdlib; invariant 2 spirit).
 
 ---

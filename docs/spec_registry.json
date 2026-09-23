@@ -53,7 +53,7 @@
     "path": "docs/fast-check-gate-spec.md",
     "category": "Spec - Infrastructure",
     "status": "Implemented (2026-09-23)",
-    "summary": "Sub-5s local pre-flight check-gate.sh run before pytest and every Playwright pass: JS ESM compile scan (stdin --input-type=module --check), JS import resolution (excl. stablefluids/Build), index.html tag balance, python syntax. Phase 2: pre-commit hook, diff-only ruff, GitHub Actions mirror."
+    "summary": "Sub-5s local pre-flight check-gate.sh run before pytest and every Playwright pass: JS ESM compile scan (stdin --input-type=module --check), JS import resolution (comment-aware, excl. stablefluids/Build), index.html tag balance, python syntax via in-process compile(). --selftest re-proves the gate (7 cases, throwaway fixture tree via STATIC_ROOT/APP_ROOT/HTML_FILE overrides). Phase 2: pre-commit hook, diff-only ruff, GitHub Actions mirror."
   },
   {
     "file": "flip-and-rotate-spec.md",
