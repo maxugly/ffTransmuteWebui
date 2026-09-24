@@ -872,6 +872,22 @@ body.preview-resizing {
   max-width: 52px;
 }
 
+/* ── Smart coloring for unified media inputs ──────────────────────────── */
+.media-mode-video {
+  border-color: #f97316 !important; /* Orange */
+  color: #f97316 !important;
+}
+
+.media-mode-audio {
+  border-color: #22c55e !important; /* Green */
+  color: #22c55e !important;
+}
+
+.media-mode-image {
+  border-color: #a855f7 !important; /* Purple */
+  color: #a855f7 !important;
+}
+
 /* ── Context-sensitive help strip (hover help bar) ──────────────────────────
    Fixed two-line strip at the bottom of <main>, right of the sidebar.
    Replaces every native title= tooltip. See js/ui/help-strip.js. */

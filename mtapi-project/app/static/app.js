@@ -452,6 +452,7 @@ const elements = {
 window.globalInputs = {
   video:   '',   // newline-separated video paths
   image:   '',   // newline-separated image paths
+  audio:   '',
   pathIn:  '',   // input directory
   pathOut: '',   // output directory
   frameStart: 1,      // global frame range start (for datamosh tabs)
@@ -527,38 +528,65 @@ function detectFileType(path) {
 
 function updateGlobalInputs() {
   const prevVideo = window.globalInputs.video;
-  window.globalInputs.video   = document.getElementById('giVideo')?.value || '';
-  window.globalInputs.image   = document.getElementById('giImage')?.value || '';
-  window.globalInputs.pathIn  = document.getElementById('giPathIn')?.value || '';
-  window.globalInputs.pathOut = document.getElementById('giPathOut')?.value || '';
-  // New first-line video → invalidate probe cache so range re-probes.
-  // Keep _lastProbedPath (old path) so probeGlobalVideo can tell "same file
-  // re-probe → keep selection" from "different file → reset to full". Only
-  // _probeOk needs clearing to force the fetch.
-  const first = (window.globalInputs.video || '').split('\n').map(l => l.trim()).find(Boolean) || '';
-  const prevFirst = (prevVideo || '').split('\n').map(l => l.trim()).find(Boolean) || '';
+  const mediaIn = document.getElementById('giMediaIn')?.value || '';
+  const mediaOut = document.getElementById('giMediaOut')?.value || '';
+
+  const firstLine = (mediaIn.split(/[\r\n]+/)[0] || '').trim();
+  const ext = firstLine.split('.').pop().toLowerCase();
+
+  const videoExts = ['mp4','mkv','avi','mov','m4v','webm','mpg','mpeg','wmv','flv','ts','m2ts'];
+  const imageExts = ['png','jpg','jpeg','webp','bmp','gif','tif','tiff','ppm','pgm','svg'];
+  const audioExts = ['wav','mp3','aif','aiff','flac','ogg','m4a'];
+
+  let mode = 'unknown';
+  if (!firstLine) mode = 'unknown';
+  else if (videoExts.includes(ext)) mode = 'video';
+  else if (imageExts.includes(ext)) mode = 'image';
+  else if (audioExts.includes(ext)) mode = 'audio';
+  else if (!firstLine.includes('.')) mode = 'directory';
+
+  const giMediaInEl = document.getElementById('giMediaIn');
+  const btnQuickI = document.getElementById('btnQuickI');
+
+  if (giMediaInEl) {
+    giMediaInEl.className = '';
+    if (mode !== 'unknown' && mode !== 'directory') {
+      giMediaInEl.classList.add('media-mode-' + mode);
+    }
+  }
+  if (btnQuickI) {
+    btnQuickI.className = btnQuickI.className.replace(/media-mode-\w+/g, '').trim();
+    if (mode !== 'unknown' && mode !== 'directory') {
+      btnQuickI.classList.add('media-mode-' + mode);
+    }
+  }
+
+  const giMediaOutEl = document.getElementById('giMediaOut');
+  if (giMediaOutEl && mediaOut) {
+    const outExt = mediaOut.split('.').pop().toLowerCase();
+    let outMode = 'unknown';
+    if (videoExts.includes(outExt)) outMode = 'video';
+    else if (imageExts.includes(outExt)) outMode = 'image';
+    else if (audioExts.includes(outExt)) outMode = 'audio';
+    giMediaOutEl.className = '';
+    if (outMode !== 'unknown') giMediaOutEl.classList.add('media-mode-' + outMode);
+  } else if (giMediaOutEl) {
+    giMediaOutEl.className = '';
+  }
+
+  window.globalInputs.video = (mode === 'video') ? mediaIn : '';
+  window.globalInputs.image = (mode === 'image') ? mediaIn : '';
+  window.globalInputs.audio = (mode === 'audio') ? mediaIn : '';
+  window.globalInputs.pathIn = (mode === 'directory' || mode === 'unknown') ? mediaIn : '';
+  window.globalInputs.pathOut = mediaOut;
+
+  const first = (window.globalInputs.video || '').split(/[\r\n]+/).map(l => l.trim()).find(Boolean) || '';
+  const prevFirst = (prevVideo || '').split(/[\r\n]+/).map(l => l.trim()).find(Boolean) || '';
   if (first !== prevFirst) {
     window.globalInputs._probeOk = false;
   }
   updateStatusIndicators();
-  // Sync per-tab local fields from global inputs + show/hide frame row
   _syncTabInputFromGlobal();
-  const hasVideo = !!window.globalInputs.video.trim();
-  const hasImage = !!window.globalInputs.image.trim();
-  const hasPathIn = !!window.globalInputs.pathIn.trim();
-  
-  const videoRow = document.querySelector('.global-row[data-input="video"]');
-  const imageRow = document.querySelector('.global-row[data-input="image"]');
-  const pathInRow = document.querySelector('.global-row[data-input="pathIn"]');
-
-  // De-clutter: only collapse an input row that is EMPTY, when another input is
-  // populated. NEVER hide a row that has content — a loaded input must always
-  // stay visible (and clearable). Otherwise video+image both populated used to
-  // hide every input row and the user couldn't remove them.
-  if (videoRow)  videoRow.style.display  = (!hasVideo  && (hasImage || hasPathIn)) ? 'none' : '';
-  if (imageRow)  imageRow.style.display  = (!hasImage && (hasVideo || hasPathIn)) ? 'none' : '';
-  if (pathInRow) pathInRow.style.display = (!hasPathIn && (hasVideo || hasImage)) ? 'none' : '';
-
   try { refreshInputPreview(); } catch (_) { /* ignore */ }
   syncGlobalPanelVisibility();
 }
@@ -566,16 +594,22 @@ function updateGlobalInputs() {
 function syncGlobalPanelVisibility() {
   var panel = document.getElementById('globalInputsPanel');
   if (!panel) return;
-  var hasAny = !!(window.globalInputs.video.trim() || window.globalInputs.image.trim() ||
+  var hasAny = !!(window.globalInputs.video.trim() || window.globalInputs.image.trim() || window.globalInputs.audio.trim() ||
                    window.globalInputs.pathIn.trim() || window.globalInputs.pathOut.trim());
   panel.classList.toggle('populated', hasAny);
-  // Update quick button active states
-  var map = { btnQuickVIn: 'video', btnQuickVOut: 'pathOut', btnQuickIIn: 'image', btnQuickIOut: 'pathIn' };
-  Object.keys(map).forEach(function(id) {
-    var btn = document.getElementById(id);
-    var key = map[id];
-    if (btn) btn.classList.toggle('active', !!window.globalInputs[key].trim());
-  });
+
+  const inStr = window.globalInputs.video.trim() || window.globalInputs.image.trim() || window.globalInputs.audio.trim() || window.globalInputs.pathIn.trim();
+  const outStr = window.globalInputs.pathOut.trim();
+
+  const btnI = document.getElementById('btnQuickI');
+  if (btnI) btnI.classList.toggle('active', !!inStr);
+  const btnO = document.getElementById('btnQuickO');
+  if (btnO) btnO.classList.toggle('active', !!outStr);
+
+  const inRow = document.querySelector('.global-row[data-input="mediaIn"]');
+  const outRow = document.querySelector('.global-row[data-input="mediaOut"]');
+  if (inRow) inRow.style.display = (!inStr && outStr) ? 'none' : '';
+  if (outRow) outRow.style.display = (!outStr && inStr) ? 'none' : '';
 }
 
 function _syncTabInputFromGlobal() {
@@ -640,32 +674,28 @@ function activeTabAccepts() {
 }
 
 function updateStatusIndicators() {
-  const tab = state.activeTab;
   const accepts = activeTabAccepts();
   const gi = window.globalInputs;
-  var rows = [
-    { key: 'video',   elId: 'giVideoStatus',   needs: (accepts === 'video' || accepts === 'any') },
-    { key: 'image',   elId: 'giImageStatus',   needs: (accepts === 'image' || accepts === 'any') }
-  ];
-  rows.forEach(function(r) {
-    var el = document.getElementById(r.elId);
-    if (!el) return;
-    function setHelp(v) {
-      if (v) el.setAttribute('data-help-title', v);
-      else el.removeAttribute('data-help-title');
-    }
-    if (accepts === 'none') {
-      el.textContent = '';
-      setHelp('');
-      return;
-    }
-    var val = (gi[r.key] || '').trim();
-    // Clear/status cells no longer render a dead red ✗ (it read as a clear
-    // button). The ✕ inside the box (js/ui/clearable.js) is the clear affordance.
-    if (!r.needs)      { el.textContent = ''; setHelp('Not used by this tab'); }
-    else if (val)      { el.textContent = '\u2705'; setHelp('Active'); }
-    else               { el.textContent = ''; setHelp(''); }
-  });
+  const el = document.getElementById('giMediaInStatus');
+  if (!el) return;
+
+  if (accepts === 'none') {
+    el.textContent = '';
+    return;
+  }
+
+  let valid = false;
+  if (accepts === 'video' && gi.video) valid = true;
+  if (accepts === 'image' && gi.image) valid = true;
+  if (accepts === 'any' && (gi.video || gi.image || gi.pathIn || gi.audio)) valid = true;
+  if (accepts === 'directory' && gi.pathIn) valid = true;
+
+  if (!valid && (gi.video || gi.image || gi.pathIn || gi.audio)) {
+     el.textContent = '⚠ Type mismatch';
+     el.style.color = 'var(--text-dim)';
+  } else {
+     el.textContent = '';
+  }
 }
 
 /**
@@ -859,30 +889,28 @@ function setupEventListeners() {
     });
   }
   // Quick header buttons
-  var btnQuickVIn = document.getElementById('btnQuickVIn');
-  if (btnQuickVIn) {
-    btnQuickVIn.addEventListener('click', function() {
-      window.openFileBrowser('giVideo', false, 'files', 'video');
+  var btnQuickI = document.getElementById('btnQuickI');
+  if (btnQuickI) {
+    btnQuickI.addEventListener('click', function() {
+      if (typeof window.openFileBrowser === 'function') {
+        window.openFileBrowser('giMediaIn', false, 'files', 'all');
+      }
     });
   }
-  var btnQuickVOut = document.getElementById('btnQuickVOut');
-  if (btnQuickVOut) {
-    btnQuickVOut.addEventListener('click', function() {
-      window.openFileBrowser('giPathOut', true, 'dir', 'all');
+  var btnQuickO = document.getElementById('btnQuickO');
+  if (btnQuickO) {
+    btnQuickO.addEventListener('click', function() {
+      if (typeof window.openFileBrowser === 'function') {
+        window.openFileBrowser('giMediaOut', true, 'dir', 'all');
+      }
     });
   }
-  var btnQuickIIn = document.getElementById('btnQuickIIn');
-  if (btnQuickIIn) {
-    btnQuickIIn.addEventListener('click', function() {
-      window.openFileBrowser('giImage', false, 'files', 'image');
-    });
-  }
-  var btnQuickIOut = document.getElementById('btnQuickIOut');
-  if (btnQuickIOut) {
-    btnQuickIOut.addEventListener('click', function() {
-      window.openFileBrowser('giPathIn', true, 'dir', 'all');
-    });
-  }
+
+  const inEl = document.getElementById('giMediaIn');
+  if (inEl) inEl.addEventListener('input', updateGlobalInputs);
+  const outEl = document.getElementById('giMediaOut');
+  if (outEl) outEl.addEventListener('input', updateGlobalInputs);
+
   // Chevron toggle
   var btnToggle = document.getElementById('btnGlobalToggle');
   if (btnToggle) {

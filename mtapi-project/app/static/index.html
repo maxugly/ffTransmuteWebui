@@ -7,7 +7,7 @@
   <meta name="color-scheme" content="dark">
   <title>ffTransmute WebUI</title>
   <link rel="stylesheet" href="/css/base.css">
-  <link rel="stylesheet" href="/css/layout.css?v=3">
+  <link rel="stylesheet" href="/css/layout.css?v=4">
   <link rel="stylesheet" href="/css/forms.css">
   <link rel="stylesheet" href="/css/console.css">
   <link rel="stylesheet" href="/css/modals.css">
@@ -489,10 +489,8 @@
   <main>
     <header>
       <div class="global-quick-btns">
- <button class="btn btn-quick" id="btnQuickVIn" data-help-title="Pick video input(s)">V-in</button>
- <button class="btn btn-quick" id="btnQuickVOut" data-help-title="Pick output path">V-out</button>
- <button class="btn btn-quick" id="btnQuickIIn" data-help-title="Pick image input(s)">I-in</button>
- <button class="btn btn-quick" id="btnQuickIOut" data-help-title="Pick input directory">I-out</button>
+ <button class="btn btn-quick" id="btnQuickI" data-help-title="Pick media input(s)">I</button>
+        <button class="btn btn-quick" id="btnQuickO" data-help-title="Pick output path">O</button>
       </div>
       <div id="globalProbeOverlay" class="global-probe-overlay" style="display: none;"></div>
       <div class="header-actions">
@@ -518,34 +516,18 @@
     <!-- Global universal inputs — persist across all tabs -->
     <div class="global-inputs-panel" id="globalInputsPanel">
  <button class="global-toggle" id="btnGlobalToggle" data-help-title="Collapse / expand global inputs">▼</button>
-      <div class="global-inputs-inner" id="globalInputsInner">
-        <!-- Row 1: Video file(s) -->
-        <div class="global-row" data-input="video">
-          <label>Video file(s):</label>
- <textarea id="giVideo" rows="3" placeholder="One absolute path per line…" data-help-title="Type one absolute path per line. Use Browse to select multiple files at once. For image ops, files are processed one at a time." autocomplete="off" spellcheck="false" data-clearable></textarea>
- <button class="btn" id="btnGiVideoBrowse" data-help-title="Pick one or more video files">Browse</button>
- <span class="gi-status" id="giVideoStatus" data-help-title=""></span>
+      <div class="global-inputs-inner unified-media-inputs" id="globalInputsInner">
+        <!-- Unified Media In -->
+        <div class="global-row" data-input="mediaIn">
+          <label>Media In:</label>
+          <textarea id="giMediaIn" rows="1" placeholder="/absolute/path/in..." autocomplete="off" spellcheck="false" data-clearable></textarea>
+          <span class="gi-status" id="giMediaInStatus" data-help-title=""></span>
         </div>
-        <!-- Row 2: Image file(s) -->
-        <div class="global-row" data-input="image">
-          <label>Image file(s):</label>
- <textarea id="giImage" rows="3" placeholder="One absolute path per line…" data-help-title="Type one absolute path per line. Use Browse to select multiple files at once. For image ops, files are processed one at a time." autocomplete="off" spellcheck="false" data-clearable></textarea>
- <button class="btn" id="btnGiImageBrowse" data-help-title="Pick one or more images">Browse</button>
- <span class="gi-status" id="giImageStatus" data-help-title=""></span>
-        </div>
-        <!-- Row 3: Path in -->
-        <div class="global-row" data-input="pathIn">
-          <label>Path in:</label>
-          <input type="text" id="giPathIn" placeholder="Scan this directory for input files…" autocomplete="off" spellcheck="false" data-clearable>
- <button class="btn" id="btnGiPathInBrowse" data-help-title="Pick input directory">Browse</button>
- <span class="gi-status" id="giPathInStatus" data-help-title=""></span>
-        </div>
-        <!-- Row 4: Path out -->
-        <div class="global-row" data-input="pathOut">
-          <label>Path out:</label>
-          <input type="text" id="giPathOut" placeholder="All outputs land here (auto: next to input)…" autocomplete="off" spellcheck="false" data-clearable>
- <button class="btn" id="btnGiPathOutBrowse" data-help-title="Pick output directory">Browse</button>
- <span class="gi-status" id="giPathOutStatus" data-help-title=""></span>
+        <!-- Unified Media Out -->
+        <div class="global-row" data-input="mediaOut">
+          <label>Media Out:</label>
+          <textarea id="giMediaOut" rows="1" placeholder="/absolute/path/out..." autocomplete="off" spellcheck="false" data-clearable></textarea>
+          <span class="gi-status" id="giMediaOutStatus" data-help-title=""></span>
         </div>
         <!-- Row 5: Frame range (mosh + video-pipeline tabs: rife, deepdream, convert, …)
              Layout: [<][start][>]  track  [<][end][>] / selected [+] -->
@@ -679,6 +661,6 @@
     </div>
   </div>
 
-  <script type="module" src="/js/main.js?v=3"></script>
+  <script type="module" src="/js/main.js?v=4"></script>
 </body>
 </html>
