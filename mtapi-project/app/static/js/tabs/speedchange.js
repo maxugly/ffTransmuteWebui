@@ -349,15 +349,15 @@ function renderSpeedChangeForm() {
     <div class="form-row">
       <label for="usInput">Input</label>
       <div class="input-row">
-        <input type="text" id="usInput" placeholder="/absolute/path/to/video.mp4">
-        <button class="btn" type="button" id="btnUsBrowseIn">Browse</button>
+        <input type="text" id="usInput" placeholder="/absolute/path/to/video.mp4" data-help-title="Input — video to retime" data-help-text="Absolute path to the source video (or use the global Video pool). Probe it to see the target math in the readout below.">
+        <button class="btn" type="button" id="btnUsBrowseIn" data-help-title="Browse input" data-help-text="Pick the source video file.">Browse</button>
       </div>
     </div>
     <div class="form-row">
       <label for="usOutput">Output</label>
       <div class="input-row">
-        <input type="text" id="usOutput" placeholder="blank = auto next to source">
-        <button class="btn" type="button" id="btnUsBrowseOut">Save As</button>
+        <input type="text" id="usOutput" placeholder="blank = auto next to source" data-help-title="Output — blank = auto next to source" data-help-text="Where the retimed video is written. Blank reuses the source folder with an auto-generated name.">
+        <button class="btn" type="button" id="btnUsBrowseOut" data-help-title="Browse output" data-help-text="Pick where the retimed video is written.">Save As</button>
       </div>
     </div>
 
@@ -371,7 +371,7 @@ function renderSpeedChangeForm() {
             <button type="button" class="seg-seg" data-ca="multiplier" data-target="auto">Auto</button>
           </div>
         </div>
-        ${knobUnitHtml({ id: 'usSpeed', label: 'Speed ×', value: '1' })}
+        ${knobUnitHtml({ id: 'usSpeed', label: 'Speed ×', value: '1', helpTitle: 'Speed × — playback multiplier [0.1–10]', helpText: 'Playback rate — 2 = twice as fast, 0.5 = half speed. Sane 0.5–2; default 1. On Auto it is derived from your Target Length.' })}
       </div>
       <p class="knob-row-legend">
         <strong>Speed × (Multiplier)</strong> — 2 = faster, 0.5 = half speed.
@@ -388,7 +388,7 @@ function renderSpeedChangeForm() {
             <button type="button" class="seg-seg" data-ca="length" data-target="auto">Auto</button>
           </div>
         </div>
-        ${knobUnitHtml({ id: 'usLength', label: 'Length (s)', value: '10' })}
+        ${knobUnitHtml({ id: 'usLength', label: 'Length (s)', value: '10', helpTitle: 'Length (s) — target output duration [0.1–600]', helpText: 'Exact output duration in seconds; the multiplier is derived as Input ÷ Target. Sane 2–60; default 10. On Auto it is derived from your Multiplier.' })}
       </div>
       <p class="knob-row-legend">
         <strong>Target Length</strong> — exact output duration; multiplier is derived (<code>Input ÷ Target</code>).
@@ -398,7 +398,7 @@ function renderSpeedChangeForm() {
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'usFpsMatch', label: 'Output FPS', value: '1', binary: true, leftCap: 'Auto · Match', rightCap: 'Control' })}
+        ${knobUnitHtml({ id: 'usFpsMatch', label: 'Output FPS', value: '1', binary: true, leftCap: 'Auto · Match', rightCap: 'Control', helpTitle: 'Output FPS — Auto · Match / Control', helpText: 'Auto locks the output rate to the source (Match). Control retimes to an exact custom rate via Custom FPS — RIFE creates in-between frames. Default Auto.' })}
       </div>
       <p class="knob-row-legend">
         <strong>Output FPS</strong> — <strong>Auto</strong> locks the rate to the source (Match).
@@ -408,7 +408,7 @@ function renderSpeedChangeForm() {
 
     <div id="usFpsRow" class="knob-row" style="display:none">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'usFps', label: 'Custom FPS', value: '0' })}
+        ${knobUnitHtml({ id: 'usFps', label: 'Custom FPS', value: '0', helpTitle: 'Custom FPS — exact output rate [1–240]', helpText: 'Exact target frame rate. 0 = prefill from the source rate. With RIFE the generated frames are conformed to hit this rate; without RIFE frames are re-timed (duplicate/drop). Sane 24–60.' })}
       </div>
       <p class="knob-row-legend">
         <strong>Custom FPS</strong> — exact target rate. With RIFE the generated frames are
@@ -418,10 +418,10 @@ function renderSpeedChangeForm() {
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'usRife', label: 'RIFE', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'usTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'usUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'usDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+        ${knobUnitHtml({ id: 'usRife', label: 'RIFE', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'RIFE — Off / On', helpText: 'Interpolates N×M frames for smooth slow-mo, then conforms to the exact duration. Needed for smooth slow-motion speed changes. Off by default.' })}
+        ${knobUnitHtml({ id: 'usTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'TTA — Off / On', helpText: 'Test-time augmentation: runs each frame through mirrored/rotated passes and averages for temporal stability — cleaner, ~2× slower. Off by default.' })}
+        ${knobUnitHtml({ id: 'usUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'UHD — Off / On', helpText: 'RIFE ultra-HD mode: extra super-resolution passes, heavy — only meaningful when RIFE is on. For 4K+ sources (more VRAM). Off by default.' })}
+        ${knobUnitHtml({ id: 'usDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Validates params and prints the command without writing output files.' })}
       </div>
       <p class="knob-row-legend">
         <strong>RIFE</strong> interpolates N×M frames for smooth slow-mo, then conforms to the exact duration.<br>
@@ -431,7 +431,7 @@ function renderSpeedChangeForm() {
 
     <div id="usSnapRow" class="knob-row" style="display:none">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'usSnap', label: 'Mode', value: '1', binary: true, leftCap: 'Snap', rightCap: 'Free' })}
+        ${knobUnitHtml({ id: 'usSnap', label: 'Mode', value: '1', binary: true, leftCap: 'Snap', rightCap: 'Free', helpTitle: 'Mode — Snap / Free', helpText: 'Snap locks the playback rate to the nearest exact RIFE multiplier so zero extra frames are generated; Free generates extra frames — Keep the Change decides what happens to them. Default Snap.' })}
       </div>
       <p class="knob-row-legend">
         <strong>Snap</strong> locks speed to exact RIFE rates (no extras) · <strong>Free</strong> generates
@@ -459,7 +459,7 @@ function renderSpeedChangeForm() {
 
     <div class="form-row">
       <label for="usAudio">Audio</label>
-      <select id="usAudio">
+      <select id="usAudio" data-help-title="Audio — preserve / pitch-shift / drop" data-help-text="Preserve pitch (atempo) retimes audio without changing pitch; Pitch shift lets pitch follow the speed change; Drop removes audio entirely.">
         <option value="preserve" selected>Preserve pitch (atempo)</option>
         <option value="pitch">Pitch shift with speed</option>
         <option value="drop">Drop audio</option>
@@ -486,6 +486,12 @@ function renderSpeedChangeForm() {
     </div>
   `;
   elements.actionPanel.innerHTML = html;
+
+  const usRifeModelEl = document.getElementById('usRifeModel');
+  if (usRifeModelEl) {
+    usRifeModelEl.setAttribute('data-help-title', 'RIFE model — interpolation model');
+    usRifeModelEl.setAttribute('data-help-text', 'rife-v4.6 is the default; rife-v4, rife-v2.4 and rife-v2.3 are alternates. Only used when RIFE is on.');
+  }
 
   setupBinaryKnob({
     knobId: 'usRifeKnob', indicatorId: 'usRifeKnobInd', hiddenId: 'usRife',

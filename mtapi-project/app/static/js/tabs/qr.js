@@ -17,11 +17,11 @@ function renderQrArtForm() {
     <div class="form-row">
       <label>Mode</label>
       <div style="display: flex; gap: 12px; margin-top: 4px;">
-        <label class="btn" id="qrModeQrLabel" style="flex: 1; cursor: pointer; text-align: center; justify-content: center; border-color: var(--primary); background: rgba(59, 130, 246, 0.08); color: white;">
+        <label class="btn" id="qrModeQrLabel" style="flex: 1; cursor: pointer; text-align: center; justify-content: center; border-color: var(--primary); background: rgba(59, 130, 246, 0.08); color: white;" data-help-title="Mode — QR / Illusion" data-help-text="QR encodes your text into a real scannable code and diffuses it with SD. Illusion weaves an appearance photo through a pattern image via ControlNet + IP-Adapter, with no payload and no badge.">
           <input type="radio" name="qrMode" value="qr" checked style="display:none;">
           QR
         </label>
-        <label class="btn" id="qrModeIllusionLabel" style="flex: 1; cursor: pointer; text-align: center; justify-content: center; border-color: var(--panel-border); background: transparent; color: var(--text-muted);">
+        <label class="btn" id="qrModeIllusionLabel" style="flex: 1; cursor: pointer; text-align: center; justify-content: center; border-color: var(--panel-border); background: transparent; color: var(--text-muted);" data-help-title="Mode — QR / Illusion" data-help-text="QR encodes your text into a real scannable code and diffuses it with SD. Illusion weaves an appearance photo through a pattern image via ControlNet + IP-Adapter, with no payload and no badge.">
           <input type="radio" name="qrMode" value="illusion" style="display:none;">
           Illusion
         </label>
@@ -52,7 +52,7 @@ function renderQrArtForm() {
     </div>
     <div class="form-row" id="qrPromptRow">
       <label for="qrPrompt">Prompt</label>
-      <input type="text" id="qrPrompt" placeholder="anime city at night, neon lights, rain" style="flex:1 1 16rem">
+      <input type="text" id="qrPrompt" placeholder="anime city at night, neon lights, rain" style="flex:1 1 16rem" data-help-title="Prompt — diffusion subject" data-help-text="Describes the art woven over the QR structure (QR mode only; Illusion uses empty prompt and falls back to a generic one).">
     </div>
     <div class="form-row">
       <label for="qrNeg">Negative</label>
@@ -70,7 +70,7 @@ function renderQrArtForm() {
 
     <div class="form-row">
       <label for="qrModel">Base Model</label>
-      <select id="qrModel">
+      <select id="qrModel" data-help-title="Model — turbo / SD1.5 / SD1.5-INT8" data-help-text="OpenVINO models are used directly; IP-Adapter mode auto-switches to PyTorch SD 1.5. Turbo is fast with few steps; SD 1.5 is slower, higher quality (first run downloads weights).">
         <option value="rupeshs/sd-turbo-openvino" selected>sd-turbo-openvino (default)</option>
         <option value="runwayml/stable-diffusion-v1-5">SD 1.5 (slow first run)</option>
         <option value="OpenVINO/stable-diffusion-v1-5-int8">SD 1.5 INT8 (OV)</option>
@@ -98,12 +98,12 @@ function renderQrArtForm() {
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'qrSteps', label: 'Steps', value: '30' })}
-        ${knobUnitHtml({ id: 'qrGuidance', label: 'Guidance', value: '9.0' })}
-        ${knobUnitHtml({ id: 'qrStrength', label: 'Strength', value: '0.35' })}
-        ${knobUnitHtml({ id: 'qrCtrlScale', label: 'Ctrl Scale', value: '1.1' })}
-        ${knobUnitHtml({ id: 'qrIpAdapterScale', label: 'IP Scale', value: '0.5' })}
-        ${knobUnitHtml({ id: 'qrDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+        ${knobUnitHtml({ id: 'qrSteps', label: 'Steps', value: '30', helpTitle: 'Steps — denoise steps [20–40]', helpText: 'Diffusion denoise steps. More = more detail, slower. Sane: 20–40 (QR 30, Illusion 30–40); default 30.' })}
+        ${knobUnitHtml({ id: 'qrGuidance', label: 'Guidance', value: '9.0', helpTitle: 'Guidance — prompt following [5–15]', helpText: 'How strongly the prompt is followed; lower follows it less and keeps structure more. Sane: 5–9 (QR), 5–8 (Illusion); default 9.0.' })}
+        ${knobUnitHtml({ id: 'qrStrength', label: 'Strength', value: '0.35', helpTitle: 'Strength — denoise strength [0.05–0.95]', helpText: 'Denoise strength; 0 keeps the input, 1 redraws fully. Lower = more QR preserved. Sane: 0.15–0.25 (QR) / 0.3–0.6 (Illusion); default 0.35.' })}
+        ${knobUnitHtml({ id: 'qrCtrlScale', label: 'Ctrl Scale', value: '1.1', helpTitle: 'Ctrl Scale — ControlNet weight [0.6–1.6]', helpText: 'ControlNet QR Monster conditioning scale; higher = the QR structure is enforced more. Sane: 1.0–1.6; default 1.1.' })}
+        ${knobUnitHtml({ id: 'qrIpAdapterScale', label: 'IP Scale', value: '0.5', helpTitle: 'IP Scale — appearance weight [0–1]', helpText: 'IP-Adapter appearance scale; how strongly the reference appearance is matched. Higher may weaken QR fidelity. Sane: 0.3–0.8; default 0.5.' })}
+        ${knobUnitHtml({ id: 'qrDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Validates params and prints the command without writing output files.' })}
       </div>
       <p class="knob-row-legend">
         <strong>Steps</strong> 20–40. <strong>Guidance</strong> 5–15. <strong>Strength</strong> 0.05–0.95 (QR preservation).

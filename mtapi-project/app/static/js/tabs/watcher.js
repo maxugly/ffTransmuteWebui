@@ -86,6 +86,8 @@ function renderWatcherForm() {
           binary: true,
           leftCap: 'Off',
           rightCap: 'On',
+          helpTitle: 'DNxHR — Off / On',
+          helpText: 'On converts each new arrival to Resolve-friendly DNxHR .mov as *_resolve.mov in the output dir, registers it as a dnxhr proxy variant, then moves the original to dun. Off leaves arrivals untouched.',
         })}
         ${knobUnitHtml({
           id: 'watcherPoolIngest',
@@ -94,6 +96,8 @@ function renderWatcherForm() {
           binary: true,
           leftCap: 'Off',
           rightCap: 'On',
+          helpTitle: 'Pool import — Off / On',
+          helpText: 'On appends every stabilized arrival straight to the Video Pool from the server (works with the browser closed), then moves it to dun. Off = arrivals only convert, never pooled.',
         })}
         <div class="watcher-status-pill status-${statusClass}" id="watcherStatusPill">
           <span class="watcher-status-dot"></span>
@@ -137,7 +141,7 @@ function renderWatcherForm() {
 
     <div class="form-group">
       <label>Aspect fit (when AR ≠ 16:9)</label>
-      <select id="watcherResizeMode">
+      <select id="watcherResizeMode" data-help-title="Aspect fit — Letterbox / Crop" data-help-text="Used when the source aspect ratio is not 16:9. Letterbox pads with bars (no upscale); Crop trims to 16:9 (no upscale).">
         <option value="letterbox" ${mode === 'letterbox' ? 'selected' : ''}>Letterbox (pad, no scale-up)</option>
         <option value="crop" ${mode === 'crop' ? 'selected' : ''}>Crop (center, no scale-up)</option>
       </select>

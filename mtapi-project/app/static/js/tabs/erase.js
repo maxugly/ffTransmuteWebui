@@ -346,14 +346,14 @@ function renderEraseForm() {
     + '<button type="button" class="btn" id="btnErClear">Clear mask</button> '
     + '<button type="button" class="btn" id="btnErEraser">Eraser: off</button></div>'
     + '<div class="knob-row"><div class="knob-bank">'
-    + knobUnitHtml({ id: 'erBrush', label: 'Brush px', value: _saved('erBrush', '24') })
+    + knobUnitHtml({ id: 'erBrush', label: 'Brush px', value: _saved('erBrush', '24'), helpTitle: 'Brush px — paint stroke width [2–128]', helpText: 'Width of the paint stroke in px; wheel over the preview resizes it live. A painted mask beats the Rect fallback below. Sane: 8–60; default 24.' })
     + '</div><p class="knob-row-legend">Left-drag paints, right-drag erases, wheel resizes the brush. Painted mask beats the rect below.</p></div>'
     + '<span data-knob-spec="erBrush" data-min="2" data-max="128" data-step="1" data-dec="0" hidden></span>'
     + '<div class="knob-row"><div class="knob-bank">'
-    + knobUnitHtml({ id: 'erX', label: 'Rect X', value: _saved('erX', '0.80') })
-    + knobUnitHtml({ id: 'erY', label: 'Rect Y', value: _saved('erY', '0.84') })
-    + knobUnitHtml({ id: 'erW', label: 'Rect W', value: _saved('erW', '0.17') })
-    + knobUnitHtml({ id: 'erH', label: 'Rect H', value: _saved('erH', '0.12') })
+    + knobUnitHtml({ id: 'erX', label: 'Rect X', value: _saved('erX', '0.80'), helpTitle: 'Rect X — fallback rect X [0–1]', helpText: 'Normalized X of the fallback rect top-left corner (0 = left edge). Applies only when nothing is painted. Sane: 0.6–0.9; default 0.80.' })
+    + knobUnitHtml({ id: 'erY', label: 'Rect Y', value: _saved('erY', '0.84'), helpTitle: 'Rect Y — fallback rect Y [0–1]', helpText: 'Normalized Y of the fallback rect top-left corner (0 = top edge). Applies only when nothing is painted. Sane: 0.7–0.9; default 0.84.' })
+    + knobUnitHtml({ id: 'erW', label: 'Rect W', value: _saved('erW', '0.17'), helpTitle: 'Rect W — fallback rect width [0–1]', helpText: 'Normalized width of the fallback rect (fraction of frame width); area is capped at 25% server-side. Sane: 0.1–0.25; default 0.17.' })
+    + knobUnitHtml({ id: 'erH', label: 'Rect H', value: _saved('erH', '0.12'), helpTitle: 'Rect H — fallback rect height [0–1]', helpText: 'Normalized height of the fallback rect (fraction of frame height); area is capped at 25% server-side. Sane: 0.08–0.2; default 0.12.' })
     + '</div><p class="knob-row-legend">Fallback when nothing is painted (normalized 0–1, area capped at 25% server-side).</p></div>'
     + '<span data-knob-spec="erX" data-min="0" data-max="1" data-step="0.005" data-dec="3" hidden></span>'
     + '<span data-knob-spec="erY" data-min="0" data-max="1" data-step="0.005" data-dec="3" hidden></span>'
@@ -361,15 +361,15 @@ function renderEraseForm() {
     + '<span data-knob-spec="erH" data-min="0" data-max="1" data-step="0.005" data-dec="3" hidden></span>'
     + '<div class="form-row"><span class="form-row-hint" id="erReadout"></span></div>'
     + '<div class="form-row"><label for="erHd">HD strategy</label>'
-    + '<select id="erHd">'
+    + '<select id="erHd" data-help-title="HD strategy — Crop / Original / Resize" data-help-text="How large sources are fed to the fixed 512x512 model canvas. Crop zooms to the mask with margin context (keeps small marks near-native, default); Original runs the full frame; Resize scales the longer side to the Resize limit first.">'
     + '<option value="Crop">Crop (default)</option>'
     + '<option value="Original">Original</option>'
     + '<option value="Resize">Resize</option>'
     + '</select></div>'
     + '<div class="knob-row"><div class="knob-bank">'
-    + knobUnitHtml({ id: 'erTrigger', label: 'Crop trigger px', value: _saved('erTrigger', '800') })
-    + knobUnitHtml({ id: 'erMargin', label: 'Crop margin px', value: _saved('erMargin', '128') })
-    + knobUnitHtml({ id: 'erLimit', label: 'Resize limit px', value: _saved('erLimit', '1280') })
+    + knobUnitHtml({ id: 'erTrigger', label: 'Crop trigger px', value: _saved('erTrigger', '800'), helpTitle: 'Crop trigger — HD crop threshold px [256–4096]', helpText: 'Crop runs when the longer frame side tops this, keeping margin context around the mask. Sane: 600–1200; default 800.' })
+    + knobUnitHtml({ id: 'erMargin', label: 'Crop margin px', value: _saved('erMargin', '128'), helpTitle: 'Crop margin — context around mask px [0–512]', helpText: 'Padding of context kept around the mask when HD Crop runs. Sane: 64–256; default 128.' })
+    + knobUnitHtml({ id: 'erLimit', label: 'Resize limit px', value: _saved('erLimit', '1280'), helpTitle: 'Resize limit — HD resize cap px [512–4096]', helpText: 'HD Resize scales the longer side down to this limit before inpainting. Sane: 1024–1920; default 1280.' })
     + '</div><p class="knob-row-legend">Crop runs when the longer side tops the trigger, with margin context around the mask. Resize scales the longer side to the limit first.</p></div>'
     + '<span data-knob-spec="erTrigger" data-min="256" data-max="4096" data-step="16" data-dec="0" hidden></span>'
     + '<span data-knob-spec="erMargin" data-min="0" data-max="512" data-step="8" data-dec="0" hidden></span>'
@@ -387,7 +387,7 @@ function renderEraseForm() {
     + (_saved('erDebugMask', false) ? 'checked' : '') + '> Save exact mask for troubleshooting</label>'
     + '<span class="form-row-hint">Writes a PNG to <code>mtapi-project/junk/</code>.</span></div>'
     + '<div class="knob-row"><div class="knob-bank">'
-    + knobUnitHtml({ id: 'erDryRun', label: 'Dry run', value: _saved('erDryRun', '0'), binary: true, leftCap: 'Run', rightCap: 'Dry' })
+    + knobUnitHtml({ id: 'erDryRun', label: 'Dry run', value: _saved('erDryRun', '0'), binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Validates params and prints the command without writing output files.' })
     + '</div><p class="knob-row-legend">Outputs never overwrite — collisions get _0001, _0002, … like every other tab. Dry = print command only.</p></div>'
     + '<div class="form-row"><button type="button" class="btn btn-primary" id="btnErRemove">Remove</button> '
     + '<span class="form-row-hint">Or use the global <strong>Run</strong> button (= Remove).</span></div>'

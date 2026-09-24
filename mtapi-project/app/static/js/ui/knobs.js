@@ -12,7 +12,12 @@ function setupContinuousKnob(opts) {
   const indicator = document.getElementById(opts.indicatorId);
   const valueDisplay = document.getElementById(opts.valueId);
   const hiddenInput = document.getElementById(opts.hiddenId);
-  if (!knob || !indicator || !valueDisplay || !hiddenInput) return;
+  if (!knob || !indicator || !valueDisplay || !hiddenInput) {
+    console.warn('[knobs] setupContinuousKnob skipped — missing element for', opts.knobId, {
+      knob: !!knob, indicator: !!indicator, valueDisplay: !!valueDisplay, hiddenInput: !!hiddenInput,
+    });
+    return;
+  }
 
   const minAngle = -135;
   const maxAngle = 135;
@@ -121,10 +126,18 @@ function setupContinuousKnob(opts) {
   valueDisplay.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { valueDisplay.blur(); e.preventDefault(); }
   });
-  // Live value in the help strip while hovering/dragging
+  // Per-knob specifics can ride on the knob element's data-help-* attrs
+  // (emitted by knobUnitHtml) so tabs only write them once.
+  const helpTitle = opts.helpTitle || knob.getAttribute('data-help-title') || '';
+  const helpText = opts.helpText || knob.getAttribute('data-help-text') || '';
+  // Live value in the help strip while hovering/dragging.
+  // Per-knob specifics come from opts.helpTitle/helpText; the strip always
+  // appends the live value + hard range so every knob shows sane bounds.
+  // No generic "how to turn a knob" text — specifics only.
   HelpStrip.register(knob, {
-    title: () => knob.parentElement?.querySelector('.knob-unit-label')?.textContent || 'Knob',
-    getDynamicText: () => `Value: ${format(currentVal)}`,
+    title: () => helpTitle || knob.parentElement?.querySelector('.knob-unit-label')?.textContent || 'Knob',
+    text: () => helpText || '',
+    getDynamicText: () => `Value: ${format(currentVal)} · Range ${minVal}–${maxVal}`,
   });
   updateUI(currentVal);
 }
@@ -223,25 +236,40 @@ function setupBinaryKnob(opts) {
 
   knob.addEventListener('mousedown', onMouseDown);
   knob.addEventListener('wheel', onWheel, { passive: false });
-  if (!knob.getAttribute('title') || /click to toggle/i.test(knob.getAttribute('title') || '')) {
+  if (!knob.getAttribute('data-help-title')) {
     knob.setAttribute('data-help-title', 'Click to toggle · scroll wheel');
   }
-  // Side state in the help strip while hovering/dragging
+  // Same single-source rule as the continuous knob: specifics may ride
+  // on the knob element's data-help-* attrs from knobUnitHtml.
+  const helpTitle = opts.helpTitle || knob.getAttribute('data-help-title') || '';
+  const helpText = opts.helpText || knob.getAttribute('data-help-text') || '';
+  // Side state in the help strip while hovering/dragging.
+  // Per-knob specifics come from opts.helpTitle/helpText — no generic usage text.
+  // Side labels fall back to the visible captions so tabs only write them once.
+  const capLeft = knob.parentElement?.querySelector('.cap-left')?.textContent?.trim() || '';
+  const capRight = knob.parentElement?.querySelector('.cap-right')?.textContent?.trim() || '';
+  const leftLabel = opts.leftLabel || capLeft || 'left';
+  const rightLabel = opts.rightLabel || capRight || 'right';
   HelpStrip.register(knob, {
-    title: () => knob.parentElement?.querySelector('.knob-unit-label')?.textContent || 'Toggle',
-    getDynamicText: () => `Mode: ${isRight(hiddenInput.value) ? (opts.rightLabel || 'right') : (opts.leftLabel || 'left')}`,
+    title: () => (helpTitle && !/click to toggle/i.test(helpTitle) ? helpTitle : (knob.parentElement?.querySelector('.knob-unit-label')?.textContent || 'Toggle')),
+    text: () => helpText || '',
+    getDynamicText: () => `Mode: ${isRight(hiddenInput.value) ? rightLabel : leftLabel}`,
   });
   // initial
   const init = opts.initial != null ? opts.initial : hiddenInput.value;
   updateUI(init);
 }
 
-function knobUnitHtml({ id, label, value, binary = false, leftCap = '', rightCap = '' }) {
+function knobUnitHtml({ id, label, value, binary = false, leftCap = '', rightCap = '', helpTitle = '', helpText = '' }) {
+  const esc = (s) => String(s ?? '').replace(/"/g, '&quot;');
+  const helpAttrs = helpTitle || helpText
+    ? ` data-help-title="${esc(helpTitle || label)}" data-help-text="${esc(helpText)}"`
+    : '';
   if (binary) {
     return `
       <div class="knob-unit">
         <span class="knob-unit-label">${label}</span>
-        <div class="daw-knob binary-knob" id="${id}Knob" data-help-title="Click to toggle · scroll wheel">
+        <div class="daw-knob binary-knob" id="${id}Knob"${helpAttrs || ' data-help-title="Click to toggle · scroll wheel"'}>
           <div class="daw-knob-dial"></div>
           <div class="daw-knob-indicator" id="${id}KnobInd"></div>
         </div>
@@ -255,7 +283,7 @@ function knobUnitHtml({ id, label, value, binary = false, leftCap = '', rightCap
   return `
     <div class="knob-unit">
       <span class="knob-unit-label">${label}</span>
-      <div class="daw-knob" id="${id}Knob" data-help-title="Drag up/down · scroll wheel · Shift+scroll for fine">
+      <div class="daw-knob" id="${id}Knob"${helpAttrs || ' data-help-title="Drag up/down · scroll wheel · Shift+scroll for fine"'}>
         <div class="daw-knob-dial"></div>
         <div class="daw-knob-indicator" id="${id}KnobInd"></div>
       </div>

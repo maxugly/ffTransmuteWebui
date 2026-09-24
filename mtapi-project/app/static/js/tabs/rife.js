@@ -76,15 +76,15 @@ function renderRifeForm() {
     <div class="form-row">
       <label for="rifeInput">Input</label>
       <div class="input-row">
-        <input type="text" id="rifeInput" placeholder="/absolute/path/to/video.mp4">
-        <button class="btn" type="button" id="btnRifeBrowseIn">Browse</button>
+        <input type="text" id="rifeInput" placeholder="/absolute/path/to/video.mp4" data-help-title="Input — video to interpolate" data-help-text="Absolute path to the source video (or use the global Video pool). RIFE dumps frames, interpolates, then encodes.">
+        <button class="btn" type="button" id="btnRifeBrowseIn" data-help-title="Browse input" data-help-text="Pick the source video file.">Browse</button>
       </div>
     </div>
     <div class="form-row">
       <label for="rifeOutput">Output</label>
       <div class="input-row">
-        <input type="text" id="rifeOutput" placeholder="blank = auto next to source">
-        <button class="btn" type="button" id="btnRifeBrowseOut">Save As</button>
+        <input type="text" id="rifeOutput" placeholder="blank = auto next to source" data-help-title="Output — blank = auto next to source" data-help-text="Where the interpolated video is written. Blank reuses the source folder with an auto-generated name.">
+        <button class="btn" type="button" id="btnRifeBrowseOut" data-help-title="Browse output" data-help-text="Pick where the interpolated video is written.">Save As</button>
       </div>
     </div>
 
@@ -99,11 +99,11 @@ function renderRifeForm() {
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'rifeMultiplier', label: 'Frame ×', value: '2' })}
-        ${knobUnitHtml({ id: 'rifeTargetFps', label: 'Target FPS', value: '', placeholder: 'auto' })}
-        ${knobUnitHtml({ id: 'rifeTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'rifeUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'rifeDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+        ${knobUnitHtml({ id: 'rifeMultiplier', label: 'Frame ×', value: '2', helpTitle: 'Frame × — interpolation multiplier [2–128]', helpText: 'RIFE inserts (M−1) interpolated frames between each source frame. Sane 2–4; default 2. Higher = smoother but much slower. Cap: 128.' })}
+        ${knobUnitHtml({ id: 'rifeTargetFps', label: 'Target FPS', value: '', placeholder: 'auto', helpTitle: 'Target FPS — output frame rate [1–240]', helpText: 'Resamples the output after interpolation. Blank = auto = source FPS × M. Sane 24–60; default auto.' })}
+        ${knobUnitHtml({ id: 'rifeTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'TTA — Off / On', helpText: 'Test-time augmentation: each frame is run through mirrored/rotated passes and averaged for temporal stability — cleaner, ~2× slower. Off by default.' })}
+        ${knobUnitHtml({ id: 'rifeUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'UHD — Off / On', helpText: 'RIFE ultra-HD mode: extra super-resolution passes, heavy — only meaningful when RIFE is on. For 4K+ sources (more VRAM). Off by default.' })}
+        ${knobUnitHtml({ id: 'rifeDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Validates params and prints the command without writing output files.' })}
       </div>
       <p class="knob-row-legend">
         <strong>Frame ×</strong> — multiplier (2 = double FPS, 4 = 24→96).<br>
@@ -114,6 +114,12 @@ function renderRifeForm() {
     </div>
   `;
   elements.actionPanel.innerHTML = html;
+
+  const rifeModelEl = document.getElementById('rifeModel');
+  if (rifeModelEl) {
+    rifeModelEl.setAttribute('data-help-title', 'Model — RIFE interpolation version');
+    rifeModelEl.setAttribute('data-help-text', 'rife-v4.6 newest/cleanest, rife-v4 stable/faster, rife-v2.4 and rife-v2.3 fastest alternates. First run downloads the weights.');
+  }
 
   setupContinuousKnob({
     knobId: 'rifeMultiplierKnob', indicatorId: 'rifeMultiplierKnobInd', valueId: 'rifeMultiplierVal', hiddenId: 'rifeMultiplier',

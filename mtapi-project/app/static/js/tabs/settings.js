@@ -244,6 +244,8 @@ export function renderSettingsForm() {
     knobId: 'settingsThumbKnob', indicatorId: 'settingsThumbKnobInd',
     valueId: 'settingsThumbValue', hiddenId: 'settingsThumbIndex',
     min: 0, max: 2, step: 1, decimals: 0, format: v => SIZE_LABELS[Math.round(v)],
+    helpTitle: 'Thumbnail size — L / M / H',
+    helpText: 'Size class for pool thumbnails (match-size only; the wall JPEG stays fixed at 120px per frame). L is smallest, H is largest. Default H.',
     onChange: (v) => {
       state.settings.thumbnailSizeIndex = Math.round(v);
       state.settings.thumbnailSize = SIZE_LABELS[state.settings.thumbnailSizeIndex] || 'H';
@@ -255,6 +257,8 @@ export function renderSettingsForm() {
     valueId: 'settingsAutosaveValue', hiddenId: 'settingsAutosaveIndex',
     min: 0, max: 2, step: 1, decimals: 0,
     format: v => `${[5, 30, 60][Math.round(v)]}s`,
+    helpTitle: 'Autosave — 5s / 30s / 60s',
+    helpText: 'How often session state autosaves instead of waiting for a manual save. Shorter is safer, longer writes less. Default 30s.',
     onChange: (v) => {
       if (elements.actionPanel?.dataset.settingsReady === '1') saveSettings({ autosaveInterval: [5, 30, 60][Math.round(v)] || 30 });
     },
@@ -264,6 +268,8 @@ export function renderSettingsForm() {
     valueId: 'settingsScrollbarValue', hiddenId: 'settingsScrollbarWidth',
     min: SCROLLBAR_MIN, max: SCROLLBAR_MAX, step: SCROLLBAR_STEP, decimals: 0,
     format: (v) => `${clampScrollbarWidth(v)}px`,
+    helpTitle: 'Scrollbar — width px [6–30]',
+    helpText: 'Width of every scroll bar in pixels; 6 is the default (thin) and the minimum, 30 is as thick as it goes. Sane: 6–14; default 6.',
     onChange: (v) => {
       const px = clampScrollbarWidth(v);
       applyUiTweaks(px);

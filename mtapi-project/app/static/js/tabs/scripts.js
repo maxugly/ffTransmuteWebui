@@ -342,7 +342,7 @@ function renderScriptsForm() {
     + '<div class="form-row"><span class="form-row-hint" id="scriptInputReminder"></span></div>'
     + '<div class="form-row"><span class="form-row-hint" id="scriptDesc"></span></div>'
     + '<div class="knob-row"><div class="knob-bank">'
-    + knobUnitHtml({ id: 'scriptDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })
+    + knobUnitHtml({ id: 'scriptDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Validates params and prints the command without writing output files.' })
     + '</div><p class="knob-row-legend">Dry = print command only, no file written.</p></div>'
     + '<div id="scriptExtras"></div>'
     + '<div class="form-row"><button type="button" class="btn btn-primary" id="btnScriptRun">Run script</button> '

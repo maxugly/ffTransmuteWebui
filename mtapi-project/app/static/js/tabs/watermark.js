@@ -180,7 +180,7 @@ function renderWatermarkForm() {
     + '<button type="button" class="btn" id="btnWmRefresh">Refresh</button></div>'
     + '</div>'
     + '<div class="form-row"><label for="wmEngine">Engine</label>'
-    + '<select id="wmEngine">'
+    + '<select id="wmEngine" data-help-title="Engine — reverse alpha" data-help-text="gemini-reverse-alpha inverts the known Gemini logo composite (pixel-exact where the pattern matches). Other engines are planned and not selectable yet.">'
     + '<option value="gemini-reverse-alpha">gemini-reverse-alpha (vendored)</option>'
     + '<option value="general-ai" disabled>general-ai (planned)</option>'
     + '<option value="synthid-detect" disabled>synthid-detect (report-only, planned)</option>'
@@ -193,10 +193,10 @@ function renderWatermarkForm() {
     + '<button type="button" class="btn" id="btnWmOutBrowse">Browse</button>'
     + '</div></div>'
     + '<div class="knob-row"><div class="knob-bank">'
-    + knobUnitHtml({ id: 'wmDryRun', label: 'Dry run', value: _saved('wmDryRun', '0'), binary: true, leftCap: 'Run', rightCap: 'Dry' })
+    + knobUnitHtml({ id: 'wmDryRun', label: 'Dry run', value: _saved('wmDryRun', '0'), binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Validates params and prints the command without writing output files.' })
     + '</div><p class="knob-row-legend">Outputs never overwrite — collisions get _0001, _0002, … like every other tab. Dry = print command only.</p></div>'
     + '<div class="knob-row"><div class="knob-bank">'
-    + knobUnitHtml({ id: 'wmBitrate', label: 'Video bitrate (Mbps)', value: _saved('wmBitrate', '12'), binary: false })
+    + knobUnitHtml({ id: 'wmBitrate', label: 'Video bitrate (Mbps)', value: _saved('wmBitrate', '12'), binary: false, helpTitle: 'Video bitrate (Mbps) — output encode rate [4–40]', helpText: 'Rate of the output video encode in Mbps (AVC); video only, images ignore it. Sane: 8–20; default 12.' })
     + '</div><p class="knob-row-legend">Video only (default calibrated 12 Mbps AVC; quality-sensitive sources try 20). Images ignore it.</p></div>'
     + '<span data-knob-spec="wmBitrate" data-min="4" data-max="40" data-step="0.5" data-dec="1" hidden></span>'
     + '<div class="form-row"><label for="wmTimeout">Video timeout (ms)</label>'

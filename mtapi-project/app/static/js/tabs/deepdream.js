@@ -87,7 +87,7 @@ function renderDeepDreamForm() {
     </div>
     <div class="form-row">
       <label for="dreamEngine">Engine</label>
-      <select id="dreamEngine">
+      <select id="dreamEngine" data-help-title="Engine — CPU / GPU" data-help-text="CPU · TF nets = full knobs (all models, layers, guides). GPU = OpenVINO static dream on the iGPU — baked InceptionV3 only, needs one-time GPU Setup; other models/layers/guides stay CPU-only.">
         <option value="cpu">CPU · TF nets (full knobs)</option>
         <option value="gpu">GPU · OpenVINO static (iGPU)</option>
       </select>
@@ -99,67 +99,67 @@ function renderDeepDreamForm() {
       <span class="form-row-hint">One-time IR install + CPU smoke + GPU probe.</span>
     </div>
     <div class="knob-row settings-inline-warm">
-      <div class="knob-bank">${knobUnitHtml({ id: 'dreamWarm', label: 'Keep warm', value: state.settings?.warmModels?.deepdream ? '1' : '0', binary: true, leftCap: 'Off', rightCap: 'On' })}</div>
+      <div class="knob-bank">${knobUnitHtml({ id: 'dreamWarm', label: 'Keep warm', value: state.settings?.warmModels?.deepdream ? '1' : '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Keep warm — Off / On', helpText: 'Keeps the DeepDream model resident between runs. On = faster repeat runs, holds VRAM.' })}</div>
       <p class="knob-row-legend">Keep the DeepDream model resident between runs (uses VRAM).</p>
     </div>
 
     <div class="form-row">
       <label for="dreamInput">Input</label>
       <div class="input-row">
-        <input type="text" id="dreamInput" placeholder="image.png or video.mp4">
-        <button class="btn" type="button" id="btnDreamBrowseIn">Browse</button>
+        <input type="text" id="dreamInput" placeholder="image.png or video.mp4" data-help-title="Input — image or video" data-help-text="Absolute path to a still (PNG/JPG/…) or video (MP4/…). Blank falls back to the global Video/Image bar.">
+        <button class="btn" type="button" id="btnDreamBrowseIn" data-help-title="Browse input" data-help-text="Pick the source still or video file.">Browse</button>
       </div>
     </div>
     <div class="form-row">
       <label for="dreamOutput">Output</label>
       <div class="input-row">
-        <input type="text" id="dreamOutput" placeholder="blank = auto next to source">
-        <button class="btn" type="button" id="btnDreamBrowseOut">Save As</button>
+        <input type="text" id="dreamOutput" placeholder="blank = auto next to source" data-help-title="Output — blank = next to source" data-help-text="Where to write. Blank = next to the source (_dream.png / _dream.mp4 / _ouroboros.mp4).">
+        <button class="btn" type="button" id="btnDreamBrowseOut" data-help-title="Browse output" data-help-text="Pick where the dream result is written (blank = next to source).">Save As</button>
       </div>
     </div>
     <div class="form-row">
       <label for="dreamGuide">Guide</label>
       <div class="input-row">
-        <input type="text" id="dreamGuide" placeholder="optional — steer features (blank = classic L2)">
-        <button class="btn" type="button" id="btnDreamBrowseGuide">Browse</button>
+        <input type="text" id="dreamGuide" placeholder="optional — steer features (blank = classic L2)" data-help-title="Guide — steer features (optional)" data-help-text="A second still whose features steer the dream (blank = classic L2). Guide is a target in feature space, not a paste; works best as a clear photo.">
+        <button class="btn" type="button" id="btnDreamBrowseGuide" data-help-title="Browse guide" data-help-text="Pick the guide image whose features steer the dream.">Browse</button>
       </div>
       <p class="form-row-hint">Match activations to guide (flowers → floral, faces → face-like…)</p>
     </div>
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'dreamMedia', label: 'Media', value: 'auto', binary: true, leftCap: 'Image', rightCap: 'Video' })}
-        ${knobUnitHtml({ id: 'dreamAutoDetect', label: 'Detect', value: '1', binary: true, leftCap: 'Force', rightCap: 'Auto' })}
-        ${knobUnitHtml({ id: 'dreamJitter', label: 'Jitter', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'dreamDetail', label: 'Detail', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'dreamAudio', label: 'Audio', value: '1', binary: true, leftCap: 'Drop', rightCap: 'Keep' })}
-        ${knobUnitHtml({ id: 'dreamDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
-        ${knobUnitHtml({ id: 'dreamDynamic', label: 'Dynamic', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'dreamMedia', label: 'Media', value: 'auto', binary: true, leftCap: 'Image', rightCap: 'Video', helpTitle: 'Media — Image / Video', helpText: 'Tells the op to treat the path as a still or as a video. Only used when Detect is Force; with Auto (default) the file extension wins and this knob is ignored.' })}
+        ${knobUnitHtml({ id: 'dreamAutoDetect', label: 'Detect', value: '1', binary: true, leftCap: 'Force', rightCap: 'Auto', helpTitle: 'Detect — Force / Auto', helpText: 'Auto (default) decides by file extension; Force honors the Media knob instead. Use Force if a still is mis-detected or you opened a frames folder-like name.' })}
+        ${knobUnitHtml({ id: 'dreamJitter', label: 'Jitter', value: '1', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Jitter — Off / On', helpText: 'Random pixel shift each ascent step (classic DeepDream trick). On (default) reduces tile seams and grid artifacts; Off can look sharper but more gridlocked.' })}
+        ${knobUnitHtml({ id: 'dreamDetail', label: 'Detail', value: '1', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Detail — Off / On', helpText: 'Reinjects high-frequency detail between octaves so it is not lost when scaling down. On (default) = richer texture; Off = smoother, more smudged.' })}
+        ${knobUnitHtml({ id: 'dreamAudio', label: 'Audio', value: '1', binary: true, leftCap: 'Drop', rightCap: 'Keep', helpTitle: 'Audio — Drop / Keep', helpText: 'Video only. Keep (default) muxes original audio onto the encoded result; Drop = silent video. Stills ignore this.' })}
+        ${knobUnitHtml({ id: 'dreamDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Dry validates params and paths without running inference. No output files are written.' })}
+        ${knobUnitHtml({ id: 'dreamDynamic', label: 'Dynamic', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Dynamic — Off / On', helpText: 'Video only. When On, the start ascent values above lerp per frame across the clip to their “→” end values. Off (default) = fixed values throughout.' })}
       </div>
       <p class="knob-row-legend">Detect=Auto uses extension. Force uses Media knob.</p>
     </div>
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'dreamStep', label: 'Step', value: '0.01' })}
-        ${knobUnitHtml({ id: 'dreamIters', label: 'Iterations', value: '20' })}
-        ${knobUnitHtml({ id: 'dreamOctaves', label: 'Octaves', value: '3' })}
-        ${knobUnitHtml({ id: 'dreamOctScale', label: 'Oct scale', value: '1.4' })}
-        ${knobUnitHtml({ id: 'dreamMaxLoss', label: 'Max loss', value: '0' })}
-        ${knobUnitHtml({ id: 'dreamBlend', label: 'Blend', value: '1.0' })}
-        ${knobUnitHtml({ id: 'dreamPreviewW', label: 'Preview W', value: '0' })}
+        ${knobUnitHtml({ id: 'dreamStep', label: 'Step', value: '0.01', helpTitle: 'Step — gradient step size [0.001–0.1]', helpText: 'How far each ascent step moves toward more activation. Higher = faster, stronger, easier to blow out into noise; lower = slower, subtler. Engine scales per model so strength feels comparable. Sane: 0.005–0.03; default 0.01.' })}
+        ${knobUnitHtml({ id: 'dreamIters', label: 'Iterations', value: '20', helpTitle: 'Iterations — gradient steps per octave [1–100]', helpText: 'Gradient steps per octave. More = denser patterns, longer runtime. Try 10 for previews, 20–40 for a solid still; keep modest on long clips. Sane: 10–40; default 20.' })}
+        ${knobUnitHtml({ id: 'dreamOctaves', label: 'Octaves', value: '3', helpTitle: 'Octaves — pyramid depth [1–8]', helpText: 'How many resolution scales to climb. 1 = single scale (faster, flatter); 3 = classic multi-scale look. More octaves = more structure, time, VRAM. Sane: 2–5; default 3.' })}
+        ${knobUnitHtml({ id: 'dreamOctScale', label: 'Oct scale', value: '1.4', helpTitle: 'Oct scale — per-octave downscale [1.1–2.0]', helpText: 'Size ratio between successive octaves. Closer to 1.1 = more gradual; closer to 2 = dramatic scale hops; 1.4 is Google-ish. Sane: 1.2–1.7; default 1.4.' })}
+        ${knobUnitHtml({ id: 'dreamMaxLoss', label: 'Max loss', value: '0', helpTitle: 'Max loss — early-stop ceiling [0–50]', helpText: 'Absolute ceiling on the ascent objective; when loss climbs past this, that octave stops early. 0 = off (recommended default; leave off for VGG/ResNet). Sane: 15–25 on Inception; default off (0).' })}
+        ${knobUnitHtml({ id: 'dreamBlend', label: 'Blend', value: '1.0', helpTitle: 'Blend — dream vs original mix [0–1]', helpText: 'How much of the dreamed image to keep vs the original at the end of the pass. 1.0 = full dream; 0.5 = half original, half dream (gentler filter look). Sane: 0.6–1.0; default 1.0.' })}
+        ${knobUnitHtml({ id: 'dreamPreviewW', label: 'Preview W', value: '0', helpTitle: 'Preview W — render max width [0–1280]', helpText: 'If > 0, dream at this max width (height scales); 0 = full native resolution. Use 480–640 to iterate knobs quickly, full for the final export. Sane: 480–640; default 0 (full).' })}
       </div>
       <p class="knob-row-legend">Ascent knobs. Preview W 0 = full width.</p>
     </div>
 
     <div class="knob-row dream-dynamic-only" id="dreamDynamicRampRow">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'dreamStepTo', label: 'Step →', value: '0.01' })}
-        ${knobUnitHtml({ id: 'dreamItersTo', label: 'Iters →', value: '20' })}
-        ${knobUnitHtml({ id: 'dreamOctavesTo', label: 'Octaves →', value: '3' })}
-        ${knobUnitHtml({ id: 'dreamOctScaleTo', label: 'OctScale →', value: '1.4' })}
-        ${knobUnitHtml({ id: 'dreamMaxLossTo', label: 'MaxLoss →', value: '0' })}
-        ${knobUnitHtml({ id: 'dreamBlendTo', label: 'Blend →', value: '1.0' })}
+        ${knobUnitHtml({ id: 'dreamStepTo', label: 'Step →', value: '0.01', helpTitle: 'Step → — dynamic end step [0.001–0.1]', helpText: 'End value the Step knob lerps to per frame across the clip when Dynamic is On (video only). Sane: 0.005–0.03; default 0.01.' })}
+        ${knobUnitHtml({ id: 'dreamItersTo', label: 'Iters →', value: '20', helpTitle: 'Iters → — dynamic end iterations [1–100]', helpText: 'End value Iterations lerps to per frame across the clip when Dynamic is On (video only). Sane: 10–40; default 20.' })}
+        ${knobUnitHtml({ id: 'dreamOctavesTo', label: 'Octaves →', value: '3', helpTitle: 'Octaves → — dynamic end octaves [1–8]', helpText: 'End value Octaves lerps to per frame across the clip when Dynamic is On (video only). Sane: 2–5; default 3.' })}
+        ${knobUnitHtml({ id: 'dreamOctScaleTo', label: 'OctScale →', value: '1.4', helpTitle: 'OctScale → — dynamic end scale [1.1–2.0]', helpText: 'End value Oct scale lerps to per frame across the clip when Dynamic is On (video only). Sane: 1.2–1.7; default 1.4.' })}
+        ${knobUnitHtml({ id: 'dreamMaxLossTo', label: 'MaxLoss →', value: '0', helpTitle: 'MaxLoss → — dynamic end ceiling [0–50]', helpText: 'End value Max loss lerps to per frame across the clip when Dynamic is On (video only). 0 = off. Sane: 15–25 on Inception; default off (0).' })}
+        ${knobUnitHtml({ id: 'dreamBlendTo', label: 'Blend →', value: '1.0', helpTitle: 'Blend → — dynamic end blend [0–1]', helpText: 'End value Blend lerps to per frame across the clip when Dynamic is On (video only). Sane: 0.6–1.0; default 1.0.' })}
       </div>
       <p class="knob-row-legend dream-dynamic-only">
         <strong>Dynamic ramp</strong> (video only): the start values above lerp to
@@ -169,13 +169,13 @@ function renderDeepDreamForm() {
 
     <div class="form-row">
       <label for="dreamModel">Model</label>
-      <select id="dreamModel">
+      <select id="dreamModel" data-help-title="Model — InceptionV3 / VGG16 / ResNet50" data-help-text="Which ImageNet CNN provides the features; different nets give different creatures and textures. Weights may download once on first use. InceptionV3 (default) is the classic Google look.">
         <option value="inception_v3" selected>InceptionV3 — classic</option>
         <option value="vgg16">VGG16 — hierarchical</option>
         <option value="resnet50">ResNet50 — residual</option>
       </select>
       <label for="dreamLayerPreset">Layers</label>
-      <select id="dreamLayerPreset"></select>
+      <select id="dreamLayerPreset" data-help-title="Layers — preset layer mix" data-help-text="Presets pick a weighted mix of real layers for the current model. Deeper = bigger, weirder forms; shallower = more filigree. Custom shows per-layer weight knobs (0–5)."></select>
       <p class="form-row-hint">Real architectures (weights may download once). Preset maps to that net’s layers.</p>
     </div>
 
@@ -187,11 +187,11 @@ function renderDeepDreamForm() {
 
     <div class="knob-row dream-video-only" id="dreamVideoBank">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'dreamFrameStep', label: 'Frame step', value: '1' })}
-        ${knobUnitHtml({ id: 'dreamMaxFrames', label: 'Max frames', value: '0' })}
-        ${knobUnitHtml({ id: 'dreamTemporalBlend', label: 'Temporal blend', value: '0.85' })}
-        ${knobUnitHtml({ id: 'dreamOpticalFlow', label: 'Optical flow', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'dreamLayerCycle', label: 'Layer cycle', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'dreamFrameStep', label: 'Frame step', value: '1', helpTitle: 'Frame step — frame skip per dream [1–30]', helpText: '1 = dream every dumped frame; 2 = dream every other frame and hold the last dream on skipped frames (cheaper, slightly stepped motion). Higher = faster, choppier. Sane: 1–6; default 1.' })}
+        ${knobUnitHtml({ id: 'dreamMaxFrames', label: 'Max frames', value: '0', helpTitle: 'Max frames — frame cap [0–500]', helpText: 'Cap how many frames to process after dump/range. 0 = all. Set 24–48 to test settings on a short slice before a full render. Sane: 24–120 when scouting; default 0 (all).' })}
+        ${knobUnitHtml({ id: 'dreamTemporalBlend', label: 'Temporal blend', value: '0.85', helpTitle: 'Temporal blend — previous-dream carry [0–1]', helpText: 'Mixes the previous frame’s dream into the next start so the trip does not flicker. 0.85 = classic sticky; 1 = off (no mix). Ignored when Optical flow is On. Sane: 0.75–0.95; default 0.85.' })}
+        ${knobUnitHtml({ id: 'dreamOpticalFlow', label: 'Optical flow', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Optical flow — Off / On', helpText: 'When On, estimates motion between frames and warps the dream residual so patterns stick to moving objects. Heavier; overrides temporal blend while enabled; best on smooth camera moves.' })}
+        ${knobUnitHtml({ id: 'dreamLayerCycle', label: 'Layer cycle', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Layer cycle — Off / On', helpText: 'When On, each frame optimizes one layer in a loop instead of the full weighted mix (DeepDreamAnim-style), morphing which creature dominates. Off (default) = same layer mix every frame.' })}
       </div>
       <p class="knob-row-legend dream-video-only">
         <strong>Temporal blend</strong> 0.85 classic · 1 = off.
@@ -202,14 +202,14 @@ function renderDeepDreamForm() {
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'dreamOuro', label: 'Ouroboros', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'dreamOuro', label: 'Ouroboros', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Ouroboros — Off / On', helpText: 'Turns one still into a feedback clip: dream, transform, feed the result back. On reveals the transform + length knobs, hides the video bank, and always writes a video (no source audio).' })}
       </div>
       <p class="knob-row-legend">Still → dream → transform → feedback loop (writes video).</p>
     </div>
     <div class="dream-ouro-only" id="dreamOuroPanel">
       <div class="form-row">
         <label for="dreamFrameTransform">Transform</label>
-        <select id="dreamFrameTransform">
+        <select id="dreamFrameTransform" data-help-title="Transform — ouroboros drift per frame" data-help-text="Applied after each dreamed frame, before the next loop. Zoom + Spin (default) is the classic tunnel; None = pure feedback without geometric drift.">
           <option value="zoom_rotate" selected>Zoom + Spin</option>
           <option value="zoom">Zoom only</option>
           <option value="rotate">Spin only</option>
@@ -219,12 +219,12 @@ function renderDeepDreamForm() {
       </div>
       <div class="knob-row">
         <div class="knob-bank">
-          ${knobUnitHtml({ id: 'dreamOuroLen', label: 'Frames', value: '30' })}
-          ${knobUnitHtml({ id: 'dreamOuroFps', label: 'FPS', value: '30' })}
-          ${knobUnitHtml({ id: 'dreamZoom', label: 'Zoom', value: '1.04' })}
-          ${knobUnitHtml({ id: 'dreamSpin', label: 'Spin °', value: '1.5' })}
-          ${knobUnitHtml({ id: 'dreamTx', label: 'Pan X', value: '5' })}
-          ${knobUnitHtml({ id: 'dreamTy', label: 'Pan Y', value: '5' })}
+          ${knobUnitHtml({ id: 'dreamOuroLen', label: 'Frames', value: '30', helpTitle: 'Frames — feedback loop length [1–300]', helpText: 'How many feedback steps / output frames. 30 @ 30 FPS ≈ 1 second; longer = longer trip and much more total dream time. Sane: 30–120; default 30.' })}
+          ${knobUnitHtml({ id: 'dreamOuroFps', label: 'FPS', value: '30', helpTitle: 'FPS — playback rate [1–60]', helpText: 'Playback rate of the written video. Transform amounts scale with FPS so per-second motion stays similar. Sane: 24–30; default 30.' })}
+          ${knobUnitHtml({ id: 'dreamZoom', label: 'Zoom', value: '1.04', helpTitle: 'Zoom — scale per frame [0.9–1.15]', helpText: 'Scale factor per frame when zoom is in the transform. > 1 = zoom in (default mild crawl); < 1 = zoom out. Tiny changes compound over dozens of frames. Sane: 1.01–1.06; default 1.04.' })}
+          ${knobUnitHtml({ id: 'dreamSpin', label: 'Spin °', value: '1.5', helpTitle: 'Spin ° — rotation per frame [-15–15]', helpText: 'Rotation degrees per frame. Positive / negative = direction; small values accumulate into a full spin over the clip. Sane: 0.5–3; default 1.5.' })}
+          ${knobUnitHtml({ id: 'dreamTx', label: 'Pan X', value: '5', helpTitle: 'Pan X — horizontal pan px/frame [-20–20]', helpText: 'Pixel translation per frame when Translate (or a transform that uses it) is active. Positive X pans content left-ish — tweak by eye. Sane: 0–10; default 5.' })}
+          ${knobUnitHtml({ id: 'dreamTy', label: 'Pan Y', value: '5', helpTitle: 'Pan Y — vertical pan px/frame [-20–20]', helpText: 'Pixel translation per frame when Translate (or a transform that uses it) is active. Sane: 0–10; default 5.' })}
         </div>
         <p class="knob-row-legend">
           Zoom &gt; 1 in/frame · Spin °/frame · Translate +X/+Y pan (default 5px). Scales with FPS.
@@ -234,7 +234,7 @@ function renderDeepDreamForm() {
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'dreamEvolve', label: 'Evolve', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'dreamEvolve', label: 'Evolve', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Evolve — Off / On', helpText: 'When On, captures mid-ascent frames, drops near-dups (Image Sort metrics), optional RIFE, then encodes *_dream_evolve.mp4. v1 is still images only.' })}
       </div>
       <p class="knob-row-legend">
         Capture mid-ascent frames → drop near-dups (Image Sort metrics) → optional RIFE →
@@ -244,7 +244,7 @@ function renderDeepDreamForm() {
     <div class="dream-evolve-only hidden" id="dreamEvolvePanel">
       <div class="form-row">
         <label for="dreamEvolveMetric">Metric</label>
-        <select id="dreamEvolveMetric">
+        <select id="dreamEvolveMetric" data-help-title="Evolve metric — near-dup detector" data-help-text="Dedup metric for mid-ascent frames: pHash structure (default, thr 4), aHash coarse brightness, colorhash palette, MSE pixel distance, SSIM (if installed).">
           <option value="phash" selected>pHash — structure (default thr 4)</option>
           <option value="ahash">aHash — coarse brightness</option>
           <option value="colorhash">colorhash — palette</option>
@@ -255,9 +255,9 @@ function renderDeepDreamForm() {
       ${evolveRifeModelSelectHtml('dreamEvolve')}
       <div class="knob-row">
         <div class="knob-bank">
-          ${knobUnitHtml({ id: 'dreamEvolveFps', label: 'FPS', value: '12' })}
-          ${knobUnitHtml({ id: 'dreamEvolveThr', label: 'Min dist', value: '4' })}
-          ${knobUnitHtml({ id: 'dreamEvolveCapN', label: 'Every N', value: '0' })}
+          ${knobUnitHtml({ id: 'dreamEvolveFps', label: 'FPS', value: '12', helpTitle: 'Evolve FPS — playback rate [1–60]', helpText: 'Playback rate of the *_dream_evolve.mp4. Sane: 10–24; default 12.' })}
+          ${knobUnitHtml({ id: 'dreamEvolveThr', label: 'Min dist', value: '4', helpTitle: 'Min dist — duplicate threshold [0–32]', helpText: 'Minimum Image-Sort distance between kept frames. 0 = keep all; pHash ~4 default; higher = fewer frames. Sane: 3–8; default 4.' })}
+          ${knobUnitHtml({ id: 'dreamEvolveCapN', label: 'Every N', value: '0', helpTitle: 'Every N — publish cadence [0–20]', helpText: '0 = live cadence (default); else keep a frame every N ascent publishes. Sane: 0–10; default 0.' })}
           ${evolveRifeKnobUnitsHtml('dreamEvolve')}
         </div>
         <p class="knob-row-legend">

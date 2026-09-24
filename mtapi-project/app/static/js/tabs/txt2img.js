@@ -31,7 +31,7 @@ function renderTxt2ImgForm() {
 
     <div class="form-row">
       <label for="t2iModel">Model</label>
-      <select id="t2iModel">
+      <select id="t2iModel" data-help-title="Model — turbo / LCM / SD1.5-int8" data-help-text="sd-turbo-openvino is the fast default. LCM-dreamshaper-v7 and SD1.5-int8 trade speed, quality, and style; turbo wants few steps and guidance near 1.">
         <option value="rupeshs/sd-turbo-openvino" selected>sd-turbo-openvino (default)</option>
         <option value="rupeshs/LCM-dreamshaper-v7-openvino">LCM-dreamshaper-v7-openvino</option>
         <option value="rupeshs/sd15-lcm-square-openvino-int8">sd15-lcm-square-openvino-int8</option>
@@ -40,12 +40,12 @@ function renderTxt2ImgForm() {
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 't2iWidth', label: 'Width', value: '512' })}
-        ${knobUnitHtml({ id: 't2iHeight', label: 'Height', value: '512' })}
-        ${knobUnitHtml({ id: 't2iSteps', label: 'Steps', value: '4' })}
-        ${knobUnitHtml({ id: 't2iGuidance', label: 'Guidance', value: '1.0' })}
-        ${knobUnitHtml({ id: 't2iCount', label: 'Count', value: '1' })}
-        ${knobUnitHtml({ id: 't2iDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+        ${knobUnitHtml({ id: 't2iWidth', label: 'Width', value: '512', helpTitle: 'Width — image width in px [256–1024]', helpText: 'Output image width, snapped to multiples of 8. Sane: 512–768; default 512.' })}
+        ${knobUnitHtml({ id: 't2iHeight', label: 'Height', value: '512', helpTitle: 'Height — image height in px [256–1024]', helpText: 'Output image height, snapped to multiples of 8. Sane: 512–768; default 512.' })}
+        ${knobUnitHtml({ id: 't2iSteps', label: 'Steps', value: '4', helpTitle: 'Steps — denoise steps [1–30]', helpText: 'Diffusion denoise steps. More = higher quality, slower. Turbo models want only a few. Sane: 2–8; default 4.' })}
+        ${knobUnitHtml({ id: 't2iGuidance', label: 'Guidance', value: '1.0', helpTitle: 'Guidance — prompt following [0–8]', helpText: 'How strongly the prompt is followed; turbo-style low guidance sits near 1, higher pulls closer to the prompt. Sane: 1–6; default 1.0.' })}
+        ${knobUnitHtml({ id: 't2iCount', label: 'Count', value: '1', helpTitle: 'Count — images per run [1–8]', helpText: 'How many images one run generates, each at seed+i. Sane: 1–4; default 1.' })}
+        ${knobUnitHtml({ id: 't2iDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Validates params and prints the command without writing output files.' })}
       </div>
       <p class="knob-row-legend">
         Size snapped to multiples of 8. <strong>Count</strong> 1–8 images (seed+i).

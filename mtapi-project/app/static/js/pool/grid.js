@@ -1,5 +1,6 @@
 // Pool grid rendering + dock layout — extracted from app.js
 import { basename, escapeHtml, formatDurationExact } from '/js/utils.js';
+import { HelpStrip } from '/js/ui/help-strip.js';
 import { POOL_ZOOM, TILE_INFO_FIELDS } from '/js/pool/constants.js';
 import {
   ensurePoolLayout, applyPoolLayout, togglePoolSection, expandMatchesRoom,
@@ -1157,7 +1158,24 @@ function _applyCardVisuals(card, item, index) {
   else delete card.dataset.hash;
   card.dataset.idx = String(index);
   card.draggable = true;
-  card.setAttribute('data-help-title', 'Drag into sequence to stitch');
+  card.setAttribute('data-help-text', 'Drag into sequence to stitch · click to select · double-click to preview');
+  HelpStrip.register(card, {
+    title: () => {
+      const it = findPoolItem(card.dataset.path);
+      return (it && (it.name || basename(it.path))) || basename(card.dataset.path || '') || 'Video pool clip';
+    },
+    text: () => {
+      const it = findPoolItem(card.dataset.path);
+      if (!it) return '';
+      const m = it.meta || {};
+      const parts = [];
+      if (m.width && m.height) parts.push(`${m.width}×${m.height}`);
+      const dur = Number(m.duration);
+      if (Number.isFinite(dur) && dur > 0) parts.push(`${formatDurationExact(dur)}`);
+      if (m.video_codec) parts.push(String(m.video_codec));
+      return parts.join(' · ');
+    },
+  });
 
   const badge = card.querySelector('.pool-seq-indicator');
   if (badge) {

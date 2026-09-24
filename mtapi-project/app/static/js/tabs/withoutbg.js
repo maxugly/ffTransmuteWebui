@@ -52,7 +52,7 @@ function renderWithoutBgForm() {
 
     <div class="form-row">
       <label for="wbgBackend">Mode</label>
-      <select id="wbgBackend">
+      <select id="wbgBackend" data-help-title="Mode — Local / Cloud API" data-help-text="Local runs the open weights on CPU (free; first run pulls ~455 MB from Hugging Face). Cloud hits the withoutbg API and needs WITHOUTBG_API_KEY.">
         <option value="local" selected>Local (CPU, free)</option>
         <option value="api">Cloud API</option>
       </select>
@@ -66,10 +66,10 @@ function renderWithoutBgForm() {
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'wbgSaveCutout', label: 'Cutout', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'wbgSaveMask', label: 'Mask', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'wbgSaveBg', label: 'Background', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'wbgDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+        ${knobUnitHtml({ id: 'wbgSaveCutout', label: 'Cutout', value: '1', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Cutout — Off / On', helpText: 'On writes the subject cut-out (RGBA, transparent background) beside the source. Off saves no cutout. Default On.' })}
+        ${knobUnitHtml({ id: 'wbgSaveMask', label: 'Mask', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Mask — Off / On', helpText: 'On writes the grayscale alpha mask (white = subject) beside the source. Always PNG regardless of Format.' })}
+        ${knobUnitHtml({ id: 'wbgSaveBg', label: 'Background', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Background — Off / On', helpText: 'On writes the leftover scene (subject punched out) beside the source.' })}
+        ${knobUnitHtml({ id: 'wbgDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Validates params and prints the command without writing output files.' })}
       </div>
       <p class="knob-row-legend">
         <strong>Cutout</strong> = subject RGBA (transparent BG).<br>

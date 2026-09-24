@@ -117,7 +117,7 @@ const KNOB_RENDER = {
     <div class="form-row">
       <label for="muSeed">Seed</label>
       <div class="input-row">
-        ${knobUnitHtml({ id: 'muSeed', label: 'Seed', value: String(st.seed ?? 42) })}
+${knobUnitHtml({ id: 'muSeed', label: 'Seed', value: String(st.seed ?? 42), helpTitle: 'Seed — fixed RNG seed [0–4294967295]', helpText: 'Fixed seeds replay bit-identical; Rand mode or the dice draws a new seed per run. Sane: any 0–4294967295; default 42.' })}
         <button type="button" class="btn" id="btnMuDice" data-help-title="Random seed">🎲</button>
       </div>
       <span class="form-row-hint">Same prompt + seed = bit-identical clip.</span>
@@ -125,13 +125,13 @@ const KNOB_RENDER = {
   duration: (st) => `
     <div class="form-row">
       <label for="muDuration">Duration</label>
-      ${knobUnitHtml({ id: 'muDuration', label: 'Seconds', value: String(st.duration ?? 12) })}
+      ${knobUnitHtml({ id: 'muDuration', label: 'Seconds', value: String(st.duration ?? 12), helpTitle: 'Seconds — clip length in seconds [10–60]', helpText: 'Length of the generated clip. Below 10 is under the model floor. Sane: 10–60; default 12.' })}
       <span class="form-row-hint">10–60 s (below 10 is under the model floor).</span>
     </div>`,
   bpm: (st) => `
     <div class="form-row">
       <label for="muBpm">BPM</label>
-      ${knobUnitHtml({ id: 'muBpm', label: 'BPM', value: String(st.bpm ?? '0') })}
+      ${knobUnitHtml({ id: 'muBpm', label: 'BPM', value: String(st.bpm ?? '0'), helpTitle: 'BPM — Beats Per Minute [0-300, 0=auto]', helpText: 'Sets tempo for the SFT template. 0 lets the model estimate the tempo. Sane: 60–180; default 0 (auto).' })}
       <span class="form-row-hint">20.000–300.000, 3 decimals for stem sync (0 or blank = model estimates).</span>
     </div>`,
   key: (st) => {
@@ -183,12 +183,12 @@ const KNOB_RENDER = {
   overwrite: () => `
     <div class="form-row">
       <label>Overwrite</label>
-      ${knobUnitHtml({ id: 'muOverwrite', label: 'Overwrite', value: '0', binary: true, leftCap: 'Keep', rightCap: 'Over' })}
+      ${knobUnitHtml({ id: 'muOverwrite', label: 'Overwrite', value: '0', binary: true, leftCap: 'Keep', rightCap: 'Over', helpTitle: 'Overwrite — Keep / Over', helpText: 'Over writes over an existing output file; Keep leaves existing files in place. Left = Keep, right = Over; default Keep.' })}
     </div>`,
   dryrun: () => `
     <div class="form-row">
       <label>Dry run</label>
-      ${knobUnitHtml({ id: 'muDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+      ${knobUnitHtml({ id: 'muDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Validates params and prints the command without writing output files.' })}
     </div>`,
   // CFG entries (base/sft): rendered iff the model's knobs[] lists them.
   negative: (st) => `
@@ -199,23 +199,23 @@ const KNOB_RENDER = {
   steps: (st) => `
     <div class="form-row">
       <label for="muSteps">Steps</label>
-      ${knobUnitHtml({ id: 'muSteps', label: 'Steps', value: String(st.steps ?? 50) })}
+      ${knobUnitHtml({ id: 'muSteps', label: 'Steps', value: String(st.steps ?? 50), helpTitle: 'Steps — diffusion denoise steps [8–60]', helpText: 'Diffusion denoise steps. More = higher quality, slower. Sane: 20–50; default 50.' })}
     </div>`,
   guidance: (st) => `
     <div class="form-row">
       <label for="muGuidance">Guidance</label>
-      ${knobUnitHtml({ id: 'muGuidance', label: 'Scale', value: String(st.guidance ?? 7.0) })}
+      ${knobUnitHtml({ id: 'muGuidance', label: 'Scale', value: String(st.guidance ?? 7.0), helpTitle: 'Scale — guidance [1–15]', helpText: 'How strongly the prompt is followed (CFG base/sft only). Sane: 1–12 (turbo bakes it out); default 7.0.' })}
     </div>`,
   shift: (st) => `
     <div class="form-row">
       <label for="muShift">Shift</label>
-      ${knobUnitHtml({ id: 'muShift', label: 'Shift', value: String(st.shift ?? 3.0) })}
+      ${knobUnitHtml({ id: 'muShift', label: 'Shift', value: String(st.shift ?? 3.0), helpTitle: 'Shift — CFG shift [0.5–8]', helpText: 'Shifts the prompt conditioning offset on the schedule; classic 3.0, 1.0 = turbo-shift1 recipe. Tune ~1–8. Sane: 1–8; default 3.0.' })}
       <span class="form-row-hint">Schedule shift: 3.0 default, 1.0 = turbo-shift1 recipe.</span>
     </div>`,
   apg: (st) => `
     <div class="form-row">
       <label>APG</label>
-      ${knobUnitHtml({ id: 'muApg', label: 'APG', value: (st.apg ?? '1'), binary: true, leftCap: 'CFG', rightCap: 'APG' })}
+      ${knobUnitHtml({ id: 'muApg', label: 'APG', value: (st.apg ?? '1'), binary: true, leftCap: 'CFG', rightCap: 'APG', helpTitle: 'APG — CFG / APG', helpText: 'APG adaptive guidance vs plain CFG (base/sft only). Left = plain CFG, right = APG; default APG.' })}
       <span class="form-row-hint">APG adaptive guidance vs plain CFG (base/sft only).</span>
     </div>`,
 };
@@ -235,17 +235,17 @@ function muBankHtml(st, knobs) {
   }
   if (!bank.length) return '';
   const units = {
-    seed: `<span class="mu-seed-wrap">${knobUnitHtml({ id: 'muSeed', label: 'Seed', value: String(st.seed ?? 42) })}
+    seed: `<span class="mu-seed-wrap">${knobUnitHtml({ id: 'muSeed', label: 'Seed', value: String(st.seed ?? 42), helpTitle: 'Seed — fixed RNG seed [0–4294967295]', helpText: 'Fixed seeds replay bit-identical; Rand mode or the dice draws a new seed per run. Sane: any 0–4294967295; default 42.' })}
       <button type="button" class="btn mu-dice" id="btnMuDice" data-help-title="Random seed">🎲</button></span>`,
-    seedrand: knobUnitHtml({ id: 'muSeedRand', label: 'Seed?', value: (st.seedRand ?? '1'), binary: true, leftCap: 'Fixed', rightCap: 'Rand' }),
-    duration: knobUnitHtml({ id: 'muDuration', label: 'Seconds', value: String(st.duration ?? 12) }),
-    bpm: knobUnitHtml({ id: 'muBpm', label: 'BPM', value: String(st.bpm ?? '0') }),
-    steps: knobUnitHtml({ id: 'muSteps', label: 'Steps', value: String(st.steps ?? 50) }),
-    guidance: knobUnitHtml({ id: 'muGuidance', label: 'Scale', value: String(st.guidance ?? 7.0) }),
-    shift: knobUnitHtml({ id: 'muShift', label: 'Shift', value: String(st.shift ?? 3.0) }),
-    apg: knobUnitHtml({ id: 'muApg', label: 'APG', value: (st.apg ?? '1'), binary: true, leftCap: 'CFG', rightCap: 'APG' }),
-    overwrite: knobUnitHtml({ id: 'muOverwrite', label: 'Overwrite', value: '0', binary: true, leftCap: 'Keep', rightCap: 'Over' }),
-    dryrun: knobUnitHtml({ id: 'muDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' }),
+    seedrand: knobUnitHtml({ id: 'muSeedRand', label: 'Seed?', value: (st.seedRand ?? '1'), binary: true, leftCap: 'Fixed', rightCap: 'Rand', helpTitle: 'Seed Mode — Fixed / Rand', helpText: 'Fixed (left) uses the fixed seed for repeatable output · Random (right) rolls a new seed per Run.' }),
+    duration: knobUnitHtml({ id: 'muDuration', label: 'Seconds', value: String(st.duration ?? 12), helpTitle: 'Seconds — clip length in seconds [10–60]', helpText: 'Length of the generated clip. Below 10 is under the model floor. Sane: 10–60; default 12.' }),
+    bpm: knobUnitHtml({ id: 'muBpm', label: 'BPM', value: String(st.bpm ?? '0'), helpTitle: 'BPM — Beats Per Minute [0-300, 0=auto]', helpText: 'Sets tempo for the SFT template. 0 lets the model estimate the tempo. Sane: 60–180; default 0 (auto).' }),
+    steps: knobUnitHtml({ id: 'muSteps', label: 'Steps', value: String(st.steps ?? 50), helpTitle: 'Steps — diffusion denoise steps [8–60]', helpText: 'Diffusion denoise steps. More = higher quality, slower. Sane: 20–50; default 50.' }),
+    guidance: knobUnitHtml({ id: 'muGuidance', label: 'Scale', value: String(st.guidance ?? 7.0), helpTitle: 'Scale — guidance [1–15]', helpText: 'How strongly the prompt is followed (CFG base/sft only). Sane: 1–12 (turbo bakes it out); default 7.0.' }),
+    shift: knobUnitHtml({ id: 'muShift', label: 'Shift', value: String(st.shift ?? 3.0), helpTitle: 'Shift — CFG shift [0.5–8]', helpText: 'Shifts the prompt conditioning offset on the schedule; classic 3.0, 1.0 = turbo-shift1 recipe. Tune ~1–8. Sane: 1–8; default 3.0.' }),
+    apg: knobUnitHtml({ id: 'muApg', label: 'APG', value: (st.apg ?? '1'), binary: true, leftCap: 'CFG', rightCap: 'APG', helpTitle: 'APG — CFG / APG', helpText: 'APG adaptive guidance vs plain CFG (base/sft only). Left = plain CFG, right = APG; default APG.' }),
+    overwrite: knobUnitHtml({ id: 'muOverwrite', label: 'Overwrite', value: '0', binary: true, leftCap: 'Keep', rightCap: 'Over', helpTitle: 'Overwrite — Keep / Over', helpText: 'Over writes over an existing output file; Keep leaves existing files in place. Left = Keep, right = Over; default Keep.' }),
+    dryrun: knobUnitHtml({ id: 'muDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Validates params and prints the command without writing output files.' }),
   };
   return `
     <div class="knob-row">
@@ -376,6 +376,8 @@ async function renderMusicForm() {
         leftValue: '0', rightValue: '1', initial: _muState().seedRand ?? '1',
       });
     }
+    const diceBtn2 = document.getElementById('btnMuDice');
+    if (diceBtn2) { diceBtn2.setAttribute('data-help-title','Randomize Seed'); diceBtn2.setAttribute('data-help-text','Rolls a new random seed and updates display. Click to randomize.'); }
     document.getElementById('btnMuDice')?.addEventListener('click', () => {
       const n = Math.floor(Math.random() * 4294967296);
       const v = String(n);

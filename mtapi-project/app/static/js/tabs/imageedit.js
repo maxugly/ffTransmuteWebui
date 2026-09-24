@@ -15,7 +15,7 @@ function renderImageEditForm() {
     <!-- Export Settings -->
     <div class="form-group">
       <label>Processing Engine</label>
-      <select id="ieEngine">
+      <select id="ieEngine" data-help-title="Engine — FFmpeg / ImageMagick / Pillow" data-help-text="FFmpeg: fast, standard formats. ImageMagick: powerful, legacy formats. Pillow: fast Python-native conversion.">
         <option value="ffmpeg">FFmpeg (Fast, standard formats)</option>
         <option value="imagemagick">ImageMagick (Powerful, legacy formats)</option>
         <option value="pillow">Pillow (Fast Python native)</option>
@@ -24,7 +24,7 @@ function renderImageEditForm() {
 
     <div class="form-group">
       <label>Output Format</label>
-      <select id="ieFormat">
+      <select id="ieFormat" data-help-title="Format — PNG / JPG / WebP / TIFF / BMP / TGA" data-help-text="Output format. PNG/WebP keep alpha; JPG compresses; TIFF/BMP/TGA are legacy/print targets.">
         <option value="png">PNG (Lossless, Alpha)</option>
         <option value="jpg">JPG (Compressed)</option>
         <option value="webp">WebP (Modern, Alpha)</option>
@@ -37,7 +37,7 @@ function renderImageEditForm() {
     <div class="form-row">
       <label for="ieOutput">Output path</label>
       <div class="input-row">
-        <input type="text" id="ieOutput" placeholder="blank = auto next to input">
+        <input type="text" id="ieOutput" placeholder="blank = auto next to input" data-help-title="Output — blank = auto next to input" data-help-text="Converted write target; blank writes next to each input.">
         <button class="btn" onclick="openFileBrowser('ieOutput', false, 'file_save')">Save As</button>
       </div>
     </div>
@@ -61,7 +61,7 @@ function renderImageEditForm() {
 
     <div class="knob-row" style="margin-top: 1rem;">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'ieDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+        ${knobUnitHtml({ id: 'ieDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Validates params and prints the command without writing output files.' })}
       </div>
       <p class="knob-row-legend">Dry = print command only, no file written.</p>
     </div>
@@ -282,8 +282,8 @@ function renderStack() {
     if (op.type === 'scale') {
       content = `
         <div style="display:flex; gap: 8px; align-items:center;">
-          W: <input type="number" class="timeline-value-input" value="${op.width}" onchange="ieUpdateOp(${idx}, 'width', this.value)" style="width: 60px;">
-          H: <input type="number" class="timeline-value-input" value="${op.height}" onchange="ieUpdateOp(${idx}, 'height', this.value)" style="width: 60px;">
+          W: <input type="number" class="timeline-value-input" value="${op.width}" onchange="ieUpdateOp(${idx}, 'width', this.value)" style="width: 60px;" data-help-title="W — scaled width px" data-help-text="Result width after the scale op.">
+          H: <input type="number" class="timeline-value-input" value="${op.height}" onchange="ieUpdateOp(${idx}, 'height', this.value)" style="width: 60px;" data-help-title="H — scaled height px" data-help-text="Result height after the scale op.">
         </div>
       `;
     } else if (op.type === 'crop') {
@@ -292,13 +292,13 @@ function renderStack() {
       content = `
         <div style="display:flex; flex-direction:column; gap:6px;">
           <div style="display:flex; gap:8px; align-items:center;">
-            W: <input id="ieW_${idx}" type="number" class="timeline-value-input" value="${op.width}" onchange="ieUpdateOp(${idx}, 'width', this.value)" oninput="ieSyncCropPreview()" style="width: 60px;">
-            H: <input id="ieH_${idx}" type="number" class="timeline-value-input" value="${op.height}" onchange="ieUpdateOp(${idx}, 'height', this.value)" oninput="ieSyncCropPreview()" style="width: 60px;">
+            W: <input id="ieW_${idx}" type="number" class="timeline-value-input" value="${op.width}" onchange="ieUpdateOp(${idx}, 'width', this.value)" oninput="ieSyncCropPreview()" style="width: 60px;" data-help-title="W — crop width px" data-help-text="Keep width of the crop window inside the source.">
+            H: <input id="ieH_${idx}" type="number" class="timeline-value-input" value="${op.height}" onchange="ieUpdateOp(${idx}, 'height', this.value)" oninput="ieSyncCropPreview()" style="width: 60px;" data-help-title="H — crop height px" data-help-text="Keep height of the crop window inside the source.">
             <button class="btn btn-sm" style="padding: 1px 6px; font-size:0.7rem; line-height:1.2;" onclick="ieSquareCrop(${idx})" data-help-title="Set W=H to a square (min source side if known)">▣ Square</button>
           </div>
           <div style="display:flex; gap:6px; align-items:center;">
             X:
-            <input id="ieX_${idx}" type="number" class="timeline-value-input" value="${op.x}" onchange="ieUpdateOp(${idx}, 'x', this.value)" oninput="ieSyncCropPreview()" style="width: 60px;">
+            <input id="ieX_${idx}" type="number" class="timeline-value-input" value="${op.x}" onchange="ieUpdateOp(${idx}, 'x', this.value)" oninput="ieSyncCropPreview()" style="width: 60px;" data-help-title="X — crop left offset px" data-help-text="Left edge of the crop window inside the source.">
             <span style="display:flex; gap:3px;">
               ${anchorBtn('ieAnchorX', 'L', 'L', 'Left: crop window flush to the left edge (X=0)')}
               ${anchorBtn('ieAnchorX', 'C', 'C', 'Center horizontally (X=(srcW-cropW)/2)')}
@@ -307,7 +307,7 @@ function renderStack() {
           </div>
           <div style="display:flex; gap:6px; align-items:center;">
             Y:
-            <input id="ieY_${idx}" type="number" class="timeline-value-input" value="${op.y}" onchange="ieUpdateOp(${idx}, 'y', this.value)" oninput="ieSyncCropPreview()" style="width: 60px;">
+            <input id="ieY_${idx}" type="number" class="timeline-value-input" value="${op.y}" onchange="ieUpdateOp(${idx}, 'y', this.value)" oninput="ieSyncCropPreview()" style="width: 60px;" data-help-title="Y — crop top offset px" data-help-text="Top edge of the crop window inside the source.">
             <span style="display:flex; gap:3px;">
               ${anchorBtn('ieAnchorY', 'T', 'T', 'Top: crop window flush to the top edge (Y=0)')}
               ${anchorBtn('ieAnchorY', 'M', 'M', 'Middle vertically (Y=(srcH-cropH)/2)')}
@@ -319,8 +319,8 @@ function renderStack() {
     } else if (op.type === 'pad') {
       content = `
         <div style="display:flex; gap: 8px; align-items:center;">
-          W: <input type="number" class="timeline-value-input" value="${op.width}" onchange="ieUpdateOp(${idx}, 'width', this.value)" style="width: 60px;">
-          H: <input type="number" class="timeline-value-input" value="${op.height}" onchange="ieUpdateOp(${idx}, 'height', this.value)" style="width: 60px;">
+          W: <input type="number" class="timeline-value-input" value="${op.width}" onchange="ieUpdateOp(${idx}, 'width', this.value)" style="width: 60px;" data-help-title="W — padded width px" data-help-text="Result width after the pad op.">
+          H: <input type="number" class="timeline-value-input" value="${op.height}" onchange="ieUpdateOp(${idx}, 'height', this.value)" style="width: 60px;" data-help-title="H — padded height px" data-help-text="Result height after the pad op.">
           Color: <input type="text" class="timeline-value-input" value="${op.color}" onchange="ieUpdateOp(${idx}, 'color', this.value)" style="width: 80px;">
         </div>
       `;

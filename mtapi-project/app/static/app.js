@@ -22,7 +22,7 @@ import {
   formatJobLine, stopJobProgressPoll, startJobProgressPoll,
   newJobToken, enqueueActiveOperation,
 } from '/js/job-control.js';
-import { renderMoshForm, updateMoshParams } from '/js/tabs/datamosh.js';
+import { renderMoshForm, updateMoshParams } from '/js/tabs/datamosh.js?v=2';
 import { renderDeepDreamForm, collectDeepDreamBody } from '/js/tabs/deepdream.js?v=2';
 import { renderTransmuteForm, renderMultiForm, renderAdvancedForm, addMultiClipPath } from '/js/tabs/transmute.js';
 import { renderFaceMorphForm, collectFaceMorphBody } from '/js/tabs/facemorph.js';
@@ -34,7 +34,7 @@ import { renderImg2ImgForm, collectImg2ImgBody } from '/js/tabs/img2img.js';
 import { renderTxt2ImgForm, collectTxt2ImgBody } from '/js/tabs/txt2img.js';
 import { renderQrArtForm, collectQrBody, showQrScannability } from '/js/tabs/qr.js';
 import { renderAgentForm, applyPendingToImg2Img, applyPendingToTxt2Img } from '/js/tabs/agent.js';
-import { renderUpscaleForm, collectUpscaleBody } from '/js/tabs/upscale.js';
+import { renderUpscaleForm, collectUpscaleBody } from '/js/tabs/upscale.js?v=2';
 import { renderRifeRecohereForm, collectRifeRecohereBody } from '/js/tabs/riferecohere.js';
 import { renderSpeedChangeForm, collectSpeedChangeBody } from '/js/tabs/speedchange.js';
 import { loadQuickSettings, renderQuickTransmuteForm, runQuickTransmute, quickTransmuteLabel } from '/js/tabs/quick.js';

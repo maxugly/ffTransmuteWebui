@@ -48,7 +48,7 @@ function renderStyleTransferForm() {
     </div>
     <div class="form-row">
       <label for="stEngine">Engine</label>
-      <select id="stEngine">
+      <select id="stEngine" data-help-title="Engine — CPU / GPU" data-help-text="CPU = Magenta arbitrary stylization (~90 MB). GPU = OpenVINO AdaIN on the iGPU (needs one-time GPU Setup below).">
         <option value="cpu">CPU · Magenta (existing)</option>
         <option value="gpu">GPU · OpenVINO AdaIN (iGPU)</option>
       </select>
@@ -60,7 +60,7 @@ function renderStyleTransferForm() {
       <span class="form-row-hint">One-time IR install + CPU smoke + GPU probe.</span>
     </div>
     <div class="knob-row settings-inline-warm">
-      <div class="knob-bank">${knobUnitHtml({ id: 'stWarm', label: 'Keep warm', value: state.settings?.warmModels?.styletransfer ? '1' : '0', binary: true, leftCap: 'Off', rightCap: 'On' })}</div>
+      <div class="knob-bank">${knobUnitHtml({ id: 'stWarm', label: 'Keep warm', value: state.settings?.warmModels?.styletransfer ? '1' : '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Keep warm — Off / On', helpText: 'Keeps the model resident between runs. On = faster repeat runs, holds VRAM.' })}</div>
       <p class="knob-row-legend">Keep the style-transfer model resident between runs (uses RAM/VRAM).</p>
     </div>
 
@@ -83,30 +83,30 @@ function renderStyleTransferForm() {
       <label for="stStylePath">Style</label>
       <div class="input-row">
         <input type="text" id="stStylePath" placeholder="required: painting / texture still"
-          value="${stylePath ? escapeHtml(stylePath) : ''}">
-        <button type="button" class="btn" id="btnStStyleBrowse">Browse</button>
+          value="${stylePath ? escapeHtml(stylePath) : ''}" data-help-title="Style — painting / texture still" data-help-text="Absolute path to the style image whose look is transferred. Required for every run.">
+        <button type="button" class="btn" id="btnStStyleBrowse" data-help-title="Browse style" data-help-text="Pick the style image (painting / texture).">Browse</button>
       </div>
     </div>
     <div class="form-row">
       <label for="stOutput">Output</label>
       <div class="input-row">
-        <input type="text" id="stOutput" placeholder="blank = next to source">
-        <button type="button" class="btn" id="btnStOutBrowse">Save As</button>
+        <input type="text" id="stOutput" placeholder="blank = next to source" data-help-title="Output — blank = next to source" data-help-text="Stylized write target. Blank writes *_styled.png (stills) or *_styled.mp4 (video) next to the source.">
+        <button type="button" class="btn" id="btnStOutBrowse" data-help-title="Browse output" data-help-text="Pick where the stylized file is written.">Save As</button>
       </div>
     </div>
     <div class="form-row">
       <label for="stOutputDir">Batch dir</label>
       <div class="input-row">
-        <input type="text" id="stOutputDir" placeholder="optional shared folder for stills">
-        <button type="button" class="btn" id="btnStOutDirBrowse">Folder</button>
+        <input type="text" id="stOutputDir" placeholder="optional shared folder for stills" data-help-title="Batch dir — shared stills folder" data-help-text="Optional shared folder where styled stills land instead of next to each source. Blank = next to source.">
+        <button type="button" class="btn" id="btnStOutDirBrowse" data-help-title="Browse batch dir" data-help-text="Pick the shared folder for styled stills.">Folder</button>
       </div>
     </div>
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'stStrength', label: 'Strength', value: '1.0' })}
-        ${knobUnitHtml({ id: 'stMaxSide', label: 'Max side', value: '1280' })}
-        ${knobUnitHtml({ id: 'stDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+        ${knobUnitHtml({ id: 'stStrength', label: 'Strength', value: '1.0', helpTitle: 'Strength — style intensity [0–1]', helpText: 'How strongly the style image is applied; 1 = full style. Sane: 0.3–1.0; default 1.0.' })}
+        ${knobUnitHtml({ id: 'stMaxSide', label: 'Max side', value: '1280', helpTitle: 'Max side — longest-edge cap [0–2048]', helpText: 'Longest edge is capped to this px. 0 = keep source size; video applies per frame. Sane: 640–2048; default 1280.' })}
+        ${knobUnitHtml({ id: 'stDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Validates params and prints the command without writing output files.' })}
       </div>
       <p class="knob-row-legend">
         <strong>Strength</strong> 1 = full style. <strong>Max side</strong> 0 = full res (video: per frame).
@@ -115,7 +115,7 @@ function renderStyleTransferForm() {
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'stEvolve', label: 'Evolve', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'stEvolve', label: 'Evolve', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Evolve — Off / On', helpText: 'Per-frame drift: ramps style strength over one neural pass (evolve DeepDream-style path) + optional RIFE and writes *_styled_evolve.mp4. Single still content only. Off = single-pass stylization.' })}
       </div>
       <p class="knob-row-legend">
         Strength ramp (one neural pass) → optional RIFE → <code>*_styled_evolve.mp4</code>.
@@ -126,10 +126,10 @@ function renderStyleTransferForm() {
       ${evolveRifeModelSelectHtml('stEvolve')}
       <div class="knob-row">
         <div class="knob-bank">
-          ${knobUnitHtml({ id: 'stEvolveFrames', label: 'Frames', value: '16' })}
-          ${knobUnitHtml({ id: 'stEvolveStr0', label: 'Str start', value: '0' })}
-          ${knobUnitHtml({ id: 'stEvolveStr1', label: 'Str end', value: '-1' })}
-          ${knobUnitHtml({ id: 'stEvolveFps', label: 'FPS', value: '12' })}
+          ${knobUnitHtml({ id: 'stEvolveFrames', label: 'Frames', value: '16', helpTitle: 'Frames — evolve length [2–128]', helpText: 'Number of frames the strength ramp spans; more = longer, smoother drift. Sane: 8–64; default 16.' })}
+          ${knobUnitHtml({ id: 'stEvolveStr0', label: 'Str start', value: '0', helpTitle: 'Str start — ramp start strength [0–1]', helpText: 'Style strength on the first evolve frame; 0 = off, plain photo start. Sane: 0–0.8; default 0.' })}
+          ${knobUnitHtml({ id: 'stEvolveStr1', label: 'Str end', value: '-1', helpTitle: 'Str end — ramp end strength [-1–1]', helpText: 'Style strength on the last evolve frame; −1 = use the main Strength knob instead of a literal end. Sane: 0.3–1; default −1.' })}
+          ${knobUnitHtml({ id: 'stEvolveFps', label: 'FPS', value: '12', helpTitle: 'FPS — evolve output rate [1–60]', helpText: 'Frame rate of the evolved video; per file. 0/blank = source or auto. Sane: 8–24; default 12.' })}
           ${evolveRifeKnobUnitsHtml('stEvolve')}
         </div>
         <p class="knob-row-legend">

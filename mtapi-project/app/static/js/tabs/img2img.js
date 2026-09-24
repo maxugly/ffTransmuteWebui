@@ -53,7 +53,7 @@ function renderImg2ImgForm() {
 
     <div class="form-row">
       <label for="i2iModel">Model</label>
-      <select id="i2iModel">
+      <select id="i2iModel" data-help-title="Model — turbo / LCM / SD1.5-int8" data-help-text="sd-turbo-openvino is the fast default. LCM-dreamshaper-v7 and SD1.5-int8 trade speed, quality, and style; turbo wants few steps and guidance near 1.">
         <option value="rupeshs/sd-turbo-openvino" selected>sd-turbo-openvino (default)</option>
         <option value="rupeshs/LCM-dreamshaper-v7-openvino">LCM-dreamshaper-v7-openvino</option>
         <option value="rupeshs/sd15-lcm-square-openvino-int8">sd15-lcm-square-openvino-int8</option>
@@ -62,11 +62,11 @@ function renderImg2ImgForm() {
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'i2iStrength', label: 'Strength', value: '0.35' })}
-        ${knobUnitHtml({ id: 'i2iSteps', label: 'Steps', value: '4' })}
-        ${knobUnitHtml({ id: 'i2iGuidance', label: 'Guidance', value: '1.0' })}
-        ${knobUnitHtml({ id: 'i2iMaxSide', label: 'Max side', value: '0' })}
-        ${knobUnitHtml({ id: 'i2iDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+        ${knobUnitHtml({ id: 'i2iStrength', label: 'Strength', value: '0.35', helpTitle: 'Strength — denoise strength [0.05–0.95]', helpText: 'Denoise strength; 0 keeps the input, 1 redraws fully. Low keeps structure, high rewrites. Sane: 0.25–0.65; default 0.35.' })}
+        ${knobUnitHtml({ id: 'i2iSteps', label: 'Steps', value: '4', helpTitle: 'Steps — denoise steps [1–30]', helpText: 'Diffusion denoise steps. More = higher quality, slower. OpenVINO path scales like FastSD. Turbo wants only a few. Sane: 2–8; default 4.' })}
+        ${knobUnitHtml({ id: 'i2iGuidance', label: 'Guidance', value: '1.0', helpTitle: 'Guidance — prompt following [0–8]', helpText: 'How strongly the prompt is followed; turbo-style low guidance sits near 1, higher pulls closer to the prompt. Sane: 1–6; default 1.0.' })}
+        ${knobUnitHtml({ id: 'i2iMaxSide', label: 'Max side', value: '0', helpTitle: 'Max side — longest-edge cap [0–1024]', helpText: '0 = keep source size; otherwise the longest edge is capped to this px (snapped to %8). Try 512/768 if VRAM is tight. Sane: 0 or 512–768; default 0.' })}
+        ${knobUnitHtml({ id: 'i2iDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Validates params and prints the command without writing output files.' })}
       </div>
       <p class="knob-row-legend">
         <strong>Strength</strong> — low keeps structure, high rewrites.<br>

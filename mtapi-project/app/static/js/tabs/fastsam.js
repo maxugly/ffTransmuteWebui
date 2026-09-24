@@ -9,15 +9,15 @@ export function renderFastSAMForm() {
       <p class="dream-hint">Uses OpenVINO optimized FastSAM model to extract subjects (FP16 on Iris Xe). Outputs transparent PNG or video.</p>
     </div>
     <div class="knob-row settings-inline-warm">
-      <div class="knob-bank">${knobUnitHtml({ id: 'fastsamWarm', label: 'Keep warm', value: state.settings?.warmModels?.fastsam ? '1' : '0', binary: true, leftCap: 'Off', rightCap: 'On' })}</div>
+      <div class="knob-bank">${knobUnitHtml({ id: 'fastsamWarm', label: 'Keep warm', value: state.settings?.warmModels?.fastsam ? '1' : '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Keep warm — Off / On', helpText: 'Keeps the OpenVINO FastSAM model resident between runs. On = faster repeat runs, holds VRAM.' })}</div>
       <p class="knob-row-legend">Keep the FastSAM model resident between runs (uses VRAM).</p>
     </div>
 
     <div class="form-row">
       <label for="fastsamInput">Input</label>
       <div class="input-row">
-        <input type="text" id="fastsamInput" placeholder="/absolute/path/to/image_or_video.mp4">
-        <button class="btn" type="button" id="btnFastsamBrowseIn">Browse</button>
+        <input type="text" id="fastsamInput" placeholder="/absolute/path/to/image_or_video.mp4" data-help-title="Input — image or video" data-help-text="Absolute path to the source. Images show a click-to-pick preview below; video runs per-frame.">
+        <button class="btn" type="button" id="btnFastsamBrowseIn" data-help-title="Browse input" data-help-text="Pick the source image or video file.">Browse</button>
       </div>
     </div>
     
@@ -32,14 +32,14 @@ export function renderFastSAMForm() {
     <div class="form-row">
       <label for="fastsamOutput">Output</label>
       <div class="input-row">
-        <input type="text" id="fastsamOutput" placeholder="blank = next to source">
-        <button class="btn" type="button" id="btnFastsamBrowseOut">Save As</button>
+        <input type="text" id="fastsamOutput" placeholder="blank = next to source" data-help-title="Output — blank = next to source" data-help-text="Target mode writes one transparent PNG / video; Everything mode writes a folder of cut-outs. Blank reuses the source folder.">
+        <button class="btn" type="button" id="btnFastsamBrowseOut" data-help-title="Browse output" data-help-text="Pick where the cut-out (or cut-out folder) is written.">Save As</button>
       </div>
     </div>
     
     <div class="form-row">
       <label for="fastsamMode">Mode</label>
-      <select id="fastsamMode">
+      <select id="fastsamMode" data-help-title="Mode — Target / Everything" data-help-text="Target extracts the single mask under the X/Y prompt point. Everything saves every detected mask to a folder and ignores X/Y.">
         <option value="target" selected>Target (X,Y)</option>
         <option value="everything">Segment Everything</option>
       </select>
@@ -48,7 +48,7 @@ export function renderFastSAMForm() {
 
     <div class="form-row">
       <label for="fastsamModel">Model</label>
-      <select id="fastsamModel">
+      <select id="fastsamModel" data-help-title="Model — FastSAM-s / FastSAM-x" data-help-text="FastSAM-s is the fast default. FastSAM-x is slower and more accurate, uses more RAM. First run downloads + exports the weights.">
         <option value="FastSAM-s" selected>FastSAM-s (default)</option>
         <option value="FastSAM-x">FastSAM-x (slow, accurate)</option>
       </select>
@@ -57,7 +57,7 @@ export function renderFastSAMForm() {
 
     <div class="form-row">
       <label for="fastsamDevice">Device</label>
-      <select id="fastsamDevice">
+      <select id="fastsamDevice" data-help-title="Device — GPU / CPU / AUTO" data-help-text="GPU targets Iris Xe FP16 (fastest). CPU is the slow fallback. AUTO lets OpenVINO choose.">
         <option value="GPU" selected>GPU (Iris Xe)</option>
         <option value="CPU">CPU</option>
         <option value="AUTO">AUTO</option>
@@ -66,41 +66,41 @@ export function renderFastSAMForm() {
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'fastsamTargetX', label: 'Target X', value: '0.50' })}
-        ${knobUnitHtml({ id: 'fastsamTargetY', label: 'Target Y', value: '0.50' })}
+        ${knobUnitHtml({ id: 'fastsamTargetX', label: 'Target X', value: '0.50', helpTitle: 'Target X — prompt point [0–1]', helpText: 'Normalized X of the point to segment: 0 = left edge, 1 = right edge. Click the preview image to set X/Y. Ignored in Everything mode. Sane: 0.1–0.9; default 0.50.' })}
+        ${knobUnitHtml({ id: 'fastsamTargetY', label: 'Target Y', value: '0.50', helpTitle: 'Target Y — prompt point [0–1]', helpText: 'Normalized Y of the point to segment: 0 = top edge, 1 = bottom edge. Click the preview image to set X/Y. Ignored in Everything mode. Sane: 0.1–0.9; default 0.50.' })}
       </div>
     </div>
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'fastsamConf', label: 'Confidence', value: '0.40' })}
-        ${knobUnitHtml({ id: 'fastsamIou', label: 'IoU', value: '0.90' })}
-        ${knobUnitHtml({ id: 'fastsamDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+        ${knobUnitHtml({ id: 'fastsamConf', label: 'Confidence', value: '0.40', helpTitle: 'Confidence — detection threshold [0.1–0.99]', helpText: 'Minimum box confidence FastSAM keeps (ultralytics conf). Lower = more masks, more junk. Sane: 0.25–0.6; default 0.40.' })}
+        ${knobUnitHtml({ id: 'fastsamIou', label: 'IoU', value: '0.90', helpTitle: 'IoU — NMS overlap threshold [0.1–0.99]', helpText: 'Overlap allowed before duplicate masks merge (ultralytics NMS iou). Higher = more overlapping masks kept. Sane: 0.7–0.95; default 0.90.' })}
+        ${knobUnitHtml({ id: 'fastsamDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Dry validates params and paths without running inference. No output files are written.' })}
       </div>
     </div>
   `;
   elements.actionPanel.innerHTML = html;
 
   setupContinuousKnob({
-    knobId: 'fastsamTargetXKnob', indicatorId: 'fastsamTargetXKnobInd', hiddenId: 'fastsamTargetX',
+    knobId: 'fastsamTargetXKnob', indicatorId: 'fastsamTargetXKnobInd', valueId: 'fastsamTargetXVal', hiddenId: 'fastsamTargetX',
     min: 0.0, max: 1.0, initial: 0.5, step: 0.05,
     format: (v) => v.toFixed(2),
   });
 
   setupContinuousKnob({
-    knobId: 'fastsamTargetYKnob', indicatorId: 'fastsamTargetYKnobInd', hiddenId: 'fastsamTargetY',
+    knobId: 'fastsamTargetYKnob', indicatorId: 'fastsamTargetYKnobInd', valueId: 'fastsamTargetYVal', hiddenId: 'fastsamTargetY',
     min: 0.0, max: 1.0, initial: 0.5, step: 0.05,
     format: (v) => v.toFixed(2),
   });
 
   setupContinuousKnob({
-    knobId: 'fastsamConfKnob', indicatorId: 'fastsamConfKnobInd', hiddenId: 'fastsamConf',
+    knobId: 'fastsamConfKnob', indicatorId: 'fastsamConfKnobInd', valueId: 'fastsamConfVal', hiddenId: 'fastsamConf',
     min: 0.1, max: 0.99, initial: 0.4, step: 0.05,
     format: (v) => v.toFixed(2),
   });
 
   setupContinuousKnob({
-    knobId: 'fastsamIouKnob', indicatorId: 'fastsamIouKnobInd', hiddenId: 'fastsamIou',
+    knobId: 'fastsamIouKnob', indicatorId: 'fastsamIouKnobInd', valueId: 'fastsamIouVal', hiddenId: 'fastsamIou',
     min: 0.1, max: 0.99, initial: 0.9, step: 0.05,
     format: (v) => v.toFixed(2),
   });

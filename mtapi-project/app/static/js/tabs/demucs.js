@@ -58,7 +58,7 @@ function renderDemucsForm() {
     </div>
     <div class="form-row">
       <label for="dmModel">Model</label>
-      <select id="dmModel">
+      <select id="dmModel" data-help-title="Model — 4 / 6 stem" data-help-text="htdemucs splits 4 stems (drums/bass/other/vocals); htdemucs_6s adds guitar and piano; htdemucs_ft is a 4-stem 4-model bag — better quality, slower.">
         ${Object.entries(DEMUCS_MODELS).map(([name, m]) =>
           `<option value="${name}"${name === model ? ' selected' : ''}>${m.label}</option>`).join('')}
       </select>
@@ -70,7 +70,7 @@ function renderDemucsForm() {
     </div>
     <div class="form-row">
       <label for="dmDevice">Device</label>
-      <select id="dmDevice">
+      <select id="dmDevice" data-help-title="Device — GPU / GPU.0 / CPU" data-help-text="GPU = strict OpenVINO on the iGPU (fails loudly, never CPU fallback); GPU.0 pins the first GPU explicitly; CPU is the explicit slower fallback.">
         <option value="GPU">GPU · strict (fails loudly, never CPU fallback)</option>
         <option value="GPU.0">GPU.0 · explicit first GPU</option>
         <option value="CPU">CPU · explicit fallback (slower)</option>
@@ -100,7 +100,7 @@ function renderDemucsForm() {
     </div>
     <div class="form-row">
       <label for="dmFormat">Format</label>
-      <select id="dmFormat">
+      <select id="dmFormat" data-help-title="Format — WAV float32 / PCM24" data-help-text="wav-f32 is lossless float and keeps overs/headroom; wav-pcm24 is integer and reports clips.">
         <option value="wav-f32">WAV float32 (lossless, keeps overs)</option>
         <option value="wav-pcm24">WAV PCM24 (integer, clips reported)</option>
       </select>
@@ -108,11 +108,11 @@ function renderDemucsForm() {
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'dmOverlap', label: 'Overlap', value: '0.25' })}
-        ${knobUnitHtml({ id: 'dmTransPow', label: 'Trans pw', value: '1.0' })}
-        ${knobUnitHtml({ id: 'dmOverwrite', label: 'Overwrite', value: '0', binary: true, leftCap: 'Keep', rightCap: 'Over' })}
-        ${knobUnitHtml({ id: 'dmNoAsync', label: 'No async', value: '0', binary: true, leftCap: 'Fast', rightCap: 'Sync' })}
-        ${knobUnitHtml({ id: 'dmDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+        ${knobUnitHtml({ id: 'dmOverlap', label: 'Overlap', value: '0.25', helpTitle: 'Overlap — segment overlap [0–0.5]', helpText: 'Overlap between stagger-merged segments; 0.25 is the native Demucs reference, higher = smoother but slower. Sane: 0.1–0.4; default 0.25.' })}
+        ${knobUnitHtml({ id: 'dmTransPow', label: 'Trans pw', value: '1.0', helpTitle: 'Trans pw — window transition power [0.1–4]', helpText: 'Power of the transition window between segments; 1.0 matches the Demucs window. Sane: 0.5–2; default 1.0.' })}
+        ${knobUnitHtml({ id: 'dmOverwrite', label: 'Overwrite', value: '0', binary: true, leftCap: 'Keep', rightCap: 'Over', helpTitle: 'Overwrite — Keep / Over', helpText: 'Outputs land as inputname_stem_model.wav and are never overwritten while Keep; Over replaces an existing file. Default Keep.' })}
+        ${knobUnitHtml({ id: 'dmNoAsync', label: 'No async', value: '0', binary: true, leftCap: 'Fast', rightCap: 'Sync', helpTitle: 'No async — Fast / Sync', helpText: 'Fast runs inference on the async path (default); Sync forces the non-async path for strictly serial execution — slower but predictably paced.' })}
+        ${knobUnitHtml({ id: 'dmDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Validates params and prints the command without writing output files.' })}
       </div>
       <p class="knob-row-legend">
         <strong>Overlap</strong> 0.25 = native reference (higher = smoother, slower).

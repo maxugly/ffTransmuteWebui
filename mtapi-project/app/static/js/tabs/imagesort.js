@@ -270,14 +270,14 @@ function renderImageSortForm() {
     <div class="form-row">
       <label for="isOutput">Output</label>
       <div class="input-row">
-        <input type="text" id="isOutput" placeholder="blank = auto" value="${escapeHtml(state.imageSort.output || '')}">
-        <button type="button" class="btn" id="btnIsOutBrowse">Save As</button>
+        <input type="text" id="isOutput" placeholder="blank = auto" value="${escapeHtml(state.imageSort.output || '')}" data-help-title="Output — blank = auto" data-help-text="Where the encoded clip is written. Blank pushes next to the base still.">
+        <button type="button" class="btn" id="btnIsOutBrowse" data-help-title="Browse output" data-help-text="Pick where the clip is written.">Save As</button>
       </div>
     </div>
 
     <div class="form-row">
       <label for="isSortMode">Mode</label>
-      <select id="isSortMode">
+      <select id="isSortMode" data-help-title="Mode — distance metric" data-help-text="What “similar” means for Sort. pHash (default) = perceptual layout, aHash = coarse bright/dark grid, colorhash = palette, MSE = pixel error, SSIM = structural similarity (needs scikit-image).">
         <option value="phash"${(state.imageSort.sortMode || 'phash') === 'phash' ? ' selected' : ''}>pHash</option>
         <option value="ahash"${state.imageSort.sortMode === 'ahash' ? ' selected' : ''}>aHash</option>
         <option value="colorhash"${state.imageSort.sortMode === 'colorhash' ? ' selected' : ''}>colorhash</option>
@@ -285,17 +285,17 @@ function renderImageSortForm() {
         <option value="ssim"${state.imageSort.sortMode === 'ssim' ? ' selected' : ''}>SSIM</option>
       </select>
       <label for="isSortStrategy">Strategy</label>
-      <select id="isSortStrategy">
+      <select id="isSortStrategy" data-help-title="Strategy — how scores become an order" data-help-text="To base scores every still only against #1 and sorts by that (good for spreading from a hero). Closest next is a greedy nearest-neighbor walk — locally smoother, better for RIFE morphs.">
         <option value="radial"${(state.imageSort.sortStrategy || 'radial') === 'radial' ? ' selected' : ''}>To base</option>
         <option value="chain"${state.imageSort.sortStrategy === 'chain' ? ' selected' : ''}>Closest next</option>
       </select>
       <label for="isSortOrder">Order</label>
-      <select id="isSortOrder">
+      <select id="isSortOrder" data-help-title="Order — nearest / farthest first" data-help-text="Nearest first prefers small distance = smooth transitions (best for morphs). Farthest first prefers big jumps = contrast / jump-cut energy.">
         <option value="nearest_first"${(state.imageSort.sortOrder || 'nearest_first') === 'nearest_first' ? ' selected' : ''}>Nearest first</option>
         <option value="farthest_first"${state.imageSort.sortOrder === 'farthest_first' ? ' selected' : ''}>Farthest first</option>
       </select>
       <label for="isFit">Fit</label>
-      <select id="isFit">
+      <select id="isFit" data-help-title="Fit — letterbox / crop / stretch" data-help-text="How each still is conformed to the base size. Letterbox pads with bars, Crop fills by trimming, Stretch distorts. Default Letterbox.">
         <option value="letterbox" selected>Letterbox</option>
         <option value="crop">Crop</option>
         <option value="stretch">Stretch</option>
@@ -304,14 +304,14 @@ function renderImageSortForm() {
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'isUseRife', label: 'Use RIFE', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'isMultiplier', label: 'Multiplier', value: '2' })}
-        ${knobUnitHtml({ id: 'isRifeTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'isRifeUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'isFps', label: 'FPS', value: '24' })}
-        ${knobUnitHtml({ id: 'isCrf', label: 'CRF', value: '18' })}
-        ${knobUnitHtml({ id: 'isKeepFrames', label: 'Keep PNG', value: '0', binary: true, leftCap: 'No', rightCap: 'Yes' })}
-        ${knobUnitHtml({ id: 'isDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+        ${knobUnitHtml({ id: 'isUseRife', label: 'Use RIFE', value: '1', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Use RIFE — Off / On', helpText: 'On = RIFE generates in-between frames between keyframes for smooth morphs (multiplied by Multiplier); Off = the stills are used directly. Default On.' })}
+        ${knobUnitHtml({ id: 'isMultiplier', label: 'Multiplier', value: '2', helpTitle: 'Multiplier — interpolation multiplier [2–128]', helpText: 'RIFE inserts (M−1) interpolated frames between each keyframe. Sane 2–4; default 2. Higher = smoother but much slower. Cap: 128.' })}
+        ${knobUnitHtml({ id: 'isRifeTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'TTA — Off / On', helpText: 'Test-time augmentation: runs each frame through mirrored/rotated passes and averages for temporal stability — cleaner, ~2× slower, more VRAM. Off by default.' })}
+        ${knobUnitHtml({ id: 'isRifeUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'UHD — Off / On', helpText: 'RIFE ultra-HD high-res path for ~4K+ bases — more VRAM, not a sharpness button for small frames. Only meaningful when RIFE is on. Off by default.' })}
+        ${knobUnitHtml({ id: 'isFps', label: 'FPS', value: '24', helpTitle: 'FPS — output frame rate [1–120]', helpText: 'Frame rate of the encoded clip — absolute, not scaled by the RIFE multiplier. Sane 24–60; default 24.' })}
+        ${knobUnitHtml({ id: 'isCrf', label: 'CRF', value: '18', helpTitle: 'CRF — h264 constant rate factor [0–28]', helpText: 'Encode quality — lower = better quality, bigger file. 0 ≈ lossless, 18 ≈ near-lossless, 23 smaller web. Sane 14–23; default 18.' })}
+        ${knobUnitHtml({ id: 'isKeepFrames', label: 'Keep PNG', value: '0', binary: true, leftCap: 'No', rightCap: 'Yes', helpTitle: 'Keep PNG — No / Yes', helpText: 'Whether to keep the intermediate PNG frame strip after encoding. No = dumps cleaned up; Yes = strip PNGs kept next to the output. Default No.' })}
+        ${knobUnitHtml({ id: 'isDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Validates params and prints the command without writing output files.' })}
       </div>
       <p class="knob-row-legend" id="isRifeHint">
         RIFE multiplies keyframes.
@@ -381,6 +381,12 @@ function renderImageSortForm() {
     </section>
   `;
   elements.actionPanel.innerHTML = html;
+
+  const isRifeModelEl = document.getElementById('isRifeModel');
+  if (isRifeModelEl) {
+    isRifeModelEl.setAttribute('data-help-title', 'RIFE model — interpolation model');
+    isRifeModelEl.setAttribute('data-help-text', 'rife-v4.6 (default) cleanest edges and best general motion; rife-v4 alternate; rife-v2.4 / rife-v2.3 older, for experimentation or speed.');
+  }
 
   // Pre-run summary strip
   _refreshPreRunSummary();

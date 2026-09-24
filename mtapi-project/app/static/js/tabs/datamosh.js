@@ -1,5 +1,6 @@
 import { state, elements } from '/app.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { HelpStrip } from '/js/ui/help-strip.js';
 
 // Mosh Form
 // Mosh Form
@@ -12,7 +13,7 @@ function renderMoshForm() {
 
     <div class="form-row">
       <label for="moshEffectSelect">Mode</label>
-      <select id="moshEffectSelect">
+      <select id="moshEffectSelect" data-help-title="Mode — which mosh hack" data-help-text="Melt (vector smear), Classic (keyframe suppress), Hijack (P-frame inject from a payload), Destruct (DCT clear — pixel-bleed trails), MV hack (warp/freeze motion vectors).">
         <option value="melt" ${state.selectedMoshMode === 'melt' ? 'selected' : ''}>Melt (vector smear)</option>
         <option value="classic" ${state.selectedMoshMode === 'classic' ? 'selected' : ''}>Classic (keyframe suppress)</option>
         <option value="hijack" ${state.selectedMoshMode === 'hijack' ? 'selected' : ''}>Hijack (P-frame inject)</option>
@@ -53,7 +54,7 @@ function updateMoshParams() {
         <!-- Vector Joystick + its values -->
         <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
           <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted);">Mosh Dynamics (Joystick)</label>
-          <div class="vector-pad" id="meltPad">
+          <div class="vector-pad" id="meltPad" data-help-title="Mosh dynamics (joystick)" data-help-text="Drag the dot: left-right = Damping (0–100%, higher = faster-decaying drip), up-down = V-Drift (±20, vertical trail strength). Defaults Damping 15%, V-Drift 5%.">
             <div class="vector-pad-crosshair-h"></div>
             <div class="vector-pad-crosshair-v"></div>
             <div class="vector-pad-knob" id="meltKnob"></div>
@@ -92,7 +93,7 @@ function updateMoshParams() {
     html = `
       <div class="form-row">
         <label for="hijackSourceSelect">Payload Source</label>
-        <select id="hijackSourceSelect">
+        <select id="hijackSourceSelect" data-help-title="Payload source — where injected stills come from" data-help-text="Image File(s): explicit paths. Source Frame: clone one frame from the video. Secondary Video: mosh-up source. Shuffle: auto-mosh sampled stills.">
           <option value="file">Image File(s)</option>
           <option value="frame">Source Frame (Extract)</option>
           <option value="video">Secondary Video (Mosh-up)</option>
@@ -101,7 +102,7 @@ function updateMoshParams() {
       </div>
 
       <div class="knob-bank" style="margin-top: 12px;">
-        ${knobUnitHtml({ id: 'hijackTransitionStyle', label: 'Transition', value: 'smear', binary: true, leftCap: 'Smear', rightCap: 'Freeze' })}
+        ${knobUnitHtml({ id: 'hijackTransitionStyle', label: 'Transition', value: 'smear', binary: true, leftCap: 'Smear', rightCap: 'Freeze', helpTitle: 'Transition — Smear / Freeze', helpText: 'Smear keeps the motion vectors (runny bleed); Freeze zeroes them (hard chop between injected stills). Mosh-ups use multiple source stills. Default Smear.' })}
       </div>
       <p class="dream-hint">
         <strong>Smear</strong> keeps motion vectors. <strong>Freeze</strong> zeroes vectors. Mosh-ups use multiple source stills.
@@ -117,7 +118,7 @@ function updateMoshParams() {
 
       <div class="form-group" id="groupHijackFrame" style="display: none;">
         <label>Source Frame Index to Extract</label>
-        <input type="number" id="hijackSourceFrame" value="50" min="0" step="1">
+        <input type="number" id="hijackSourceFrame" value="50" min="0" step="1" data-help-title="Source frame index — 0-indexed frame to clone" data-help-text="The frame inside the video that Hijack duplicates into the stream to replace the P-frames.">
         <span class="field-desc">The index of the frame (0-indexed) inside the video to clone.</span>
       </div>
 
@@ -131,7 +132,7 @@ function updateMoshParams() {
 
       <div class="form-group" id="groupHijackStills" style="display: none; margin-top: 8px;">
         <label>Stills Extraction Mode</label>
-        <select id="hijackStillsMode">
+        <select id="hijackStillsMode" data-help-title="Stills extraction — I-Frames / Sample" data-help-text="I-Frames uses the video's native keyframes; Sample extracts stills evenly spaced across the clip.">
           <option value="iframes">I-Frames (Native Keyframes)</option>
           <option value="sample">Sample (Evenly Spaced)</option>
         </select>
@@ -139,7 +140,7 @@ function updateMoshParams() {
 
       <div class="form-group" id="groupHijackGOP" style="display: none; margin-top: 8px;">
         <label>Payload GOP (Hold Frames)</label>
-        <input type="number" id="hijackPayloadGOP" value="0" min="0" step="1">
+        <input type="number" id="hijackPayloadGOP" value="0" min="0" step="1" data-help-title="Payload GOP — frames to hold each still" data-help-text="How long each injected still is held before the next; 0 = auto-distribute across the range.">
         <span class="field-desc">Frames to hold each still (0 = auto-distribute across range).</span>
       </div>
     `;
@@ -161,7 +162,7 @@ function updateMoshParams() {
         <!-- Vector Joystick Pad -->
         <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
           <label style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted);">Drift Direction Bias (Joystick)</label>
-          <div class="vector-pad" id="vectorPad">
+          <div class="vector-pad" id="vectorPad" data-help-title="Drift direction bias (joystick)" data-help-text="Drag the dot to push the motion vectors left/right and up/down (±20 offset each axis). Aims the warp; pair it with Motion Multiplier.">
             <div class="vector-pad-crosshair-h"></div>
             <div class="vector-pad-crosshair-v"></div>
             <div class="vector-pad-knob" id="vectorKnob"></div>
@@ -197,6 +198,8 @@ function updateMoshParams() {
     setupContinuousKnob({
       knobId: 'moshTailKnob', indicatorId: 'moshTailKnobInd', valueId: 'moshTailVal', hiddenId: 'moshTail',
       min: 1, max: 100, step: 1, decimals: 0,
+      helpTitle: 'Smear tail — memory length in frames [1–100]',
+      helpText: 'How many frames a smear trails behind the moving region. Higher = longer, gooier drips. Sane: 6–40; default 18.',
     });
     // Set up Melt joystick pad
     setupMeltPad();
@@ -457,12 +460,20 @@ function setupDawKnob() {
       valueDisplay.value = `${val.toFixed(1)}x`;
     }
     hiddenInput.value = Math.round(val * 100);
+    HelpStrip.update(knob);
   }
+
+  HelpStrip.register(knob, {
+    title: () => 'Motion multiplier — mv speed × [0.0–4.0]',
+    text: () => 'Multiplies the decoded motion vectors; 1.0 leaves motion as shot, >1 amplifies the warp, <1 crushes it toward a freeze-slide. Sane: 0.5–2.0; default 1.0x.',
+    getDynamicText: () => `Value: ${currentVal.toFixed(1)}x · Range 0.0–4.0`,
+  });
 
   function onMouseDown(e) {
     knob.classList.add('active');
     startY = e.clientY;
     startVal = currentVal;
+    HelpStrip.pin(knob);
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
     e.preventDefault();
@@ -484,6 +495,7 @@ function setupDawKnob() {
     knob.classList.remove('active');
     window.removeEventListener('mousemove', onMouseMove);
     window.removeEventListener('mouseup', onMouseUp);
+    HelpStrip.unpin();
   }
 
   knob.addEventListener('mousedown', onMouseDown);

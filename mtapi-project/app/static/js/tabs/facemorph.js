@@ -79,19 +79,19 @@ function renderFaceMorphForm() {
     <div class="form-row">
       <label for="fmOutput">Output</label>
       <div class="input-row">
-        <input type="text" id="fmOutput" placeholder="blank = auto next to first image">
-        <button type="button" class="btn" id="btnFmOutBrowse">Save As</button>
+        <input type="text" id="fmOutput" placeholder="blank = auto next to first image" data-help-title="Output — blank = auto next to first image" data-help-text="Morph video write target. Blank writes next to the first face image.">
+        <button type="button" class="btn" id="btnFmOutBrowse" data-help-title="Browse output" data-help-text="Pick where the morph video is written.">Save As</button>
       </div>
     </div>
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'fmDuration', label: 'Sec/pair', value: '2.0' })}
-        ${knobUnitHtml({ id: 'fmFps', label: 'FPS', value: '30' })}
-        ${knobUnitHtml({ id: 'fmCrf', label: 'CRF', value: '18' })}
-        ${knobUnitHtml({ id: 'fmKeepFrames', label: 'Keep PNG', value: '0', binary: true, leftCap: 'No', rightCap: 'Yes' })}
-        ${knobUnitHtml({ id: 'fmTriangles', label: 'Triangles', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'fmDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+        ${knobUnitHtml({ id: 'fmDuration', label: 'Sec/pair', value: '2.0', helpTitle: 'Sec/pair — seconds per morph pair [0.5–8]', helpText: 'Playback seconds for each A→B morph; total ≈ sec/pair × pairs. Sane: 1–4; default 2.0.' })}
+        ${knobUnitHtml({ id: 'fmFps', label: 'FPS', value: '30', helpTitle: 'FPS — morph output rate [12–60]', helpText: 'Frame rate of the output morph video; per file. 0/blank = source or auto. Sane: 24–30; default 30.' })}
+        ${knobUnitHtml({ id: 'fmCrf', label: 'CRF', value: '18', helpTitle: 'CRF — h264 constant rate factor', helpText: 'Lower = better quality, bigger file. CRF 0 = lossless, 18 ≈ near-lossless. Sane 14–23; default 18.' })}
+        ${knobUnitHtml({ id: 'fmKeepFrames', label: 'Keep PNG', value: '0', binary: true, leftCap: 'No', rightCap: 'Yes', helpTitle: 'Keep PNG — No / Yes', helpText: 'No = delete the per-pair PNG frames after encoding. Yes = keep them next to the output video.' })}
+        ${knobUnitHtml({ id: 'fmTriangles', label: 'Triangles', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Triangles — Off / On', helpText: 'Overlays the Delaunay triangle mesh on the output for a wireframe/demo look. Off = clean morph only.' })}
+        ${knobUnitHtml({ id: 'fmDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Validates params and prints the command without writing output files.' })}
       </div>
       <p class="knob-row-legend">
         Sec/pair × pairs ≈ length. CRF 0 = lossless · 18 ≈ near-lossless.
@@ -100,8 +100,8 @@ function renderFaceMorphForm() {
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'fmAlign', label: 'Align faces', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'fmAlignSize', label: 'Size', value: '1024' })}
+        ${knobUnitHtml({ id: 'fmAlign', label: 'Align faces', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Align faces — Off / On', helpText: 'FFHQ-style pre-align: centers the nose, levels the eyes, square-crops to Size. On = steadier morphs; Off = morphs the raw photos.' })}
+        ${knobUnitHtml({ id: 'fmAlignSize', label: 'Size', value: '1024', helpTitle: 'Size — aligned crop px [256–4096]', helpText: 'Square output resolution of aligned faces (used when Align faces is On). Sane: 512–2048; default 1024.' })}
       </div>
       <p class="knob-row-legend">
         FFHQ-style: center nose, level eyes, square crop. Size = output px (256–4096).
@@ -110,7 +110,7 @@ function renderFaceMorphForm() {
 
     <div class="form-row">
       <label for="fmDreamMode">Dream</label>
-      <select id="fmDreamMode">
+      <select id="fmDreamMode" data-help-title="Dream — Morph only / after / faces first" data-help-text="Morph only = dlib warp, no dreaming. after = DeepDream the morph video with optical flow. faces_first = dream the stills, then morph them.">
         <option value="none" selected>Morph only</option>
         <option value="after">Morph → DeepDream video</option>
         <option value="faces_first">DeepDream faces → morph</option>
@@ -120,13 +120,13 @@ function renderFaceMorphForm() {
     <div class="fm-dream-opts" id="fmDreamOpts">
       <div class="form-row">
         <label for="fmDreamModel">Model</label>
-        <select id="fmDreamModel">
+        <select id="fmDreamModel" data-help-title="Model — InceptionV3 / VGG16 / ResNet50" data-help-text="Pretrained CNN whose neuron activations drive the dream; each gives a different pattern texture.">
           <option value="inception_v3" selected>InceptionV3</option>
           <option value="vgg16">VGG16</option>
           <option value="resnet50">ResNet50</option>
         </select>
         <label for="fmDreamPreset">Layers</label>
-        <select id="fmDreamPreset">
+        <select id="fmDreamPreset" data-help-title="Layers — Shallow / Mid / Classic / Deep / Full" data-help-text="How many model layers guide the dream. Deeper = wilder patterns and slower. Classic is the balanced default.">
           <option value="shallow">Shallow</option>
           <option value="mid">Mid</option>
           <option value="classic" selected>Classic</option>
@@ -136,11 +136,11 @@ function renderFaceMorphForm() {
       </div>
       <div class="knob-row">
         <div class="knob-bank">
-          ${knobUnitHtml({ id: 'fmDreamIters', label: 'Iterations', value: '10' })}
-          ${knobUnitHtml({ id: 'fmDreamOctaves', label: 'Octaves', value: '2' })}
-          ${knobUnitHtml({ id: 'fmDreamStep', label: 'Step', value: '0.015' })}
-          ${knobUnitHtml({ id: 'fmDreamPreview', label: 'Preview W', value: '640' })}
-          ${knobUnitHtml({ id: 'fmDreamFlow', label: 'Opt. flow', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
+          ${knobUnitHtml({ id: 'fmDreamIters', label: 'Iterations', value: '10', helpTitle: 'Iterations — dream passes [1–40]', helpText: 'DeepDream gradient passes per image; more = stronger, more warped. Sane: 5–20; default 10.' })}
+          ${knobUnitHtml({ id: 'fmDreamOctaves', label: 'Octaves', value: '2', helpTitle: 'Octaves — dream scales [1–5]', helpText: 'Scale levels the dream runs at; more = more detail, slower. Sane: 1–4; default 2.' })}
+          ${knobUnitHtml({ id: 'fmDreamStep', label: 'Step', value: '0.015', helpTitle: 'Step — dream gradient size [0.005–0.08]', helpText: 'Push per iteration toward the activation; higher = faster but can overshoot. Sane: 0.01–0.03; default 0.015.' })}
+          ${knobUnitHtml({ id: 'fmDreamPreview', label: 'Preview W', value: '640', helpTitle: 'Preview W — dream preview width [0–1280]', helpText: 'Resolution the dream runs at; 0 = full. Keep ≤ 800 for speed. Sane: 320–800; default 640.' })}
+          ${knobUnitHtml({ id: 'fmDreamFlow', label: 'Opt. flow', value: '1', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Opt. flow — Off / On', helpText: 'Optical-flow temporal smoothing between dream frames. Only meaningful for dream mode "after". Off = frames dream independently.' })}
         </div>
         <p class="knob-row-legend">Preview W ≤ 800 for speed. Optical flow only for dream mode “after”.</p>
       </div>

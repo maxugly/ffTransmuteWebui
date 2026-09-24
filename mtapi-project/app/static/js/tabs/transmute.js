@@ -37,19 +37,19 @@ function renderTransmuteForm() {
 
     <div class="form-row">
       <label for="transmuteOpSelect">Op</label>
-      <select id="transmuteOpSelect">${optionsHtml}</select>
+      <select id="transmuteOpSelect" data-help-title="Op — single-clip operation" data-help-text="Picks the single-clip operation: extract a frame or audio, crop/letterbox, reverse, flip/rotate, speed ramp, zoom/pan, or VFR→CFR.">${optionsHtml}</select>
     </div>
     <div class="form-row">
       <label for="transmuteInput">Input</label>
       <div class="input-row">
-        <input type="text" id="transmuteInput" placeholder="/absolute/path/to/input.mp4">
+        <input type="text" id="transmuteInput" placeholder="/absolute/path/to/input.mp4" data-help-title="Input — source video" data-help-text="Absolute path to the source video file the op runs on.">
         <button class="btn" onclick="openFileBrowser('transmuteInput', false)">Browse</button>
       </div>
     </div>
     <div class="form-row">
       <label for="transmuteOutput">Output</label>
       <div class="input-row">
-        <input type="text" id="transmuteOutput" placeholder="blank = auto next to input">
+        <input type="text" id="transmuteOutput" placeholder="blank = auto next to input" data-help-title="Output — where the result is written" data-help-text="Where the transmuted result is written. Blank = auto-named next to the input.">
         <button class="btn" onclick="openFileBrowser('transmuteOutput', false, 'file_save')">Save As</button>
       </div>
     </div>
@@ -58,7 +58,7 @@ function renderTransmuteForm() {
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'transmuteDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+        ${knobUnitHtml({ id: 'transmuteDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Validates params and prints the command without writing output files.' })}
       </div>
       <p class="knob-row-legend">Dry = print command only, no file written.</p>
     </div>
@@ -99,7 +99,7 @@ function updateTransmuteExtras() {
     html += `
       <div class="knob-row">
         <div class="knob-bank">
-          ${knobUnitHtml({ id: 'transmuteQuality', label: 'Quality', value: '2' })}
+          ${knobUnitHtml({ id: 'transmuteQuality', label: 'Quality', value: '2', helpTitle: 'Quality — still-frame quality [2–31]', helpText: `${desc} Sane: 2–8; default 2.` })}
         </div>
         <p class="knob-row-legend">${desc}</p>
       </div>
@@ -110,7 +110,7 @@ function updateTransmuteExtras() {
     html += `
       <div class="knob-row">
         <div class="knob-bank">
-          ${knobUnitHtml({ id: 'transmuteSecondsFromEnd', label: 'From end (s)', value: '0.1' })}
+          ${knobUnitHtml({ id: 'transmuteSecondsFromEnd', label: 'From end (s)', value: '0.1', helpTitle: 'From end (s) — seconds before the end [0–5]', helpText: 'Seconds before the end of the video to grab the frame. Sane: 0–2; default 0.1.' })}
         </div>
         <p class="knob-row-legend">Seconds before end to grab the frame.</p>
       </div>
@@ -121,8 +121,8 @@ function updateTransmuteExtras() {
     html += `
       <div class="knob-row">
         <div class="knob-bank">
-          ${knobUnitHtml({ id: 'transmuteWidth', label: 'Width', value: '1920' })}
-          ${knobUnitHtml({ id: 'transmuteHeight', label: 'Height', value: '1080' })}
+          ${knobUnitHtml({ id: 'transmuteWidth', label: 'Width', value: '1920', helpTitle: 'Width — output width [16–7680]', helpText: 'Output width in pixels (prefer even). Sane: 640–3840; default 1920.' })}
+          ${knobUnitHtml({ id: 'transmuteHeight', label: 'Height', value: '1080', helpTitle: 'Height — output height [16–4320]', helpText: 'Output height in pixels (prefer even). Sane: 360–2160; default 1080.' })}
         </div>
         <p class="knob-row-legend">Pixels (prefer even).</p>
       </div>
@@ -133,7 +133,7 @@ function updateTransmuteExtras() {
     html += `
       <div class="form-row">
         <label for="transmuteFlipRotate">Transform</label>
-        <select id="transmuteFlipRotate">
+        <select id="transmuteFlipRotate" data-help-title="Transform — flip / rotate" data-help-text="Lossless geometry transform applied to the whole clip.">
           ${flipRotateOptionsHtml('rotate_90')}
         </select>
       </div>
@@ -144,19 +144,19 @@ function updateTransmuteExtras() {
     html += `
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'rampDirection', label: 'Direction', value: 'spin_down', binary: true, leftCap: 'Spin Up', rightCap: 'Spin Down' })}
-        ${knobUnitHtml({ id: 'rampDuration', label: 'Duration (s)', value: '5.0' })}
-        ${knobUnitHtml({ id: 'rampStartSpeed', label: 'Start ×', value: '4.0' })}
-        ${knobUnitHtml({ id: 'rampEndSpeed', label: 'End ×', value: '0.33' })}
+        ${knobUnitHtml({ id: 'rampDirection', label: 'Direction', value: 'spin_down', binary: true, leftCap: 'Spin Up', rightCap: 'Spin Down', helpTitle: 'Direction — Spin Up / Spin Down', helpText: 'Which way the ramp goes: Spin Down winds from fast (Start 4×) to slow (End 0.33×) over the duration; Spin Up is the reverse.' })}
+        ${knobUnitHtml({ id: 'rampDuration', label: 'Duration (s)', value: '5.0', helpTitle: 'Duration (s) — ramp output length [0.5–60]', helpText: 'How long the speed ramp lasts in output seconds. Sane: 1–30; default 5.0.' })}
+        ${knobUnitHtml({ id: 'rampStartSpeed', label: 'Start ×', value: '4.0', helpTitle: 'Start × — playback speed at ramp start [0.1–20]', helpText: 'Playback speed (× normal) at the start of the ramp. End × 0.33 = slows to a third. Sane: 0.5–8; default 4.0.' })}
+        ${knobUnitHtml({ id: 'rampEndSpeed', label: 'End ×', value: '0.33', helpTitle: 'End × — playback speed at ramp end [0.1–20]', helpText: 'Playback speed (× normal) at the end of the ramp — 0.33 = a third speed. Sane: 0.2–4; default 0.33.' })}
       </div>
       <p class="knob-row-legend" id="rampInfoLine">Set knobs to see required source duration.</p>
     </div>
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'rampUseRife', label: 'Use RIFE', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'rampRifeMult', label: 'Frame ×', value: '2' })}
-        ${knobUnitHtml({ id: 'rampRifeTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'rampRifeUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'rampUseRife', label: 'Use RIFE', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Use RIFE — Off / On', helpText: 'Enables RIFE frame interpolation for this op. Densifies frames for the slow sections of the ramp.' })}
+        ${knobUnitHtml({ id: 'rampRifeMult', label: 'Frame ×', value: '2', helpTitle: 'Frame × — interpolation multiplier [2–128]', helpText: 'RIFE inserts (M−1) frames between source frames — higher way slower. Sane: 2–4; default 2.' })}
+        ${knobUnitHtml({ id: 'rampRifeTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'TTA — Off / On', helpText: 'Test-time-augmentation averaging across flips for temporal stability. Slower; off by default.' })}
+        ${knobUnitHtml({ id: 'rampRifeUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'UHD — Off / On', helpText: 'RIFE ultra-HD passes — heavy. Meaningful when RIFE is on.' })}
       </div>
       <p class="knob-row-legend">
         RIFE before remap densifies frames for slow sections of the ramp.
@@ -170,14 +170,14 @@ function updateTransmuteExtras() {
     html += `
     <div class="form-row">
       <label for="zoomEngine">Engine</label>
-      <select id="zoomEngine">
+      <select id="zoomEngine" data-help-title="Engine — Stable / Raw" data-help-text="Stable (Pillow lerp) stays smooth everywhere. Raw (ffmpeg zoompan) is required for Rate, Frame d, Wobble, Spin, Glitch, and Hue.">
         <option value="stable" selected>Stable (Pillow lerp)</option>
         <option value="raw">Raw (ffmpeg zoompan)</option>
       </select>
     </div>
     <div class="form-row">
       <label for="zoomPreset">Preset</label>
-      <select id="zoomPreset">
+      <select id="zoomPreset" data-help-title="Preset — zoom behavior template" data-help-text="Loads a zoom behavior and its knobs: zoom in/out, targeted, Ken Burns, ease in/out, punch, spiral, glitch, hue cycle, stretch, or custom.">
         <option value="zoom_in" selected>Zoom in</option>
         <option value="zoom_out">Zoom out</option>
         <option value="targeted">Targeted zoom</option>
@@ -194,16 +194,16 @@ function updateTransmuteExtras() {
     </div>
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'zoomDuration', label: 'Duration (s)', value: '3.0' })}
-        ${knobUnitHtml({ id: 'zoomFps', label: 'FPS', value: '24' })}
-        ${knobUnitHtml({ id: 'zoomFrameD', label: 'Frame d', value: '1' })}
+        ${knobUnitHtml({ id: 'zoomDuration', label: 'Duration (s)', value: '3.0', helpTitle: 'Duration (s) — zoom clip length [0.5–60]', helpText: 'Length of the zoomed output in seconds. Sane: 1–30; default 3.0.' })}
+        ${knobUnitHtml({ id: 'zoomFps', label: 'FPS', value: '24', helpTitle: 'FPS — output frame rate [1–120]', helpText: 'Output frame rate of the zoom result. Sane: 24–60; default 24.' })}
+        ${knobUnitHtml({ id: 'zoomFrameD', label: 'Frame d', value: '1', helpTitle: 'Frame d — frame dwell/repeat [1–5]', helpText: 'Frame dwell: each frame holds d times (slow-mo feel). 1 = smooth, higher = choppier but faster. Raw engine only. Sane: 1–2; default 1.' })}
       </div>
       <p class="knob-row-legend" id="zoomInfoLine">Set knobs to see frame plan.</p>
       <p class="knob-row-legend">Frame d (raw only, hidden on Stable): 1 = smooth, higher = choppier but faster.</p>
     </div>
     <div class="form-row">
       <label for="zoomOutSize">Output size</label>
-      <select id="zoomOutSize">
+      <select id="zoomOutSize" data-help-title="Output size — zoom canvas" data-help-text="Resolution of the zoom output. Source = input size; Custom reveals the Width/Height knobs.">
         <option value="source" selected>Source size</option>
         <option value="960x960">960×960</option>
         <option value="1080x1080">1080×1080</option>
@@ -214,30 +214,30 @@ function updateTransmuteExtras() {
     </div>
     <div class="knob-row" id="zoomCustomSizeRow" style="display:none;">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'zoomWidth', label: 'Width', value: '960' })}
-        ${knobUnitHtml({ id: 'zoomHeight', label: 'Height', value: '960' })}
+        ${knobUnitHtml({ id: 'zoomWidth', label: 'Width', value: '960', helpTitle: 'Width — output width [16–7680]', helpText: 'Custom output width in pixels (forced even). Sane: 480–1920; default 960.' })}
+        ${knobUnitHtml({ id: 'zoomHeight', label: 'Height', value: '960', helpTitle: 'Height — output height [16–4320]', helpText: 'Custom output height in pixels (forced even). Sane: 480–1920; default 960.' })}
       </div>
       <p class="knob-row-legend">Pixels (forced even).</p>
     </div>
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'zoomRate', label: 'Rate +×/frame', value: '0.02' })}
-        ${knobUnitHtml({ id: 'zoomCap', label: 'End zoom (×)', value: '3.0' })}
-        ${knobUnitHtml({ id: 'zoomPanX', label: 'Pan X', value: '0' })}
-        ${knobUnitHtml({ id: 'zoomPanY', label: 'Pan Y', value: '0' })}
+        ${knobUnitHtml({ id: 'zoomRate', label: 'Rate +×/frame', value: '0.02', helpTitle: 'Rate +×/frame — zoom growth per frame [0.001–0.1]', helpText: 'How much bigger the picture gets each frame (+0.02 = +2%/frame), until End zoom. Raw engine only. Sane: 0.005–0.05; default 0.02.' })}
+        ${knobUnitHtml({ id: 'zoomCap', label: 'End zoom (×)', value: '3.0', helpTitle: 'End zoom (×) — size at last frame [0–10]', helpText: 'End zoom = size at the last frame (3 = 3× bigger); 0 = no cap. Sane: 1.5–5; default 3.0.' })}
+        ${knobUnitHtml({ id: 'zoomPanX', label: 'Pan X', value: '0', helpTitle: 'Pan X — horizontal drift [−20–20]', helpText: 'Pixels the center drifts horizontally per frame. Sane: −10–10; default 0.' })}
+        ${knobUnitHtml({ id: 'zoomPanY', label: 'Pan Y', value: '0', helpTitle: 'Pan Y — vertical drift [−20–20]', helpText: 'Pixels the center drifts vertically per frame. Sane: −10–10; default 0.' })}
       </div>
       <p class="knob-row-legend" id="zoomOpticsLegend">End zoom = size at the last frame (3 = 3× bigger).</p>
     </div>
     <div class="knob-row" id="zoomStretchRow" style="display:none;">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'zoomStretchX', label: 'Wider (X)', value: '1' })}
-        ${knobUnitHtml({ id: 'zoomStretchY', label: 'Taller (Y)', value: '1' })}
+        ${knobUnitHtml({ id: 'zoomStretchX', label: 'Wider (X)', value: '1', helpTitle: 'Wider (X) — horizontal stretch [1–4]', helpText: 'X = how much wider the picture grows vs the video size. Stretch preset only. Sane: 1–2.5; default 1.' })}
+        ${knobUnitHtml({ id: 'zoomStretchY', label: 'Taller (Y)', value: '1', helpTitle: 'Taller (Y) — vertical stretch [1–4]', helpText: 'Y = how much taller the picture grows vs the video size. Stretch preset only. Sane: 1–2.5; default 1.' })}
       </div>
       <p class="knob-row-legend">Picture size = video size. X = how much wider, Y = how much taller, both if both.</p>
     </div>
     <div class="form-row">
       <label for="zoomDirection">Direction</label>
-      <select id="zoomDirection">
+      <select id="zoomDirection" data-help-title="Direction — Zoom in / Zoom out" data-help-text="In = picture grows toward you. Out = it shrinks away.">
         <option value="in" selected>Zoom in</option>
         <option value="out">Zoom out</option>
       </select>
@@ -245,7 +245,7 @@ function updateTransmuteExtras() {
     <p class="knob-row-legend">In = picture grows toward you. Out = it shrinks away.</p>
     <div class="form-row">
       <label for="zoomPrescale">Pre-scale (raw stills)</label>
-      <select id="zoomPrescale">
+      <select id="zoomPrescale" data-help-title="Pre-scale (raw stills) — zoom headroom" data-help-text="Bigger = smoother slow zooms but slower to render. Raw stills only — does nothing on Stable.">
         <option value="2">2×</option>
         <option value="4" selected>4×</option>
         <option value="8">8×</option>
@@ -255,23 +255,23 @@ function updateTransmuteExtras() {
     <div class="form-row">
       <label for="zoomTargetX">Target X / Y</label>
       <div class="input-row">
-        <input type="text" id="zoomTargetX" placeholder="200">
-        <input type="text" id="zoomTargetY" placeholder="300">
+        <input type="text" id="zoomTargetX" placeholder="200" data-help-title="Target X — pixel the zoom moves toward" data-help-text="Targeted preset only: the pixel X the zoom moves toward. Ignored by every other preset.">
+        <input type="text" id="zoomTargetY" placeholder="300" data-help-title="Target Y — pixel the zoom moves toward" data-help-text="Targeted preset only: the pixel Y the zoom moves toward. Ignored by every other preset.">
       </div>
     </div>
     <p class="knob-row-legend">Targeted preset only: the pixel the zoom moves toward. Ignored by every other preset.</p>
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'zoomOscAmp', label: 'Wobble amp', value: '0' })}
-        ${knobUnitHtml({ id: 'zoomOscFreq', label: 'Wobble speed', value: '10' })}
-        ${knobUnitHtml({ id: 'zoomRotate', label: 'Spin', value: '0' })}
-        ${knobUnitHtml({ id: 'zoomGlitch', label: 'Glitch', value: '0' })}
+        ${knobUnitHtml({ id: 'zoomOscAmp', label: 'Wobble amp', value: '0', helpTitle: 'Wobble amp — sway distance [0–200]', helpText: 'Side-to-side sway distance in pixels while zooming; 0 = off. Raw engine only. Sane: 0–30; default 0.' })}
+        ${knobUnitHtml({ id: 'zoomOscFreq', label: 'Wobble speed', value: '10', helpTitle: 'Wobble speed — sway rate [1–240]', helpText: 'How fast the wobble sways. Raw engine only. Sane: 1–30; default 10.' })}
+        ${knobUnitHtml({ id: 'zoomRotate', label: 'Spin', value: '0', helpTitle: 'Spin — rotation while zooming [0–1]', helpText: 'Rotation added while zooming (0 = none). Raw engine only. Sane: 0–0.05; default 0.' })}
+        ${knobUnitHtml({ id: 'zoomGlitch', label: 'Glitch', value: '0', helpTitle: 'Glitch — random jumpiness [0–0.5]', helpText: 'Random jumpiness during the zoom; 0 = smooth. Raw engine only. Sane: 0–0.2; default 0.' })}
       </div>
       <p class="knob-row-legend">Wobble = side-to-side sway while zooming (amp = how far in pixels, 0 = off; speed = how fast). Spin = rotation while zooming. Glitch = random jumpiness (0 = smooth). All four need the Raw engine.</p>
     </div>
     <div class="form-row">
       <label for="zoomEasing">Easing</label>
-      <select id="zoomEasing">
+      <select id="zoomEasing" data-help-title="Easing — zoom speed curve" data-help-text="How the zoom speed changes: linear = steady; accel = starts slow, ends fast; decel = the opposite; punch = holds still, then bursts. Works on both engines.">
         <option value="none" selected>None (linear)</option>
         <option value="accel">Accel (^1.5)</option>
         <option value="decel">Decel (sqrt)</option>
@@ -281,9 +281,9 @@ function updateTransmuteExtras() {
     <p class="knob-row-legend">How the zoom speed changes: linear = steady; accel = starts slow, ends fast; decel = the opposite; punch = holds still, then bursts. Works on both engines.</p>
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'zoomPunchFrame', label: 'Punch frame', value: '20' })}
-        ${knobUnitHtml({ id: 'zoomHueRate', label: 'Hue rate', value: '2.0' })}
-        ${knobUnitHtml({ id: 'zoomHue', label: 'Hue cycle', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'zoomPunchFrame', label: 'Punch frame', value: '20', helpTitle: 'Punch frame — frame the burst happens on [1–240]', helpText: 'Punch-in on a specific frame: the frame the burst happens on (earlier = longer burst; 0 = off). Punch easing only. Sane: 10–60; default 20.' })}
+        ${knobUnitHtml({ id: 'zoomHueRate', label: 'Hue rate', value: '2.0', helpTitle: 'Hue rate — color cycle speed [0.5–20]', helpText: 'How fast colors cycle while Hue cycle is On. Raw engine only. Sane: 1–8; default 2.0.' })}
+        ${knobUnitHtml({ id: 'zoomHue', label: 'Hue cycle', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Hue cycle — Off / On', helpText: 'Cycles the picture colors through hues while zooming. Raw engine only. Off by default.' })}
       </div>
       <p class="knob-row-legend">Punch frame = the frame the burst happens on (earlier = longer burst; works on both engines). Hue rate = how fast colors cycle while Hue is On (raw only). Raw zoompan can jitter on slow zooms — Stable stays smooth.</p>
     </div>
@@ -294,25 +294,25 @@ function updateTransmuteExtras() {
     html += `
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'cfrFps', label: 'FPS', value: '0' })}
-        ${knobUnitHtml({ id: 'cfrUseRife', label: 'Use RIFE', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
+        ${knobUnitHtml({ id: 'cfrFps', label: 'FPS', value: '0', helpTitle: 'FPS — output frame rate [0–120]', helpText: '0 = Auto (avg_frame_rate, fallback r_frame_rate); set an explicit rate to force it. Sane: 24–60; default 0 (auto).' })}
+        ${knobUnitHtml({ id: 'cfrUseRife', label: 'Use RIFE', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Use RIFE — Off / On', helpText: 'Enables RIFE frame interpolation for this op. Off = plain CFR normalization on source timestamps.' })}
       </div>
       <p class="knob-row-legend">0 = Auto (avg_frame_rate, fallback r_frame_rate). Set an explicit rate to force it.</p>
     </div>
     <div id="cfrRifeRow" style="display:none;">
       <div class="knob-row">
         <div class="knob-bank">
-          ${knobUnitHtml({ id: 'cfrRifeMult', label: 'Frame ×', value: '2' })}
-          ${knobUnitHtml({ id: 'cfrRifeTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-          ${knobUnitHtml({ id: 'cfrRifeUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-          ${knobUnitHtml({ id: 'cfrPtsAware', label: 'PTS-aware', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
-          ${knobUnitHtml({ id: 'cfrTStep', label: 't step', value: '0.25' })}
+          ${knobUnitHtml({ id: 'cfrRifeMult', label: 'Frame ×', value: '2', helpTitle: 'Frame × — interpolation multiplier [2–128]', helpText: 'RIFE inserts (M−1) frames between source frames — higher way slower. Sane: 2–4; default 2.' })}
+          ${knobUnitHtml({ id: 'cfrRifeTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'TTA — Off / On', helpText: 'Test-time-augmentation averaging across flips for temporal stability. Slower; off by default.' })}
+          ${knobUnitHtml({ id: 'cfrRifeUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'UHD — Off / On', helpText: 'RIFE ultra-HD passes — heavy. Meaningful when RIFE is on.' })}
+          ${knobUnitHtml({ id: 'cfrPtsAware', label: 'PTS-aware', value: '1', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'PTS-aware — Off / On', helpText: 'On = true-timestamp interpolation (bracket + RIFE −s t), the correct VFR path. Off = legacy direct-RIFE on source timestamps. On by default.' })}
+          ${knobUnitHtml({ id: 'cfrTStep', label: 't step', value: '0.25', helpTitle: 't step — timestep quantization [0–1]', helpText: 'Quantizes the interpolation timestep (0.25 → 5 grid points, error ≤ step/2 × frame gap; 0 = exact). Sane: 0.1–0.5; default 0.25.' })}
         </div>
         <p class="knob-row-legend">PTS-aware = true-timestamp interpolation (bracket + RIFE −s t) — the correct VFR path. t step quantizes the timestep (0.25 → 5 grid points, error ≤ step/2 × frame gap; 0 = exact). Timing stays exact regardless.</p>
       </div>
       <div class="knob-row">
         <div class="knob-bank">
-          ${knobUnitHtml({ id: 'cfrCfrFirst', label: '→ CFR First', value: '1', binary: true, leftCap: 'Off', rightCap: 'On' })}
+          ${knobUnitHtml({ id: 'cfrCfrFirst', label: '→ CFR First', value: '1', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: '→ CFR First — Off / On', helpText: 'Legacy compare only (ignored while PTS-aware is on): normalize uneven phone timestamps to CFR before interpolation. Off = legacy direct-RIFE on source timestamps. On by default.' })}
         </div>
         <p class="knob-row-legend">Legacy compare only (ignored while PTS-aware is on): normalize uneven phone timestamps to CFR before interpolation. Off = legacy direct-RIFE on source timestamps.</p>
       </div>

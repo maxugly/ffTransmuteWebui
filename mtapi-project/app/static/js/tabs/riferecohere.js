@@ -33,40 +33,40 @@ function renderRifeRecohereForm() {
     <div class="form-row">
       <label for="rrA">Image A</label>
       <div class="input-row">
-        <input type="text" id="rrA" placeholder="/absolute/path/to/image_a.png">
-        <button class="btn" type="button" id="btnRrBrowseA">Browse</button>
+        <input type="text" id="rrA" placeholder="/absolute/path/to/image_a.png" data-help-title="Image A — first still" data-help-text="Absolute path to the first keyframe image. RIFE M=2 interpolates between A and B; A/B copy through unchanged.">
+        <button class="btn" type="button" id="btnRrBrowseA" data-help-title="Browse image A" data-help-text="Pick the first keyframe image.">Browse</button>
       </div>
     </div>
 
     <div class="form-row">
       <label for="rrB">Image B</label>
       <div class="input-row">
-        <input type="text" id="rrB" placeholder="/absolute/path/to/image_b.png">
-        <button class="btn" type="button" id="btnRrBrowseB">Browse</button>
+        <input type="text" id="rrB" placeholder="/absolute/path/to/image_b.png" data-help-title="Image B — second still" data-help-text="Absolute path to the second keyframe image. RIFE M=2 interpolates between A and B; A/B copy through unchanged.">
+        <button class="btn" type="button" id="btnRrBrowseB" data-help-title="Browse image B" data-help-text="Pick the second keyframe image.">Browse</button>
       </div>
     </div>
 
     <div class="form-row">
       <label for="rrOutput">Output</label>
       <div class="input-row">
-        <input type="text" id="rrOutput" placeholder="blank = auto next to image_a">
-        <button class="btn" type="button" id="btnRrBrowseOut">Save As</button>
+        <input type="text" id="rrOutput" placeholder="blank = auto next to image_a" data-help-title="Output — blank = auto next to image A" data-help-text="Where the recohered clip is written. Blank reuses the source folder next to image A.">
+        <button class="btn" type="button" id="btnRrBrowseOut" data-help-title="Browse output" data-help-text="Pick where the recohered clip is written.">Save As</button>
       </div>
     </div>
 
     <div id="rrPromptLib" class="prompt-library-bar" aria-label="Prompt library"></div>
     <div class="form-row">
       <label for="rrPrompt">Prompt</label>
-      <input type="text" id="rrPrompt" value="${DEFAULT_POSITIVE.replace(/"/g, '&quot;').replace(/</g, '&lt;')}" style="flex:1 1 16rem">
+      <input type="text" id="rrPrompt" value="${DEFAULT_POSITIVE.replace(/"/g, '&quot;').replace(/</g, '&lt;')}" style="flex:1 1 16rem" data-help-title="Prompt — what to draw" data-help-text="Positive prompt for every img2img mid pass — what the recohered frames should look like. Defaults to the universal recoherence prompt.">
     </div>
     <div class="form-row">
       <label for="rrNeg">Negative</label>
-      <input type="text" id="rrNeg" value="${DEFAULT_NEGATIVE.replace(/"/g, '&quot;').replace(/</g, '&lt;')}" style="flex:1 1 16rem">
+      <input type="text" id="rrNeg" value="${DEFAULT_NEGATIVE.replace(/"/g, '&quot;').replace(/</g, '&lt;')}" style="flex:1 1 16rem" data-help-title="Negative — what to avoid" data-help-text="Negative prompt for every img2img mid pass — ghosting, doubles, blends, artifacts to steer away from. Defaults to the universal recoherence negative.">
     </div>
 
     <div class="form-row">
       <label for="rrModel">Model</label>
-      <select id="rrModel">
+      <select id="rrModel" data-help-title="Model — img2img OpenVINO model" data-help-text="LCM-dreamshaper-v7-openvino is the fast LCM default. sd-turbo-openvino runs fewer steps; sd15-lcm-square-openvino-int8 is int8-quantized.">
         <option value="rupeshs/LCM-dreamshaper-v7-openvino" selected>LCM-dreamshaper-v7-openvino (default)</option>
         <option value="rupeshs/sd-turbo-openvino">sd-turbo-openvino</option>
         <option value="rupeshs/sd15-lcm-square-openvino-int8">sd15-lcm-square-openvino-int8</option>
@@ -79,12 +79,12 @@ function renderRifeRecohereForm() {
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'rrStrength', label: 'Strength', value: '0.55' })}
-        ${knobUnitHtml({ id: 'rrSteps', label: 'Steps', value: '8' })}
-        ${knobUnitHtml({ id: 'rrGuidance', label: 'Guidance', value: '1.5' })}
-        ${knobUnitHtml({ id: 'rrFps', label: 'FPS', value: '6' })}
-        ${knobUnitHtml({ id: 'rrMaxSide', label: 'Max side', value: '0' })}
-        ${knobUnitHtml({ id: 'rrSeed', label: 'Seed', value: '42' })}
+        ${knobUnitHtml({ id: 'rrStrength', label: 'Strength', value: '0.55', helpTitle: 'Strength — img2img denoise amount [0.05–0.95]', helpText: 'How strongly each mid is re-drawn toward the prompt by OpenVINO img2img; higher = less of the RIFE base survives. Sane 0.50–0.65 for ghost collapse; default 0.55.' })}
+        ${knobUnitHtml({ id: 'rrSteps', label: 'Steps', value: '8', helpTitle: 'Steps — inference steps [1–30]', helpText: 'Denoising passes per mid frame. More than a turbo baseline (4) for a coherent rewrite. Sane 4–20; default 8.' })}
+        ${knobUnitHtml({ id: 'rrGuidance', label: 'Guidance', value: '1.5', helpTitle: 'Guidance — CFG scale [0–8]', helpText: 'How closely output follows the prompt. 1.5 is LCM-friendly (classic CFG 6 is for non-LCM SD1.5). Sane 1–3; default 1.5.' })}
+        ${knobUnitHtml({ id: 'rrFps', label: 'FPS', value: '6', helpTitle: 'FPS — output frame rate [1–60]', helpText: 'Frame rate of the encoded strip — the 3 generated frames play slowly for inspection. Sane 6–30; default 6.' })}
+        ${knobUnitHtml({ id: 'rrMaxSide', label: 'Max side', value: '0', helpTitle: 'Max side — longest-edge cap [0–1024]', helpText: '0 = keep source size; otherwise longest edge is capped to this px (conform target for RIFE). Sane 512–1024; default 0.' })}
+        ${knobUnitHtml({ id: 'rrSeed', label: 'Seed', value: '42', helpTitle: 'Seed — RNG seed [0–999999]', helpText: 'Random seed for each img2img pass — fixed for reproducibility. Sane 0–999999; default 42.' })}
       </div>
       <p class="knob-row-legend">
         <strong>Strength 0.55</strong> — sweet spot ~0.50–0.65 for ghost collapse.<br>
@@ -97,10 +97,10 @@ function renderRifeRecohereForm() {
 
     <div class="knob-row">
       <div class="knob-bank">
-        ${knobUnitHtml({ id: 'rrTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'rrUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On' })}
-        ${knobUnitHtml({ id: 'rrSaveStills', label: 'Save stills', value: '0', binary: true, leftCap: 'No', rightCap: 'PNGs' })}
-        ${knobUnitHtml({ id: 'rrDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry' })}
+        ${knobUnitHtml({ id: 'rrTta', label: 'TTA', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'TTA — Off / On', helpText: 'Test-time augmentation: runs each frame through mirrored/rotated passes and averages for temporal stability — cleaner, ~2× slower. Off by default.' })}
+        ${knobUnitHtml({ id: 'rrUhd', label: 'UHD', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'UHD — Off / On', helpText: 'RIFE ultra-HD mode: extra super-resolution passes, heavy — only meaningful when RIFE is on. For 4K+ sources (more VRAM). Off by default.' })}
+        ${knobUnitHtml({ id: 'rrSaveStills', label: 'Save stills', value: '0', binary: true, leftCap: 'No', rightCap: 'PNGs', helpTitle: 'Save stills — No / PNGs', helpText: 'Writes the full strip PNGs (A · mid · mid · B) next to the video. No = only the final encoded clip. Off by default.' })}
+        ${knobUnitHtml({ id: 'rrDryRun', label: 'Dry run', value: '0', binary: true, leftCap: 'Run', rightCap: 'Dry', helpTitle: 'Dry run — Run / Dry', helpText: 'Validates params and prints the command without writing output files.' })}
       </div>
       <p class="knob-row-legend">
         <strong>TTA / UHD</strong> — RIFE quality flags (slower).<br>
@@ -129,6 +129,12 @@ function renderRifeRecohereForm() {
     </section>
   `;
   elements.actionPanel.innerHTML = html;
+
+  const rrRifeModelEl = document.getElementById('rrRifeModel');
+  if (rrRifeModelEl) {
+    rrRifeModelEl.setAttribute('data-help-title', 'RIFE model — interpolation model');
+    rrRifeModelEl.setAttribute('data-help-text', 'rife-v4.6 (best) is the default interpolation model; rife-v4, rife-v2.4 and rife-v2.3 are alternates.');
+  }
 
   // Prefill prompt/negative with defaults (escaping handled in template above)
   var promptEl = document.getElementById('rrPrompt');
