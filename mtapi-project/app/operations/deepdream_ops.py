@@ -36,10 +36,10 @@ class DeepDreamParams(EvolveRifeParams):
         "auto",
         description="auto detects from extension; force image or video processing path",
     )
-    engine: Literal["cpu", "gpu", "gpu_v2"] = Field(
+    engine: Literal["cpu", "gpu", "gpu_v2", "gpu_v3"] = Field(
         "cpu",
         description="Dream engine: 'cpu' = TF nets (full knob set), "
-        "'gpu' = OpenVINO InceptionV3/Mixed_6c, strict GPU (fails loudly, never falls back)",
+        "'gpu'/'gpu_v2' = OpenVINO static engines, 'gpu_v3' = weighted dynamic OpenVINO",
     )
     keep_model_warm: bool = Field(False, description="Keep the neural model resident between runs")
 
@@ -70,6 +70,14 @@ class DeepDreamParams(EvolveRifeParams):
     blend: float = Field(
         1.0, ge=0.0, le=1.0,
         description="Mix dreamed result with original (1 = full dream)",
+    )
+    turbo: bool = Field(
+        False,
+        description="GPU V3 only: use the forward-only saliency graph instead of gradient ascent",
+    )
+    turbo_strength: float = Field(
+        0.5, ge=0.0, le=1.0,
+        description="GPU V3 Turbo saliency stamp amount (0 = off, 1 = full stamp)",
     )
 
     # ── Dynamic ramp (per-frame lerp on the video dream path) ──
@@ -308,6 +316,8 @@ async def _dream_video(
             max_loss_to=p.max_loss_to,
             blend_to=p.blend_to,
             custom_layer_weights_to=p.custom_layer_weights_to,
+            turbo=p.turbo,
+            turbo_strength=p.turbo_strength,
         )
 
         def _progress(current: int, total_n: int) -> None:
@@ -362,11 +372,24 @@ async def _dream_ouroboros(
         from .. import job_control as jc
 
         def _run_thread():
-            from . import deepdream_ov_engine as ove
-
-            use_ov = p.engine == "gpu"
-            ov_kwargs = (
-                {
+            use_ov = p.engine in ("gpu", "gpu_v2", "gpu_v3")
+            if p.engine == "gpu_v3":
+                from . import deepdream_ov_engine_v3 as ove
+                ov_kwargs = {
+                    "step": p.step,
+                    "iterations": p.iterations,
+                    "num_octave": p.num_octave,
+                    "jitter": p.jitter,
+                    "reinject_detail": p.reinject_detail,
+                    "blend": p.blend,
+                    "layer_preset": p.layer_preset,
+                    "layer_weights": image_kwargs.get("layer_weights"),
+                    "turbo": p.turbo,
+                    "turbo_strength": p.turbo_strength,
+                }
+            elif p.engine == "gpu_v2":
+                from . import deepdream_ov_engine_v2 as ove
+                ov_kwargs = {
                     "step": p.step,
                     "iterations": p.iterations,
                     "num_octave": p.num_octave,
@@ -374,9 +397,19 @@ async def _dream_ouroboros(
                     "reinject_detail": p.reinject_detail,
                     "blend": p.blend,
                 }
-                if use_ov
-                else {}
-            )
+            elif p.engine == "gpu":
+                from . import deepdream_ov_engine as ove
+                ov_kwargs = {
+                    "step": p.step,
+                    "iterations": p.iterations,
+                    "num_octave": p.num_octave,
+                    "jitter": p.jitter,
+                    "reinject_detail": p.reinject_detail,
+                    "blend": p.blend,
+                }
+            else:
+                ove = None
+                ov_kwargs = {}
             current = seed
             n_ouro = int(p.ouroboros_length)
             for i in range(n_ouro):
@@ -542,6 +575,8 @@ async def deepdream(p: DeepDreamParams) -> OperationResult:
     )
     if p.guide_path:
         summary += f" guide={p.guide_path}"
+    if p.turbo:
+        summary += f" turbo=on strength={p.turbo_strength:g}"
     if p.preview_width:
         summary += f" preview_w={p.preview_width}"
     if p.evolve_enabled:
@@ -563,35 +598,66 @@ async def deepdream(p: DeepDreamParams) -> OperationResult:
             f"layer_cycle={p.layer_cycle}"
         )
 
+    if p.turbo and p.engine != "gpu_v3":
+        return OperationResult(
+            ok=False,
+            operation="deepdream",
+            error="Turbo mode requires engine=gpu_v3",
+            dry_run=p.dry_run,
+            command=summary,
+            stdout=f"{summary}\n",
+        )
+
     # GPU compatibility gate — runs before dry_run too, so a dry run of an
     # unrunnable job reports the incompatibility instead of a fake plan.
     # *_to ramps are video-path-only knobs (the stills/ouroboros paths never
     # consume them — same as CPU, which silently ignores them there), so the
     # ramp half of the gate only applies to real video runs.
     ov_note: str | None = None
-    use_ov = p.engine in ("gpu", "gpu_v2")
+    use_ov = p.engine in ("gpu", "gpu_v2", "gpu_v3")
     if use_ov:
-        if p.engine == "gpu_v2":
+        if p.engine == "gpu_v3":
+            from . import deepdream_ov_engine_v3 as ove
+        elif p.engine == "gpu_v2":
             from . import deepdream_ov_engine_v2 as ove
         else:
             from . import deepdream_ov_engine as ove
 
         ramps_apply = kind == "video" and not p.ouroboros
         try:
-            ov_note = ove.check_compatible(
-                model_name=p.model_name,
-                custom_layer_weights=p.custom_layer_weights,
-                layer_cycle=p.layer_cycle,
-                guide_path=p.guide_path,
-                max_loss=p.max_loss,
-                max_loss_to=p.max_loss_to if ramps_apply else None,
-                preview_width=p.preview_width,
-                optical_flow=p.optical_flow,
-                octave_scale=p.octave_scale,
-                num_octave=p.num_octave,
-                num_octave_to=p.num_octave_to if ramps_apply else None,
-                octave_scale_to=p.octave_scale_to if ramps_apply else None,
-            )
+            if p.engine == "gpu_v3":
+                ov_note = ove.check_compatible(
+                    model_name=p.model_name,
+                    layer_weights=layer_weights,
+                    custom_layer_weights=p.custom_layer_weights,
+                    layer_cycle=p.layer_cycle,
+                    guide_path=p.guide_path,
+                    max_loss=p.max_loss,
+                    max_loss_to=p.max_loss_to if ramps_apply else None,
+                    preview_width=p.preview_width,
+                    optical_flow=p.optical_flow,
+                    octave_scale=p.octave_scale,
+                    num_octave=p.num_octave,
+                    num_octave_to=p.num_octave_to if ramps_apply else None,
+                    octave_scale_to=p.octave_scale_to if ramps_apply else None,
+                    turbo=p.turbo,
+                    turbo_strength=p.turbo_strength,
+                )
+            else:
+                ov_note = ove.check_compatible(
+                    model_name=p.model_name,
+                    custom_layer_weights=p.custom_layer_weights,
+                    layer_cycle=p.layer_cycle,
+                    guide_path=p.guide_path,
+                    max_loss=p.max_loss,
+                    max_loss_to=p.max_loss_to if ramps_apply else None,
+                    preview_width=p.preview_width,
+                    optical_flow=p.optical_flow,
+                    octave_scale=p.octave_scale,
+                    num_octave=p.num_octave,
+                    num_octave_to=p.num_octave_to if ramps_apply else None,
+                    octave_scale_to=p.octave_scale_to if ramps_apply else None,
+                )
         except Exception as e:
             return OperationResult(
                 ok=False,
@@ -668,6 +734,13 @@ async def deepdream(p: DeepDreamParams) -> OperationResult:
                 def _ov_still():
                     job_control.bind(job_token)
                     kw = {}
+                    if p.engine == "gpu_v3":
+                        kw = {
+                            "layer_preset": p.layer_preset,
+                            "layer_weights": layer_weights,
+                            "turbo": p.turbo,
+                            "turbo_strength": p.turbo_strength,
+                        }
                     r = ove.dream_pair(
                         input_path,
                         out,
@@ -778,10 +851,9 @@ register(OperationSpec(
         "guided dreaming, layer cycling, and Ouroboros zoom/spin/translate. "
         "Optional Evolve: mid-ascent strip → Image Sort dedupe → optional RIFE → .mp4. "
         "Requires TensorFlow; optical flow needs OpenCV. "
-        "Engine 'gpu' = OpenVINO static DeepDream, strict GPU (fails loudly, no CPU "
-        "fallback; needs POST /ops/deepdream_ov_setup once; bakes InceptionV3/Mixed_6c, "
-        "512/1.4 pyramid — other models, layers, guides, and shape-changing knobs are "
-        "CPU-only)."
+        "Engine 'gpu'/'gpu_v2' = static OpenVINO engines; 'gpu_v3' = weighted "
+        "OpenVINO gradients with runtime Mixed_5b/5c/6a/6b/6c coefficients and "
+        "forward-only Turbo saliency. GPU engines are strict and fail loudly."
     ),
     params_model=DeepDreamParams,
     handler=deepdream,
@@ -794,6 +866,12 @@ register(OperationSpec(
 OV_DD_TAGS = ("186x186", "261x261", "365x365", "512x512")
 OV_DD_FILES = [
     f"static_deepdream_{tag}_fp16.{ext}" for tag in OV_DD_TAGS for ext in ("xml", "bin")
+]
+OV_V3_TAGS = ("186x186", "261x261", "365x365", "512x512")
+OV_V3_FILES = [
+    f"static_deepdream_v3_{tag}_fp16.{ext}" for tag in OV_V3_TAGS for ext in ("xml", "bin")
+] + [
+    f"static_deepdream_v3_turbo_{tag}_fp16.{ext}" for tag in OV_V3_TAGS for ext in ("xml", "bin")
 ]
 OV_DD_DEV_SOURCE = Path("/home/m/snc/cod/testLamaEraser/ovs_dd/artifacts")
 
@@ -818,17 +896,37 @@ def _ov_source_dir() -> Path | None:
     return None
 
 
+def _ov_v3_model_dir() -> Path:
+    import os as _os
+
+    env = _os.environ.get("OVS_DD_V3_DIR", "").strip()
+    if env:
+        return Path(env).expanduser()
+    return Path(__file__).resolve().parent.parent.parent / "junk" / "models" / "deepdream_ov_v3"
+
+
+def _ov_v3_source_dir() -> Path | None:
+    import os as _os
+
+    for name in ("OVS_DD_V3_SRC", "OVS_DD_SRC"):
+        value = _os.environ.get(name, "").strip()
+        if value:
+            candidate = Path(value).expanduser()
+            if candidate.is_dir() and any((candidate / item).is_file() for item in OV_V3_FILES):
+                return candidate
+    return None
+
+
 def get_deepdream_ov_status() -> dict:
-    """Read-only status payload for GET /api/deepdream_ov/status."""
     from . import deepdream_ov_engine as ove
+    from . import deepdream_ov_engine_v3 as ove_v3
 
     d = _ov_model_dir()
-    files = {}
-    try:
-        files = {name: (d / name).is_file() for name in OV_DD_FILES}
-    except OSError:
-        pass
+    files = {name: (d / name).is_file() for name in OV_DD_FILES}
     resolved = ove.resolve_artifacts_dir()
+    v3_dir = _ov_v3_model_dir()
+    v3_files = {name: (v3_dir / name).is_file() for name in OV_V3_FILES}
+    v3_resolved = ove_v3.resolve_artifacts_dir()
     return {
         "ok": True,
         "ir_present": ove.ir_present(),
@@ -838,6 +936,16 @@ def get_deepdream_ov_status() -> dict:
         "shapes": [f"{h}x{w}" for h, w in ove.available_shapes()],
         "baked": {"model": ove.OV_MODEL, "layer": ove.OV_LAYER},
         "devices": ove.available_devices(),
+        "v3": {
+            "ir_present": ove_v3.ir_present(),
+            "turbo_present": ove_v3.ir_present("turbo"),
+            "artifacts_dir": str(v3_resolved) if v3_resolved else None,
+            "model_dir": str(v3_dir),
+            "files": v3_files,
+            "shapes": [f"{h}x{w}" for h, w in ove_v3.available_shapes()],
+            "turbo_shapes": [f"{h}x{w}" for h, w in ove_v3.available_shapes("turbo")],
+            "baked": {"model": ove_v3.OV_MODEL, "layers": list(ove_v3.V3_LAYER_LABELS.values())},
+        },
     }
 
 
@@ -866,15 +974,24 @@ async def deepdream_ov_setup(p: DeepDreamOvSetupParams) -> OperationResult:
 
     from ..shell import run_command
     from . import deepdream_ov_engine as ove
+    from . import deepdream_ov_engine_v3 as ove_v3
 
     op = "deepdream_ov_setup"
     d = _ov_model_dir()
     src = _ov_source_dir()
+    d_v3 = _ov_v3_model_dir()
+    src_v3 = _ov_v3_source_dir()
     phases = [
-        f"copy {len(OV_DD_FILES)} IR files → {d}",
-        "compile-smoke on CPU (synthetic input, 1 octave, no media needed)",
-        "probe GPU compile+infer in a subprocess (non-fatal — CPU path already proven above)",
+        f"copy {len(OV_DD_FILES)} V1 IR files → {d}",
+        f"copy {len(OV_V3_FILES)} V3 IR files → {d_v3}" if src_v3 else "V3 IR source not configured (run tools/export_v3.py)",
+        "compile-smoke V1 on CPU (synthetic input, 1 octave, no media needed)",
+        "probe V1 GPU compile+infer in a subprocess (non-fatal)",
     ]
+    if src_v3:
+        phases.extend([
+            "compile-smoke V3 on CPU (synthetic input, 1 octave, no media needed)",
+            "probe V3 GPU compile+infer in a subprocess (non-fatal)",
+        ])
     plan = "\n".join(f"phase {i + 1}: {ph}" for i, ph in enumerate(phases))
     if p.dry_run:
         return OperationResult(
@@ -883,7 +1000,9 @@ async def deepdream_ov_setup(p: DeepDreamOvSetupParams) -> OperationResult:
             meta={"dry_run": True, "status": {"deepdream_ov": get_deepdream_ov_status()},
                   "recommend_restart": False},
         )
-    logs = [f"deepdream_ov_setup {p.action} (static DeepDream, InceptionV3/{ove.OV_LAYER})"]
+    logs = [
+        f"deepdream_ov_setup {p.action} (V1 InceptionV3/{ove.OV_LAYER}; V3 weighted taps available separately)"
+    ]
     token = job_control.current_token()
 
     def _phase(i: int, total: int) -> None:
@@ -896,39 +1015,62 @@ async def deepdream_ov_setup(p: DeepDreamOvSetupParams) -> OperationResult:
 
     try:
         _phase(0, len(phases))
-        if src is None:
+        v1_present = all((d / name).is_file() for name in OV_DD_FILES)
+        v3_present = all((d_v3 / name).is_file() for name in OV_V3_FILES)
+        if src is None and not v1_present and src_v3 is None and not v3_present:
             raise RuntimeError(
-                "No OVS-DD IR source found — set $OVS_DD_SRC to a dir holding "
-                "static_deepdream_*_fp16.xml, or place them in "
-                f"{d} manually."
+                "No DeepDream IR source found — set $OVS_DD_SRC/$OVS_DD_V3_SRC "
+                f"or place artifacts in {d} and {d_v3}."
             )
-        missing = [n for n in OV_DD_FILES if not (src / n).is_file()]
-        if missing:
-            raise RuntimeError(
-                f"IR source {src} is missing {len(missing)} file(s): "
-                + ", ".join(missing[:4])
-                + ("…" if len(missing) > 4 else "")
-            )
+        if src is not None:
+            missing = [name for name in OV_DD_FILES if not (src / name).is_file()]
+            if missing:
+                raise RuntimeError(
+                    f"IR source {src} is missing {len(missing)} V1 file(s): "
+                    + ", ".join(missing[:4])
+                    + ("…" if len(missing) > 4 else "")
+                )
 
-        def _copy() -> int:
+        def _copy_set(source: Path, destination: Path, names: list[str]) -> int:
             if token:
                 job_control.bind(token)
-            d.mkdir(parents=True, exist_ok=True)
-            n = 0
-            for name in OV_DD_FILES:
-                dest = d / name
-                if p.action == "install" and dest.is_file():
+            destination.mkdir(parents=True, exist_ok=True)
+            copied_count = 0
+            for name in names:
+                target = destination / name
+                if p.action == "install" and target.is_file():
                     continue
-                _shutil.copy2(src / name, dest)
-                n += 1
-            return n
+                _shutil.copy2(source / name, target)
+                copied_count += 1
+            return copied_count
 
-        copied = await asyncio.to_thread(_copy)
-        logs.append(f"IR files ready in {d} ({copied} copied, {len(OV_DD_FILES) - copied} kept)")
+        if src is not None:
+            copied = await asyncio.to_thread(_copy_set, src, d, OV_DD_FILES)
+            logs.append(f"V1 IR files ready in {d} ({copied} copied, {len(OV_DD_FILES) - copied} kept)")
+        elif v1_present:
+            logs.append(f"V1 IR files already present in {d}")
+        else:
+            logs.append("V1 IR source unavailable; V1 smoke/probe skipped")
 
         _phase(1, len(phases))
+        if src_v3 is not None:
+            missing_v3 = [name for name in OV_V3_FILES if not (src_v3 / name).is_file()]
+            if missing_v3:
+                raise RuntimeError(
+                    f"V3 IR source {src_v3} is missing {len(missing_v3)} file(s): "
+                    + ", ".join(missing_v3[:4])
+                    + ("…" if len(missing_v3) > 4 else "")
+                )
+            copied_v3 = await asyncio.to_thread(_copy_set, src_v3, d_v3, OV_V3_FILES)
+            logs.append(f"V3 IR files ready in {d_v3} ({copied_v3} copied, {len(OV_V3_FILES) - copied_v3} kept)")
+        elif v3_present:
+            logs.append(f"V3 IR files already present in {d_v3}")
+        else:
+            logs.append("V3 IR source not configured; use mtapi-project/tools/export_v3.py")
 
-        def _smoke() -> dict:
+        _phase(2, len(phases))
+
+        def _smoke_v1() -> dict:
             rng = np.random.default_rng(11)
             if token:
                 job_control.bind(token)
@@ -938,33 +1080,97 @@ async def deepdream_ov_setup(p: DeepDreamOvSetupParams) -> OperationResult:
             return {"settled": settled, "shape": [int(v) for v in out.shape],
                     "mean": float(np.mean(out))}
 
-        smoke = await asyncio.to_thread(_smoke)
-        logs.append(f"cpu smoke ok: settled={smoke['settled']} shape={smoke['shape']} mean={smoke['mean']:.1f}")
+        if v1_present or src is not None:
+            smoke = await asyncio.to_thread(_smoke_v1)
+            logs.append(f"cpu V1 smoke ok: settled={smoke['settled']} shape={smoke['shape']} mean={smoke['mean']:.1f}")
+        else:
+            logs.append("cpu V1 smoke skipped")
 
-        _phase(2, len(phases))
-        gpu_probe: dict = {"ok": False}
-        ir186 = _ov_model_dir() / "static_deepdream_186x186_fp16.xml"
-        probe_py = (
-            "import openvino as ov, numpy as np; "
-            f"m = ov.Core().read_model({str(ir186)!r}); "
-            "c = ov.Core().compile_model(m, 'GPU', "
-            "{ov.properties.hint.inference_precision: ov.Type.f32}); "
-            "img = np.random.rand(1,3,186,186).astype(np.float32); "
-            "lr = np.array([0.01], dtype=np.float32); "
-            "out = c({'image_tensor': img, 'learning_rate': lr})[0]; "
-            "print('infer_ok', out.shape);"
-        )
-        try:
-            rc, out_txt, err_txt = await run_command([_sys.executable, "-c", probe_py])
-            if rc == 0 and "infer_ok" in out_txt:
-                gpu_probe = {"ok": True, "settled": "GPU", "detail": out_txt.strip()[-80:]}
-                logs.append(f"gpu probe ok: {gpu_probe['detail']}")
-            else:
-                gpu_probe = {"ok": False, "error": (err_txt or out_txt).strip()[-300] or f"rc={rc}"}
-                logs.append(f"gpu probe failed: {gpu_probe['error']}")
-        except Exception as e:  # noqa: BLE001 — non-fatal, CPU path stands
-            gpu_probe = {"ok": False, "error": str(e)[:300]}
-            logs.append(f"gpu probe skipped: {gpu_probe['error']}")
+        if src_v3 is not None or v3_present:
+            _phase(3, len(phases))
+
+            def _smoke_v3() -> dict:
+                rng = np.random.default_rng(12)
+                if token:
+                    job_control.bind(token)
+                settled = ove_v3.preload(device="CPU")
+                tiny = (rng.random((64, 64, 3)) * 255).astype(np.uint8)
+                out, _ = ove_v3.dream_array(
+                    tiny,
+                    iterations=1,
+                    num_octave=1,
+                    device=settled,
+                    layer_weights={"5b": 1.0},
+                )
+                turbo, _ = ove_v3.dream_array(
+                    tiny,
+                    num_octave=1,
+                    device=settled,
+                    layer_weights={"5b": 1.0},
+                    turbo=True,
+                )
+                return {"settled": settled, "shape": [int(v) for v in out.shape],
+                        "turbo_shape": [int(v) for v in turbo.shape]}
+
+            smoke_v3 = await asyncio.to_thread(_smoke_v3)
+            logs.append(f"cpu V3 smoke ok: settled={smoke_v3['settled']} shape={smoke_v3['shape']} turbo={smoke_v3['turbo_shape']}")
+        else:
+            logs.append("V3 CPU smoke skipped")
+
+        _phase(len(phases) - 2, len(phases))
+        gpu_probe: dict = {"ok": False, "skipped": True}
+        if v1_present or src is not None:
+            ir186 = d / "static_deepdream_186x186_fp16.xml"
+            probe_py = (
+                "import openvino as ov, numpy as np; "
+                f"m = ov.Core().read_model({str(ir186)!r}); "
+                "c = ov.Core().compile_model(m, 'GPU', "
+                "{ov.properties.hint.inference_precision: ov.Type.f32}); "
+                "img = np.random.rand(1,3,186,186).astype(np.float32); "
+                "lr = np.array([0.01], dtype=np.float32); "
+                "out = c({'image_tensor': img, 'learning_rate': lr})[0]; "
+                "print('infer_ok', out.shape);"
+            )
+            try:
+                rc, out_txt, err_txt = await run_command([_sys.executable, "-c", probe_py])
+                if rc == 0 and "infer_ok" in out_txt:
+                    gpu_probe = {"ok": True, "settled": "GPU", "detail": out_txt.strip()[-80:]}
+                    logs.append(f"V1 gpu probe ok: {gpu_probe['detail']}")
+                else:
+                    gpu_probe = {"ok": False, "error": (err_txt or out_txt).strip()[-300] or f"rc={rc}"}
+                    logs.append(f"V1 gpu probe failed: {gpu_probe['error']}")
+            except Exception as e:
+                gpu_probe = {"ok": False, "error": str(e)[:300]}
+                logs.append(f"V1 gpu probe skipped: {gpu_probe['error']}")
+        else:
+            logs.append("V1 GPU probe skipped")
+
+        v3_gpu_probe: dict = {"ok": False, "skipped": True}
+        if src_v3 is not None or v3_present:
+            _phase(len(phases) - 1, len(phases))
+            ir_v3 = d_v3 / "static_deepdream_v3_186x186_fp16.xml"
+            v3_probe_py = (
+                "import openvino as ov, numpy as np; "
+                f"m = ov.Core().read_model({str(ir_v3)!r}); "
+                "c = ov.Core().compile_model(m, 'GPU', "
+                "{ov.properties.hint.inference_precision: ov.Type.f32}); "
+                "img = np.random.rand(1,3,186,186).astype(np.float32); "
+                "lr = np.array([0.01], dtype=np.float32); "
+                "weights = {name: np.array([1.0], dtype=np.float32) for name in ('w_5b','w_5c','w_6a','w_6b','w_6c')}; "
+                "out = c({'image_tensor': img, 'learning_rate': lr, **weights})[0]; "
+                "print('infer_ok', out.shape);"
+            )
+            try:
+                rc, out_txt, err_txt = await run_command([_sys.executable, "-c", v3_probe_py])
+                if rc == 0 and "infer_ok" in out_txt:
+                    v3_gpu_probe = {"ok": True, "settled": "GPU", "detail": out_txt.strip()[-80:], "skipped": False}
+                    logs.append(f"V3 gpu probe ok: {v3_gpu_probe['detail']}")
+                else:
+                    v3_gpu_probe = {"ok": False, "skipped": False, "error": (err_txt or out_txt).strip()[-300] or f"rc={rc}"}
+                    logs.append(f"V3 gpu probe failed: {v3_gpu_probe['error']}")
+            except Exception as e:
+                v3_gpu_probe = {"ok": False, "skipped": False, "error": str(e)[:300]}
+                logs.append(f"V3 gpu probe skipped: {v3_gpu_probe['error']}")
     except job_control.JobCancelled as e:
         return OperationResult(
             ok=False, operation=op, error=str(e), dry_run=False,
@@ -988,18 +1194,20 @@ async def deepdream_ov_setup(p: DeepDreamOvSetupParams) -> OperationResult:
         ok=True, operation=op, command=plan, stdout="\n".join(logs),
         meta={"status": {"deepdream_ov": get_deepdream_ov_status()},
               "gpu_probe": gpu_probe,
+              "v3_gpu_probe": v3_gpu_probe,
               "recommend_restart": False},
     )
 
 
 register(OperationSpec(
     id="deepdream_ov_setup",
-    summary="Install OVS-DD IRs for the GPU DeepDream engine",
+    summary="Install OpenVINO DeepDream V1/V3 IRs",
     description=(
-        "Copies the 8 static-DeepDream OpenVINO FP16 IR files into "
-        "junk/models/deepdream_ov/, compile-smokes on CPU plus a "
-        "segfault-safe subprocess GPU probe. Source: $OVS_DD_SRC or the "
-        "dev-machine build."
+        "Copies the 8 V1 static-DeepDream IR files and, when "
+        "$OVS_DD_V3_SRC (or $OVS_DD_SRC) contains V3 artifacts, the 16 "
+        "weighted-gradient/Turbo V3 files. V3 artifacts are produced by "
+        "tools/export_v3.py. CPU smoke and segfault-safe GPU probes are "
+        "reported separately for each engine."
     ),
     params_model=DeepDreamOvSetupParams,
     handler=deepdream_ov_setup,

@@ -82,15 +82,16 @@ function renderDeepDreamForm() {
     <div class="panel-title-desc dense">
       <h3>Google DeepDream</h3>
       <p class="dream-hint">CNN gradient ascent — pick model + layers. Image / video / Ouroboros.
-        GPU = OpenVINO static dream on the iGPU (InceptionV3 · Mixed_6c baked, 512/1.4 pyramid;
-        needs one-time Setup below; other models/layers/guides stay CPU-only).</p>
+        GPU V1/V2 = OpenVINO static dream; GPU V3 = dynamic Mixed_5b/5c/6a/6b/6c weighting with
+        optional forward-only Turbo. Fixed 512/1.4 pyramid; other models/guides stay CPU-only.</p>
     </div>
     <div class="form-row">
       <label for="dreamEngine">Engine</label>
-      <select id="dreamEngine" data-help-title="Engine — CPU / GPU" data-help-text="CPU · TF nets = full knobs (all models, layers, guides). GPU = OpenVINO static dream on the iGPU — baked InceptionV3 only, needs one-time GPU Setup; other models/layers/guides stay CPU-only.">
+      <select id="dreamEngine" data-help-title="Engine — CPU / OpenVINO" data-help-text="CPU · TF nets = full knobs. GPU V1/V2 use static OpenVINO graphs. GPU V3 uses runtime Mixed_5b/5c/6a/6b/6c weights and can use the forward-only Turbo graph; V3 needs its exported artifacts.">
         <option value="cpu">CPU · TF nets (full knobs)</option>
-        <option value="gpu">GPU · OpenVINO static (iGPU)</option>
-        <option value="gpu_v2">GPU V2 · OpenVINO static (iGPU)</option>
+        <option value="gpu">GPU V1 · OpenVINO static (iGPU)</option>
+        <option value="gpu_v2">GPU V2 · OpenVINO optimized (iGPU)</option>
+        <option value="gpu_v3">GPU V3 · OpenVINO dynamic (iGPU)</option>
       </select>
       <span class="form-row-hint" id="dreamOvStatus">GPU status: checking…</span>
     </div>
@@ -102,6 +103,14 @@ function renderDeepDreamForm() {
     <div class="knob-row settings-inline-warm">
       <div class="knob-bank">${knobUnitHtml({ id: 'dreamWarm', label: 'Keep warm', value: state.settings?.warmModels?.deepdream ? '1' : '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Keep warm — Off / On', helpText: 'Keeps the DeepDream model resident between runs. On = faster repeat runs, holds VRAM.' })}</div>
       <p class="knob-row-legend">Keep the DeepDream model resident between runs (uses VRAM).</p>
+    </div>
+
+    <div class="knob-row dream-turbo-only">
+      <div class="knob-bank">
+        ${knobUnitHtml({ id: 'dreamTurbo', label: 'Turbo', value: '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Turbo — forward-only saliency', helpText: 'GPU V3 only. Replaces gradient ascent with a forward activation stamp: much faster, flatter texture, less recursive fractal depth.' })}
+        <div class="dream-turbo-strength">${knobUnitHtml({ id: 'dreamTurboStrength', label: 'Stamp', value: '0.5', helpTitle: 'Turbo stamp strength [0–1]', helpText: 'How strongly the GPU V3 Turbo saliency map is stamped onto the image. 0 = no change, 1 = full stamp.' })}</div>
+      </div>
+      <p class="knob-row-legend">Turbo uses the V3 forward-only graph; Stamp controls the saliency overlay.</p>
     </div>
 
     <div class="form-row">
@@ -656,6 +665,15 @@ function renderDeepDreamForm() {
     knobId: 'dreamWarmKnob', indicatorId: 'dreamWarmKnobInd', hiddenId: 'dreamWarm',
     leftValue: '0', rightValue: '1', initial: state.settings?.warmModels?.deepdream ? '1' : '0',
   });
+  setupBinaryKnob({
+    knobId: 'dreamTurboKnob', indicatorId: 'dreamTurboKnobInd', hiddenId: 'dreamTurbo',
+    leftValue: '0', rightValue: '1', initial: '0',
+  });
+  setupContinuousKnob({
+    knobId: 'dreamTurboStrengthKnob', indicatorId: 'dreamTurboStrengthKnobInd',
+    valueId: 'dreamTurboStrengthVal', hiddenId: 'dreamTurboStrength',
+    min: 0, max: 1, step: 0.05, decimals: 2,
+  });
   document.getElementById('dreamWarm')?.addEventListener('change', (e) => {
     state.settings.warmModels.deepdream = e.target.value === '1';
     try { localStorage.setItem('mtapi.settings', JSON.stringify(state.settings)); } catch (_) {}
@@ -808,6 +826,15 @@ function renderDeepDreamForm() {
     document.querySelectorAll('.dream-dynamic-only').forEach((el) => {
       el.classList.toggle('hidden', !(dynamic && showVideo));
     });
+
+    const v3 = document.getElementById('dreamEngine')?.value === 'gpu_v3';
+    const turbo = document.getElementById('dreamTurbo')?.value === '1';
+    document.querySelectorAll('.dream-turbo-only').forEach((el) => {
+      el.classList.toggle('hidden', !v3);
+    });
+    document.querySelectorAll('.dream-turbo-strength').forEach((el) => {
+      el.classList.toggle('hidden', !turbo);
+    });
   }
 
   rebuildLayerUiForModel(document.getElementById('dreamModel')?.value || 'inception_v3');
@@ -822,6 +849,7 @@ function renderDeepDreamForm() {
   document.getElementById('dreamMedia')?.addEventListener('change', syncDreamUiVisibility);
   document.getElementById('dreamOuro')?.addEventListener('change', syncDreamUiVisibility);
   document.getElementById('dreamDynamic')?.addEventListener('change', syncDreamUiVisibility);
+  document.getElementById('dreamTurbo')?.addEventListener('change', syncDreamUiVisibility);
   document.getElementById('dreamInput')?.addEventListener('input', syncDreamUiVisibility);
 
   // Global bar (#giVideo) drives bestInput too — re-sync when it changes.
@@ -855,7 +883,13 @@ function renderDeepDreamForm() {
     _syncDreamGpuRow();
     dreamEng.addEventListener('change', () => {
       try { localStorage.setItem('mtapi.dreamEngine', dreamEng.value); } catch (_) {}
+      if (dreamEng.value === 'gpu_v3' && document.getElementById('dreamModel')?.value !== 'inception_v3') {
+        const model = document.getElementById('dreamModel');
+        if (model) model.value = 'inception_v3';
+        document.getElementById('dreamModel')?.dispatchEvent(new Event('change'));
+      }
       _syncDreamGpuRow();
+      syncDreamUiVisibility();
       if (dreamEng.value.startsWith('gpu')) _refreshDreamOvStatus();
     });
   }
@@ -897,8 +931,10 @@ async function _refreshDreamOvStatus() {
     const res = await fetch('/api/deepdream_ov/status');
     const data = await res.json();
     const baked = data.baked ? ` ${data.baked.model}/${data.baked.layer}` : '';
-    box.textContent = 'GPU status: IR ' + (data.ir_present ? `ok${baked}` : 'MISSING — run GPU Setup')
-      + ' · devices ' + ((data.devices || []).join('/') || '?');
+    const v3 = data.v3 || {};
+    const v3Text = v3.ir_present ? ` · V3 ${v3.turbo_present ? 'ascent+Turbo' : 'ascent'}` : ' · V3 MISSING';
+    box.textContent = 'GPU status: V1 IR ' + (data.ir_present ? `ok${baked}` : 'MISSING — run GPU Setup')
+      + v3Text + ' · devices ' + ((data.devices || []).join('/') || '?');
   } catch (err) {
     box.textContent = 'GPU status check failed — ' + err.message;
   }
@@ -937,6 +973,8 @@ function collectDeepDreamBody() {
 
   const body = withFrameRange({
     engine: document.getElementById('dreamEngine')?.value || 'cpu',
+    turbo: document.getElementById('dreamTurbo')?.value === '1',
+    turbo_strength: parseFloat(document.getElementById('dreamTurboStrength')?.value || '0.5'),
     input_path: input,
     output_path: output,
     media_kind,

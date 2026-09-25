@@ -231,6 +231,13 @@
     "summary": "DeepDream video path uses shared per_frame stage; image and ouroboros remain special bookends. Pipeline filter name deepdream."
   },
   {
+    "file": "deepdream-v3-spec.md",
+    "path": "docs/deepdream-v3-spec.md",
+    "category": "Operation",
+    "status": "Implemented (dynamic weighted ascent + Turbo)",
+    "summary": "OpenVINO V3 exports five runtime-weighted InceptionV3 taps with internal ImageNet normalization and absolute-mean gradient normalization; Turbo uses a separate forward-only saliency graph. Runtime, setup/status, UI, and filter-platform video path are wired."
+  },
+  {
     "file": "dynamic-mixing-spec.md",
     "path": "docs/dynamic-mixing-spec.md",
     "category": "Core Architecture",

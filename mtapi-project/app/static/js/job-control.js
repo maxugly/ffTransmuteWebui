@@ -24,7 +24,7 @@ import { collectCutBody } from '/js/tabs/cut.js';
 import { collectFastSAMBody } from '/js/tabs/fastsam.js';
 import { collectImageEditBody } from '/js/tabs/imageedit.js';
 import { activeTransmuteOp, transmuteOpsDetails, activeMultiMode } from '/js/tabs/transmute.js';
-import { collectDeepDreamBody } from '/js/tabs/deepdream.js?v=2';
+import { collectDeepDreamBody } from '/js/tabs/deepdream.js?v=3';
 import { collectQrBody } from '/js/tabs/qr.js';
 import { collectScriptBody as collectScriptsBody, activeScriptOp } from '/js/tabs/scripts.js';
 import { collectWatermarkBody } from '/js/tabs/watermark.js';

@@ -1,7 +1,12 @@
 # DeepDream V3 Engine (Spec & Post-Mortem)
 
-**Status:** Draft / Paused (Removed from tree)
+**Status:** Implemented — `gpu_v3` dynamic weighted ascent + `turbo` forward-only mode
 **Intent:** Implement a dynamic multi-layer, fixed-shape GPU DeepDream engine using OpenVINO.
+
+The V3 runtime lives in `mtapi-project/app/operations/deepdream_ov_engine_v3.py`.
+The exporter is `mtapi-project/tools/export_v3.py`; build-only dependencies are listed in
+`mtapi-project/tools/requirements-v3-export.txt`. Exported artifacts are written to
+`mtapi-project/junk/models/deepdream_ov_v3/`.
 
 ## 1. Goal
 
@@ -39,7 +44,7 @@ The core issues discovered during prototyping:
 3. **Complex Interplay:**
    Balancing the input normalization, the `std()` gradient scale, and the learning rate scaling required too many fragile heuristics. When tuning one aspect (e.g., lowering the learning rate to stop blowouts), it destroyed another (e.g., losing all contrast).
 
-## 4. Future V3 Technical Architecture
+## 4. Implemented V3 Technical Architecture
 
 When we rebuild V3, it will follow this precise architecture to ensure stability while providing dynamic layer weighting and Turbo support.
 
@@ -80,3 +85,31 @@ Turbo mode will use a completely separate, simplified IR:
 - **Graph:** Runs forward pass only. Captures the activation map of the chosen layer(s), normalizes it to `[0, 1]`, and returns it directly without calculating a gradient.
 - **Python Side:** The Python wrapper scales the activation map up to the image resolution and uses a blend mode (e.g., overlay or add) to "stamp" it onto the original pixels.
 - **Result:** A 3x speedup, sacrificing recursive fractal depth for a flatter, textured look.
+
+### 4.4 Artifact and build contract
+
+The exporter produces one ascent and one Turbo IR for each native shape in the fixed
+512/1.4 pyramid:
+
+```text
+static_deepdream_v3_186x186_fp16.xml/.bin
+static_deepdream_v3_261x261_fp16.xml/.bin
+static_deepdream_v3_365x365_fp16.xml/.bin
+static_deepdream_v3_512x512_fp16.xml/.bin
+static_deepdream_v3_turbo_<shape>_fp16.xml/.bin
+```
+
+Build all artifacts from the project environment:
+
+```bash
+cd mtapi-project
+uv pip install --python .venv/bin/python -r tools/requirements-v3-export.txt
+.venv/bin/python tools/export_v3.py --kind both --octaves 4 \
+  --out-dir junk/models/deepdream_ov_v3
+```
+
+The runtime resolves `$OVS_DD_V3_DIR`, then `junk/models/deepdream_ov_v3/`.
+The V3 graph keeps ImageNet normalization and the weighted objective inside the IR,
+uses absolute-mean gradient normalization, clamps to `[0, 1]`, and applies a final
+Laplacian detail reinjection after the pyramid is resized back to the source dimensions.
+Turbo uses the separate forward-only graph and performs its saliency stamp on the host.

@@ -18,6 +18,7 @@ if str(ROOT) not in sys.path:
 from app.contract import REGISTRY  # noqa: E402
 from app.operations import deepdream_ops as ddo  # noqa: E402
 from app.operations import deepdream_ov_engine as ove  # noqa: E402
+from app.operations import deepdream_ov_engine_v3 as ove_v3  # noqa: E402
 from app.operations.deepdream_ops import (  # noqa: E402
     DeepDreamOvSetupParams,
     DeepDreamParams,
@@ -281,3 +282,79 @@ def test_gpu_matches_cpu_real_model(tmp_path):
     assert float(np.mean(gpu_out)) > 1.0
     diff = float(np.abs(gpu_out.astype(float) - cpu_out.astype(float)).mean())
     assert diff < 5.0, diff
+
+
+def test_v3_octave_shapes_and_layer_mapping():
+    assert ove_v3.octave_shapes(4) == [(186, 186), (261, 261), (365, 365), (512, 512)]
+    mapped = ove_v3.resolve_v3_weights(
+        layer_weights={"mixed4": 1.0, "mixed5": 1.5, "mixed6": 2.0, "mixed7": 2.5}
+    )
+    assert mapped == {"5b": 1.0, "5c": 1.5, "6a": 1.0, "6b": 1.0, "6c": 3.5}
+
+
+def test_v3_compatibility_and_turbo_contract():
+    note = ove_v3.check_compatible(
+        layer_weights={"5b": 1.0, "6c": 2.0},
+        turbo=True,
+        num_octave=2,
+    )
+    assert "Turbo forward-only" in note
+    with pytest.raises(RuntimeError, match="engine=gpu_v3 incompatible"):
+        ove_v3.check_compatible(model_name="vgg16")
+    with pytest.raises(RuntimeError, match="engine=gpu_v3 incompatible"):
+        ove_v3.check_compatible(octave_scale=2.0)
+    assert "Turbo forward-only" in ove_v3.check_compatible(
+        turbo=True,
+        turbo_strength=0.0,
+    )
+
+
+def test_v3_params_and_filter_factory():
+    p = DeepDreamParams(
+        input_path="/abs/x.png",
+        engine="gpu_v3",
+        layer_preset="custom",
+        custom_layer_weights={"5b": 1.0, "6c": 2.0},
+        turbo=True,
+        turbo_strength=0.4,
+    )
+    assert p.engine == "gpu_v3"
+    from app.filters import deepdream as ddf
+
+    fn = ddf.make_deepdream_filter(
+        engine="gpu_v3",
+        layer_preset="custom",
+        layer_weights=p.custom_layer_weights,
+        turbo=True,
+        turbo_strength=p.turbo_strength,
+        num_octave=1,
+    )
+    assert fn.kind == "per_frame"
+    assert fn.stage_name == "deepdream-v3"
+
+
+def test_v3_pair_fails_clean_without_ir(tmp_path, monkeypatch):
+    monkeypatch.setattr(ove_v3, "resolve_artifacts_dir", lambda kind="ascent": None)
+    content = _make_png(tmp_path / "c.png")
+    result = ove_v3.dream_pair(content, tmp_path / "out.png", iterations=1, num_octave=1)
+    assert result["ok"] is False
+    assert "export_v3.py" in result["error"]
+
+
+def test_v3_status_shape():
+    status = get_deepdream_ov_status()["v3"]
+    assert status["ir_present"] in (True, False)
+    assert status["turbo_present"] in (True, False)
+    assert status["baked"]["model"] == "inception_v3"
+    assert status["baked"]["layers"] == [
+        "Mixed_5b", "Mixed_5c", "Mixed_6a", "Mixed_6b", "Mixed_6c",
+    ]
+
+
+def test_turbo_requires_v3_engine(tmp_path):
+    source = _make_png(tmp_path / "c.png")
+    result = _run(deepdream_op(DeepDreamParams(
+        input_path=str(source), engine="cpu", turbo=True, dry_run=True,
+    )))
+    assert result.ok is False
+    assert "engine=gpu_v3" in (result.error or "")
