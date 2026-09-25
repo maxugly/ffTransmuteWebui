@@ -827,23 +827,27 @@ function setupEventListeners() {
   });
 
   // Preview → global Media In (one unified target since 8.098; extension routing
-  // happens in updateGlobalInputs). Append-if-missing; dispatch input so the mode
-  // engine, probe/visibility and input preview all sync through the existing funnel.
+  // happens in updateGlobalInputs). REPLACES the box — the preview shows exactly one
+  // file, so sending it means "this is the input", never "one more of a batch"
+  // (same semantics as the pool send targets). Dispatch input so the mode engine,
+  // probe/visibility and input preview all sync through the existing funnel.
   function sendPreviewToGlobal() {
-    // Only act on a real preview — mediaInfo stays hidden until showPreview runs.
+    // Only act on a real preview — mediaInfo shows one file; mediaInfo stays hidden until showPreview runs.
     if (!elements.mediaInfo || elements.mediaInfo.style.display === 'none') return;
     var path = (elements.mediaPath.textContent || '').trim();
     if (!path) return;
     var gi = document.getElementById('giMediaIn');
     if (!gi) return;
-    var lines = (gi.value || '').split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
-    if (lines.indexOf(path) !== -1) {
-      logConsole('[PREVIEW]: Already in Media In → ' + path);
+    var prior = (gi.value || '').split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+    if (prior.length === 1 && prior[0] === path) {
+      logConsole('[PREVIEW]: Media In already this file → ' + path);
       return;
     }
-    gi.value = lines.length ? lines.join('\n') + '\n' + path : path;
+    gi.value = path;
     gi.dispatchEvent(new Event('input'));
-    logConsole('[PREVIEW]: Sent to Media In → ' + path);
+    logConsole(prior.length
+      ? '[PREVIEW]: Replaced Media In (' + prior.length + ' path' + (prior.length > 1 ? 's' : '') + ') → ' + path
+      : '[PREVIEW]: Sent to Media In → ' + path);
   }
   elements.btnPreviewToInput?.addEventListener('click', sendPreviewToGlobal);
 
