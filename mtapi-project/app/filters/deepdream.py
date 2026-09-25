@@ -65,7 +65,8 @@ def make_deepdream_filter(
     **_extra: Any,
 ):
     """Return a per_frame FilterFn with optional temporal state."""
-    if (engine or "cpu").lower() == "gpu":
+    engine_lower = (engine or "cpu").lower()
+    if engine_lower in ("gpu", "gpu_v2"):
         # check_compatible must see EXPLICIT custom weights only — the resolved
         # preset dict is always non-empty and is covered by the baked-layer note.
         custom_for_check = None
@@ -74,6 +75,7 @@ def make_deepdream_filter(
         if custom_layer_weights_to:
             custom_for_check = custom_layer_weights_to
         return _make_ov_filter(
+            engine=engine_lower,
             model_name=model_name,
             custom_layer_weights=custom_for_check,
             layer_cycle=layer_cycle,
@@ -97,6 +99,7 @@ def make_deepdream_filter(
             step_to=step_to,
             iterations_to=iterations_to,
             blend_to=blend_to,
+            total_frames=total_frames,
         )
     from ..operations.deepdream.dream import (
         dream_image,
@@ -215,8 +218,11 @@ def make_deepdream_filter(
 
 def _make_ov_filter(
     *,
+    engine: str = "gpu",
     model_name: str = "inception_v3",
     custom_layer_weights: dict[str, float] | None = None,
+    layer_weights: dict[str, float] | None = None,
+    custom_layer_weights_to: dict[str, float] | None = None,
     layer_cycle: bool = False,
     guide_path: str | None = None,
     max_loss: float | None = 0.0,
@@ -246,7 +252,10 @@ def _make_ov_filter(
     classic temporal alpha-mix. Everything shape- or layer-changing fails
     loudly at factory time (before any dump is processed).
     """
-    from ..operations import deepdream_ov_engine as ove
+    if engine == "gpu_v2":
+        from ..operations import deepdream_ov_engine_v2 as ove
+    else:
+        from ..operations import deepdream_ov_engine as ove
 
     note = ove.check_compatible(
         model_name=model_name,

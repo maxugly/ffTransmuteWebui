@@ -90,6 +90,7 @@ function renderDeepDreamForm() {
       <select id="dreamEngine" data-help-title="Engine — CPU / GPU" data-help-text="CPU · TF nets = full knobs (all models, layers, guides). GPU = OpenVINO static dream on the iGPU — baked InceptionV3 only, needs one-time GPU Setup; other models/layers/guides stay CPU-only.">
         <option value="cpu">CPU · TF nets (full knobs)</option>
         <option value="gpu">GPU · OpenVINO static (iGPU)</option>
+        <option value="gpu_v2">GPU V2 · OpenVINO static (iGPU)</option>
       </select>
       <span class="form-row-hint" id="dreamOvStatus">GPU status: checking…</span>
     </div>
@@ -855,7 +856,7 @@ function renderDeepDreamForm() {
     dreamEng.addEventListener('change', () => {
       try { localStorage.setItem('mtapi.dreamEngine', dreamEng.value); } catch (_) {}
       _syncDreamGpuRow();
-      if (dreamEng.value === 'gpu') _refreshDreamOvStatus();
+      if (dreamEng.value.startsWith('gpu')) _refreshDreamOvStatus();
     });
   }
   document.getElementById('btnDreamOvSetup')?.addEventListener('click', async () => {
@@ -883,7 +884,8 @@ function renderDeepDreamForm() {
 }
 
 function _syncDreamGpuRow() {
-  const show = (document.getElementById('dreamEngine')?.value || 'cpu') === 'gpu';
+  const val = document.getElementById('dreamEngine')?.value || 'cpu';
+  const show = val.startsWith('gpu');
   document.getElementById('dreamGpuSetupRow')?.classList.toggle('hidden', !show);
 }
 

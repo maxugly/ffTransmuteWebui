@@ -36,7 +36,7 @@ class DeepDreamParams(EvolveRifeParams):
         "auto",
         description="auto detects from extension; force image or video processing path",
     )
-    engine: Literal["cpu", "gpu"] = Field(
+    engine: Literal["cpu", "gpu", "gpu_v2"] = Field(
         "cpu",
         description="Dream engine: 'cpu' = TF nets (full knob set), "
         "'gpu' = OpenVINO InceptionV3/Mixed_6c, strict GPU (fails loudly, never falls back)",
@@ -456,12 +456,20 @@ async def _dream_ouroboros(
 
 
 async def deepdream(p: DeepDreamParams) -> OperationResult:
+    if not p.input_path or not p.input_path.strip():
+        return OperationResult(
+            ok=False,
+            operation="deepdream",
+            error="Please select an input image or video first! (The input path is empty)",
+            dry_run=p.dry_run,
+        )
+
     input_path = Path(p.input_path).expanduser().resolve()
     if not input_path.is_file():
         return OperationResult(
             ok=False,
             operation="deepdream",
-            error=f"Input not found: {input_path}",
+            error=f"Input file not found: {input_path}",
             dry_run=p.dry_run,
         )
 
@@ -561,9 +569,12 @@ async def deepdream(p: DeepDreamParams) -> OperationResult:
     # consume them — same as CPU, which silently ignores them there), so the
     # ramp half of the gate only applies to real video runs.
     ov_note: str | None = None
-    use_ov = p.engine == "gpu"
+    use_ov = p.engine in ("gpu", "gpu_v2")
     if use_ov:
-        from . import deepdream_ov_engine as ove
+        if p.engine == "gpu_v2":
+            from . import deepdream_ov_engine_v2 as ove
+        else:
+            from . import deepdream_ov_engine as ove
 
         ramps_apply = kind == "video" and not p.ouroboros
         try:
@@ -656,6 +667,7 @@ async def deepdream(p: DeepDreamParams) -> OperationResult:
             if use_ov:
                 def _ov_still():
                     job_control.bind(job_token)
+                    kw = {}
                     r = ove.dream_pair(
                         input_path,
                         out,
@@ -667,6 +679,7 @@ async def deepdream(p: DeepDreamParams) -> OperationResult:
                         blend=p.blend,
                         progress_cb=progress_cb,
                         evolve_dir=str(evolve_dir) if evolve_dir else None,
+                        **kw,
                     )
                     if not r.get("ok"):
                         raise RuntimeError(r.get("error") or "OV dream failed")
