@@ -12,6 +12,7 @@ OV_SCALE: float = 1.4
 OV_MAX_OCTAVES: int = 4
 OV_MODEL: str = "inception_v3"
 OV_LAYER: str = "5b+5c+6a+6b+6c"
+ENGINE_ID: str = "gpu_v3"
 V3_LAYERS: tuple[str, ...] = ("5b", "5c", "6a", "6b", "6c")
 V3_LAYER_LABELS: dict[str, str] = {
     "5b": "Mixed_5b",
@@ -28,27 +29,25 @@ V3_PRESETS: dict[str, dict[str, float]] = {
     "full": {"5b": 1.5, "5c": 1.5, "6a": 2.0, "6b": 2.0, "6c": 2.5},
 }
 
-_DEV_FALLBACK = Path("/home/m/snc/cod/testLamaEraser/ovs_dd/artifacts")
 _lock = threading.Lock()
 _compiled: dict[str, Any] = {}
 
 
 def artifacts_candidates() -> list[Path]:
-    values = [
-        os.environ.get("OVS_DD_V3_DIR", "").strip(),
-        os.environ.get("OVS_DD_DIR", "").strip(),
-    ]
+    """V3 artifact roots only.
+
+    V3 IRs are named `static_deepdream_v3_*` and live in their own directory.
+    $OVS_DD_DIR and the V1 dev fallback are deliberately NOT searched: V1/V2
+    must never resolve into V3's tree and vice versa. ($OVS_DD_V3_SRC is the
+    copy source used by the setup op, not a runtime root.)
+    """
     out: list[Path] = []
-    for value in values:
-        if value:
-            path = Path(value).expanduser()
-            if path not in out:
-                out.append(path)
-    default = Path(__file__).resolve().parent.parent.parent / "junk" / "models" / "deepdream_ov_v3"
-    if default not in out:
-        out.append(default)
-    if _DEV_FALLBACK not in out:
-        out.append(_DEV_FALLBACK)
+    env = os.environ.get("OVS_DD_V3_DIR", "").strip()
+    if env:
+        out.append(Path(env).expanduser())
+    out.append(
+        Path(__file__).resolve().parent.parent.parent / "junk" / "models" / "deepdream_ov_v3"
+    )
     return out
 
 
@@ -195,13 +194,18 @@ def check_compatible(
             bad.append(f"layer weights unsupported by GPU V3: {', '.join(unknown)}")
     if bad:
         raise RuntimeError(
-            "engine=gpu_v3 incompatible setting(s): "
+            f"engine={ENGINE_ID} incompatible setting(s): "
             + "; ".join(bad)
             + ". Use engine=cpu for the full knob set."
         )
     mode = "Turbo forward-only" if turbo else "weighted gradient"
-    _ = layer_cycle
-    return f"GPU V3: {mode}, taps {','.join(V3_LAYER_LABELS[k] for k in V3_LAYERS)}"
+    # layer_cycle is accepted and honoured: the V3 per_frame stage cycles the
+    # tap weights per frame index (_cycle_layer_weights), so unlike V1/V2 —
+    # which bake one ascent layer — it needs no gate entry.
+    return (
+        f"GPU V3: {mode}, taps {','.join(V3_LAYER_LABELS[k] for k in V3_LAYERS)}"
+        f"{' · layer_cycle=on (per-frame tap cycling)' if layer_cycle else ''}"
+    )
 
 
 def _get_compiled(

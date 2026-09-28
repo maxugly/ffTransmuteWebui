@@ -6,7 +6,7 @@
  * Produces element ids: `${idPrefix}Rife`, `${idPrefix}Mult`, …
  * API body keys: evolve_use_rife, evolve_rife_multiplier, …
  */
-import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 
 /** Canonical rife-ncnn-vulkan model list (value + short label). */
 export const RIFE_MODELS = [

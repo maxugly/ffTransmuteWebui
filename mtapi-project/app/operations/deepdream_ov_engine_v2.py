@@ -22,6 +22,9 @@ OV_SCALE: float = 1.4
 OV_MAX_OCTAVES: int = 4
 OV_LAYER: str = "Mixed_6c"
 OV_MODEL: str = "inception_v3"
+# Engine id this module owns. Messages name it so a GPU V2 run is never
+# reported as engine=gpu (V1) — the dropdown entries are separate engines.
+ENGINE_ID: str = "gpu_v2"
 
 _DEV_FALLBACK = Path("/home/m/snc/cod/testLamaEraser/ovs_dd/artifacts")
 
@@ -154,7 +157,7 @@ def _get_compiled(
         return compiled, dev
         
     if len(candidates) == 1:
-        raise RuntimeError(f"OpenVINO GPU failed (no CPU fallback — engine=gpu): {last_err}")
+        raise RuntimeError(f"OpenVINO GPU failed (no CPU fallback — engine={ENGINE_ID}): {last_err}")
     raise RuntimeError(f"OpenVINO compile failed on {candidates}: {last_err}")
 
 
@@ -180,30 +183,35 @@ def check_compatible(
 ) -> str:
     bad: list[str] = []
     if (model_name or "inception_v3") != "inception_v3":
-        bad.append(f"model_name={model_name} (GPU bakes {OV_MODEL} only)")
+        bad.append(f"model_name={model_name} (GPU V2 bakes {OV_MODEL} only)")
     if custom_layer_weights:
-        bad.append("custom_layer_weights (GPU bakes InceptionV3/Mixed_6c only)")
+        bad.append(
+            "custom_layer_weights (GPU V2 bakes InceptionV3/Mixed_6c only — "
+            "switch Layers to a built-in preset; note the ascent target stays Mixed_6c)"
+        )
     if layer_cycle:
-        bad.append("layer_cycle (GPU bakes a single layer)")
+        bad.append(
+            f"layer_cycle (GPU V2 bakes a single ascent layer — {OV_LAYER})"
+        )
     if guide_path:
         bad.append("guide_path (guided dreaming is CPU-only)")
     if (max_loss or 0) > 0 or (max_loss_to or 0) > 0:
         bad.append("max_loss (the OV graph exposes no loss ceiling)")
     if (preview_width or 0) > 0:
-        bad.append(f"preview_width={preview_width} (GPU dreams the full frame)")
+        bad.append(f"preview_width={preview_width} (GPU V2 dreams the full frame)")
     if optical_flow:
         bad.append("optical_flow (CPU-only seed warping)")
     if abs(float(octave_scale) - OV_SCALE) > 1e-9:
-        bad.append(f"octave_scale={octave_scale} (GPU IRs exist only for scale {OV_SCALE})")
+        bad.append(f"octave_scale={octave_scale} (GPU V2 IRs exist only for scale {OV_SCALE})")
     if int(num_octave) > OV_MAX_OCTAVES:
-        bad.append(f"num_octave={num_octave} (GPU IRs exist only for ≤{OV_MAX_OCTAVES})")
+        bad.append(f"num_octave={num_octave} (GPU V2 IRs exist only for ≤{OV_MAX_OCTAVES})")
     if num_octave_to is not None and abs(float(num_octave_to) - float(num_octave)) > 1e-9:
-        bad.append("num_octave ramp (GPU IRs are shape-fixed)")
+        bad.append("num_octave ramp (GPU V2 IRs are shape-fixed)")
     if octave_scale_to is not None and abs(float(octave_scale_to) - float(octave_scale)) > 1e-9:
-        bad.append("octave_scale ramp (GPU IRs are shape-fixed)")
+        bad.append("octave_scale ramp (GPU V2 IRs are shape-fixed)")
     if bad:
         raise RuntimeError(
-            "engine=gpu incompatible setting(s): " + "; ".join(bad)
+            f"engine={ENGINE_ID} incompatible setting(s): " + "; ".join(bad)
             + ". Use engine=cpu for the full knob set."
         )
     return f"GPU V2: ascent target is baked {OV_MODEL}/{OV_LAYER}"

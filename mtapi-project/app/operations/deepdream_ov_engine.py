@@ -36,9 +36,12 @@ import numpy as np
 OV_BASE: tuple[int, int] = (512, 512)
 OV_SCALE: float = 1.4
 OV_MAX_OCTAVES: int = 4
-#: Baked ascent target of the shipped IRs (OVS-DD build default).
 OV_LAYER: str = "Mixed_6c"
 OV_MODEL: str = "inception_v3"
+# Engine id this module owns. Every message it raises names itself so a
+# gpu_v2 run never reads as engine=gpu (the versions are separate products
+# sharing one dropdown).
+ENGINE_ID: str = "gpu"
 
 _DEV_FALLBACK = Path("/home/m/snc/cod/testLamaEraser/ovs_dd/artifacts")
 
@@ -175,7 +178,7 @@ def _get_compiled(
             _compiled[key] = compiled
         return compiled, dev
     if len(candidates) == 1:
-        raise RuntimeError(f"OpenVINO GPU failed (no CPU fallback — engine=gpu): {last_err}")
+        raise RuntimeError(f"OpenVINO GPU failed (no CPU fallback — engine={ENGINE_ID}): {last_err}")
     raise RuntimeError(f"OpenVINO compile failed on {candidates}: {last_err}")
 
 
@@ -209,11 +212,13 @@ def check_compatible(
         bad.append(f"model_name={model_name} (GPU bakes {OV_MODEL} only)")
     if custom_layer_weights:
         bad.append(
-            "custom_layer_weights (GPU bakes InceptionV3/Mixed_6c only — "
+            "custom_layer_weights (GPU V1 bakes InceptionV3/Mixed_6c only — "
             "switch Layers to a built-in preset; note the ascent target stays Mixed_6c)"
         )
     if layer_cycle:
-        bad.append("layer_cycle (GPU bakes a single layer)")
+        bad.append(
+            f"layer_cycle (GPU V1 bakes a single ascent layer — {OV_LAYER})"
+        )
     if guide_path:
         bad.append("guide_path (guided dreaming is CPU-only)")
     if (max_loss or 0) > 0 or (max_loss_to or 0) > 0:
@@ -243,7 +248,7 @@ def check_compatible(
         )
     if bad:
         raise RuntimeError(
-            "engine=gpu incompatible setting(s): " + "; ".join(bad)
+            f"engine={ENGINE_ID} incompatible setting(s): " + "; ".join(bad)
             + ". Use engine=cpu for the full knob set."
         )
     return (

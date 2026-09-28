@@ -1,6 +1,6 @@
 /** Settings: local preferences with a small server mirror for media routes. */
 import { state, elements } from '/app.js';
-import { setupContinuousKnob } from '/js/ui/knobs.js';
+import { setupContinuousKnob } from '/js/ui/knobs.js?v=6';
 
 const SIZE_LABELS = ['L', 'M', 'H'];
 const SCROLLBAR_MIN = 6;

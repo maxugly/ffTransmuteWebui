@@ -1,6 +1,6 @@
 import { state } from '/app.js';
-import { knobUnitHtml } from '/js/ui/knobs.js';
-import { setupContinuousKnob, setupBinaryKnob } from '/js/ui/knobs.js';
+import { knobUnitHtml } from '/js/ui/knobs.js?v=6';
+import { setupContinuousKnob, setupBinaryKnob } from '/js/ui/knobs.js?v=6';
 import { runOpWithCancel } from '/js/job-control.js';
 
 // ── Music tab (ACE-Step text-to-music, OpenVINO HETERO) ────────────────────

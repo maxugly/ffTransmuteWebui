@@ -1,5 +1,5 @@
 import { elements, bestInput } from '/app.js';
-import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 import { rifeModelSelectHtml } from '/js/ui/evolve-rife.js';
 import { withFrameRange } from '/js/utils.js';
 

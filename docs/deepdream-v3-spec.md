@@ -113,3 +113,20 @@ The V3 graph keeps ImageNet normalization and the weighted objective inside the 
 uses absolute-mean gradient normalization, clamps to `[0, 1]`, and applies a final
 Laplacian detail reinjection after the pyramid is resized back to the source dimensions.
 Turbo uses the separate forward-only graph and performs its saliency stamp on the host.
+
+## 5. Engine isolation contract (V1 / V2 / V3)
+
+The three GPU engines share one Engine dropdown and one Setup row, so "the versions are
+separate" has to be enforced in both directions. These are the rules, each with a test
+in `mtapi-project/tests/test_deepdream_ov.py`:
+
+| Concern | Rule |
+|---------|------|
+| Identity | Every engine module owns an `ENGINE_ID` (`gpu`, `gpu_v2`, `gpu_v3`) and names **itself** in every message it raises. A `gpu_v2` run must never be reported as `engine=gpu`. |
+| Artifacts | V1/V2 resolve `static_deepdream_*` from `$OVS_DD_DIR` → `junk/models/deepdream_ov/`; V3 resolves `static_deepdream_v3_*` from `$OVS_DD_V3_DIR` → `junk/models/deepdream_ov_v3/`. Neither searches the other's tree. V1 and V2 legitimately share the same IR set — V2 is V1's graph with a different execution profile (selective FP16 with FP32 pinned on 365/512, persistent `InferRequest`s). |
+| `turbo` | V3-only, and the Turbo row is hidden for every other engine. It is forwarded **only** inside `engine == "gpu_v3"` branches, so a leftover value can never fail V1/V2 — it is reported in the summary as `turbo=ignored (GPU V3 only, engine=…)` rather than silently dropped. |
+| `layer_cycle` | A per-frame **video** concept. The stills and Ouroboros paths never consume it and CPU ignores it there, so the compatibility gate only judges it on a real video run. V1/V2 legitimately refuse it there (they bake one ascent layer) and say which engine refused. V3 accepts it because its per-frame stage really does cycle the tap weights. |
+| `*_to` ramps | Same video-only rule as `layer_cycle` (added in `8.077`). |
+| Status / Setup | `/api/deepdream_ov/status` and `deepdream_ov_setup` report per-engine verdicts, and a V3 failure degrades to an `error` string instead of taking the shared endpoint (and the V1/V2 verdict) down. |
+| UI honesty | Both knob systems repaint from the hidden input on `change`, so a restored form-state value is visible. Leaving `gpu_v3` turns Turbo off. |
+

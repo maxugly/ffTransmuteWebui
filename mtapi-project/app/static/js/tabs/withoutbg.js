@@ -1,6 +1,6 @@
 import { state, elements, resolveGlobalImages, showPreview } from '/app.js';
 import { basename, escapeHtml, withFrameRange, isVideoPath } from '/js/utils.js';
-import { setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 import { registerListKeys } from '/js/ui/list-keys.js';
 
 // ── withoutBG tab (background removal) ───────────────────────────────────

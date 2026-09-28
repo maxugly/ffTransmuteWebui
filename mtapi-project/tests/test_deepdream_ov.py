@@ -18,6 +18,7 @@ if str(ROOT) not in sys.path:
 from app.contract import REGISTRY  # noqa: E402
 from app.operations import deepdream_ops as ddo  # noqa: E402
 from app.operations import deepdream_ov_engine as ove  # noqa: E402
+from app.operations import deepdream_ov_engine_v2 as ove_v2  # noqa: E402
 from app.operations import deepdream_ov_engine_v3 as ove_v3  # noqa: E402
 from app.operations.deepdream_ops import (  # noqa: E402
     DeepDreamOvSetupParams,
@@ -351,10 +352,185 @@ def test_v3_status_shape():
     ]
 
 
-def test_turbo_requires_v3_engine(tmp_path):
+def test_turbo_is_ignored_off_v3_never_a_hard_fail(tmp_path):
+    """Turbo is a V3-only knob whose row is hidden for every other engine, so a
+    leftover/restored value must not fail CPU/V1/V2 — the owning engine simply
+    never consumes it. It is named in the summary so it is not silent."""
+    source = _make_png(tmp_path / "c.png")
+    for engine in ("cpu", "gpu", "gpu_v2"):
+        result = _run(deepdream_op(DeepDreamParams(
+            input_path=str(source), engine=engine, turbo=True, dry_run=True,
+        )))
+        assert result.ok is True, (engine, result.error)
+        assert "turbo=ignored" in (result.command or ""), engine
+
+
+def test_turbo_still_runs_on_v3(tmp_path):
     source = _make_png(tmp_path / "c.png")
     result = _run(deepdream_op(DeepDreamParams(
-        input_path=str(source), engine="cpu", turbo=True, dry_run=True,
+        input_path=str(source), engine="gpu_v3", turbo=True, turbo_strength=0.4,
+        dry_run=True,
     )))
-    assert result.ok is False
-    assert "engine=gpu_v3" in (result.error or "")
+    assert result.ok is True, result.error
+    assert "turbo=on strength=0.4" in (result.command or "")
+
+
+# ── version isolation: the three engines are separate products ───────────────
+
+def test_each_engine_names_itself_in_gate_errors():
+    """A gpu_v2 run must never be reported as engine=gpu (V1). The old shared
+    string is what made a V2 failure look like the wrong engine was selected."""
+    assert ove.ENGINE_ID == "gpu"
+    assert ove_v2.ENGINE_ID == "gpu_v2"
+    assert ove_v3.ENGINE_ID == "gpu_v3"
+    for engine_module in (ove, ove_v2, ove_v3):
+        with pytest.raises(RuntimeError) as exc:
+            engine_module.check_compatible(model_name="vgg16")
+        assert f"engine={engine_module.ENGINE_ID} incompatible" in str(exc.value)
+
+
+def test_v2_layer_cycle_error_says_v2():
+    with pytest.raises(RuntimeError) as exc:
+        ove_v2.check_compatible(layer_cycle=True)
+    assert "engine=gpu_v2" in str(exc.value)
+    assert "GPU V2 bakes a single ascent layer" in str(exc.value)
+
+
+def test_stills_ignore_video_only_layer_cycle(tmp_path):
+    """layer_cycle is a per-frame video concept; the stills path never consumes
+    it (CPU ignores it there too), so a still must not fail over it. This was
+    the exact V1/V2 outage: a restored Layer cycle=1 lives in the hidden
+    video-only bank and blocked every GPU still with an off-screen knob."""
+    src = _make_png(tmp_path / "c.png")
+    for engine in ("gpu", "gpu_v2"):
+        p = DeepDreamParams(
+            input_path=str(src), engine=engine, layer_cycle=True, dry_run=True,
+        )
+        r = _run(deepdream_op(p))
+        assert r.ok is True, (engine, r.error)
+
+
+def test_video_layer_cycle_still_fails_loudly(tmp_path):
+    """On a real video run layer_cycle IS consumed → V1/V2 must fail loudly
+    (both bake one ascent layer) and name the engine the user picked."""
+    clip = tmp_path / "c.mp4"
+    clip.write_bytes(b"fake")
+    for engine, expect in (("gpu", "engine=gpu "), ("gpu_v2", "engine=gpu_v2 ")):
+        p = DeepDreamParams(
+            input_path=str(clip), media_kind="video", engine=engine,
+            layer_cycle=True, dry_run=True,
+        )
+        r = _run(deepdream_op(p))
+        assert r.ok is False, engine
+        assert expect in (r.error or ""), (engine, r.error)
+        assert "layer_cycle" in (r.error or "")
+
+
+def test_v3_accepts_layer_cycle_because_it_implements_it(tmp_path):
+    """V3 is the one GPU engine that cycles taps per frame, so layer_cycle is
+    legal there and is surfaced in the baked-layer note rather than dropped."""
+    src = _make_png(tmp_path / "c.png")
+    p = DeepDreamParams(
+        input_path=str(src), engine="gpu_v3", layer_cycle=True, dry_run=True,
+    )
+    r = _run(deepdream_op(p))
+    assert r.ok is True, r.error
+    note = ove_v3.check_compatible(layer_cycle=True)
+    assert "layer_cycle=on" in note
+
+
+def test_v3_status_survives_a_broken_v3_engine(monkeypatch):
+    """The tab's status line reads V1 and V3 from one payload, so a V3 failure
+    must degrade to an error string instead of taking the endpoint — and with
+    it the V1/V2 verdict — down."""
+    def _boom(*a, **kw):
+        raise RuntimeError("v3 exploded")
+
+    monkeypatch.setattr(ove_v3, "resolve_artifacts_dir", _boom)
+    status = get_deepdream_ov_status()
+    assert status["ok"] is True
+    assert status["ir_present"] in (True, False)
+    assert status["v3"]["ir_present"] is False
+    assert "v3 exploded" in status["v3"]["error"]
+
+
+def test_status_lists_each_engine_separately():
+    status = get_deepdream_ov_status()
+    assert set(status["engines"]) == {"gpu", "gpu_v2", "gpu_v3"}
+    assert status["engines"]["gpu_v2"]["id"] == "gpu_v2"
+    assert status["engines"]["gpu_v3"]["id"] == "gpu_v3"
+
+
+def test_v3_artifacts_never_resolve_into_v1_dirs(monkeypatch, tmp_path):
+    """V1/V2 and V3 own separate artifact trees. V3 used to search $OVS_DD_DIR
+    and the V1 dev fallback, so a V1 directory could become a V3 runtime root."""
+    monkeypatch.setenv("OVS_DD_DIR", str(tmp_path))
+    monkeypatch.setenv("OVS_DD_SRC", str(tmp_path))
+    monkeypatch.setenv("OVS_DD_V3_DIR", str(tmp_path))
+    candidates = [str(p) for p in ove_v3.artifacts_candidates()]
+    assert candidates[0] == str(tmp_path), candidates
+    assert len(candidates) == 2, candidates
+    assert "deepdream_ov_v3" in candidates[1], candidates
+    assert not any("testLamaEraser" in c for c in candidates), candidates
+    # …and the V1 engine is likewise unaware of the V3 tree.
+    assert not any("deepdream_ov_v3" in str(p) for p in ove.artifacts_candidates())
+
+
+def test_v1_and_v2_still_share_the_static_ir_set():
+    """V2 is V1's graph with a different execution profile (selective FP16 +
+    persistent requests) — same IRs, same baked layer, same gate rules."""
+    assert ove_v2._ir_name((186, 186)) == ove._ir_name((186, 186))
+    assert ove_v2.OV_LAYER == ove.OV_LAYER
+    assert ove_v2.octave_shapes(4) == ove.octave_shapes(4)
+    assert ove_v2._ir_name((186, 186)) != ove_v3._ir_name((186, 186))
+
+
+# ── frontend wiring (static, no browser) ─────────────────────────────────────
+# The Layer cycle outage was half frontend: the restored value was written into
+# the hidden input without repainting the knob, so the UI read "Off" while every
+# run sent On. These lock the honesty rules at source.
+
+STATIC = ROOT / "app" / "static"
+
+
+def test_knobs_repaint_from_the_hidden_input_value():
+    """A programmatic write (form-state restore, engine switch, hydration) must
+    repaint both knob systems, or the knob lies about the payload it sends."""
+    knobs = (STATIC / "js" / "ui" / "knobs.js").read_text(encoding="utf-8")
+    assert knobs.count("hiddenInput.addEventListener('change'") == 2, (
+        "both setupContinuousKnob and setupBinaryKnob must re-sync on change"
+    )
+
+
+def test_every_knobs_importer_is_cache_busted():
+    """app.js and deepdream.js imported knobs.js unversioned, so the browser
+    could serve a cached copy and hide the fix (the 8.074 / sequence-erase trap).
+    The knob engine is global — every importer must move together."""
+    import re
+
+    importers = [
+        path for path in STATIC.rglob("*.js")
+        if "/js/ui/knobs.js" in path.read_text(encoding="utf-8")
+    ]
+    assert len(importers) >= 20, len(importers)
+    versions = set()
+    for path in importers:
+        for found in re.findall(r"/js/ui/knobs\.js(\?v=\d+)?", path.read_text(encoding="utf-8")):
+            versions.add(found)
+    assert versions == {"?v=6"}, versions
+
+
+def test_leaving_v3_turns_turbo_off():
+    """The Turbo row is hidden for every non-V3 engine, so a leftover On could
+    not be seen or undone by the user."""
+    js = (STATIC / "js" / "tabs" / "deepdream.js").read_text(encoding="utf-8")
+    assert "if (dreamEng.value !== 'gpu_v3')" in js
+    assert "Turbo off — GPU V3 only" in js
+
+
+def test_status_line_names_the_selected_engine():
+    """Per-engine verdicts, so 'which version is broken' is answerable without
+    running it (V1/V2 share the static IR set; V3 has its own export)."""
+    js = (STATIC / "js" / "tabs" / "deepdream.js").read_text(encoding="utf-8")
+    assert "GPU status: [${sel}]" in js
+    assert "V1/V2 IR ${staticIr}" in js

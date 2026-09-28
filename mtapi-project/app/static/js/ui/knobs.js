@@ -139,6 +139,17 @@ function setupContinuousKnob(opts) {
     text: () => helpText || '',
     getDynamicText: () => `Value: ${format(currentVal)} · Range ${minVal}–${maxVal}`,
   });
+  // A programmatic write (form-state restore, an engine switch, tab hydration)
+  // sets hiddenInput.value directly and fires `change`. Without this the dial,
+  // the readout and the help strip keep showing the render default while the
+  // payload carries the restored value — the knob lies about what it sends.
+  hiddenInput.addEventListener('change', () => {
+    const raw = parseFloat(hiddenInput.value);
+    if (isNaN(raw)) return;
+    const clamped = Math.min(maxVal, Math.max(minVal, raw));
+    if (clamped === currentVal && valueDisplay.value === format(clamped)) return;
+    updateUI(clamped);
+  });
   updateUI(currentVal);
 }
 
@@ -255,6 +266,11 @@ function setupBinaryKnob(opts) {
     text: () => helpText || '',
     getDynamicText: () => `Mode: ${isRight(hiddenInput.value) ? rightLabel : leftLabel}`,
   });
+  // Same honesty rule as the continuous knob: a restored/programmatic value
+  // must repaint the dial, the On/Off caps and the help strip. Restoring a
+  // hidden `1` while the knob still reads "Off" is how an invisible knob
+  // silently changed the payload of every run.
+  hiddenInput.addEventListener('change', () => updateUI(hiddenInput.value));
   // initial
   const init = opts.initial != null ? opts.initial : hiddenInput.value;
   updateUI(init);

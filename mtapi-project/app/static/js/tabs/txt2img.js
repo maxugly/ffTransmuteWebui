@@ -1,5 +1,5 @@
 import { elements } from '/app.js';
-import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 
 function renderTxt2ImgForm() {
   const html = `

@@ -1,6 +1,6 @@
 import { state, elements, logConsole, showPreview } from '/app.js';
 import { basename, escapeHtml } from '/js/utils.js';
-import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 import { rifeModelSelectHtml } from '/js/ui/evolve-rife.js';
 import { registerListKeys } from '/js/ui/list-keys.js';
 import { fmtDuration, fmtFrames, renderPreRunSummary } from '/js/ui/pre-run-summary.js';

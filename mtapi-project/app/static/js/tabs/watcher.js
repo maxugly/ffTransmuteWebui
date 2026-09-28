@@ -1,6 +1,6 @@
 import { state, elements } from '/app.js';
 import { escapeHtml } from '/js/utils.js';
-import { setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 import { isApplyingFormState } from '/js/pool/persistence.js';
 
 // In-flight user toggles, immune to poll re-sync until their POST lands.

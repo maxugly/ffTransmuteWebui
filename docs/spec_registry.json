@@ -234,8 +234,8 @@
     "file": "deepdream-v3-spec.md",
     "path": "docs/deepdream-v3-spec.md",
     "category": "Operation",
-    "status": "Implemented (dynamic weighted ascent + Turbo)",
-    "summary": "OpenVINO V3 exports five runtime-weighted InceptionV3 taps with internal ImageNet normalization and absolute-mean gradient normalization; Turbo uses a separate forward-only saliency graph. Runtime, setup/status, UI, and filter-platform video path are wired."
+    "status": "Implemented (dynamic weighted ascent + Turbo); engine-isolation contract in §5",
+    "summary": "OpenVINO V3 exports five runtime-weighted InceptionV3 taps with internal ImageNet normalization and absolute-mean gradient normalization; Turbo uses a separate forward-only saliency graph. Runtime, setup/status, UI, and filter-platform video path are wired. §5 fixes the V1/V2/V3 isolation contract: per-engine ENGINE_ID in every message, separate artifact roots, video-only scoping for layer_cycle and the *_to ramps, turbo ignored (not fatal) off V3, per-engine status/setup verdicts, knobs that repaint from restored values."
   },
   {
     "file": "dynamic-mixing-spec.md",

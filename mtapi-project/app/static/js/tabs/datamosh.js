@@ -1,5 +1,5 @@
 import { state, elements } from '/app.js';
-import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 import { HelpStrip } from '/js/ui/help-strip.js';
 
 // Mosh Form

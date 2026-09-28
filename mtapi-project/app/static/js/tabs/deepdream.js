@@ -1,5 +1,5 @@
 import { state, elements, bestInput, logConsole } from '/app.js';
-import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 import { runOpWithCancel } from '/js/job-control.js';
 import {
   evolveRifeModelSelectHtml,
@@ -852,12 +852,15 @@ function renderDeepDreamForm() {
   document.getElementById('dreamTurbo')?.addEventListener('change', syncDreamUiVisibility);
   document.getElementById('dreamInput')?.addEventListener('input', syncDreamUiVisibility);
 
-  // Global bar (#giVideo) drives bestInput too — re-sync when it changes.
-  // Delegated on document (the bar is persistent) so it never stacks per-render.
-  const giVideo = document.getElementById('giVideo');
-  if (giVideo && !giVideo._dreamVisBound) {
-    giVideo._dreamVisBound = true;
-    giVideo.addEventListener('input', () => {
+  // The global Media In box drives bestInput too — re-sync when it changes.
+  // It is #giMediaIn since the unified bar (8.098); the old #giVideo id is gone,
+  // which silently killed this binding and left the video bank stuck hidden
+  // whenever the input came from the global box. The bar is persistent, so bind
+  // it exactly once no matter how many times this tab re-renders.
+  const giMediaIn = document.getElementById('giMediaIn');
+  if (giMediaIn && !giMediaIn._dreamVisBound) {
+    giMediaIn._dreamVisBound = true;
+    giMediaIn.addEventListener('input', () => {
       if (state.activeTab === 'deepdream') syncDreamUiVisibility();
     });
   }
@@ -887,6 +890,17 @@ function renderDeepDreamForm() {
         const model = document.getElementById('dreamModel');
         if (model) model.value = 'inception_v3';
         document.getElementById('dreamModel')?.dispatchEvent(new Event('change'));
+      }
+      // Leaving gpu_v3 turns Turbo off: the Turbo row is hidden for every other
+      // engine, so a leftover On could not be seen or undone by the user (and
+      // the restored form state can carry it across a reload).
+      if (dreamEng.value !== 'gpu_v3') {
+        const turbo = document.getElementById('dreamTurbo');
+        if (turbo && turbo.value !== '0') {
+          turbo.value = '0';
+          turbo.dispatchEvent(new Event('change', { bubbles: true }));
+          logConsole('[DEEPDREAM]: Turbo off — GPU V3 only');
+        }
       }
       _syncDreamGpuRow();
       syncDreamUiVisibility();
@@ -932,9 +946,16 @@ async function _refreshDreamOvStatus() {
     const data = await res.json();
     const baked = data.baked ? ` ${data.baked.model}/${data.baked.layer}` : '';
     const v3 = data.v3 || {};
-    const v3Text = v3.ir_present ? ` · V3 ${v3.turbo_present ? 'ascent+Turbo' : 'ascent'}` : ' · V3 MISSING';
-    box.textContent = 'GPU status: V1 IR ' + (data.ir_present ? `ok${baked}` : 'MISSING — run GPU Setup')
-      + v3Text + ' · devices ' + ((data.devices || []).join('/') || '?');
+    // Per-engine verdicts, so "which version is broken" is answerable here
+    // instead of by running it. V1 and V2 share the static IR set; V3 has its
+    // own export and can be missing while V1/V2 are fine (or the reverse).
+    const staticIr = data.ir_present ? `ok${baked}` : 'MISSING';
+    const v3Ir = v3.error ? `ERROR (${v3.error})` : (v3.ir_present ? (v3.turbo_present ? 'ascent+Turbo' : 'ascent') : 'MISSING');
+    const sel = document.getElementById('dreamEngine')?.value || 'cpu';
+    const selState = sel === 'gpu_v3' ? v3Ir : staticIr;
+    box.textContent = `GPU status: [${sel}] ${selState}`
+      + ` · V1/V2 IR ${staticIr} · V3 ${v3Ir}`
+      + ` · devices ${(data.devices || []).join('/') || '?'}`;
   } catch (err) {
     box.textContent = 'GPU status check failed — ' + err.message;
   }

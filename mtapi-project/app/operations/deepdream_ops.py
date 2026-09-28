@@ -576,7 +576,14 @@ async def deepdream(p: DeepDreamParams) -> OperationResult:
     if p.guide_path:
         summary += f" guide={p.guide_path}"
     if p.turbo:
-        summary += f" turbo=on strength={p.turbo_strength:g}"
+        if p.engine == "gpu_v3":
+            summary += f" turbo=on strength={p.turbo_strength:g}"
+        else:
+            # Turbo is a V3-only knob whose row is hidden for every other
+            # engine, so a leftover/restored value must not fail V1/V2: the
+            # engine that owns it simply never consumes it (same rule as the
+            # video-only ramps). Named in the summary so it is not silent.
+            summary += f" turbo=ignored (GPU V3 only, engine={p.engine})"
     if p.preview_width:
         summary += f" preview_w={p.preview_width}"
     if p.evolve_enabled:
@@ -598,21 +605,16 @@ async def deepdream(p: DeepDreamParams) -> OperationResult:
             f"layer_cycle={p.layer_cycle}"
         )
 
-    if p.turbo and p.engine != "gpu_v3":
-        return OperationResult(
-            ok=False,
-            operation="deepdream",
-            error="Turbo mode requires engine=gpu_v3",
-            dry_run=p.dry_run,
-            command=summary,
-            stdout=f"{summary}\n",
-        )
-
     # GPU compatibility gate — runs before dry_run too, so a dry run of an
     # unrunnable job reports the incompatibility instead of a fake plan.
-    # *_to ramps are video-path-only knobs (the stills/ouroboros paths never
-    # consume them — same as CPU, which silently ignores them there), so the
-    # ramp half of the gate only applies to real video runs.
+    # `turbo` is deliberately NOT gated: it is only ever forwarded inside an
+    # `engine == "gpu_v3"` branch below (per_frame filter, ouroboros kwargs,
+    # still kwargs, and the V3 check itself), so V1/V2 simply never consume it.
+    # Video-only knobs (the *_to ramps and layer_cycle) are per-frame concepts:
+    # the stills/ouroboros paths never consume them, and CPU silently ignores
+    # them there too, so the gate only judges them on a real video run. This is
+    # the same rule the ramp half got in 8.077; layer_cycle was left unscoped
+    # and made every V1/V2 still fail over a knob that was not even visible.
     ov_note: str | None = None
     use_ov = p.engine in ("gpu", "gpu_v2", "gpu_v3")
     if use_ov:
@@ -623,23 +625,23 @@ async def deepdream(p: DeepDreamParams) -> OperationResult:
         else:
             from . import deepdream_ov_engine as ove
 
-        ramps_apply = kind == "video" and not p.ouroboros
+        video_only_applies = kind == "video" and not p.ouroboros
         try:
             if p.engine == "gpu_v3":
                 ov_note = ove.check_compatible(
                     model_name=p.model_name,
                     layer_weights=layer_weights,
                     custom_layer_weights=p.custom_layer_weights,
-                    layer_cycle=p.layer_cycle,
+                    layer_cycle=p.layer_cycle if video_only_applies else False,
                     guide_path=p.guide_path,
                     max_loss=p.max_loss,
-                    max_loss_to=p.max_loss_to if ramps_apply else None,
+                    max_loss_to=p.max_loss_to if video_only_applies else None,
                     preview_width=p.preview_width,
                     optical_flow=p.optical_flow,
                     octave_scale=p.octave_scale,
                     num_octave=p.num_octave,
-                    num_octave_to=p.num_octave_to if ramps_apply else None,
-                    octave_scale_to=p.octave_scale_to if ramps_apply else None,
+                    num_octave_to=p.num_octave_to if video_only_applies else None,
+                    octave_scale_to=p.octave_scale_to if video_only_applies else None,
                     turbo=p.turbo,
                     turbo_strength=p.turbo_strength,
                 )
@@ -647,16 +649,16 @@ async def deepdream(p: DeepDreamParams) -> OperationResult:
                 ov_note = ove.check_compatible(
                     model_name=p.model_name,
                     custom_layer_weights=p.custom_layer_weights,
-                    layer_cycle=p.layer_cycle,
+                    layer_cycle=p.layer_cycle if video_only_applies else False,
                     guide_path=p.guide_path,
                     max_loss=p.max_loss,
-                    max_loss_to=p.max_loss_to if ramps_apply else None,
+                    max_loss_to=p.max_loss_to if video_only_applies else None,
                     preview_width=p.preview_width,
                     optical_flow=p.optical_flow,
                     octave_scale=p.octave_scale,
                     num_octave=p.num_octave,
-                    num_octave_to=p.num_octave_to if ramps_apply else None,
-                    octave_scale_to=p.octave_scale_to if ramps_apply else None,
+                    num_octave_to=p.num_octave_to if video_only_applies else None,
+                    octave_scale_to=p.octave_scale_to if video_only_applies else None,
                 )
         except Exception as e:
             return OperationResult(
@@ -917,16 +919,40 @@ def _ov_v3_source_dir() -> Path | None:
     return None
 
 
+def _ov_v3_status() -> dict:
+    """V3 half of the status payload, never able to break the V1 half.
+
+    The tab's status line and the Setup row read this from the same payload, so
+    a V3 import/probe problem must degrade to an `error` string instead of
+    taking the whole endpoint (and with it the V1/V2 status) down.
+    """
+    try:
+        from . import deepdream_ov_engine_v3 as ove_v3
+    except Exception as e:  # noqa: BLE001 — status must stay HTTP 200
+        return {"ir_present": False, "turbo_present": False, "error": f"V3 engine unavailable: {e}"}
+    v3_dir = _ov_v3_model_dir()
+    try:
+        v3_resolved = ove_v3.resolve_artifacts_dir()
+        return {
+            "ir_present": ove_v3.ir_present(),
+            "turbo_present": ove_v3.ir_present("turbo"),
+            "artifacts_dir": str(v3_resolved) if v3_resolved else None,
+            "model_dir": str(v3_dir),
+            "files": {name: (v3_dir / name).is_file() for name in OV_V3_FILES},
+            "shapes": [f"{h}x{w}" for h, w in ove_v3.available_shapes()],
+            "turbo_shapes": [f"{h}x{w}" for h, w in ove_v3.available_shapes("turbo")],
+            "baked": {"model": ove_v3.OV_MODEL, "layers": list(ove_v3.V3_LAYER_LABELS.values())},
+        }
+    except Exception as e:  # noqa: BLE001
+        return {"ir_present": False, "turbo_present": False, "error": f"V3 status failed: {e}"}
+
+
 def get_deepdream_ov_status() -> dict:
     from . import deepdream_ov_engine as ove
-    from . import deepdream_ov_engine_v3 as ove_v3
 
     d = _ov_model_dir()
     files = {name: (d / name).is_file() for name in OV_DD_FILES}
     resolved = ove.resolve_artifacts_dir()
-    v3_dir = _ov_v3_model_dir()
-    v3_files = {name: (v3_dir / name).is_file() for name in OV_V3_FILES}
-    v3_resolved = ove_v3.resolve_artifacts_dir()
     return {
         "ok": True,
         "ir_present": ove.ir_present(),
@@ -935,17 +961,13 @@ def get_deepdream_ov_status() -> dict:
         "files": files,
         "shapes": [f"{h}x{w}" for h, w in ove.available_shapes()],
         "baked": {"model": ove.OV_MODEL, "layer": ove.OV_LAYER},
-        "devices": ove.available_devices(),
-        "v3": {
-            "ir_present": ove_v3.ir_present(),
-            "turbo_present": ove_v3.ir_present("turbo"),
-            "artifacts_dir": str(v3_resolved) if v3_resolved else None,
-            "model_dir": str(v3_dir),
-            "files": v3_files,
-            "shapes": [f"{h}x{w}" for h, w in ove_v3.available_shapes()],
-            "turbo_shapes": [f"{h}x{w}" for h, w in ove_v3.available_shapes("turbo")],
-            "baked": {"model": ove_v3.OV_MODEL, "layers": list(ove_v3.V3_LAYER_LABELS.values())},
+        "engines": {
+            "gpu": {"id": ove.ENGINE_ID, "baked_layer": ove.OV_LAYER},
+            "gpu_v2": {"id": "gpu_v2", "baked_layer": ove.OV_LAYER},
+            "gpu_v3": {"id": "gpu_v3", "baked_layer": "5b+5c+6a+6b+6c"},
         },
+        "devices": ove.available_devices(),
+        "v3": _ov_v3_status(),
     }
 
 
@@ -1004,6 +1026,11 @@ async def deepdream_ov_setup(p: DeepDreamOvSetupParams) -> OperationResult:
         f"deepdream_ov_setup {p.action} (V1 InceptionV3/{ove.OV_LAYER}; V3 weighted taps available separately)"
     ]
     token = job_control.current_token()
+    # Per-engine results, all pre-seeded so a V3-only failure can be reported
+    # without losing the V1 verdict (the versions are independent engines).
+    gpu_probe: dict = {"ok": False, "skipped": True}
+    v3_gpu_probe: dict = {"ok": False, "skipped": True}
+    v3_smoke: dict = {"ok": True, "skipped": True}
 
     def _phase(i: int, total: int) -> None:
         job_control.check_cancelled()
@@ -1112,13 +1139,20 @@ async def deepdream_ov_setup(p: DeepDreamOvSetupParams) -> OperationResult:
                 return {"settled": settled, "shape": [int(v) for v in out.shape],
                         "turbo_shape": [int(v) for v in turbo.shape]}
 
-            smoke_v3 = await asyncio.to_thread(_smoke_v3)
-            logs.append(f"cpu V3 smoke ok: settled={smoke_v3['settled']} shape={smoke_v3['shape']} turbo={smoke_v3['turbo_shape']}")
+            v3_smoke = {"ok": True, "skipped": False}
+            try:
+                smoke_v3 = await asyncio.to_thread(_smoke_v3)
+                v3_smoke.update({"settled": smoke_v3["settled"], "shape": smoke_v3["shape"],
+                                 "turbo_shape": smoke_v3["turbo_shape"]})
+                logs.append(f"cpu V3 smoke ok: settled={smoke_v3['settled']} shape={smoke_v3['shape']} turbo={smoke_v3['turbo_shape']}")
+            except Exception as e:  # noqa: BLE001 — V3 is its own engine; V1 stands
+                v3_smoke = {"ok": False, "skipped": False, "error": str(e)[:300]}
+                logs.append(f"cpu V3 smoke FAILED: {v3_smoke['error']}")
         else:
+            v3_smoke = {"ok": True, "skipped": True}
             logs.append("V3 CPU smoke skipped")
 
         _phase(len(phases) - 2, len(phases))
-        gpu_probe: dict = {"ok": False, "skipped": True}
         if v1_present or src is not None:
             ir186 = d / "static_deepdream_186x186_fp16.xml"
             probe_py = (
@@ -1145,7 +1179,6 @@ async def deepdream_ov_setup(p: DeepDreamOvSetupParams) -> OperationResult:
         else:
             logs.append("V1 GPU probe skipped")
 
-        v3_gpu_probe: dict = {"ok": False, "skipped": True}
         if src_v3 is not None or v3_present:
             _phase(len(phases) - 1, len(phases))
             ir_v3 = d_v3 / "static_deepdream_v3_186x186_fp16.xml"
@@ -1194,6 +1227,7 @@ async def deepdream_ov_setup(p: DeepDreamOvSetupParams) -> OperationResult:
         ok=True, operation=op, command=plan, stdout="\n".join(logs),
         meta={"status": {"deepdream_ov": get_deepdream_ov_status()},
               "gpu_probe": gpu_probe,
+              "v3_cpu_smoke": v3_smoke,
               "v3_gpu_probe": v3_gpu_probe,
               "recommend_restart": False},
     )

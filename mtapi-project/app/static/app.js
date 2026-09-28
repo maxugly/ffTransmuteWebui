@@ -1,6 +1,6 @@
 // State
 import { isVideoPath, basename, formatDurationExact, escapeHtml } from '/js/utils.js';
-import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js';
+import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 import { POOL_LAYOUT_DEFAULTS, VIDEO_EXTS, TILE_INFO_FIELDS, POOL_ZOOM } from '/js/pool/constants.js';
 import { ensurePoolLayout } from '/js/pool/layout.js';
 import {
@@ -23,7 +23,7 @@ import {
   newJobToken, enqueueActiveOperation,
 } from '/js/job-control.js';
 import { renderMoshForm, updateMoshParams } from '/js/tabs/datamosh.js?v=2';
-import { renderDeepDreamForm, collectDeepDreamBody } from '/js/tabs/deepdream.js?v=3';
+import { renderDeepDreamForm, collectDeepDreamBody } from '/js/tabs/deepdream.js?v=4';
 import { renderTransmuteForm, renderMultiForm, renderAdvancedForm, addMultiClipPath } from '/js/tabs/transmute.js';
 import { renderFaceMorphForm, collectFaceMorphBody } from '/js/tabs/facemorph.js';
 import { renderWithoutBgForm, collectWithoutBgBody } from '/js/tabs/withoutbg.js';

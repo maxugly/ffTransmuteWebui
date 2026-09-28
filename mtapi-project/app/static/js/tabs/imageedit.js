@@ -1,5 +1,5 @@
 import { state, elements, allInputPaths } from '/app.js';
-import { setupContinuousKnob, knobUnitHtml, setupBinaryKnob } from '/js/ui/knobs.js';
+import { setupContinuousKnob, knobUnitHtml, setupBinaryKnob } from '/js/ui/knobs.js?v=6';
 import { flipRotateOptionsHtml } from '/js/utils.js';
 
 // The operations stack for image editing
