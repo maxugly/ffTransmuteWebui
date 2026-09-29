@@ -572,5 +572,12 @@
     "category": "Operation",
     "status": "Implemented 000.000.7.009 — QR + Illusion v1; released 000.000.8.000",
     "summary": "QR mode shipped (generate QR from text + optional one IP-Adapter still). Illusion mode (user pattern + appearance still, no QR Data) implemented v1. Dual-conditioning is PyTorch ControlNet+IP-Adapter (XPU/CUDA/CPU); OpenVINO iGPU is QR-without-IP only. Vulkan SD out of scope."
+  },
+  {
+    "file": "vfr-warning-spec.md",
+    "path": "docs/vfr-warning-spec.md",
+    "category": "Frontend / Media integrity",
+    "status": "Spec ready, not started",
+    "summary": "Builder prompt + spec for the VFR warning. The client already holds fps and fps_avg for every probed clip, so the badge costs zero extra requests; the blocker is that fps_avg is dropped on save by META_KEYS (js/pool/persistence.js) and _META_FLOAT_KEYS (app/media/pool.py), and restore never re-probes. Also documents a confirmed silent A/V desync: video is trimmed frame-exact (select=between(n,..)) while audio is trimmed by n0/fps at the nominal rate, so a VFR cut with sound is off by seconds."
   }
 ]
