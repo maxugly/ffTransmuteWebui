@@ -1,4 +1,4 @@
-import { elements } from '/app.js';
+import { elements, resolveGlobalImages } from '/app.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 
 function renderQrArtForm() {
@@ -361,12 +361,12 @@ function collectQrBody() {
     patternImage = (document.getElementById('qrPatternImage')?.value || '').trim();
     appearanceImage = (document.getElementById('qrAppearanceImage')?.value || '').trim();
     if (!patternImage || !appearanceImage) {
-      var giEl = document.getElementById('giImage');
-      if (giEl) {
-        var lines = giEl.value.split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
-        if (!patternImage && lines.length > 0) patternImage = lines[0];
-        if (!appearanceImage && lines.length > 1) appearanceImage = lines[1];
-      }
+      // Read the routed global image from the model, not the Media In box:
+      // the box can hold video/audio/a directory, and #giImage (which this
+      // used to read) no longer exists since the unified bar landed in 8.098.
+      var lines = resolveGlobalImages();
+      if (!patternImage && lines.length > 0) patternImage = lines[0];
+      if (!appearanceImage && lines.length > 1) appearanceImage = lines[1];
     }
     if (!patternImage) {
       alert('Illusion mode requires a Pattern image.');

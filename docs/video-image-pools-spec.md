@@ -92,9 +92,12 @@ state.imagePool = {
 
 - Cards: single thumb (`which=first` or hash-based first).  
 - Extensions: `IMAGE_EXTS` in `js/pool/constants.js` (+ `isImagePath` in `js/utils.js`).  
-- UI module: **`js/pool/image-pool.js`** (import, grid, send-to, clear).  
+- UI module: **`js/pool/image-pool.js`** (import, grid, clear).  
 - Toolbar: project New/Open/Save/Save As (same project as video pool), filter, + Files, + Folder, Clear.  
-- Send targets: Global Image, Face Morph, withoutBG, Style content/ref, DeepDream, **Cut · Ref A/B**, Preview.
+- No per-tool Send menu (removed in 8.104). One destination: the global **Media In** box.
+  Click an image card (fills the preview) then the preview's `→I-in`; the user navigates to the
+  tab by hand. Slot targets (Cut · Ref A/B, Compare A/B, Pan & Zoom ref) stay on the owning tab's
+  own **Pool** button.
 
 ### 2.3 Cut — `state.cut`
 
@@ -298,8 +301,8 @@ When implementing encode later: dump with `start_frame`/`end_frame` via existing
 | `app/static/js/pool/constants.js` | `VIDEO_EXTS`, `IMAGE_EXTS` |
 | `app/static/js/utils.js` | `isVideoPath`, `isImagePath`, `globalFrameRange`, `withFrameRange` |
 | `app/static/js/pool/grid.js` | Video Pool + Sequence UI |
-| `app/static/js/pool/items.js` | Video import, send-to (incl. cut), meta |
-| `app/static/js/pool/image-pool.js` | **Image Pool** UI + import + send |
+| `app/static/js/pool/items.js` | Video import, frame-PNG export, meta |
+| `app/static/js/pool/image-pool.js` | **Image Pool** UI + import |
 | `app/static/js/pool/persistence.js` | Payload v2, project save/load, dual save |
 | `app/static/js/pool/sequence.js` | Sequence composer |
 | `app/static/js/tabs/cut.js` | **Cut** workspace (host; no dual-layer logic) |

@@ -296,7 +296,10 @@ function loadDisplayImage(imgEl, path) {
 function _bindGlobalImageListener() {
   if (_imgListenersBound) return;
   _imgListenersBound = true;
-  const gi = document.getElementById('giImage');
+  // Listen on the unified Media In box (#giImage was replaced by it in 8.098,
+  // so this never fired). The source still is the global *image*, which the
+  // mode engine routes here by extension.
+  const gi = document.getElementById('giMediaIn');
   if (!gi) return;
   const onImg = () => {
     if (state.activeTab !== 'zoompan') return;

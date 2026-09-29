@@ -329,13 +329,14 @@ function bindInputPreviewListeners() {
     mo.observe(form, { childList: true, subtree: false });
   }
 
-  // Global video/image bars live outside the action panel
-  ['giVideo', 'giImage'].forEach((id) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.addEventListener('input', () => _scheduleRefresh());
-    el.addEventListener('change', () => _scheduleRefresh());
-  });
+  // The unified Media In box lives outside the action panel. (The old
+  // #giVideo/#giImage pair was replaced by it in 8.098, so this observer was
+  // binding to nothing and the strip went stale on every global edit.)
+  const mediaIn = document.getElementById('giMediaIn');
+  if (mediaIn) {
+    mediaIn.addEventListener('input', () => _scheduleRefresh());
+    mediaIn.addEventListener('change', () => _scheduleRefresh());
+  }
 }
 
 export {

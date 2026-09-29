@@ -243,7 +243,7 @@ function renderWatermarkForm() {
     try { window.openFileBrowser('wmOutDir', false, 'dirs', 'all'); }
     catch (err) { logConsole('[WATERMARK]: Browse failed — ' + err.message, 'error'); }
   });
-  ['giVideo', 'giImage'].forEach(function(id) {
+  ['giMediaIn'].forEach(function(id) {
     document.getElementById(id)?.addEventListener('input', function() {
       if (state.activeTab !== 'watermark') return;
       var rem = document.getElementById('wmInputReminder');

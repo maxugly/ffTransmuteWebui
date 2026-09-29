@@ -401,191 +401,6 @@ async function importImageFolder() {
 
 // ── send to tools ────────────────────────────────────────────────────────
 
-function sendImagePathTo(path, target) {
-  if (!path || !target) return;
-  selectImageItem(path);
-
-  if (target === 'preview') {
-    showPreview(path);
-    return;
-  }
-
-  if (target === 'cut_ref_a' || target === 'cut_ref_b') {
-    if (!state.cut) {
-      state.cut = { refA: null, refB: null, mode: 'separate', compareMode: 'separate', overlayOpacity: 50, abPosition: 50 };
-    }
-    if (target === 'cut_ref_a') state.cut.refA = path;
-    else state.cut.refB = path;
-    logConsole(`[IMAGE POOL]: Set Cut ${target === 'cut_ref_a' ? 'Ref A' : 'Ref B'} → ${basename(path)}`);
-    switchTab('cut');
-    return;
-  }
-
-  if (target === 'compare_a' || target === 'compare_b') {
-    import('/js/tabs/imgcompare.js').then((m) => {
-      m.applyImgComparePath(path, target === 'compare_b' ? 'B' : 'A');
-    }).catch((err) => {
-      logConsole(`[IMAGE POOL ERROR]: Compare send failed — ${err.message}`, 'error');
-    });
-    return;
-  }
-
-  if (target === 'zoompan_ref') {
-    if (!state.zoompan) {
-      state.zoompan = { refPath: null, mode: 'overlay', overlayOpacity: 50, abPosition: 50, compareTarget: 'end_ref' };
-    }
-    state.zoompan.refPath = path;
-    if (!state.zoompan.compareTarget || state.zoompan.compareTarget === 'start_end') {
-      state.zoompan.compareTarget = 'end_ref';
-    }
-    if (state.zoompan.mode === 'separate') state.zoompan.mode = 'overlay';
-    logConsole(`[IMAGE POOL]: Set Pan & Zoom Reference → ${basename(path)}`);
-    switchTab('zoompan');
-    return;
-  }
-
-  if (target === 'facemorph') {
-    if (!state.faceMorph.images.some(x => x.path === path)) {
-      state.faceMorph.images.push({ path, name: basename(path) });
-    }
-    switchTab('facemorph');
-    logConsole(`[IMAGE POOL]: Sent to Face Morph → ${path}`);
-    return;
-  }
-
-  if (target === 'withoutbg') {
-    if (!state.withoutbg.images.some(x => x.path === path)) {
-      state.withoutbg.images.push({ path, name: basename(path) });
-    }
-    switchTab('withoutbg');
-    logConsole(`[IMAGE POOL]: Sent to withoutBG → ${path}`);
-    return;
-  }
-
-  if (target === 'style_content') {
-    if (!state.styleTransfer.contents.some(x => x.path === path)) {
-      state.styleTransfer.contents.push({ path, name: basename(path) });
-    }
-    switchTab('styletransfer');
-    logConsole(`[IMAGE POOL]: Sent to Style content → ${path}`);
-    return;
-  }
-
-  if (target === 'style_ref') {
-    state.styleTransfer.stylePath = path;
-    switchTab('styletransfer');
-    logConsole(`[IMAGE POOL]: Sent to Style ref → ${path}`);
-    return;
-  }
-
-  if (target === 'deepdream') {
-    switchTab('deepdream');
-    const input = document.getElementById('dreamInput');
-    if (input) {
-      input.value = path;
-      input.dispatchEvent(new Event('input'));
-    }
-    const gi = document.getElementById('giImage');
-    if (gi) {
-      gi.value = path;
-      gi.dispatchEvent(new Event('input'));
-    }
-    logConsole(`[IMAGE POOL]: Sent to DeepDream → ${path}`);
-    return;
-  }
-
-  if (target === 'upscale') {
-    switchTab('upscale');
-    const input = document.getElementById('upInput');
-    if (input) {
-      input.value = path;
-      input.dispatchEvent(new Event('input'));
-    }
-    logConsole(`[IMAGE POOL]: Sent to Upscale → ${path}`);
-    return;
-  }
-
-  if (target === 'fastsam') {
-    switchTab('fastsam');
-    const input = document.getElementById('fastsamInput');
-    if (input) {
-      input.value = path;
-      input.dispatchEvent(new Event('input'));
-    }
-    logConsole(`[IMAGE POOL]: Sent to FastSAM → ${path}`);
-    return;
-  }
-
-  if (target === 'convert') {
-    switchTab('convert');
-    const input = document.getElementById('convertInput');
-    if (input) {
-      input.value = path;
-      input.dispatchEvent(new Event('input'));
-    }
-    logConsole(`[IMAGE POOL]: Sent to Convert → ${path}`);
-    return;
-  }
-
-  if (target === 'img2img') {
-    switchTab('img2img');
-    const input = document.getElementById('i2iInput');
-    if (input) {
-      input.value = path;
-      input.dispatchEvent(new Event('input'));
-    }
-    logConsole(`[IMAGE POOL]: Sent to Img2Img → ${path}`);
-    return;
-  }
-
-  if (target === 'agent') {
-    if (!state.agent) state.agent = { backend: 'deepseek', skill: 'chat', model: '', images: [], history: [] };
-    if (!state.agent.images.includes(path)) {
-      state.agent.images.push(path);
-    }
-    switchTab('agent');
-    logConsole(`[IMAGE POOL]: Sent to Agent → ${path}`);
-    return;
-  }
-
-  if (target === 'imagesort') {
-    if (!state.imageSort) state.imageSort = { images: [], sortMode: 'radial', sortOrder: 'score_asc', sortStrategy: 'balanced', output: '', selected: 0 };
-    if (!state.imageSort.images.some((x) => x.path === path)) {
-      state.imageSort.images.push({ path, name: basename(path), score: null });
-    }
-    switchTab('imagesort');
-    logConsole(`[IMAGE POOL]: Sent to Image Sort → ${path}`);
-    return;
-  }
-
-  if (target === 'zoompan') {
-    if (!state.zoompan) {
-      state.zoompan = { refPath: null, mode: 'overlay', overlayOpacity: 50, abPosition: 50, compareTarget: 'end_ref' };
-    }
-    state.zoompan.refPath = path;
-    if (!state.zoompan.compareTarget || state.zoompan.compareTarget === 'start_end') {
-      state.zoompan.compareTarget = 'end_ref';
-    }
-    if (state.zoompan.mode === 'separate') state.zoompan.mode = 'overlay';
-    switchTab('zoompan');
-    logConsole(`[IMAGE POOL]: Sent to Pan & Zoom → ${path}`);
-    return;
-  }
-
-  if (target === 'global_image') {
-    const gi = document.getElementById('giImage');
-    if (gi) {
-      const existing = (gi.value || '').trim();
-      gi.value = existing ? `${existing}\n${path}` : path;
-      gi.dispatchEvent(new Event('input'));
-    }
-    logConsole(`[IMAGE POOL]: Added to global Image → ${path}`);
-    return;
-  }
-
-  logConsole(`[IMAGE POOL]: Unknown send target: ${target}`, 'error');
-}
-
 // ── UI ───────────────────────────────────────────────────────────────────
 
 function renderImagePoolForm() {
@@ -627,27 +442,6 @@ function renderImagePoolForm() {
           </div>
           <div class="pool-toolbar-meta">
             <span class="pool-count" id="imgPoolCount">${count} in image pool</span>
-            ${selected ? `
-              <div class="pool-use-wrap">
-                <label for="imgPoolUseTarget" class="pool-use-label">Send to</label>
-                <select id="imgPoolUseTarget" class="pool-use-select">
-                  <option value="">— target —</option>
-                  <option value="global_image">Global Image</option>
-                  <option value="facemorph">Face Morph</option>
-                  <option value="withoutbg">withoutBG</option>
-                  <option value="style_content">Style content</option>
-                  <option value="style_ref">Style reference</option>
-                  <option value="deepdream">DeepDream</option>
-                  <option value="cut_ref_a">Cut · Ref A</option>
-                  <option value="cut_ref_b">Cut · Ref B</option>
-                  <option value="compare_a">Compare · Image A</option>
-                  <option value="compare_b">Compare · Image B</option>
-                  <option value="zoompan_ref">Pan &amp; Zoom · Reference</option>
-                  <option value="preview">Preview</option>
-                </select>
-                <button class="btn btn-primary" id="btnImgPoolUse" type="button">Apply</button>
-              </div>
-            ` : ''}
           </div>
         </div>
         <div class="pool-grid-wrap" id="imgPoolGridWrap">
@@ -671,14 +465,6 @@ function renderImagePoolForm() {
   $('btnImgPoolImportFiles')?.addEventListener('click', importImageFiles);
   $('btnImgPoolImportFolder')?.addEventListener('click', importImageFolder);
   $('btnImgPoolClear')?.addEventListener('click', clearImagePool);
-  $('btnImgPoolUse')?.addEventListener('click', () => {
-    const target = $('imgPoolUseTarget')?.value;
-    if (!target) {
-      alert('Choose a destination.');
-      return;
-    }
-    sendImagePathTo(ip.selectedPath, target);
-  });
 
   const filterEl = $('imgPoolFilterInput');
   if (filterEl) {
@@ -717,9 +503,6 @@ function ensureImageCardSkeleton(card) {
   card.classList.add('img-pool-card');
   card.innerHTML = `
       <div class="pool-card-actions">
-        <div class="pool-send-wrap">
-          <button type="button" class="btn pool-send-btn" data-help-title="Send this image">Send to ▾</button>
-        </div>
         <button class="pool-card-remove" type="button" data-help-title="Remove from image pool">✕</button>
       </div>
       <div class="pool-frames img-pool-single pool-wall">
@@ -792,7 +575,7 @@ function bindImageCard(card) {
       if (item) repairItem(item, { force: true });
       return;
     }
-    if (e.target.closest('.pool-card-remove, .pool-send-wrap')) return;
+    if (e.target.closest('.pool-card-remove')) return;
     if (card.dataset.path) selectImageItem(card.dataset.path);
   });
   card.addEventListener('click', (e) => {
@@ -802,12 +585,6 @@ function bindImageCard(card) {
     const ip = ensureImagePool();
     const idx = ip.items.findIndex((it) => it.path === card.dataset.path);
     if (idx >= 0) removeImageItem(idx);
-  });
-  card.addEventListener('click', (e) => {
-    const sendBtn = e.target.closest('.pool-send-btn');
-    if (!sendBtn) return;
-    e.stopPropagation();
-    if (card.dataset.path) _showImageSendMenu(sendBtn, card.dataset.path);
   });
 }
 
@@ -893,49 +670,6 @@ function renderImagePoolGrid() {
   _updateImageFilterCount();
 }
 
-function _showImageSendMenu(anchor, path) {
-  document.querySelectorAll('.img-pool-send-menu').forEach(el => el.remove());
-  const menu = document.createElement('div');
-  menu.className = 'img-pool-send-menu pool-context-menu';
-  menu.innerHTML = `
-    <button type="button" data-t="global_image">Global Image</button>
-    <button type="button" data-t="facemorph">Face Morph</button>
-    <button type="button" data-t="withoutbg">withoutBG</button>
-    <button type="button" data-t="style_content">Style content</button>
-    <button type="button" data-t="style_ref">Style reference</button>
-    <button type="button" data-t="deepdream">DeepDream</button>
-    <button type="button" data-t="upscale">Upscale</button>
-    <button type="button" data-t="fastsam">FastSAM</button>
-    <button type="button" data-t="img2img">Img2Img</button>
-    <button type="button" data-t="agent">Agent</button>
-    <button type="button" data-t="imagesort">Image Sort</button>
-    <button type="button" data-t="zoompan">Pan &amp; Zoom</button>
-    <button type="button" data-t="convert">Convert / Export</button>
-    <button type="button" data-t="cut_ref_a">Cut · Ref A</button>
-    <button type="button" data-t="cut_ref_b">Cut · Ref B</button>
-    <button type="button" data-t="preview">Preview</button>
-  `;
-  const rect = anchor.getBoundingClientRect();
-  menu.style.position = 'fixed';
-  menu.style.left = `${rect.left}px`;
-  menu.style.top = `${rect.bottom + 4}px`;
-  menu.style.zIndex = '10000';
-  document.body.appendChild(menu);
-
-  const close = () => {
-    menu.remove();
-    document.removeEventListener('click', close, true);
-  };
-  menu.querySelectorAll('button').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      sendImagePathTo(path, btn.dataset.t);
-      close();
-    });
-  });
-  setTimeout(() => document.addEventListener('click', close, true), 0);
-}
-
 /** Public helper for other tabs (e.g. future pause → image pool). */
 function addImageToPool(path) {
   return addPathsToImagePool([path]);
@@ -952,6 +686,5 @@ export {
   clearImagePool,
   importImageFiles,
   importImageFolder,
-  sendImagePathTo,
   loadImageItemMeta,
 };

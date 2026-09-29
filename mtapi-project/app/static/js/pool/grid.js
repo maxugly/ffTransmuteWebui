@@ -25,9 +25,8 @@ import { openTagPicker } from '/js/pool/sequence-tag.js';
 import {
   selectPoolItem, removePoolItem, clearPool,
   addPathsToPool, importPoolFiles, importPoolFolder,
-  sendPoolPathTo, applyPoolAsInput, scrollToSelected,
+  scrollToSelected,
 } from '/js/pool/items.js';
-import { quickTransmuteLabel } from '/js/tabs/quick.js';
 import {
   state, elements,
   ensureTileInfo,
@@ -254,19 +253,6 @@ function _poolToolbarHtml(count, selected, seqCount, opts) {
         <span class="pool-count">${count} in video pool${showSeqTools ? ' · ' + seqCount + ' in sequence' : ''}</span>
         <div class="catalog-status" id="catalogStatus" aria-live="polite"></div>
         <button type="button" class="btn pool-info-mini" id="btnRepairMetadata" data-help-title="Queue missing hash, metadata, and thumbnails">Repair Metadata</button>
-        <div class="pool-use-wrap" ${selected ? '' : 'hidden'}>
-          <label for="poolUseTarget" class="pool-use-label">Use as input</label>
-          <select id="poolUseTarget" class="pool-use-select">
-            <option value="">— target —</option>
-            <option value="sequence">Add to sequence</option>
-            <option value="cut">Cut (global video + range)</option>
-            <option value="mosh">Datamosh input</option>
-            <option value="transmute">Transmute input</option>
-            <option value="multi">Add to Multi clips</option>
-            <option value="advanced">Advanced input</option>
-          </select>
-          <button class="btn btn-primary" id="btnPoolUse" type="button">Apply</button>
-        </div>
         <button class="btn pool-jump-btn" id="btnJumpSelected" type="button" data-help-title="Jump to selected clip in grid" ${selected ? '' : 'hidden'}>!</button>
       </div>
     </div>`;
@@ -305,7 +291,6 @@ function _bindPoolToolbar(root) {
     });
   }
   $('btnTogglePool')?.addEventListener('click', () => togglePoolSection('pool'));
-  $('btnPoolUse')?.addEventListener('click', applyPoolAsInput);
   $('btnJumpSelected')?.addEventListener('click', scrollToSelected);
 
   const filterEl = $('poolFilterInput');
@@ -1035,9 +1020,7 @@ function ensurePoolCardSkeleton(card) {
   if (card.dataset.skel === '1') return;
   card.innerHTML = `
       <div class="pool-card-actions">
-        <div class="pool-send-wrap">
-          <button type="button" class="btn pool-send-btn" data-help-title="Send this clip to a tool">Send to ▾</button>
-        </div>
+        <button type="button" class="btn pool-seq-btn" data-help-title="Add this clip to the sequence">+ Seq</button>
         <button class="pool-card-remove" type="button" data-help-title="Remove from pool">✕</button>
       </div>
       <span class="pool-seq-indicator" hidden></span>
@@ -1065,7 +1048,7 @@ function bindPoolCard(card) {
       if (live) repairItem(live, { force: true });
       return;
     }
-    if (e.target.closest('.pool-card-remove, .pool-send-wrap, .pool-card-info-btn, .variant-row')) return;
+    if (e.target.closest('.pool-card-remove, .pool-seq-btn, .pool-card-info-btn, .variant-row')) return;
     const path = card.dataset.path;
     if (path) selectPoolItem(path, { shiftKey: e.shiftKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey });
     document.getElementById('poolGrid')?.focus?.({ preventScroll: true });
@@ -1079,7 +1062,7 @@ function bindPoolCard(card) {
     clearPoolHover();
   });
   card.addEventListener('dragstart', (e) => {
-    if (e.target.closest('.pool-send-wrap, .pool-card-remove')) {
+    if (e.target.closest('.pool-seq-btn, .pool-card-remove')) {
       e.preventDefault();
       return;
     }
@@ -1107,18 +1090,20 @@ function bindPoolCard(card) {
     if (item) showClipInfoOverlay(item);
   });
   card.addEventListener('click', (e) => {
-    const sendBtn = e.target.closest('.pool-send-btn');
-    if (!sendBtn) return;
+    const seqBtn = e.target.closest('.pool-seq-btn');
+    if (!seqBtn) return;
     e.stopPropagation();
     e.preventDefault();
-    const item = _cardItem(card);
-    if (item) _openSendMenu(card, sendBtn, item);
+    if (card.dataset.path) {
+      addPathToSequence(card.dataset.path);
+      logConsole(`[POOL]: Sent to sequence → ${card.dataset.path}`);
+    }
   });
   card.addEventListener('mousedown', (e) => {
-    if (e.target.closest('.pool-send-wrap')) e.stopPropagation();
+    if (e.target.closest('.pool-seq-btn')) e.stopPropagation();
   });
   card.addEventListener('dblclick', (e) => {
-    if (e.target.closest('.pool-card-remove, .pool-send-wrap')) return;
+    if (e.target.closest('.pool-card-remove, .pool-seq-btn')) return;
     if (card.dataset.path) addPathToSequence(card.dataset.path);
   });
   card.addEventListener('contextmenu', (e) => {
@@ -1230,76 +1215,6 @@ function refreshPoolCard(card, item, index) {
   const metaEl = card.querySelector('.pool-overlay-text');
   if (metaEl) metaEl.innerHTML = videoCardMetaHtml(item);
   // Thumbs are assigned-once at mount; do NOT touch img.src here.
-}
-
-function _openSendMenu(card, sendBtn, item) {
-  const existing = document.querySelector('.pool-send-menu-portal');
-  if (existing) {
-    if (existing._sourceCard === card) {
-      existing.remove();
-      card.classList.remove('menu-open');
-      return;
-    }
-    existing._sourceCard?.classList.remove('menu-open');
-    existing.remove();
-  }
-
-  card.classList.add('menu-open');
-  const rect = sendBtn.getBoundingClientRect();
-  const menu = document.createElement('div');
-  menu.className = 'pool-send-menu pool-send-menu-portal';
-  menu._sourceCard = card;
-  menu.style.position = 'fixed';
-  menu.style.right = `${window.innerWidth - rect.right}px`;
-  menu.style.zIndex = '99999';
-  menu.innerHTML = `
-        <button type="button" class="pool-send-item pool-send-quick" data-send="quick">${escapeHtml(quickTransmuteLabel())}</button>
-        <div class="pool-send-sep"></div>
-        <button type="button" class="pool-send-item" data-send="mosh">Datamosh</button>
-        <button type="button" class="pool-send-item" data-send="deepdream">DeepDream</button>
-        <button type="button" class="pool-send-item" data-send="rife">RIFE</button>
-        <button type="button" class="pool-send-item" data-send="speedchange">Speed Change</button>
-        <button type="button" class="pool-send-item" data-send="upscale">Upscale</button>
-        <button type="button" class="pool-send-item" data-send="fastsam">FastSAM</button>
-        <button type="button" class="pool-send-item" data-send="img2img">Img2Img</button>
-        <button type="button" class="pool-send-item" data-send="agent">Agent</button>
-        <button type="button" class="pool-send-item" data-send="convert">Convert / Export</button>
-        <button type="button" class="pool-send-item" data-send="transmute">Transmute</button>
-        <button type="button" class="pool-send-item" data-send="multi">Multi (Join/Grid)</button>
-        <button type="button" class="pool-send-item" data-send="advanced">Raw CLI</button>
-        <button type="button" class="pool-send-item" data-send="sequence">Sequence</button>
-        <button type="button" class="pool-send-item" data-send="cut">Cut</button>
-        <button type="button" class="pool-send-item" data-send="preview">Preview only</button>
-        <div class="pool-send-sep"></div>
-        <button type="button" class="pool-send-item" data-send="save_first_png">Save first frame PNG…</button>
-        <button type="button" class="pool-send-item" data-send="save_last_png">Save last frame PNG…</button>
-      `;
-  document.body.appendChild(menu);
-  const pad = 6;
-  const menuRect = menu.getBoundingClientRect();
-  let top = rect.bottom + 3;
-  if (top + menuRect.height > window.innerHeight - pad) top = rect.top - menuRect.height - 3;
-  if (top < pad) top = pad;
-  menu.style.top = `${top}px`;
-
-  menu.querySelectorAll('.pool-send-item').forEach((opt) => {
-    opt.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      ev.preventDefault();
-      const target = opt.dataset.send;
-      menu.remove();
-      card.classList.remove('menu-open');
-      sendPoolPathTo(item.path, target);
-    });
-  });
-  const dismiss = (ev) => {
-    if (!menu.contains(ev.target) && ev.target !== sendBtn) {
-      menu.remove();
-      card.classList.remove('menu-open');
-      document.removeEventListener('click', dismiss, true);
-    }
-  };
-  setTimeout(() => document.addEventListener('click', dismiss, true), 0);
 }
 
 function _bindGridKeyboard(wrap) {

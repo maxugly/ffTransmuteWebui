@@ -84,12 +84,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.pool-use-wrap {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .pool-jump-btn {
   flex-shrink: 0;
   min-width: 28px;
@@ -114,20 +108,6 @@
 .pool-jump-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
-}
-
-.pool-use-label {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin: 0;
-  white-space: nowrap;
-}
-
-.pool-use-select {
-  width: auto;
-  min-width: 150px;
-  padding: 6px 10px;
-  font-size: 0.8rem;
 }
 
 .pool-grid {
@@ -2367,13 +2347,10 @@ body.pool-resizing video {
   pointer-events: auto;
 }
 
-.pool-send-wrap {
-  position: relative;
+/* Per-card action buttons. The Send-to popup is gone; + Seq is the card verb. */
+.pool-seq-btn {
   pointer-events: auto;
   z-index: 31;
-}
-
-.pool-send-btn {
   padding: 2px 7px;
   font-size: 0.65rem;
   font-weight: 600;
@@ -2387,65 +2364,12 @@ body.pool-resizing video {
   white-space: nowrap;
 }
 
-.pool-send-btn:hover {
+.pool-seq-btn:hover {
   border-color: var(--primary);
   background: rgba(59, 130, 246, 0.35);
   color: #fff;
 }
 
-.pool-send-menu {
-  position: fixed;
-  min-width: 160px;
-  padding: 4px;
-  border-radius: 8px;
-  border: 1px solid var(--panel-border);
-  background: rgba(12, 16, 26, 0.98);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(12px);
-  z-index: 99999;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.pool-send-menu[hidden] {
-  display: none !important;
-}
-
-.pool-send-item {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 6px 10px;
-  border: none;
-  border-radius: 5px;
-  background: transparent;
-  color: var(--text-main);
-  font-size: 0.75rem;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.pool-send-item:hover {
-  background: rgba(59, 130, 246, 0.18);
-  color: #fff;
-}
-
-.pool-send-sep {
-  height: 1px;
-  margin: 4px 6px;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.pool-send-item.pool-send-quick {
-  color: #fbbf24;
-  font-weight: 600;
-}
-
-.pool-send-item.pool-send-quick:hover {
-  background: rgba(251, 191, 36, 0.18);
-  color: #fde68a;
-}
 
 /* Right-click context menu on pool cards */
 .pool-ctx-menu {
@@ -2717,35 +2641,6 @@ body.pool-resizing video {
 
 .img-pool-single .pool-frame + .pool-frame {
   display: none;
-}
-
-.img-pool-send-menu,
-.pool-context-menu.img-pool-send-menu {
-  display: flex;
-  flex-direction: column;
-  min-width: 160px;
-  padding: 4px;
-  background: var(--panel-bg, #121822);
-  border: 1px solid var(--panel-border, #2a3344);
-  border-radius: 8px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
-}
-
-.img-pool-send-menu button {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--text, #e8eef8);
-  text-align: left;
-  padding: 7px 10px;
-  border-radius: 6px;
-  font-size: 0.82rem;
-  cursor: pointer;
-}
-
-.img-pool-send-menu button:hover {
-  background: rgba(59, 130, 246, 0.18);
-  color: #fff;
 }
 
 /* ═══════════════════════════════════════════

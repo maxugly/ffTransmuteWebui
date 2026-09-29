@@ -1,11 +1,9 @@
-import { state, elements, logConsole, showPreview, renderPoolForm, renderStyleTransferForm, renderFaceMorphForm, renderWithoutBgForm, checkHealth, switchTab, formatBytes } from '/app.js';
+import { state, elements, logConsole, showPreview, renderPoolForm, checkHealth, switchTab, formatBytes } from '/app.js';
 import { isVideoPath, basename, formatDurationExact } from '/js/utils.js';
 import { shortHash, buildPoolMetaHtml, scheduleSavePoolState } from '/js/pool/persistence.js';
 import { attachWallTenant, prepareWallTenants } from '/js/pool/wall-thumbs.js';
 import { repairItem } from '/js/repair-queue.js';
-import { applySeqTokenTimeStyles, updateSeqClipSettings, displayFocusPath, updatePoolFocusFrame, setPoolFocus, updateSelectionHighlights, updateSeqTransportUI, seqStop, addPathToSequence, addPathsToSequence } from '/js/pool/sequence.js';
-import { runQuickTransmute } from '/js/tabs/quick.js';
-import { addMultiClipPath } from '/js/tabs/transmute.js';
+import { applySeqTokenTimeStyles, updateSeqClipSettings, displayFocusPath, updatePoolFocusFrame, setPoolFocus, updateSelectionHighlights, updateSeqTransportUI, seqStop, addPathsToSequence } from '/js/pool/sequence.js';
 
 // ── Pool item operations ─────────────────────────────────────────────────
 
@@ -143,8 +141,6 @@ function selectPoolItem(path, ev = null) {
       ? `${shown} shown · ${state.pool.items.length} in video pool · ${state.pool.sequence.length} in sequence`
       : `${state.pool.items.length} in video pool · ${state.pool.sequence.length} in sequence`;
   }
-  const useWrap = document.querySelector('.pool-use-wrap');
-  if (useWrap) useWrap.hidden = !state.pool.selectedPath;
   const jump = document.getElementById('btnJumpSelected');
   if (jump) jump.hidden = !state.pool.selectedPath;
 }
@@ -335,184 +331,6 @@ function WORKSPACE_HINT() {
   return '';
 }
 
-function sendPoolPathTo(path, target) {
-  if (!path) return;
-  if (!target) {
-    alert('Choose a destination.');
-    return;
-  }
-
-  selectPoolItem(path);
-  setPoolFocus(path);
-
-  if (target === 'preview') {
-    showPreview(path);
-    logConsole(`[POOL]: Preview → ${path}`);
-    return;
-  }
-
-  if (target === 'save_first_png') {
-    savePoolFramePng(path, 'first');
-    return;
-  }
-  if (target === 'save_last_png') {
-    savePoolFramePng(path, 'last');
-    return;
-  }
-
-  if (target === 'quick') {
-    runQuickTransmute(path);
-    return;
-  }
-
-  if (target === 'sequence') {
-    addPathToSequence(path);
-    logConsole(`[POOL]: Sent to sequence → ${basename(path)}`);
-    return;
-  }
-
-  if (target === 'multi') {
-    addMultiClipPath(path);
-    logConsole(`[POOL]: Sent to multi clips → ${path}`);
-    switchTab('multi');
-    return;
-  }
-
-  // Cut uses global Video bar only (no private path field)
-  if (target === 'cut') {
-    const gi = document.getElementById('giVideo');
-    if (gi) {
-      gi.value = path;
-      gi.dispatchEvent(new Event('input'));
-    }
-    window.globalInputs.video = path;
-    // re-probe so frame range matches this clip; keep _lastProbedPath so
-    // probe can decide keep (same file) vs reset (different file) correctly
-    window.globalInputs._probeOk = false;
-    logConsole(`[POOL]: Sent to Cut (global video) → ${path}`);
-    switchTab('cut');
-    return;
-  }
-
-  state.pendingInputPath = path;
-  state.pendingInputTarget = target;
-
-  if (target === 'mosh') {
-    switchTab('mosh');
-    const input = document.getElementById('moshInput');
-    if (input) {
-      input.value = path;
-      input.dispatchEvent(new Event('input'));
-    }
-    logConsole(`[POOL]: Sent to Datamosh → ${path}`);
-  } else if (target === 'deepdream') {
-    switchTab('deepdream');
-    const input = document.getElementById('dreamInput');
-    if (input) {
-      input.value = path;
-      input.dispatchEvent(new Event('input'));
-    }
-    logConsole(`[POOL]: Sent to DeepDream → ${path}`);
-  } else if (target === 'transmute') {
-    switchTab('transmute');
-    const input = document.getElementById('transmuteInput');
-    if (input) {
-      input.value = path;
-      input.dispatchEvent(new Event('input'));
-    }
-    logConsole(`[POOL]: Sent to Transmute → ${path}`);
-  } else if (target === 'advanced') {
-    switchTab('advanced');
-    const input = document.getElementById('advInput');
-    if (input) {
-      input.value = path;
-      input.dispatchEvent(new Event('input'));
-    }
-    logConsole(`[POOL]: Sent to Advanced → ${path}`);
-  } else if (target === 'rife') {
-    switchTab('rife');
-    const input = document.getElementById('rifeInput');
-    if (input) {
-      input.value = path;
-      input.dispatchEvent(new Event('input'));
-    }
-    logConsole(`[POOL]: Sent to RIFE → ${path}`);
-  } else if (target === 'speedchange') {
-    switchTab('speedchange');
-    const input = document.getElementById('scInput');
-    if (input) {
-      input.value = path;
-      input.dispatchEvent(new Event('input'));
-    }
-    logConsole(`[POOL]: Sent to Speed Change → ${path}`);
-  } else if (target === 'upscale') {
-    switchTab('upscale');
-    const input = document.getElementById('upInput');
-    if (input) {
-      input.value = path;
-      input.dispatchEvent(new Event('input'));
-    }
-    logConsole(`[POOL]: Sent to Upscale → ${path}`);
-  } else if (target === 'fastsam') {
-    switchTab('fastsam');
-    const input = document.getElementById('fastsamInput');
-    if (input) {
-      input.value = path;
-      input.dispatchEvent(new Event('input'));
-    }
-    logConsole(`[POOL]: Sent to FastSAM → ${path}`);
-  } else if (target === 'convert') {
-    switchTab('convert');
-    const input = document.getElementById('convertInput');
-    if (input) {
-      input.value = path;
-      input.dispatchEvent(new Event('input'));
-    }
-    logConsole(`[POOL]: Sent to Convert → ${path}`);
-  } else if (target === 'styletransfer') {
-    if (!state.styleTransfer) state.styleTransfer = { contents: [], stylePath: '', output: '', outputDir: '', selected: 0 };
-    if (!state.styleTransfer.contents.some((c) => c.path === path)) {
-      state.styleTransfer.contents.push({ path, name: basename(path) });
-    }
-    switchTab('styletransfer');
-    renderStyleTransferForm();
-    logConsole(`[POOL]: Sent to Style Transfer → ${path}`);
-  } else if (target === 'facemorph') {
-    if (!state.faceMorph) state.faceMorph = { images: [], output: '', selected: 0 };
-    if (!state.faceMorph.images.some((x) => x.path === path)) {
-      state.faceMorph.images.push({ path, name: basename(path) });
-    }
-    switchTab('facemorph');
-    renderFaceMorphForm();
-    logConsole(`[POOL]: Sent to Face Morph → ${path}`);
-  } else if (target === 'withoutbg') {
-    if (!state.withoutbg) state.withoutbg = { images: [], outputDir: '', prefix: 'withoutbg', fmt: 'png', backend: 'local', selected: 0 };
-    if (!state.withoutbg.images.some((x) => x.path === path)) {
-      state.withoutbg.images.push({ path, name: basename(path) });
-    }
-    switchTab('withoutbg');
-    renderWithoutBgForm();
-    logConsole(`[POOL]: Sent to withoutBG → ${path}`);
-  } else if (target === 'img2img') {
-    switchTab('img2img');
-    const input = document.getElementById('i2iInput');
-    if (input) {
-      input.value = path;
-      input.dispatchEvent(new Event('input'));
-    }
-    logConsole(`[POOL]: Sent to Img2Img → ${path}`);
-  } else if (target === 'agent') {
-    if (!state.agent) state.agent = { backend: 'deepseek', skill: 'chat', model: '', images: [], history: [] };
-    if (!state.agent.images.includes(path)) {
-      state.agent.images.push(path);
-    }
-    switchTab('agent');
-    logConsole(`[POOL]: Sent to Agent → ${path}`);
-  } else {
-    logConsole(`[POOL]: Unknown send target: ${target}`, 'error');
-  }
-}
-
 async function savePoolFramePng(videoPath, which) {
   which = which === 'last' ? 'last' : 'first';
   const stem = basename(videoPath).replace(/\.[^.]+$/, '');
@@ -577,22 +395,8 @@ async function savePoolFramePng(videoPath, which) {
   }
 }
 
-function applyPoolAsInput() {
-  const path = state.pool.selectedPath;
-  if (!path) {
-    alert('Select a clip first.');
-    return;
-  }
-  const target = document.getElementById('poolUseTarget')?.value;
-  if (!target) {
-    alert('Choose a target (Sequence / Datamosh / Transmute / Multi / Advanced).');
-    return;
-  }
-  sendPoolPathTo(path, target);
-}
-
 export {
   loadPoolItemMeta, selectPoolItem, removePoolItem, clearPool,
   addPathsToPool, importPoolFiles, importPoolFolder, WORKSPACE_HINT,
-  sendPoolPathTo, savePoolFramePng, applyPoolAsInput, scrollToSelected,
+  savePoolFramePng, scrollToSelected,
 };

@@ -69,7 +69,7 @@ Refs from Image Pool. Details: `docs/video-image-pools-spec.md`.
 - **DAW knobs**: `setupContinuousKnob` / `setupBinaryKnob`  
 - **Jobs**: `POST /ops/{id}` + `X-Job-Token`; poll / cancel  
 - **Outputs**: sequential names (`_0001`…) so re-runs never clobber  
-- **Pool → Send**: Video Pool / Image Pool context menus and Use-as dropdowns  
+- **Pool → global input**: click a card (fills the preview) then the preview's `→I-in`; no per-tool Send menus
 - **Events**: `mtapi:frame-range`, `mtapi:video-probed` (timeline.js)
 
 ---

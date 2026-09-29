@@ -241,6 +241,7 @@ function buildDeskSnapshot() {
     global_inputs: {
       video: window.globalInputs?.video || '',
       image: window.globalInputs?.image || '',
+      audio: window.globalInputs?.audio || '',
       path_in: window.globalInputs?.pathIn || '',
       path_out: window.globalInputs?.pathOut || '',
       frame_start: Number(window.globalInputs?.frameStart || 1),
@@ -280,18 +281,39 @@ function applyDeskSnapshot(desk, { restoreSettings = true } = {}) {
   const gi = desk.global_inputs || {};
   window.globalInputs.video = gi.video || '';
   window.globalInputs.image = gi.image || '';
+  window.globalInputs.audio = gi.audio || '';
   window.globalInputs.pathIn = gi.path_in || '';
   window.globalInputs.pathOut = gi.path_out || '';
   window.globalInputs.frameStart = Number(gi.frame_start || 1);
   window.globalInputs.frameEnd = Number(gi.frame_end || 100);
-  const setVal = (id, val) => {
-    const el = document.getElementById(id);
-    if (el && val != null) el.value = val;
-  };
-  setVal('giVideo', window.globalInputs.video);
-  setVal('giImage', window.globalInputs.image);
-  setVal('giPathIn', window.globalInputs.pathIn);
-  setVal('giPathOut', window.globalInputs.pathOut);
+  // The Media In/Out boxes are the source of truth (updateGlobalInputs derives
+  // globalInputs.* FROM them), so restore into the boxes and let that one
+  // input event re-derive the model. The four rows this used to write
+  // (#giVideo/#giImage/#giPathIn/#giPathOut) were replaced by the unified
+  // Media In/Out pair in 8.098, so every one of those writes was a silent
+  // no-op: the model came back restored, the box came back empty, and the
+  // next updateGlobalInputs() wiped the model again. Order matches
+  // allInputPaths() so the pick is deterministic if more than one is set.
+  const mediaIn = [gi.video, gi.image, gi.audio, gi.path_in]
+    .map((v) => String(v || '').trim())
+    .find((v) => v) || '';
+  const inEl = document.getElementById('giMediaIn');
+  const outEl = document.getElementById('giMediaOut');
+  // Guarded: these dispatch real input events, and the global-input save
+  // listener below must not treat a restore as a user edit.
+  _applyingFormState = true;
+  try {
+    if (inEl && mediaIn) {
+      inEl.value = mediaIn;
+      inEl.dispatchEvent(new Event('input'));
+    }
+    if (outEl && gi.path_out) {
+      outEl.value = gi.path_out;
+      outEl.dispatchEvent(new Event('input'));
+    }
+  } finally {
+    _applyingFormState = false;
+  }
   if (desk.active_tab) state.activeTab = desk.active_tab;
   if (desk.form_state && typeof desk.form_state === 'object') state.formState = desk.form_state;
   const s = hydrateDeskTabs(desk.state || {});
@@ -1254,6 +1276,26 @@ window.scheduleSavePoolState = scheduleSavePoolState;
 window.addEventListener('mtapi.saveSettings', () => {
   try { scheduleSavePoolState(); } catch (_) { /* ignore */ }
 });
+
+/**
+ * The global Media In/Out boxes live in the header, OUTSIDE #actionPanel, so
+ * the delegated input/change listener in app.js that arms the autosave debounce
+ * never sees them. Editing the global input therefore never persisted at all:
+ * the value was only written into the snapshot by whatever unrelated pool
+ * action happened to save next, and a reload silently brought back the older
+ * path. Arm the debounce here instead, so "send a clip to the input" survives
+ * a refresh on its own. Suppressed while a snapshot is being applied.
+ */
+function bindGlobalInputPersistence() {
+  ['giMediaIn', 'giMediaOut'].forEach((id) => {
+    document.getElementById(id)?.addEventListener('input', () => {
+      if (isApplyingFormState()) return;
+      try { scheduleSavePoolState(); } catch (_) { /* ignore */ }
+    });
+  });
+}
+bindGlobalInputPersistence();
+
 window.addEventListener('mtapi.settingsChanged', () => {
   import('/js/pool/freshness.js')
     .then((m) => m.refreshAssignedPoolThumbs())

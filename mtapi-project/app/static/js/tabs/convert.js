@@ -178,15 +178,6 @@ function renderConvertForm() {
   if (inp) {
     inp.value = bestInput('');
   }
-
-  if (state.pendingInputPath && state.pendingInputTarget === 'convert') {
-    if (inp) {
-      inp.value = state.pendingInputPath;
-      inp.dispatchEvent(new Event('input'));
-    }
-    state.pendingInputPath = null;
-    state.pendingInputTarget = null;
-  }
 }
 
 function collectConvertBody() {

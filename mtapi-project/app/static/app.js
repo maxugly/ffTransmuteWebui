@@ -82,7 +82,7 @@ import { setupPoolLayoutChrome, applyPoolLayout, bindPoolDragResize } from '/js/
 import {
   loadPoolItemMeta, selectPoolItem, removePoolItem, clearPool,
   addPathsToPool, importPoolFiles, importPoolFolder,
-  sendPoolPathTo, savePoolFramePng, applyPoolAsInput,
+  savePoolFramePng,
 } from '/js/pool/items.js';
 let state = {
   activeTab: 'mosh',
@@ -1567,7 +1567,7 @@ export {
   renderWatcherForm, renderPoolForm, renderPoolGrid,
   renderStableFluidsForm,
   checkHealth, addPathsToPool,
-  sendPoolPathTo, applyPoolAsInput, formatBytes,
+  formatBytes,
   ensureTileInfo, defaultTileInfo,
   setPoolZoom, applyPoolZoom, setupTileInfoMenu, showPoolContextMenu,
   showQrScannability,

@@ -1,10 +1,11 @@
 // Pool chrome — tile zoom, info menu, context menu, file browser, format helpers
-import { state, elements, ensureTileInfo, switchTab, checkHealth } from '/app.js';
+import { state, elements, ensureTileInfo, switchTab, checkHealth, showPreview } from '/app.js';
 import { POOL_ZOOM, TILE_INFO_FIELDS } from '/js/pool/constants.js';
 import { escapeHtml } from '/js/utils.js';
 import { buildPoolMetaHtml, scheduleSavePoolState } from '/js/pool/persistence.js';
-import { sendPoolPathTo } from '/js/pool/items.js';
-import { quickTransmuteLabel } from '/js/tabs/quick.js';
+import { savePoolFramePng } from '/js/pool/items.js';
+import { addPathToSequence } from '/js/pool/sequence.js';
+import { quickTransmuteLabel, runQuickTransmute } from '/js/tabs/quick.js';
 import { addMultiClipPath } from '/js/tabs/transmute.js';
 import { logConsole } from '/js/preview.js';
 
@@ -168,11 +169,9 @@ function refreshPoolTileOverlays() {
 }
 
 
-// Close any open Send-to menus on outside click
+// Close the right-click context menu on outside click. (The per-card Send-to
+// popups are gone; only the context menu remains.)
 document.addEventListener('click', (e) => {
-  if (e.target.closest('.pool-send-wrap')) return;
-  document.querySelectorAll('.pool-send-menu:not([hidden])').forEach(m => { m.hidden = true; });
-  document.querySelectorAll('.pool-card.menu-open').forEach(c => c.classList.remove('menu-open'));
   if (!e.target.closest('.pool-ctx-menu')) hidePoolContextMenu();
 });
 
@@ -193,21 +192,15 @@ function showPoolContextMenu(x, y, path) {
   menu.id = 'poolCtxMenu';
   menu.className = 'pool-ctx-menu';
   menu.setAttribute('role', 'menu');
+  // Pool-local verbs only. There is deliberately no "Send → <tool>" list any
+  // more: the global Media In box is the single destination, the preview's
+  // →I-in button fills it, and the user navigates to the tab by hand.
   menu.innerHTML = `
     <button type="button" class="pool-ctx-item pool-ctx-quick" data-act="quick">${escapeHtml(quickTransmuteLabel())}</button>
     <div class="pool-ctx-sep"></div>
     <button type="button" class="pool-ctx-item" data-act="sequence">Add to sequence</button>
+    <button type="button" class="pool-ctx-item" data-act="multi">Add to Multi clips</button>
     <button type="button" class="pool-ctx-item" data-act="preview">Preview</button>
-    <button type="button" class="pool-ctx-item" data-act="mosh">Send → Datamosh</button>
-    <button type="button" class="pool-ctx-item" data-act="deepdream">Send → DeepDream</button>
-    <button type="button" class="pool-ctx-item" data-act="rife">Send → RIFE</button>
-    <button type="button" class="pool-ctx-item" data-act="speedchange">Send → Speed Change</button>
-    <button type="button" class="pool-ctx-item" data-act="upscale">Send → Upscale</button>
-    <button type="button" class="pool-ctx-item" data-act="fastsam">Send → FastSAM</button>
-    <button type="button" class="pool-ctx-item" data-act="convert">Send → Convert / Export</button>
-    <button type="button" class="pool-ctx-item" data-act="transmute">Send → Transmute</button>
-    <button type="button" class="pool-ctx-item" data-act="multi">Send → Multi</button>
-    <button type="button" class="pool-ctx-item" data-act="advanced">Send → Raw CLI</button>
     <div class="pool-ctx-sep"></div>
     <button type="button" class="pool-ctx-item" data-act="save_first_png">Save first frame PNG…</button>
     <button type="button" class="pool-ctx-item" data-act="save_last_png">Save last frame PNG…</button>
@@ -233,11 +226,35 @@ function showPoolContextMenu(x, y, path) {
       e.stopPropagation();
       const act = btn.dataset.act;
       hidePoolContextMenu();
-      if (act === 'quick_setup') {
-        switchTab('quick');
-        return;
+      switch (act) {
+        case 'quick_setup':
+          switchTab('quick');
+          break;
+        case 'sequence':
+          addPathToSequence(path);
+          logConsole(`[POOL]: Sent to sequence → ${path}`);
+          break;
+        case 'multi':
+          addMultiClipPath(path);
+          logConsole(`[POOL]: Sent to multi clips → ${path}`);
+          switchTab('multi');
+          break;
+        case 'preview':
+          showPreview(path);
+          logConsole(`[POOL]: Preview → ${path}`);
+          break;
+        case 'save_first_png':
+          savePoolFramePng(path, 'first');
+          break;
+        case 'save_last_png':
+          savePoolFramePng(path, 'last');
+          break;
+        case 'quick':
+          runQuickTransmute(path);
+          break;
+        default:
+          logConsole(`[POOL]: Unknown pool action: ${act}`, 'error');
       }
-      sendPoolPathTo(path, act);
     });
   });
 }

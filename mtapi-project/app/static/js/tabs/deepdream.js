@@ -917,17 +917,6 @@ function renderDeepDreamForm() {
   document.getElementById('btnDreamOvRefresh')?.addEventListener('click', _refreshDreamOvStatus);
   _refreshDreamOvStatus();
 
-  // Apply pending send-to path
-  if (state.pendingInputPath && state.pendingInputTarget === 'deepdream') {
-    const inp = document.getElementById('dreamInput');
-    if (inp) {
-      inp.value = state.pendingInputPath;
-      inp.dispatchEvent(new Event('input'));
-    }
-    state.pendingInputPath = null;
-    state.pendingInputTarget = null;
-  }
-
   syncDreamUiVisibility();
 }
 

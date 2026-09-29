@@ -316,7 +316,7 @@ function _hookGlobalInputs() {
   _giHooked = true;
   // _syncTabInputFromGlobal hides #giFramesRow for non-range tabs on every
   // global edit; re-assert the active script's opt-in while Scripts is open.
-  ['giVideo', 'giImage'].forEach(function(id) {
+  ['giMediaIn'].forEach(function(id) {
     document.getElementById(id)?.addEventListener('input', function() {
       if (state.activeTab !== 'scripts') return;
       var def = activeScriptDef();
