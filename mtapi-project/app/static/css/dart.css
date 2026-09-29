@@ -1,0 +1,338 @@
+/* ═══════════════════════════════════════════
+   Calendar Dart tab — bare workspace (nav only)
+   Same chrome-hide pattern as Notes / Settings /
+   References: no global inputs, no Run, no preview.
+   UI-only research tool — no media, no /ops call.
+   ═══════════════════════════════════════════ */
+
+body.dart-tab-active .global-inputs-panel {
+  display: none !important;
+}
+body.dart-tab-active header .header-actions,
+body.dart-tab-active header .global-quick-btns {
+  display: none !important;
+}
+body.dart-tab-active .app-content {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+body.dart-tab-active .app-content .preview-panel {
+  display: none !important;
+}
+body.dart-tab-active .action-panel {
+  flex: 1 1 100%;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+}
+body.dart-tab-active .action-panel-form {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+body.dart-tab-active .tool-input-preview {
+  display: none !important;
+}
+
+/* ── Workspace shell ─────────────────────────── */
+.dart-workspace {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 880px;
+  margin: 0 auto;
+  gap: 12px;
+  box-sizing: border-box;
+}
+.dart-workspace > * {
+  flex-shrink: 0;
+}
+
+/* ── Throw row ─────────────────────────── */
+.dart-throw-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 12px 14px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.02);
+}
+.dart-throw-btn {
+  background: linear-gradient(135deg, var(--accent) 0%, #7e22ce 100%);
+  border: 1px solid transparent;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+  padding: 7px 18px;
+  min-height: 32px;
+  border-radius: 999px;
+  box-shadow: none;
+}
+.dart-throw-btn:hover {
+  background: linear-gradient(135deg, #c084fc 0%, var(--accent) 100%);
+  box-shadow: 0 0 0 1px var(--accent-glow);
+}
+.dart-throw-btn:active {
+  transform: translateY(1px);
+}
+.dart-throw-btn.is-throwing {
+  opacity: 0.65;
+  cursor: progress;
+}
+.dart-throw-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.dart-date-readout {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-main);
+  letter-spacing: -0.01em;
+}
+.dart-date-readout.is-idle {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* ── Status line ─────────────────────────── */
+.dart-status {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  padding: 0 2px;
+}
+.dart-status.is-error {
+  color: var(--error);
+}
+.dart-status.is-busy {
+  color: var(--accent);
+}
+
+/* ── Event list ─────────────────────────── */
+.dart-events {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dart-event {
+  border: 1px solid var(--panel-border);
+  border-left: 3px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 9px 12px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.dart-event:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.dart-event.is-high {
+  border-left-color: var(--success);
+}
+.dart-event.is-medium {
+  border-left-color: var(--warning);
+}
+.dart-event.is-low {
+  border-left-color: rgba(255, 255, 255, 0.18);
+}
+.dart-event-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-bottom: 4px;
+}
+.dart-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+}
+.dart-badge-high {
+  color: var(--success);
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.35);
+}
+.dart-badge-medium {
+  color: var(--warning);
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+.dart-badge-low {
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.dart-year {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+.dart-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.dart-reason {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.6rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  border: 1px solid var(--panel-border);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+.dart-reason.is-plus {
+  color: #6ee7b7;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+.dart-reason.is-minus {
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+.dart-text {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-main);
+}
+.dart-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 6px;
+}
+.dart-wiki-link {
+  font-size: 0.68rem;
+  color: #60a5fa;
+  text-decoration: none;
+  border-bottom: 1px dotted rgba(96, 165, 250, 0.5);
+}
+.dart-wiki-link:hover {
+  color: #93c5fd;
+  border-bottom-style: solid;
+}
+
+/* ── Empty / loading / error states ─────────────────────── */
+.dart-notice {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  border: 1px dashed var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  text-align: center;
+}
+.dart-notice .btn {
+  margin-left: 8px;
+}
+
+/* ── History strip ─────────────────────────── */
+.dart-history {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.dart-history-item {
+  flex: 0 0 auto;
+  width: 190px;
+  text-align: left;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-main);
+  padding: 6px 9px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.dart-history-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.dart-history-item.is-current {
+  border-color: var(--accent);
+  background: rgba(168, 85, 247, 0.08);
+}
+.dart-h-date {
+  display: block;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dart-h-top {
+  display: block;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  margin-top: 2px;
+  color: var(--text-main);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.dart-history-clear {
+  align-self: center;
+}
+
+/* ── Curated calibration cards ─────────────────────── */
+.dart-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.dart-card {
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 10px 12px;
+}
+.dart-card-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-bottom: 4px;
+}
+.dart-card-date {
+  font-family: 'Fira Code', monospace;
+  font-size: 0.62rem;
+  color: var(--text-muted);
+}
+.dart-card h4 {
+  margin: 0 0 3px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+.dart-card p {
+  margin: 0;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+@media (max-width: 720px) {
+  .dart-cards { grid-template-columns: 1fr; }
+}

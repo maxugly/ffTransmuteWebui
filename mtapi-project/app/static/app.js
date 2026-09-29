@@ -46,6 +46,7 @@ import { renderZoompanForm, collectZoompanBody } from '/js/tabs/zoompan.js';
 import { renderImageSortForm, collectImageSortBody } from '/js/tabs/imagesort.js';
 import { renderImgCompareForm } from '/js/tabs/imgcompare.js';
 import { renderNotesForm } from '/js/tabs/notes.js';
+import { renderDartForm } from '/js/tabs/dart.js';
 import { renderSkillsForm } from '/js/tabs/skills.js';
 import { renderScriptsForm } from '/js/tabs/scripts.js';
 import { renderWatermarkForm } from '/js/tabs/watermark.js';
@@ -497,6 +498,7 @@ const TAB_ACCEPTS = {
   imgcompare:  'image',
   zoompan:     'image',
   notes:       'none',
+  dart:        'none',
   settings:    'none',
   scripts:     'any',
   watermark:   'any',
@@ -1055,6 +1057,7 @@ function switchTab(tab) {
   if (tab === 'zoompan') title = 'Pan & Zoom';
   if (tab === 'jobs') title = 'Jobs · Queue';
   if (tab === 'notes') title = 'Notes';
+  if (tab === 'dart') title = 'Calendar Dart · forgotten global events';
   if (tab === 'skills') title = 'Skills · AI model skills';
   if (tab === 'scripts') title = 'Script Runner';
   if (tab === 'watermark') title = 'Watermark · Clean';
@@ -1075,6 +1078,7 @@ function switchTab(tab) {
     || tab === 'quick' || tab === 'watcher' || tab === 'notes' || tab === 'settings'
     || tab === 'agent' || tab === 'jobs'
     || tab === 'skills'
+    || tab === 'dart'
     || tab === 'imgcompare'
     || tab === 'stablefluids'
     || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-music'
@@ -1129,11 +1133,14 @@ function switchTab(tab) {
     tab === 'pool' || tab === 'sequence' || tab === 'images'
     || tab === 'quick' || tab === 'watcher' || tab === 'agent' || tab === 'jobs'
     || tab === 'skills'
+    || tab === 'dart'
     || tab === 'imgcompare'
     || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-music'
   );
   document.body.classList.toggle('no-global-inputs', noGlobalInputs);
   document.body.classList.toggle('sf-sim-tab-active', tab === 'stablefluids');
+  // Calendar Dart: bare workspace (sidebar + dart workspace only), like References
+  document.body.classList.toggle('dart-tab-active', tab === 'dart');
   // References: bare workspace (sidebar + reference card only)
   document.body.classList.toggle('references-tab-active', tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-music');
 
@@ -1284,6 +1291,8 @@ function renderTabForm(tab) {
     renderJobsForm();
   } else if (tab === 'notes') {
     renderNotesForm();
+  } else if (tab === 'dart') {
+    renderDartForm();
   } else if (tab === 'skills') {
     renderSkillsForm();
   } else if (tab === 'scripts') {
