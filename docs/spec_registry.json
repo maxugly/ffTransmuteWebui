@@ -270,14 +270,14 @@
     "path": "docs/frame-range-spec.md",
     "category": "Core Architecture",
     "status": "Implemented (includes Cut tab)",
-    "summary": "Global frame range on video-pipeline tabs; dump() trims via select=between; start_frame/end_frame on neural/convert/pipeline/speed_ramp params. 1-based inclusive like datamosh. Cut uses global range + per-frame thumbs (frame=N)."
+    "summary": "Global frame range on video-pipeline tabs; dump() trims via select=between; start_frame/end_frame on neural/convert/pipeline/speed_ramp params. 1-based inclusive like datamosh. Cut uses the global range + /api/thumbnail?frame=N&s=<L|M|H> for In/Out stills. mtapi:frame-range also drives the Frame Peek preview seek."
   },
   {
     "file": "frame-scrubber-spec.md",
     "path": "docs/frame-scrubber-spec.md",
     "category": "Frontend",
-    "status": "Implemented",
-    "summary": "The global frame range picker currently displays numbers (e.g., 1-90), but the user cannot visually confirm what frame they are selecting. This specification introduces a thumbnail preview mechanism (a \"Frame Scrubber\") tailored for short clips. A new purple `[+]` button next to the picker will generate a sequence of low-res thumbnails. When hovering or dragging the start/end bounds, a stationary popup appears below the picker, showing the exact frame at the cursor position."
+    "status": "Implemented 000.000.8.103 (Frame Peek; supersedes the popup-below-picker design)",
+    "summary": "Frame Peek: moving the global In/Out point shows that frame in the media preview by SEEKING the video (currentTime = (frame-1)/fps over a Range-capable FileResponse) - no ffmpeg, no server work. Resolution order: player seek -> auto-load if the panel is empty -> [+] strip still -> on-demand extract. fps_avg is preferred over the nominal r_frame_rate. Settings: globalFramePeek (default on), framePeekSize (L/M/H = 120/240/480). Strip files are frame_%06d_<size>.jpg so size classes never collide in the cache."
   },
   {
     "file": "image-quality-rating-spec.md",

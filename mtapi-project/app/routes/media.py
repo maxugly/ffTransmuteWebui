@@ -403,10 +403,21 @@ def register(app: FastAPI, probe_fn) -> None:
     def _frame_strip_dir(content_hash: str) -> Path:
         return media._frames_dir(content_hash)
 
-    def _frame_strip_exists(content_hash: str, frame_count: int) -> bool:
-        d = _frame_strip_dir(content_hash)
-        last = d / f"frame_{frame_count:06d}.jpg"
-        return last.exists()
+    def _strip_frame_name(frame_1based: int, size: str) -> str:
+        """Size is part of the filename so one cache dir can hold every class.
+
+        Without it, switching Frame peek size would silently serve the previous
+        size's stills (the existence probe below only sees the last frame).
+        Matches the range_thumbs convention: frame_%06d_<size>.jpg.
+        """
+        return f"frame_{max(1, int(frame_1based)):06d}_{size}.jpg"
+
+    def _strip_urls(content_hash: str, frame_count: int, size: str) -> list[str]:
+        prefix = f"/media/frame-strip/{content_hash}"
+        return [f"{prefix}/{_strip_frame_name(i, size)}" for i in range(1, frame_count + 1)]
+
+    def _frame_strip_exists(content_hash: str, frame_count: int, size: str) -> bool:
+        return (_frame_strip_dir(content_hash) / _strip_frame_name(frame_count, size)).exists()
 
     @app.post("/media/frame-strip", tags=["meta"])
     async def create_frame_strip(body: dict):
@@ -416,6 +427,9 @@ def register(app: FastAPI, probe_fn) -> None:
         path_obj = Path(path).expanduser().resolve()
         if not path_obj.is_file():
             raise HTTPException(status_code=404, detail="File not found")
+
+        size = media.normalize_thumb_size((body or {}).get("s") or "L")
+        scale_w = media.THUMBNAIL_SIZES[size]
 
         content_hash, _ = await media.resolve_hash(path_obj)
 
@@ -431,27 +445,29 @@ def register(app: FastAPI, probe_fn) -> None:
             return JSONResponse(
                 {
                     "ok": False,
-                    "error": f"Video has {frame_count} frames (limit: {FRAME_LIMIT})",
+                    "error": (
+                        f"Video has {frame_count} frames (strip limit: {FRAME_LIMIT}) — "
+                        "the player preview still scrubs the full clip"
+                    ),
                     "frame_count": frame_count,
+                    "frame_limit": FRAME_LIMIT,
                 },
                 status_code=200,
             )
 
         d = _frame_strip_dir(content_hash)
-        if _frame_strip_exists(content_hash, frame_count):
-            prefix = f"/media/frame-strip/{content_hash}"
-            frame_urls = [f"{prefix}/frame_{i:06d}.jpg" for i in range(1, frame_count + 1)]
+        if _frame_strip_exists(content_hash, frame_count, size):
             return JSONResponse({
                 "ok": True,
                 "hash": content_hash,
                 "frame_count": frame_count,
-                "frame_urls": frame_urls,
+                "size": size,
+                "frame_urls": _strip_urls(content_hash, frame_count, size),
                 "cached": True,
             })
 
         d.mkdir(parents=True, exist_ok=True)
-        in_pattern = str(d / "frame_%06d.jpg")
-        scale_w = 120
+        in_pattern = str(d / f"frame_%06d_{size}.jpg")
 
         argv = [
             "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
@@ -470,19 +486,22 @@ def register(app: FastAPI, probe_fn) -> None:
                 "error": f"ffmpeg frame extraction failed: {stderr.strip() or f'exit code {code}'}",
             })
 
-        prefix = f"/media/frame-strip/{content_hash}"
-        frame_urls = [f"{prefix}/frame_{i:06d}.jpg" for i in range(1, frame_count + 1)]
         return JSONResponse({
             "ok": True,
             "hash": content_hash,
             "frame_count": frame_count,
-            "frame_urls": frame_urls,
+            "size": size,
+            "frame_urls": _strip_urls(content_hash, frame_count, size),
             "cached": False,
         })
 
     @app.get("/media/frame-strip/{content_hash}/{filename:path}", tags=["meta"])
     async def serve_frame_strip(content_hash: str, filename: str):
-        fp = _frame_strip_dir(content_hash) / filename
+        root = _frame_strip_dir(content_hash).resolve()
+        fp = (root / filename).resolve()
+        # `filename:path` lets a caller ask for ../.. — keep the serve root.
+        if root != fp and root not in fp.parents:
+            raise HTTPException(status_code=404, detail="Frame not found")
         if not fp.is_file():
             raise HTTPException(status_code=404, detail="Frame not found")
         return FileResponse(str(fp), media_type="image/jpeg")

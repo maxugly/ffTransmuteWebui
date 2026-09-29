@@ -1,8 +1,13 @@
 /** Settings: local preferences with a small server mirror for media routes. */
 import { state, elements } from '/app.js';
 import { setupContinuousKnob } from '/js/ui/knobs.js?v=6';
+import { normalizeSize, FRAME_WIDTHS, FRAME_SIZES, FRAME_SIZE_LABELS } from '/js/media-urls.js?v=1';
 
 const SIZE_LABELS = ['L', 'M', 'H'];
+/** Readout for the Frame peek size knob — the words plus the real pixel width. */
+const PEEK_LABELS = FRAME_SIZE_LABELS.map(
+  (label, i) => `${label} ${FRAME_WIDTHS[FRAME_SIZES[i]]}px`,
+);
 const SCROLLBAR_MIN = 6;
 const SCROLLBAR_MAX = 30;
 const SCROLLBAR_STEP = 2;
@@ -69,6 +74,8 @@ function settingsSnapshot() {
     autoAddOpOutputsToSequence: !!state.settings.autoAddOpOutputsToSequence,
     autoAddOpImageOutputs: !!state.settings.autoAddOpImageOutputs,
     muteVideos: state.settings.muteVideos !== false,
+    globalFramePeek: state.settings.globalFramePeek !== false,
+    framePeekSize: normalizeSize(state.settings.framePeekSize, 'M'),
     warmModels: { ...(state.settings.warmModels || {}) },
   };
 }
@@ -101,6 +108,8 @@ async function saveSettings(patch = {}) {
         auto_add_op_outputs_to_sequence: payload.autoAddOpOutputsToSequence,
         auto_add_op_image_outputs: payload.autoAddOpImageOutputs,
         mute_videos: payload.muteVideos,
+        global_frame_peek: payload.globalFramePeek,
+        frame_peek_size: payload.framePeekSize,
         warm_models: payload.warmModels,
       }),
     });
@@ -135,6 +144,9 @@ export function renderSettingsForm() {
   const sizeIndex = state.settings.thumbnailSizeIndex ??
     ({ L: 0, M: 1, H: 2 }[state.settings.thumbnailSize] ?? 2);
   state.settings.thumbnailSizeIndex = sizeIndex;
+  const peekSize = normalizeSize(state.settings.framePeekSize, 'M');
+  state.settings.framePeekSize = peekSize;
+  const peekSizeIndex = Math.max(0, FRAME_SIZES.indexOf(peekSize));
   const warm = state.settings.warmModels || {};
   elements.actionPanel.innerHTML = `
     <div class="settings-workspace" id="settingsWorkspace">
@@ -186,14 +198,23 @@ export function renderSettingsForm() {
             <input class="daw-knob-value-input" id="settingsAutosaveValue" value="30s" readonly>
             <input type="hidden" id="settingsAutosaveIndex" value="${[5,30,60].indexOf(Number(state.settings.autosaveInterval)) >= 0 ? [5,30,60].indexOf(Number(state.settings.autosaveInterval)) : 1}">
           </div>
+          <div class="settings-discrete-knob">
+            <span class="knob-unit-label">Frame peek size</span>
+            <div class="daw-knob" id="settingsPeekSizeKnob">
+              <div class="daw-knob-dial"></div><div class="daw-knob-indicator" id="settingsPeekSizeKnobInd"></div>
+            </div>
+            <input class="daw-knob-value-input" id="settingsPeekSizeValue" value="${PEEK_LABELS[peekSizeIndex]}" readonly>
+            <input type="hidden" id="settingsPeekSizeIndex" value="${peekSizeIndex}">
+          </div>
           <div class="settings-switches">
             ${switchHtml('settingsThumbRam', 'Keep thumbnails in RAM', state.settings.thumbnailsToRam)}
             ${switchHtml('settingsPhashRam', 'Keep hashes in RAM', state.settings.phashToRam)}
             ${switchHtml('settingsWallPair', 'First + last wall', state.settings.wallStyle !== 'first')}
             ${switchHtml('settingsMuteVideos', 'Mute videos', state.settings.muteVideos !== false)}
+            ${switchHtml('settingsGlobalFramePeek', 'Preview frame while scrubbing', state.settings.globalFramePeek !== false)}
           </div>
         </div>
-        <p class="settings-card-desc">Wall default is one JPEG: first|last side by side at 120px each.<br>Off shows the single first-frame preview. L/M/H is match-size only.<br>Mute videos keeps preview playback silent (autoplay-safe). Off = previews play audio.</p>
+        <p class="settings-card-desc">Wall default is one JPEG: first|last side by side at 120px each.<br>Off shows the single first-frame preview. L/M/H is match-size only. Mute videos keeps preview playback silent (autoplay-safe).<br>Frame peek size is Quarter ${FRAME_WIDTHS.L} / Half ${FRAME_WIDTHS.M} / Full ${FRAME_WIDTHS.F}px — the still drawn when the player cannot be scrubbed.<br>Preview frame while scrubbing seeks the media preview to the In/Out frame you are setting. Off leaves the preview alone.</p>
       </section>
       <section class="settings-card settings-outputs" aria-labelledby="settingsOutputsTitle">
         <div class="settings-card-head">
@@ -264,6 +285,18 @@ export function renderSettingsForm() {
     },
   });
   setupContinuousKnob({
+    knobId: 'settingsPeekSizeKnob', indicatorId: 'settingsPeekSizeKnobInd',
+    valueId: 'settingsPeekSizeValue', hiddenId: 'settingsPeekSizeIndex',
+    min: 0, max: 2, step: 1, decimals: 0, format: v => PEEK_LABELS[Math.round(v)],
+    helpTitle: 'Frame peek size — Quarter / Half / Full',
+    helpText: `Width of the still drawn in the media preview when you drag the In/Out point and the player cannot be scrubbed (the preview is showing another file). Quarter ${FRAME_WIDTHS.L}px, Half ${FRAME_WIDTHS.M}px, Full ${FRAME_WIDTHS.F}px. It also sets the size of the optional \`[+]\` frame strip. Default Half.`,
+    onChange: (v) => {
+      const size = FRAME_SIZES[Math.round(v)] || 'M';
+      state.settings.framePeekSize = size;
+      if (elements.actionPanel?.dataset.settingsReady === '1') saveSettings({ framePeekSize: size });
+    },
+  });
+  setupContinuousKnob({
     knobId: 'settingsScrollbarKnob', indicatorId: 'settingsScrollbarKnobInd',
     valueId: 'settingsScrollbarValue', hiddenId: 'settingsScrollbarWidth',
     min: SCROLLBAR_MIN, max: SCROLLBAR_MAX, step: SCROLLBAR_STEP, decimals: 0,
@@ -288,11 +321,17 @@ export function renderSettingsForm() {
   document.getElementById('settingsAutosaveIndex')?.addEventListener('change', (e) => {
     saveSettings({ autosaveInterval: [5, 30, 60][Number(e.target.value)] || 30 });
   });
+  document.getElementById('settingsPeekSizeIndex')?.addEventListener('change', (e) => {
+    const size = FRAME_SIZES[Number(e.target.value)] || 'M';
+    state.settings.framePeekSize = size;
+    saveSettings({ framePeekSize: size });
+  });
   const bindSwitch = (id, patch) => document.getElementById(id)?.addEventListener('change', (e) => saveSettings({ [patch]: e.target.checked }));
   bindSwitch('settingsThumbRam', 'thumbnailsToRam');
   bindSwitch('settingsPhashRam', 'phashToRam');
   bindSwitch('settingsAutoSeq', 'autoAddToSequence');
   bindSwitch('settingsMuteVideos', 'muteVideos');
+  bindSwitch('settingsGlobalFramePeek', 'globalFramePeek');
   document.getElementById('settingsAutoFL')?.addEventListener('change', (e) => {
     saveSettings({ autoFirstLast: e.target.checked });
     document.getElementById('settingsAutoFLSub')?.toggleAttribute('hidden', !e.target.checked);

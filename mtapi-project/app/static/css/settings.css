@@ -78,6 +78,10 @@ body.settings-tab-active .tool-input-preview {
   width: max-content;
   max-width: 100%;
   min-height: 0;
+  /* Never shrink below content: the workspace is a height-constrained column,
+     so flex-shrink squashed every card and `overflow: visible` painted each
+     description over the next card. Let the page scroll instead. */
+  flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   gap: 6px;

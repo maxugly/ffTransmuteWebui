@@ -62,10 +62,24 @@ Changing the first line of global Video invalidates probe cache (`updateGlobalIn
 Cut In/Out images use **working range**, not absolute file endpoints:
 
 ```text
-GET /api/thumbnail?path=…&frame=N   # 1-based; see video-image-pools-spec.md
+GET /api/thumbnail?path=…&frame=N&s=<L|M|H>   # 1-based; see video-image-pools-spec.md
 ```
 
 Absolute first/last (`which=first|last`) remain for Video Pool dual-frame cards only.
+
+### Frame peek (the global preview while a set-point moves)
+
+Moving the In/Out point shows that frame in the media preview. The primary path
+is a **player seek** — `video.currentTime = (frame - 1) / fps` on the `<video>`
+already in the panel — which is ordinary scrubbing over a `Range`-capable
+`FileResponse`, so it costs no ffmpeg and no server work. Extracted stills are a
+fallback for when the panel is showing a different file, and the `[+]` strip is an
+optional accelerator. Full contract, settings and acceptance criteria:
+`frame-scrubber-spec.md` (Frame Peek).
+
+Source resolution is driven by the single `mtapi:frame-range` event fired from
+`sync()`, so it covers thumb input, the blue-window drag (which dispatches no
+`input` of its own), the `[‹][›]` steppers and text commit alike.
 
 ---
 

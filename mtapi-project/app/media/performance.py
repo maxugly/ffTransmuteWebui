@@ -25,6 +25,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "auto_add_op_outputs_to_sequence": False,
     "auto_add_op_image_outputs": False,
     "mute_videos": True,
+    "global_frame_peek": True,
+    "frame_peek_size": "M",
     "warm_models": {"deepdream": False, "styletransfer": False, "fastsam": False},
 }
 _settings_lock = asyncio.Lock()
@@ -63,6 +65,10 @@ def _normalize_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
         "auto_add_op_outputs_to_sequence": bool(raw.get("auto_add_op_outputs_to_sequence", False)),
         "auto_add_op_image_outputs": bool(raw.get("auto_add_op_image_outputs", False)),
         "mute_videos": bool(raw.get("mute_videos", True)),
+        "global_frame_peek": bool(raw.get("global_frame_peek", True)),
+        "frame_peek_size": normalize_thumb_size(
+            raw.get("frame_peek_size", DEFAULT_SETTINGS["frame_peek_size"]), "M"
+        ),
         "warm_models": {
             name: bool(warm.get(name, False))
             for name in ("deepdream", "styletransfer", "fastsam")

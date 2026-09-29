@@ -53,7 +53,7 @@ import { renderDemucsForm } from '/js/tabs/demucs.js';
 import { renderMusicForm } from '/js/tabs/music.js';
 import { renderEraseForm } from '/js/tabs/erase.js';
 import { renderStableFluidsForm } from '/js/tabs/stablefluids.js';
-import { renderSettingsForm, applyUiTweaks, readStoredScrollbarWidth } from '/js/tabs/settings.js';
+import { renderSettingsForm, applyUiTweaks, readStoredScrollbarWidth } from '/js/tabs/settings.js?v=2';
 import { renderJobsForm, stopJobsPoll } from '/js/tabs/jobs.js';
 import { renderReferencesForm } from '/js/tabs/references.js?v=3';
 import { renderImageEditForm, collectImageEditBody } from '/js/tabs/imageedit.js';
@@ -288,6 +288,8 @@ let state = {
     autoAddOpOutputsToSequence: false,
     autoAddOpImageOutputs: false,
     muteVideos: true,
+    globalFramePeek: true,
+    framePeekSize: 'M',
     warmModels: { deepdream: false, styletransfer: false, fastsam: false },
   },
   formState: {},
@@ -316,6 +318,8 @@ const SETTINGS_DEFAULTS = {
   autoAddOpOutputsToSequence: false,
   autoAddOpImageOutputs: false,
   muteVideos: true,
+  globalFramePeek: true,
+  framePeekSize: 'M',
   warmModels: { deepdream: false, styletransfer: false, fastsam: false },
 };
 
@@ -336,6 +340,8 @@ function mapServerSettings(data) {
   if (data.auto_add_op_outputs_to_sequence != null) mapped.autoAddOpOutputsToSequence = !!data.auto_add_op_outputs_to_sequence;
   if (data.auto_add_op_image_outputs != null) mapped.autoAddOpImageOutputs = !!data.auto_add_op_image_outputs;
   if (data.mute_videos != null) mapped.muteVideos = !!data.mute_videos;
+  if (data.global_frame_peek != null) mapped.globalFramePeek = !!data.global_frame_peek;
+  if (data.frame_peek_size) mapped.framePeekSize = data.frame_peek_size;
   if (data.warm_models && typeof data.warm_models === 'object') {
     mapped.warmModels = { ...SETTINGS_DEFAULTS.warmModels, ...data.warm_models };
   }
@@ -376,6 +382,10 @@ async function applySettingsPrecedence() {
     state.settings.autoFirstLastMode = 'import';
   }
   state.settings.autoFirstLast = !!state.settings.autoFirstLast;
+  state.settings.globalFramePeek = state.settings.globalFramePeek !== false;
+  if (['L', 'M', 'H'].indexOf(String(state.settings.framePeekSize || '').toUpperCase()) < 0) {
+    state.settings.framePeekSize = SETTINGS_DEFAULTS.framePeekSize;
+  }
   state.settings.scrollbarWidth = readStoredScrollbarWidth();
   applyUiTweaks(state.settings.scrollbarWidth);
 }
@@ -758,7 +768,7 @@ async function init() {
   loadQuickSettings();
   bindClearables();
   setupGlobalTimeline();
-  setupFrameScrubber();
+  setupFramePeek();
   setupListKeys();
   try { initTabScroll(() => state.activeTab); } catch (_) { /* ignore */ }
   setupEventListeners();
@@ -1299,7 +1309,7 @@ function renderTabForm(tab) {
   try { applySavedFormState(tab); } catch (_) { /* ignore */ }
 }
 import { probeGlobalVideo, setupGlobalTimeline, setupTimelineSlider } from '/js/timeline.js';
-import { setupFrameScrubber, resetFrameScrubber } from '/js/frame-scrubber.js';
+import { setupFramePeek, resetFramePeek } from '/js/frame-peek.js?v=5';
 import { setupListKeys } from '/js/ui/list-keys.js';
 import {
   renderPoolForm, renderSequenceForm, renderPoolGrid, sequencePositions,

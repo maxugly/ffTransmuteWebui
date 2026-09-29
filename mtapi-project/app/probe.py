@@ -51,6 +51,35 @@ async def probe_fps(path: str, default: float = 0.0) -> float:
         return default
 
 
+async def probe_fps_avg(path: str, default: float = 0.0) -> float:
+    """Average (actual) frame rate from container timestamps.
+
+    Distinct from :func:`probe_fps`, which reads the *nominal* ``r_frame_rate``.
+    The two disagree on VFR and on badly tagged files (a 577-frame clip tagged
+    ``r_frame_rate=60`` that actually plays at 24.02), where only the average
+    maps a frame number onto a real timestamp. Defaults to *default*.
+    """
+    from .shell import run_command
+    code, out, _ = await run_command([
+        "ffprobe", "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=avg_frame_rate",
+        "-of", "csv=p=0", path,
+    ])
+    try:
+        fps = default
+        if code == 0 and "/" in out:
+            num, den = out.strip().split("/", 1)
+            fps = float(num) / float(den)
+        elif code == 0:
+            fps = float(out.strip())
+        if fps <= 0 or fps > 1000:
+            return default
+        return fps
+    except (ValueError, ZeroDivisionError):
+        return default
+
+
 async def probe_dimensions(path: str) -> tuple[int, int]:
     """Video (width, height). Returns (0, 0) on failure."""
     from .shell import run_command

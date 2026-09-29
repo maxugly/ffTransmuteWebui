@@ -59,9 +59,11 @@ def _record_path(content_hash: str) -> Path:
     return _hash_dir(content_hash) / "record.json"
 
 
-def normalize_thumb_size(size: str | None) -> str:
-    value = str(size or "H").upper()
-    return value if value in THUMBNAIL_SIZES else "H"
+def normalize_thumb_size(size: str | None, default: str = "H") -> str:
+    """Clamp any size token to a real class. Unknown/empty → ``default``."""
+    fallback = default if default in THUMBNAIL_SIZES else "H"
+    value = str(size or "").upper()
+    return value if value in THUMBNAIL_SIZES else fallback
 
 
 def _thumb_path(content_hash: str, which: str, size: str = "H") -> Path:

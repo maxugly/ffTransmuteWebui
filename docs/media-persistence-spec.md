@@ -23,11 +23,16 @@ by_hash/{content_hash}/
 ├── last.extract_v    # Versioning file for extraction changes
 ├── range_thumbs/     # On-demand single-frame JPEGs for Cut / working range
 │   └── frame_000012.jpg   # 1-based frame index, zero-padded
-└── frames/           # Full low-res strip for Frame Scrubber (optional, heavy)
-    ├── frame_00001.jpg
-    ├── frame_00002.jpg
-    └── ...
+└── frames/           # Frame peek strip (optional accelerator, heavy)
+    ├── frame_000001_L.jpg    # size class is part of the name
+    ├── frame_000002_L.jpg
+    └── frame_000001_H.jpg    # a different size class, same cache dir
 ```
+
+The strip filename carries the size class (`frame_%06d_<L|M|H>.jpg`, mirroring
+`range_thumbs/frame_%06d_<size>.jpg`) because the existence probe only looks at
+the last frame — without the class in the name, changing **Frame peek size**
+would silently serve the previous size's stills.
 
 ### Invariants:
 1. **No Parallel Caches:** Features MUST NOT create `~/.cache/mtapi/media/other_folder/`. They must use `by_hash/{content_hash}/`.
@@ -35,14 +40,15 @@ by_hash/{content_hash}/
 3. **Lazy Generation:** Artifacts like `first.jpg`, `range_thumbs/`, or the `frames/` strip are generated strictly on-demand, not proactively.
 4. **Range vs absolute thumbs:**  
    - `first.jpg` / `last.jpg` → Video Pool library cards (`?which=first|last`).  
-   - `range_thumbs/frame_XXXXXX.jpg` → working-range UI (`?frame=N`). See `video-image-pools-spec.md`.
+   - `range_thumbs/frame_XXXXXX_<size>.jpg` → working-range UI (`?frame=N&s=<L|M|H>`). See `video-image-pools-spec.md`.
 
 ## 3. Correcting the Frame Scrubber Drift
 The `docs/frame-scrubber-spec.md` previously specified storing thumbnails in `~/.cache/mtapi/media/frames/{content_hash}/`. 
 
 **Correction:** 
 - The Frame Scrubber must generate and store its JPEGs in `BY_HASH_DIR / {content_hash} / "frames"`.
-- The GET endpoint serving these thumbnails must map `/media/frame-strip/{hash}/frame_{n}.jpg` directly to `by_hash/{hash}/frames/frame_{n}.jpg`.
+- The GET endpoint serving these thumbnails must map `/media/frame-strip/{hash}/frame_{n}_{size}.jpg` directly to `by_hash/{hash}/frames/frame_{n}_{size}.jpg`.
+- The GET endpoint MUST reject any path that escapes the strip directory (`filename` is a `{filename:path}` route parameter).
 
 ## 4. Derived & Generated Media
 When a pipeline operation (e.g., DeepDream) generates a *new* video, that new video is treated as an entirely separate entity with its own `content_hash`.

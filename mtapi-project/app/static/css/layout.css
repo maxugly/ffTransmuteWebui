@@ -312,6 +312,21 @@ body.preview-resizing {
   border: 1px solid rgba(255, 255, 255, 0.12);
   background: rgba(0, 0, 0, 0.85);
 }
+/* Which set-point the still belongs to (In vs Out) and its frame number. */
+.scrub-popup-cap {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid rgba(168, 85, 247, 0.45);
+  color: #c084fc;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
 
 /* Collapse toggle buttons */
 .sidebar-collapse-btn,

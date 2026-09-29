@@ -113,9 +113,13 @@ def _safe_int(val, default: int = 0) -> int:
 # TODO: remove remaining inline ffprobe — use app.probe for individual fields
 async def _probe_media_full(path_obj: Path) -> dict:
     """Rich ffprobe: duration, fps, frames, video/audio codecs, size, dims."""
-    from .probe import probe_duration, probe_fps, probe_dimensions, probe_frame_count
+    from .probe import probe_duration, probe_fps, probe_fps_avg, probe_dimensions, probe_frame_count
     sp = str(path_obj)
     fps = await probe_fps(sp)
+    # Average rate too: `fps` is the nominal r_frame_rate, which lies on VFR and
+    # badly tagged files. Callers that map a frame number to a timestamp (the
+    # frame peek) need the real rate.
+    fps_avg = await probe_fps_avg(sp)
     duration = await probe_duration(sp)
     width, height = await probe_dimensions(sp)
     frames = await probe_frame_count(sp)
@@ -158,6 +162,7 @@ async def _probe_media_full(path_obj: Path) -> dict:
             "width": width,
             "height": height,
             "fps": round(fps, 3) if fps else 0.0,
+            "fps_avg": round(fps_avg, 3) if fps_avg else 0.0,
             "duration": round(duration, 3) if duration else 0.0,
             "frames": frames,
             "video_codec": video_codec,

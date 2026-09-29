@@ -22,6 +22,7 @@ import {
   bindCompareControls,
 } from '/js/ui/image-compare.js';
 import { runOpWithCancel } from '/js/job-control.js';
+import { globalVideoPath, frameThumbUrl } from '/js/media-urls.js?v=1';
 
 let _listenersBound = false;
 let _rangeRefreshTimer = null;
@@ -54,18 +55,11 @@ function ensureCut() {
 
 /** Active clip = first path in global Video file(s) bar. */
 function resolveCutVideoPath() {
-  const fromBest = (typeof bestInput === 'function') ? bestInput() : '';
-  if (fromBest) return fromBest.trim();
-  const gi = (window.globalInputs?.video || '').trim();
-  if (!gi) return null;
-  return gi.split('\n').map(l => l.trim()).find(Boolean) || null;
+  return globalVideoPath() || null;
 }
 
 function rangeFrameThumbUrl(path, frameNum) {
-  if (!path) return '';
-  const n = parseInt(frameNum, 10);
-  if (!Number.isFinite(n) || n < 1) return '';
-  return `/api/thumbnail?path=${encodeURIComponent(path)}&frame=${n}&_=${n}`;
+  return frameThumbUrl(path, frameNum, state.settings?.framePeekSize);
 }
 
 function imageThumb(path) {
@@ -115,9 +109,10 @@ function _bindGlobalListeners() {
     refreshCutRangePreviews();
   });
 
-  // Global video bar edits while Cut is open
-  const giVideo = document.getElementById('giVideo');
-  if (giVideo) {
+  // Global media bar edits while Cut is open. #giVideo was replaced by the
+  // unified Media In box in 8.098, so this never fired until now.
+  const mediaIn = document.getElementById('giMediaIn');
+  if (mediaIn) {
     const onVideo = () => {
       if (state.activeTab !== 'cut') return;
       if (_videoRefreshTimer) clearTimeout(_videoRefreshTimer);
@@ -126,8 +121,8 @@ function _bindGlobalListeners() {
         renderCutForm();
       }, 200);
     };
-    giVideo.addEventListener('input', onVideo);
-    giVideo.addEventListener('change', onVideo);
+    mediaIn.addEventListener('input', onVideo);
+    mediaIn.addEventListener('change', onVideo);
   }
 }
 

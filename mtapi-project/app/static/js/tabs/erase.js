@@ -2,6 +2,7 @@ import { state, elements, logConsole, bestInput } from '/app.js';
 import { escapeHtml } from '/js/utils.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 import { runOpWithCancel } from '/js/job-control.js';
+import { normalizeSize } from '/js/media-urls.js?v=1';
 
 // ── Erase tab (Clean section) ───────────────────────────────────────────
 // lama-cleaner erase settings, nothing else: binary mask exactly as drawn,
@@ -218,7 +219,10 @@ function _lcPreviewUrl(input, mode, n) {
     var total = parseInt((window.globalInputs && window.globalInputs.totalFrames) || '0', 10);
     frame = total > 1 ? Math.round(total / 2) : 1;
   }
-  return base + '&frame=' + frame + '&_=' + frame;
+  // Same Frame peek size class the In/Out stills use. No nonce: the URL is
+  // stable per (hash, frame, size) and served immutable, so the browser
+  // reuses it instead of re-fetching on every repaint.
+  return base + '&frame=' + frame + '&s=' + normalizeSize(state.settings && state.settings.framePeekSize, 'M');
 }
 
 /** Assign preview src once per frame-pick; never clear img.src (invariant 6). */
