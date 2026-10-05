@@ -9,10 +9,10 @@
  * Compare UI is the shared module `/js/ui/image-compare.js`
  * (In↔Ref A, Out↔Ref B): separate | overlay | A/B wipe.
  */
-import { state, elements, logConsole, showPreview, switchTab, bestInput } from '/app.js';
+import { state, elements, logConsole, showPreview, switchTab, bestInput } from '/app.js?v=2';
 import { basename, escapeHtml, isImagePath, globalFrameRange } from '/js/utils.js';
 import { probeGlobalVideo } from '/js/timeline.js';
-import { poolThumbUrl } from '/js/pool/persistence.js';
+import { poolThumbUrl } from '/js/pool/persistence.js?v=2';
 import { ensureImagePool } from '/js/pool/image-pool.js';
 import {
   defaultCompareState,
@@ -22,7 +22,7 @@ import {
   bindCompareControls,
 } from '/js/ui/image-compare.js';
 import { runOpWithCancel } from '/js/job-control.js';
-import { globalVideoPath, frameThumbUrl } from '/js/media-urls.js?v=1';
+import { globalVideoPath, frameThumbUrl } from '/js/media-urls.js?v=2';
 
 let _listenersBound = false;
 let _rangeRefreshTimer = null;

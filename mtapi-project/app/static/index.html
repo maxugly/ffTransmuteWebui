@@ -20,6 +20,8 @@
   <link rel="stylesheet" href="/css/stablefluids.css">
   <link rel="stylesheet" href="/css/references.css?v=3">
   <link rel="stylesheet" href="/css/dart.css?v=1">
+  <link rel="stylesheet" href="/css/ytdlp.css?v=1">
+  <link rel="stylesheet" href="/css/comments.css?v=1">
 </head>
 <body>
 
@@ -323,6 +325,20 @@
             </svg>
             Image Pool
           </div>
+ <div class="nav-item" data-tab="ytdlp" data-help-title="yt-dlp Downloader" data-help-text="Download video and audio from YouTube and 1700+ sites with quality options, time-range clipping, subtitles, comments, and metadata retention.">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            yt-dlp
+          </div>
+ <div class="nav-item" data-tab="comments" data-help-title="Comments Viewer" data-help-text="Reddit-style threaded comments viewer with sort, filter, and collapsible reply trees.">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            Comments
+          </div>
  <div class="nav-item" data-tab="sequence" data-help-title="Sequence" data-help-text="Switch to the Sequence tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="4 17 10 11 4 5"/>
@@ -620,7 +636,7 @@
             <h4 id="mediaName">output.mp4</h4>
             <p id="mediaPath">/absolute/path/to/output.mp4</p>
           </div>
- <span class="media-ar-badge" id="mediaArBadge" data-help-title="Source aspect ratio"></span>
+ <span class="media-ar-badge" id="mediaArBadge" data-help-title="Source aspect ratio"></span><span class="media-vfr-badge" id="mediaVfrBadge" data-help-title="Variable Frame Rate detected" title="Convert to CFR" onclick="import('/js/pool/auto-vfrcfr.js').then(m => m.batchNormalizePool())"></span>
  <button class="btn btn-icon-only" data-help-title="Open in local file browser (not Web)" id="btnOpenFolder">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
@@ -684,6 +700,6 @@
     </div>
   </div>
 
-  <script type="module" src="/js/main.js?v=4"></script>
+  <script type="module" src="/js/main.js?v=6"></script>
 </body>
 </html>

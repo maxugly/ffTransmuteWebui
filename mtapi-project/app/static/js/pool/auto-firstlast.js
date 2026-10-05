@@ -1,5 +1,5 @@
 /** Auto first/last: event-delta only. Never scans on load/restore/render. */
-import { state } from '/app.js';
+import { state } from '/app.js?v=2';
 
 const _done = new Set(); // `${path}::${which}` verified ok this session
 
@@ -18,7 +18,7 @@ function _log(msg, kind) {
     if (fn) fn(msg, kind);
   } catch (_) { /* ignore */ }
   try {
-    import('/app.js').then((m) => m.logConsole(msg, kind)).catch(() => {});
+    import('/app.js?v=2').then((m) => m.logConsole(msg, kind)).catch(() => {});
   } catch (_) { /* ignore */ }
 }
 

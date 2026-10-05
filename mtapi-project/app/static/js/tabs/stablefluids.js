@@ -1,4 +1,4 @@
-import { state, elements, resolveGlobalImages } from '/app.js';
+import { state, elements, resolveGlobalImages } from '/app.js?v=2';
 import { createStableFluidsSim } from '/js/stablefluids_webgpu.js';
 
 let mediaRecorder = null;

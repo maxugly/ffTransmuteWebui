@@ -9,7 +9,7 @@
  * This tab must not change how jobs start, cancel, or order — display only
  * (existing Remove/Stop/Clear buttons stay wired to the same APIs).
  */
-import { elements, logConsole } from '/app.js';
+import { elements, logConsole } from '/app.js?v=2';
 import { escapeHtml, basename } from '/js/utils.js';
 import { getMainJobSnapshot } from '/js/job-control.js';
 

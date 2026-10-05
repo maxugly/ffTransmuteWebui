@@ -19,12 +19,12 @@
  * The extracted strip is an ACCELERATOR, never a gate. Clips over the strip
  * limit still scrub, because paths 1 and 2 do not need frames on disk.
  */
-import { state, elements } from '/app.js';
-import { showPreview } from '/js/preview.js';
+import { state, elements } from '/app.js?v=2';
+import { showPreview } from '/js/preview.js?v=2';
 import {
   globalVideoPath, globalFps, frameToSeconds, frameThumbUrl, frameStripUrl,
   normalizeSize, FRAME_WIDTHS,
-} from '/js/media-urls.js?v=1';
+} from '/js/media-urls.js?v=2';
 
 // ── state ───────────────────────────────────────────────────────────────────
 

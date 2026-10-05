@@ -1,0 +1,335 @@
+/* yt-dlp Downloader Tab & Source Metadata Badges */
+
+.ytdlp-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.ytdlp-top-bar {
+  background: var(--bg-surface, #1e1d24);
+  border: 1px solid var(--border-color, #2f2e3a);
+  border-radius: 6px;
+  padding: 12px 14px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.ytdlp-url-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ytdlp-label {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-muted, #94a3b8);
+  white-space: nowrap;
+}
+
+.ytdlp-url-input {
+  flex: 1;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Probe Inspector Card */
+.ytdlp-probe-card {
+  display: flex;
+  gap: 16px;
+  background: var(--bg-surface, #1a1921);
+  border: 1px solid var(--border-color, #3b394a);
+  border-radius: 6px;
+  padding: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.ytdlp-probe-thumb-wrap {
+  width: 160px;
+  height: 90px;
+  background: #000;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ytdlp-probe-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ytdlp-probe-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.ytdlp-probe-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ytdlp-probe-subline {
+  font-size: 12px;
+  color: var(--text-muted, #94a3b8);
+}
+
+.ytdlp-probe-stats {
+  font-size: 11px;
+  color: var(--text-dim, #64748b);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ytdlp-ryd-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  padding: 1px 7px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+}
+
+.ytdlp-ryd-likes {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.ytdlp-ryd-dislikes {
+  color: #818cf8;
+  font-weight: 600;
+}
+
+.ytdlp-ryd-ratio {
+  color: var(--text-dim, #94a3b8);
+}
+
+.ytdlp-probe-resolutions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ytdlp-pill-label {
+  font-size: 11px;
+  color: #888;
+  font-weight: 600;
+}
+
+.ytdlp-stream-pill {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: #2b2a38;
+  border: 1px solid #444259;
+  border-radius: 3px;
+  color: #38bdf8;
+  font-weight: 600;
+}
+
+/* Banks Grid */
+.ytdlp-banks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(270px, 100%), 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.ytdlp-bank {
+  background: var(--bg-surface, #1e1d24);
+  border: 1px solid var(--border-color, #2b2a38);
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.ytdlp-bank-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent-color, #f97316);
+  border-bottom: 1px solid #2f2e3d;
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+}
+
+.ytdlp-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  width: 100%;
+}
+
+.ytdlp-row .field-label {
+  flex: 0 0 auto;
+  min-width: 75px;
+}
+
+.ytdlp-row select,
+.ytdlp-row input[type="text"],
+.ytdlp-row input[type="number"],
+.ytdlp-row .select-input,
+.ytdlp-row .text-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+}
+
+.ytdlp-row .button-group {
+  flex: 1 1 auto;
+  display: flex;
+  width: 100%;
+}
+
+.ytdlp-row .button-group .btn {
+  flex: 1 1 0;
+  text-align: center;
+}
+
+.ytdlp-timerange-inputs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+}
+
+.ytdlp-timerange-inputs input {
+  flex: 1 1 0;
+  min-width: 0;
+  width: 100%;
+}
+
+.ytdlp-range-sep {
+  color: #777;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.ytdlp-dir-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+}
+
+.ytdlp-dir-picker input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ytdlp-ingest-action {
+  font-size: 12px;
+  color: #e2e8f0;
+}
+
+/* Action Strip */
+.ytdlp-action-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-surface, #1e1d24);
+  border: 1px solid var(--border-color, #2b2a38);
+  border-radius: 6px;
+  padding: 12px 14px;
+  margin-top: 4px;
+}
+
+.ytdlp-status-bar {
+  flex: 1;
+  font-size: 12px;
+  color: #94a3b8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Pool Toolbar Sort Select */
+.pool-sort-mode {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+  margin-left: 2px;
+}
+
+/* Pool Card Source Metadata Badge */
+.pool-meta-source {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.pool-source-pill {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.3px;
+}
+
+.pool-source-yt .pool-source-pill {
+  background: #dc2626;
+  color: #fff;
+}
+
+.pool-source-web .pool-source-pill {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.pool-source-info {
+  font-size: 11px;
+  color: #cbd5e1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}

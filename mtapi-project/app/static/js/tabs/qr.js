@@ -1,4 +1,4 @@
-import { elements, resolveGlobalImages } from '/app.js';
+import { elements, resolveGlobalImages } from '/app.js?v=2';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 
 function renderQrArtForm() {

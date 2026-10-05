@@ -58,6 +58,16 @@ export function globalVideoPath() {
  * the frame 2.5x away. So: prefer the average when the two disagree materially,
  * fall back to frames/duration, then to the nominal rate, then 24.
  */
+export function isVfrClip(meta) {
+  if (!meta) return 'unknown';
+  const nominal = parseFloat(meta.fps) || 0;
+  const average = parseFloat(meta.fps_avg) || 0;
+  if (nominal > 0 && average > 0) {
+    return Math.abs(average - nominal) / Math.max(nominal, 1e-9) > 0.01 ? 'vfr' : 'cfr';
+  }
+  return 'unknown';
+}
+
 export function globalFps(path) {
   const gi = window.globalInputs || {};
   const data = gi._probeData;
@@ -69,7 +79,7 @@ export function globalFps(path) {
   if (sane(nominal) && sane(average)) {
     // 1% tolerance: identical for CFR, and keeps tiny rounding noise from
     // overriding a trustworthy nominal rate.
-    return Math.abs(nominal - average) / nominal > 0.01 ? average : nominal;
+    return Math.abs(nominal - average) / Math.max(nominal, 1e-9) > 0.01 ? average : nominal;
   }
   if (sane(average)) return average;
 

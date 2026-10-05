@@ -99,7 +99,7 @@ body.references-tab-active .tool-input-preview {
 /* ── Section panels (one visible at a time) ──── */
 .ref-grid-2col {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   gap: 14px;
 }
 .ref-grid-2col .ref-card { margin: 0; }
@@ -305,7 +305,7 @@ body.references-tab-active .tool-input-preview {
 /* ── Split cards (Monetization kills/safe) ── */
 .ref-split {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   gap: 10px;
 }
 .ref-split-card {
@@ -774,7 +774,7 @@ body.references-tab-active .tool-input-preview {
    line length. No horizontal scrolling anywhere on this sub-tab. */
 .ref-music-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(430px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr));
   gap: 12px;
   align-items: start;
 }

@@ -25,10 +25,10 @@ _pool_state_lock = asyncio.Lock()
 
 POOL_SCHEMA_VERSION = 2
 
-_META_FLOAT_KEYS = ("duration", "fps")
+_META_FLOAT_KEYS = ("duration", "fps", "fps_avg")
 _META_INT_KEYS = ("width", "height", "frames")
 _META_STR_KEYS = ("video_codec", "audio_codec")
-_META_BOOL_KEYS = ("has_audio",)
+_META_BOOL_KEYS = ("has_audio", "is_vfr_guess")
 
 # Safe defaults for desk.state keys that v1 projects omit.
 DESK_TAB_DEFAULTS: dict[str, dict[str, Any]] = {
@@ -217,6 +217,46 @@ def _normalize_size(raw: Any) -> int | None:
     return _opt_int(raw)
 
 
+def _normalize_source_meta(raw: Any) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    str_keys = (
+        "source", "site", "video_id", "title", "author", "channel",
+        "channel_id", "publish_date", "source_url", "description_snippet",
+        "info_json_path", "comments_json_path",
+    )
+    int_keys = ("view_count", "like_count", "comment_count")
+    bool_keys = ("is_youtube", "has_live_chat", "has_comments")
+    out: dict[str, Any] = {}
+    for k in str_keys:
+        val = raw.get(k)
+        if isinstance(val, str) and val.strip():
+            out[k] = val.strip()
+    for k in int_keys:
+        val = _opt_int(raw.get(k))
+        if val is not None:
+            out[k] = val
+    for k in bool_keys:
+        if k in raw and raw[k] is not None:
+            out[k] = bool(raw[k])
+    tags = raw.get("tags")
+    if isinstance(tags, list):
+        out["tags"] = [str(t).strip() for t in tags if str(t).strip()][:50]
+    subs = raw.get("has_subs")
+    if isinstance(subs, list):
+        out["has_subs"] = [str(s).strip() for s in subs if str(s).strip()]
+    tr = raw.get("timerange")
+    if isinstance(tr, dict):
+        out["timerange"] = {
+            "clipped": bool(tr.get("clipped")),
+            "start": str(tr.get("start") or ""),
+            "end": str(tr.get("end") or ""),
+        }
+    if raw.get("downloaded_at") is not None:
+        out["downloaded_at"] = _opt_float(raw.get("downloaded_at"))
+    return out or None
+
+
 def _normalize_media_entry(
     it: dict[str, Any],
     *,
@@ -258,6 +298,7 @@ def _normalize_media_entry(
         "hash": _normalize_hash(it.get("hash")),
         "size": _normalize_size(it.get("size")),
         "meta": _normalize_meta(it.get("meta")),
+        "source_meta": _normalize_source_meta(it.get("source_meta") or it.get("sourceMeta")),
         "metaError": err,
         "meta_signature": _normalize_meta_signature(it.get("meta_signature")),
         "history_count": _opt_int(it.get("history_count")),
@@ -661,6 +702,8 @@ def enrich_items_from_records(data: dict[str, Any]) -> dict[str, Any]:
             if not item.get("metaError") and rec.get("meta_error"):
                 err = rec.get("meta_error")
                 item["metaError"] = err if isinstance(err, str) else str(err)
+            if not item.get("source_meta") and rec.get("source_meta"):
+                item["source_meta"] = _normalize_source_meta(rec.get("source_meta"))
             thumbs, failed = _record_thumb_flags(h, rec)
             item["thumbs"] = thumbs
             item["thumbsFailed"] = failed

@@ -1,12 +1,12 @@
 // Extracted from pool/sequence.js — see sequence.js barrel. Vanilla ES6, no framework.
-import { state, logConsole } from '/app.js';
+import { state, logConsole } from '/app.js?v=2';
 import { basename } from '/js/utils.js';
-import { scheduleSavePoolState } from '/js/pool/persistence.js';
+import { scheduleSavePoolState } from '/js/pool/persistence.js?v=2';
 import { runOpWithCancel, onStopRequest, isMainJobBusy, setClientBusy, clearClientBusy, abortMainJob } from '/js/job-control.js';
 import { recordVariantBatch, enqueueSignature } from '/js/lazy-loader.js';
 import { findPoolItem, _getNativeMeta } from '/js/pool/sequence-model.js';
 import { peekVariants, _fetchVariants, _fetchVariantsBatch, _normVariantKey, _invalidateVariantsCache } from '/js/pool/sequence-variants.js';
-import { renderSequenceBox } from '/js/pool/sequence-composer.js';
+import { renderSequenceBox } from '/js/pool/sequence-composer.js?v=2';
 
 function _timeFactor(targetDuration, nativeDuration) {
   if (!targetDuration || nativeDuration <= 0.001) return 1.0;

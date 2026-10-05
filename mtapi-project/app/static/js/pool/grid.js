@@ -10,7 +10,7 @@ import {
   projectNew, projectOpen, projectSave, savePoolStateNow,
   scheduleSavePoolState, stitchPoolSequence, refreshPoolToolbarCounts,
   projectLabel, shortHash, buildPoolMetaHtml, isApplyingFormState,
-} from '/js/pool/persistence.js';
+} from '/js/pool/persistence.js?v=2';
 import {
   findPoolItem, displayFocusPath, setPoolHover, clearPoolHover,
   setPoolFocus, updateSelectionHighlights, updatePoolFocusFrame,
@@ -33,7 +33,7 @@ import {
   logConsole, formatBytes, showPreview,
   setPoolZoom, applyPoolZoom,
   setupTileInfoMenu, showPoolContextMenu,
-} from '/app.js';
+} from '/app.js?v=2';
 import { clearPending as lazyClearPending } from '/js/lazy-loader.js';
 import { metaRetryHtml } from '/js/pool/freshness.js';
 import { globalMediaIndex } from '/js/media-index.js';
@@ -219,6 +219,20 @@ function _poolToolbarHtml(count, selected, seqCount, opts) {
             <option value="strict" ${state.pool.searchMode === 'strict' ? 'selected' : ''}>Strict</option>
           </select>
         </label>
+        <label class="pool-search-mode pool-sort-mode" data-help-title="Sort by Added, Publish Date, Author, Site, Title, Duration, Size">
+          Sort
+          <select id="poolSortMode" class="pool-search-mode-select">
+            <option value="default" ${(state.pool.sortOrder || 'default') === 'default' ? 'selected' : ''}>Added</option>
+            <option value="date_desc" ${state.pool.sortOrder === 'date_desc' ? 'selected' : ''}>Date &darr;</option>
+            <option value="date_asc" ${state.pool.sortOrder === 'date_asc' ? 'selected' : ''}>Date &uarr;</option>
+            <option value="author_asc" ${state.pool.sortOrder === 'author_asc' ? 'selected' : ''}>Author A&ndash;Z</option>
+            <option value="site_asc" ${state.pool.sortOrder === 'site_asc' ? 'selected' : ''}>Site A&ndash;Z</option>
+            <option value="title_asc" ${state.pool.sortOrder === 'title_asc' ? 'selected' : ''}>Title A&ndash;Z</option>
+            <option value="duration_desc" ${state.pool.sortOrder === 'duration_desc' ? 'selected' : ''}>Duration &darr;</option>
+            <option value="duration_asc" ${state.pool.sortOrder === 'duration_asc' ? 'selected' : ''}>Duration &uarr;</option>
+            <option value="size_desc" ${state.pool.sortOrder === 'size_desc' ? 'selected' : ''}>Size &darr;</option>
+          </select>
+        </label>
 
         <button class="btn btn-primary" id="btnPoolImportFiles" type="button">+ Files</button>
         <button class="btn" id="btnPoolImportFolder" type="button">+ Folder</button>
@@ -323,6 +337,16 @@ function _bindPoolToolbar(root) {
     });
   }
 
+  const sortEl = $('poolSortMode');
+  if (sortEl) {
+    sortEl.value = state.pool.sortOrder || 'default';
+    sortEl.addEventListener('change', () => {
+      state.pool.sortOrder = sortEl.value;
+      renderPoolGrid();
+      scheduleSavePoolState();
+    });
+  }
+
   $('btnRepairMetadata')?.addEventListener('click', () => {
     for (const it of state.pool.items || []) repairItem(it, { force: false });
     updateCatalogStatus();
@@ -355,10 +379,17 @@ function _fuzzySubseq(q, t) {
 
 function poolItemSearchText(item) {
   const m = item.meta || {};
+  const sm = item.source_meta || {};
   return [
     item.name,
     item.path,
     item.hash,
+    sm.site,
+    sm.author,
+    sm.channel,
+    sm.title,
+    sm.publish_date,
+    Array.isArray(sm.tags) ? sm.tags.join(' ') : '',
     m.hash,
     m.video_codec,
     m.audio_codec,
@@ -367,21 +398,87 @@ function poolItemSearchText(item) {
   ].filter(Boolean).join(' ');
 }
 
+function _sortPoolItems(items, order) {
+  if (!order || order === 'default') return items;
+  const sorted = items.slice();
+  if (order === 'date_desc') {
+    return sorted.sort((a, b) => {
+      const da = a.source_meta?.publish_date || '';
+      const db = b.source_meta?.publish_date || '';
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return db.localeCompare(da);
+    });
+  }
+  if (order === 'date_asc') {
+    return sorted.sort((a, b) => {
+      const da = a.source_meta?.publish_date || '';
+      const db = b.source_meta?.publish_date || '';
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return da.localeCompare(db);
+    });
+  }
+  if (order === 'author_asc') {
+    return sorted.sort((a, b) => {
+      const aa = a.source_meta?.author || a.source_meta?.channel || '';
+      const ab = b.source_meta?.author || b.source_meta?.channel || '';
+      if (!aa && !ab) return 0;
+      if (!aa) return 1;
+      if (!ab) return -1;
+      return aa.localeCompare(ab, undefined, { sensitivity: 'base' });
+    });
+  }
+  if (order === 'site_asc') {
+    return sorted.sort((a, b) => {
+      const sa = a.source_meta?.site || '';
+      const sb = b.source_meta?.site || '';
+      if (!sa && !sb) return 0;
+      if (!sa) return 1;
+      if (!sb) return -1;
+      return sa.localeCompare(sb, undefined, { sensitivity: 'base' });
+    });
+  }
+  if (order === 'title_asc') {
+    return sorted.sort((a, b) => {
+      const ta = a.source_meta?.title || a.name || '';
+      const tb = b.source_meta?.title || b.name || '';
+      return ta.localeCompare(tb, undefined, { sensitivity: 'base' });
+    });
+  }
+  if (order === 'duration_desc') {
+    return sorted.sort((a, b) => (b.meta?.duration || 0) - (a.meta?.duration || 0));
+  }
+  if (order === 'duration_asc') {
+    return sorted.sort((a, b) => (a.meta?.duration || 0) - (b.meta?.duration || 0));
+  }
+  if (order === 'size_desc') {
+    return sorted.sort((a, b) => (b.size || 0) - (a.size || 0));
+  }
+  return sorted;
+}
+
 function filteredPoolItems() {
   const q = String(state.pool.filterQuery || '').trim();
   const items = state.pool.items || [];
-  if (!q) return items.slice();
-  const mode = state.pool.searchMode === 'strict' ? 'strict' : 'fuzzy';
-  if (mode === 'strict') {
-    const needle = q.toLowerCase();
-    return items.filter((it) => {
-      if (!it._searchString) {
-        try { globalMediaIndex.refreshSearchString(it); } catch (_) { /* ignore */ }
-      }
-      return String(it._searchString || poolItemSearchText(it).toLowerCase()).includes(needle);
-    });
+  let result = items;
+  if (q) {
+    const mode = state.pool.searchMode === 'strict' ? 'strict' : 'fuzzy';
+    if (mode === 'strict') {
+      const needle = q.toLowerCase();
+      result = items.filter((it) => {
+        if (!it._searchString) {
+          try { globalMediaIndex.refreshSearchString(it); } catch (_) { /* ignore */ }
+        }
+        return String(it._searchString || poolItemSearchText(it).toLowerCase()).includes(needle);
+      });
+    } else {
+      result = items.filter((it) => fuzzyMatch(q, poolItemSearchText(it)));
+    }
   }
-  return items.filter((it) => fuzzyMatch(q, poolItemSearchText(it)));
+  return _sortPoolItems(result, state.pool.sortOrder);
 }
 
 function _updatePoolFilterCount() {
@@ -960,7 +1057,15 @@ function showClipInfoOverlay(item) {
   const path = item.path || '';
   const hash = item.hash || m.hash || '';
   const dur = m.duration != null ? formatDurationExact(m.duration) : '—';
-  const fps = m.fps != null && m.fps > 0 ? `${m.fps} fps` : '—';
+  let fps = '—';
+  if (m.fps != null && m.fps > 0) {
+    if (m.is_vfr_guess) {
+      const avg = m.fps_avg != null && m.fps_avg > 0 ? m.fps_avg : 'unknown';
+      fps = `${avg} avg (${m.fps} nominal) fps`;
+    } else {
+      fps = `${m.fps} fps`;
+    }
+  }
   const frames = m.frames != null ? `${m.frames}` : '—';
   const vcodec = m.video_codec || '—';
   const acodec = m.audio_codec || '—';

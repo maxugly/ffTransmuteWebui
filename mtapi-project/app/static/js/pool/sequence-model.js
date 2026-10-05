@@ -1,5 +1,5 @@
 // Extracted from pool/sequence.js — see sequence.js barrel. Vanilla ES6, no framework.
-import { state } from '/app.js';
+import { state } from '/app.js?v=2';
 import { formatDurationExact } from '/js/utils.js';
 
 function findPoolItem(path) {

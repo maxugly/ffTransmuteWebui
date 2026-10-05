@@ -1,4 +1,4 @@
-import { state, elements, logConsole, showPreview } from '/app.js';
+import { state, elements, logConsole, showPreview } from '/app.js?v=2';
 import { basename, escapeHtml } from '/js/utils.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 import { rifeModelSelectHtml } from '/js/ui/evolve-rife.js';

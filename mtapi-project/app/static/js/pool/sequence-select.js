@@ -1,8 +1,8 @@
 // Extracted from pool/sequence.js — see sequence.js barrel. Vanilla ES6, no framework.
-import { state, sequencePositions } from '/app.js';
+import { state, sequencePositions } from '/app.js?v=2';
 import { selectPoolItem } from '/js/pool/items.js';
 import { basename, escapeHtml, formatDurationExact } from '/js/utils.js';
-import { poolThumbUrl, itemShowsThumb, shortHash } from '/js/pool/persistence.js';
+import { poolThumbUrl, itemShowsThumb, shortHash } from '/js/pool/persistence.js?v=2';
 import { isPoolGridScrolling, lastPoolPointer } from '/js/pool/layout.js';
 import { findPoolItem } from '/js/pool/sequence-model.js';
 
@@ -153,6 +153,16 @@ function updatePoolFocusFrame(path) {
     </div>`;
   }
 
+  let fpsStr = '';
+  if (m.fps) {
+    if (m.is_vfr_guess) {
+      const avg = m.fps_avg != null && m.fps_avg > 0 ? m.fps_avg : 'unknown';
+      fpsStr = `<span>${avg} avg (${m.fps} nominal) fps</span>`;
+    } else {
+      fpsStr = `<span>${m.fps} fps</span>`;
+    }
+  }
+
   frame.innerHTML = `
     ${seqPos.length > 0 ? `<span class="pool-seq-indicator">${seqPos.join(' ')}</span>` : ''}
     <div class="pool-focus-frames">
@@ -171,7 +181,7 @@ function updatePoolFocusFrame(path) {
       ${hasMeta ? `<div class="pool-meta-row">
         ${hash ? `<span class="pool-hash">#${escapeHtml(shortHash(hash))}</span>` : ''}
         ${dur ? `<span>${dur}</span>` : ''}
-        ${m.fps ? `<span>${m.fps} fps</span>` : ''}
+        ${fpsStr}
         ${m.frames != null ? `<span>${m.frames} fr</span>` : ''}
       </div>` : `<div class="pool-meta-unavailable">metadata unavailable</div>`}
       ${seqTimingHtml}

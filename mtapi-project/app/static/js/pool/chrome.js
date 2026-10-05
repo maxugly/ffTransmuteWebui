@@ -1,13 +1,14 @@
 // Pool chrome — tile zoom, info menu, context menu, file browser, format helpers
-import { state, elements, ensureTileInfo, switchTab, checkHealth, showPreview } from '/app.js';
+import { state, elements, ensureTileInfo, switchTab, checkHealth, showPreview } from '/app.js?v=2';
 import { POOL_ZOOM, TILE_INFO_FIELDS } from '/js/pool/constants.js';
 import { escapeHtml } from '/js/utils.js';
-import { buildPoolMetaHtml, scheduleSavePoolState } from '/js/pool/persistence.js';
+import { buildPoolMetaHtml, scheduleSavePoolState } from '/js/pool/persistence.js?v=2';
 import { savePoolFramePng } from '/js/pool/items.js';
 import { addPathToSequence } from '/js/pool/sequence.js';
 import { quickTransmuteLabel, runQuickTransmute } from '/js/tabs/quick.js';
 import { addMultiClipPath } from '/js/tabs/transmute.js';
-import { logConsole } from '/js/preview.js';
+import { openCommentsForPath } from '/js/tabs/comments.js';
+import { logConsole } from '/js/preview.js?v=2';
 
 // ── Tile zoom + info menu ─────────────────────────────────────────────────
 
@@ -188,6 +189,10 @@ function hidePoolContextMenu() {
 
 function showPoolContextMenu(x, y, path) {
   hidePoolContextMenu();
+  const item = state.pool.items.find(i => i.path === path);
+  const commentsPath = item?.source_meta?.comments_json_path;
+  const hasComments = Boolean(commentsPath || item?.source_meta?.has_comments);
+
   const menu = document.createElement('div');
   menu.id = 'poolCtxMenu';
   menu.className = 'pool-ctx-menu';
@@ -201,6 +206,7 @@ function showPoolContextMenu(x, y, path) {
     <button type="button" class="pool-ctx-item" data-act="sequence">Add to sequence</button>
     <button type="button" class="pool-ctx-item" data-act="multi">Add to Multi clips</button>
     <button type="button" class="pool-ctx-item" data-act="preview">Preview</button>
+    ${hasComments ? `<button type="button" class="pool-ctx-item" data-act="view_comments">💬 View Comments…</button>` : ''}
     <div class="pool-ctx-sep"></div>
     <button type="button" class="pool-ctx-item" data-act="save_first_png">Save first frame PNG…</button>
     <button type="button" class="pool-ctx-item" data-act="save_last_png">Save last frame PNG…</button>
@@ -242,6 +248,13 @@ function showPoolContextMenu(x, y, path) {
         case 'preview':
           showPreview(path);
           logConsole(`[POOL]: Preview → ${path}`);
+          break;
+        case 'view_comments':
+          if (commentsPath) {
+            openCommentsForPath(commentsPath);
+          } else {
+            switchTab('comments');
+          }
           break;
         case 'save_first_png':
           savePoolFramePng(path, 'first');

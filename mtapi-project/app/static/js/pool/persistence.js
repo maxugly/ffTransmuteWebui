@@ -3,10 +3,10 @@ import {
   logConsole,
   renderPoolForm, renderPoolGrid, defaultTileInfo,
   checkHealth, switchTab, formatBytes, addPathsToPool,
-} from '/app.js';
+} from '/app.js?v=2';
 import { seqStop, _maybeAutoRifeAll, recoverSequenceVariants, setInstantHydrationGate, disarmInstantRife } from '/js/pool/sequence.js';
 import { ensurePoolLayout } from '/js/pool/layout.js';
-import { ensureTileInfo } from '/app.js';
+import { ensureTileInfo } from '/app.js?v=2';
 import { basename, escapeHtml, formatDurationExact } from '/js/utils.js';
 import { displayOpResult, runOpWithCancel, isMainJobBusy } from '/js/job-control.js';
 import { POOL_ZOOM, POOL_LAYOUT_DEFAULTS } from '/js/pool/constants.js';
@@ -23,7 +23,7 @@ let _poolPersistReady = false; // don't save until restore finishes
 let _applyingFormState = false;
 
 const FORM_STATE_SKIP = new Set(['btnRun', 'btnStop', 'btnQueue', 'btnClearConsole']);
-const META_KEYS = ['duration', 'fps', 'width', 'height', 'video_codec', 'audio_codec', 'frames', 'has_audio'];
+const META_KEYS = ['duration', 'fps', 'fps_avg', 'width', 'height', 'video_codec', 'audio_codec', 'frames', 'has_audio', 'is_vfr_guess'];
 
 const DESK_TAB_DEFAULTS = {
   faceMorph: { images: [], folder: null, selected: 0 },
@@ -93,6 +93,7 @@ function serializePoolItem(item) {
     hash: item.hash || null,
     size: item.size ?? null,
     meta: serializeMeta(item.meta),
+    source_meta: item.source_meta || null,
     metaError: err,
     meta_signature: serializeSignature(item.meta_signature),
     history_count: serializeCounter(item.history_count ?? item.meta?.history_count),
@@ -112,6 +113,7 @@ function hydratePoolItem(it) {
     hash: it.hash || null,
     size: it.size ?? null,
     meta: serializeMeta(it.meta),
+    source_meta: it.source_meta || it.sourceMeta || null,
     metaError: err,
     meta_signature: serializeSignature(it.meta_signature),
     history_count: serializeCounter(it.history_count),
@@ -399,6 +401,7 @@ function buildPoolStatePayload() {
       ? [...state.pool.selectedPaths]
       : (state.pool.selectedPath ? [state.pool.selectedPath] : []),
     search_mode: state.pool.searchMode === 'strict' ? 'strict' : 'fuzzy',
+    sort_order: state.pool.sortOrder || 'default',
     grid_scroll_top: Number(state.pool.gridScrollTop) || 0,
     selected_image_path: state.imagePool?.selectedPath || null,
     reconcile: state.pool.reconcile || 'pad',
@@ -536,6 +539,7 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
   );
   state.pool.selectionAnchor = state.pool.selectedPath;
   state.pool.searchMode = data.search_mode === 'strict' ? 'strict' : 'fuzzy';
+  state.pool.sortOrder = data.sort_order || 'default';
   state.pool.gridScrollTop = Number(data.grid_scroll_top) || 0;
   state.pool.focusPath = data.selected_path || null;
   state.pool.hoverPath = null;
@@ -635,7 +639,7 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
   // Restore can finish after the pool wall already mounted (empty). Refresh
   // cards without remounting the form.
   if (state.activeTab === 'pool' && document.getElementById('poolGrid')) {
-    import('/js/pool/grid.js').then((m) => m.renderPoolGrid()).catch(() => {});
+    import('/js/pool/grid.js?v=2').then((m) => m.renderPoolGrid()).catch(() => {});
   } else if (state.activeTab === 'images' && document.getElementById('imgPoolGrid')) {
     import('/js/pool/image-pool.js').then((m) => m.renderImagePoolGrid()).catch(() => {});
   }
@@ -643,7 +647,7 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
   // placeholder before restore lands. Re-render from persisted records only
   // (skipInstantKick: restore never arms Instant — spec §8.2/§8.3).
   if (document.getElementById('poolSequenceBox') && (state.pool.sequence || []).length) {
-    import('/js/pool/sequence-composer.js').then((m) => {
+    import('/js/pool/sequence-composer.js?v=2').then((m) => {
       try { m.renderSequenceBox({ skipInstantKick: true }); } catch (_) { /* ignore */ }
     }).catch(() => {});
   }
@@ -1224,7 +1228,15 @@ function buildPoolMetaHtml(item) {
   const path = item.path || '';
   const hash = item.hash || m.hash || '';
   const dur = m.duration != null ? formatDurationExact(m.duration) : '—';
-  const fps = m.fps != null && m.fps > 0 ? `${m.fps} fps` : '—';
+  let fps = '—';
+  if (m.fps != null && m.fps > 0) {
+    if (m.is_vfr_guess) {
+      const avg = m.fps_avg != null && m.fps_avg > 0 ? m.fps_avg : 'unknown';
+      fps = `<span class="pool-vfr-badge" onclick="event.stopPropagation(); import('/js/pool/auto-vfrcfr.js').then(m => m.batchNormalizePool())" title="Convert to CFR">VFR &rarr; Normalize</span> <span class="vfr-fps-text">${avg} avg (${m.fps} nominal) fps</span>`;
+    } else {
+      fps = `${m.fps} fps`;
+    }
+  }
   const frames = m.frames != null ? `${m.frames} frames` : '—';
   const vcodec = m.video_codec || '—';
   const acodec = m.audio_codec || '—';
@@ -1235,6 +1247,20 @@ function buildPoolMetaHtml(item) {
   const cacheTag = m.cached === true ? 'hit' : (m.cached === false ? 'new' : '');
 
   const parts = [];
+  const sm = item.source_meta;
+  if (sm) {
+    const siteLabel = sm.site ? sm.site.toUpperCase() : (sm.is_youtube ? 'YOUTUBE' : 'WEB');
+    const authorStr = sm.author || sm.channel || '';
+    const dateStr = sm.publish_date || '';
+    const tagLine = [authorStr, dateStr].filter(Boolean).join(' · ');
+    const siteClass = sm.is_youtube ? 'pool-source-yt' : 'pool-source-web';
+    parts.push(`
+      <div class="pool-meta-source ${siteClass}">
+        <span class="pool-source-pill">${escapeHtml(siteLabel)}</span>
+        ${tagLine ? `<span class="pool-source-info" data-help-title="${escapeHtml(sm.title || name)}">${escapeHtml(tagLine)}</span>` : ''}
+      </div>
+    `);
+  }
   if (info.name) {
     parts.push(`<div class="pool-meta-name" data-help-title="${escapeHtml(name)}">${escapeHtml(name)}</div>`);
   }

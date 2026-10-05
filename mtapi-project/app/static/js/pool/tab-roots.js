@@ -16,7 +16,7 @@
 // OR cached roots, never both). Detach preserves DOM state (scroll, inputs);
 // no iframe lives in these roots, so no reload hazard. Reconciles §7
 // (roots never detached) with §8 (uncached destroy path unchanged).
-import { elements } from '/app.js';
+import { elements } from '/app.js?v=2';
 
 /** Phase 1 cached tabs. Phase 2 adds op tabs one family per PR. */
 const CACHED_TABS = new Set(['pool', 'sequence', 'images']);

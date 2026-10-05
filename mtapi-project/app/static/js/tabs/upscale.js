@@ -1,4 +1,4 @@
-import { elements, state, logConsole, bestInput } from '/app.js';
+import { elements, state, logConsole, bestInput } from '/app.js?v=2';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 
 function renderUpscaleForm() {

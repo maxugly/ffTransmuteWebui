@@ -530,7 +530,7 @@
    ═══════════════════════════════════════════ */
 
 .app-content.pool-workspace {
-  grid-template-columns: minmax(0, 1.65fr) minmax(280px, 0.7fr);
+  grid-template-columns: minmax(0, 1.65fr) minmax(0, 0.7fr);
 }
 
 .app-content.pool-workspace .preview-panel {
@@ -1535,7 +1535,7 @@
     min-height: 0;
   }
   .app-content.pool-workspace {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
   }
   .app-content.pool-workspace .preview-panel {
     display: none;
@@ -2656,7 +2656,7 @@ body.pool-resizing video {
 
 .cut-frames-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(270px, 100%), 1fr));
   gap: 14px;
 }
 
@@ -2825,3 +2825,24 @@ body.pool-resizing video {
   opacity: 0.75;
   font-size: 0.58rem;
 }
+
+.pool-vfr-badge {
+  display: inline-block;
+  background: var(--bg-surface-3);
+  color: #ef4444;
+  border: 1px solid #ef4444;
+  border-radius: 4px;
+  padding: 0 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  margin-right: 6px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.15s ease;
+}
+.pool-vfr-badge:hover {
+  background: #ef4444;
+  color: var(--text-base);
+}
+

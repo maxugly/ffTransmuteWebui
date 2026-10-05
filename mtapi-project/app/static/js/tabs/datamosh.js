@@ -1,4 +1,4 @@
-import { state, elements } from '/app.js';
+import { state, elements } from '/app.js?v=2';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 import { HelpStrip } from '/js/ui/help-strip.js';
 

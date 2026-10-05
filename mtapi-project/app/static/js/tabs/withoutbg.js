@@ -1,4 +1,4 @@
-import { state, elements, resolveGlobalImages, showPreview } from '/app.js';
+import { state, elements, resolveGlobalImages, showPreview } from '/app.js?v=2';
 import { basename, escapeHtml, withFrameRange, isVideoPath } from '/js/utils.js';
 import { setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 import { registerListKeys } from '/js/ui/list-keys.js';

@@ -5,7 +5,7 @@
  * Left nav (.nav-item data-tab="refs" / "refs-models") and the top
  * segmented bar stay in sync via switchTab.
  */
-import { state, elements, switchTab } from '/app.js';
+import { state, elements, switchTab } from '/app.js?v=2';
 import { escapeHtml } from '/js/utils.js';
 import { MUSIC_PROMPT_EXAMPLES } from '/js/ref-music-prompts.js';
 

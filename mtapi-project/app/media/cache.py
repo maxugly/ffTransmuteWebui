@@ -218,6 +218,7 @@ def _empty_record(content_hash: str, size: int = 0) -> dict[str, Any]:
         "size": size,
         "paths": [],
         "meta": None,
+        "source_meta": None,
         "thumbs": {"first": False, "last": False},
         "history": [],
         "variants": {},

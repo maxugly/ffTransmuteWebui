@@ -1,14 +1,14 @@
 // Extracted from pool/sequence.js — see sequence.js barrel. Vanilla ES6, no framework.
-import { state, elements, logConsole, renderPoolGrid, sequencePositions } from '/app.js';
+import { state, elements, logConsole, renderPoolGrid, sequencePositions } from '/app.js?v=2';
 import { selectPoolItem } from '/js/pool/items.js';
 import { isVideoPath, basename, escapeHtml, formatDurationExact } from '/js/utils.js';
-import { poolThumbUrl, itemShowsThumb, shortHash, nextSeqId, scheduleSavePoolState, savePoolStateNow, refreshPoolToolbarCounts } from '/js/pool/persistence.js';
+import { poolThumbUrl, itemShowsThumb, shortHash, nextSeqId, scheduleSavePoolState, savePoolStateNow, refreshPoolToolbarCounts } from '/js/pool/persistence.js?v=2';
 import { installPoolScrollPaint } from '/js/pool/layout.js';
 import { findPoolItem, seqEntryPlayDuration, updateSeqTotalTime } from '/js/pool/sequence-model.js';
-import { setPoolHover, applyPoolHoverAtPoint, clearPoolHover, displayFocusPath, updateSelectionHighlights, updatePoolFocusFrame } from '/js/pool/sequence-select.js';
+import { setPoolHover, applyPoolHoverAtPoint, clearPoolHover, displayFocusPath, updateSelectionHighlights, updatePoolFocusFrame } from '/js/pool/sequence-select.js?v=2';
 import { refreshRifeNeed, _resolvedTargetFps, _rifeBadgeForEntry, _scheduleInstantRifeKick, _entrySatisfiesNeed, _updateInstantRifeStrip, _findQueuedRife, _maybeAutoRifeEntry, isHydrationComplete, isInstantArmed } from '/js/pool/sequence-rife.js';
 import { peekVariants, _fetchVariants, _fetchVariantsBatch, _normVariantKey, _showSeqVariantMenu } from '/js/pool/sequence-variants.js';
-import { updateSeqTransportUI, updateSeqClipSettings, seqClipSpeedInfo, seqClipTokenTitle, seqStop } from '/js/pool/sequence-transport.js';
+import { updateSeqTransportUI, updateSeqClipSettings, seqClipSpeedInfo, seqClipTokenTitle, seqStop } from '/js/pool/sequence-transport.js?v=2';
 import { conformBadgeForEntry, updateStitchButton, maybeAutoConformEntry } from '/js/pool/sequence-conform.js';
 import { eraseBadgeForEntry, ensureSequenceLineages } from '/js/pool/sequence-erase.js?v=2';
 import { normTagColor, sequenceUseCounts, openTagPicker } from '/js/pool/sequence-tag.js';
@@ -378,6 +378,20 @@ function renderSequenceBox(opts) {
       cel.setAttribute('role', 'status');
       host.appendChild(cel);
     }
+
+    const item = findPoolItem(entry.path);
+    if (item && item.meta && item.meta.is_vfr_guess && host) {
+      const vel = document.createElement('span');
+      vel.className = 'pool-vfr-badge seq-vfr-action';
+      vel.textContent = 'VFR';
+      vel.setAttribute('data-help-title', 'Variable Frame Rate detected. Click to Normalize to CFR.');
+      vel.setAttribute('role', 'status');
+      vel.addEventListener('click', (e) => {
+        e.stopPropagation();
+        import('/js/pool/auto-vfrcfr.js').then(m => m.batchNormalizePool());
+      });
+      host.appendChild(vel);
+    }
     // Erase badge: mask dot + stale marker (spec §4.1). Never a RIFE badge.
     try {
       const ebadge = eraseBadgeForEntry(entry);
@@ -418,7 +432,7 @@ function renderSequenceBox(opts) {
     }
 
     tok.addEventListener('click', (e) => {
-      if (e.target.closest('.seq-token-x') || e.target.closest('.seq-token-var') || e.target.closest('.seq-token-tag') || e.target.closest('.seq-rife-badge') || e.target.closest('.seq-conform-badge')) return;
+      if (e.target.closest('.seq-token-x') || e.target.closest('.seq-token-var') || e.target.closest('.seq-token-tag') || e.target.closest('.seq-rife-badge') || e.target.closest('.seq-conform-badge') || e.target.closest('.seq-vfr-action')) return;
       state.pool.playback.index = idx;
       state.pool.selectedSeqId = entry.id;
       selectPoolItem(entry.path); // also selects matching library tile

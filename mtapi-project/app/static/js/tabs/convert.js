@@ -1,4 +1,4 @@
-import { state, elements, bestInput, logConsole } from '/app.js';
+import { state, elements, bestInput, logConsole } from '/app.js?v=2';
 import { withFrameRange } from '/js/utils.js';
 
 const PRESETS_BY_GROUP = {

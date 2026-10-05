@@ -45,29 +45,22 @@ body.settings-tab-active .tool-input-preview {
 .settings-workspace {
   flex: 1 1 auto;
   width: 100%;
-  max-width: 520px;
   margin: 0;
   min-height: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(270px, 100%), 1fr));
+  gap: 14px;
   padding: 8px 8px 32px;
   box-sizing: border-box;
+  align-items: start;
 }
 
 .settings-lede {
+  grid-column: 1 / -1;
   margin: 0;
-  max-width: 52ch;
   font-size: 0.92rem;
   line-height: 1.55;
   color: var(--text-muted, #94a3b8);
-}
-
-.settings-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
 }
 
 .settings-card {
@@ -75,9 +68,10 @@ body.settings-tab-active .tool-input-preview {
   border: 1px solid var(--panel-border, rgba(255, 255, 255, 0.08));
   background: rgba(12, 18, 28, 0.72);
   padding: 12px 14px 12px;
-  width: max-content;
+  width: 100%;
   max-width: 100%;
   min-height: 0;
+  min-width: 0;
   /* Never shrink below content: the workspace is a height-constrained column,
      so flex-shrink squashed every card and `overflow: visible` painted each
      description over the next card. Let the page scroll instead. */

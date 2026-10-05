@@ -1,10 +1,10 @@
 // Extracted from pool/sequence.js — see sequence.js barrel. Vanilla ES6, no framework.
-import { state, logConsole } from '/app.js';
+import { state, logConsole } from '/app.js?v=2';
 import { basename, escapeHtml } from '/js/utils.js';
 import { normalizeAbsPath } from '/js/media-index.js';
 import { fetchVariantsBatch } from '/js/repair-queue.js';
-import { scheduleSavePoolState } from '/js/pool/persistence.js';
-import { renderSequenceBox } from '/js/pool/sequence-composer.js';
+import { scheduleSavePoolState } from '/js/pool/persistence.js?v=2';
+import { renderSequenceBox } from '/js/pool/sequence-composer.js?v=2';
 import { refreshRifeNeed, _densityInfoForEntry, _bestHaveM } from '/js/pool/sequence-rife.js';
 
 // ── Per-clip variant picker ─────────────────────────────────────────────

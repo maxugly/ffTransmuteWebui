@@ -1,4 +1,4 @@
-import { elements } from '/app.js';
+import { elements } from '/app.js?v=2';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 
 function renderTxt2ImgForm() {

@@ -1,5 +1,5 @@
 /** Auto-add op outputs: success-only, never breaks preview/render. */
-import { state } from '/app.js';
+import { state } from '/app.js?v=2';
 import { isVideoPath, isImagePath } from '/js/utils.js';
 
 function _log(msg, kind) {
@@ -8,7 +8,7 @@ function _log(msg, kind) {
     if (fn) fn(msg, kind);
   } catch (_) { /* ignore */ }
   try {
-    import('/app.js').then((m) => m.logConsole(msg, kind)).catch(() => {});
+    import('/app.js?v=2').then((m) => m.logConsole(msg, kind)).catch(() => {});
   } catch (_) { /* ignore */ }
 }
 
@@ -53,7 +53,7 @@ export function maybeAutoAddOpOutput(outputPath, opts = {}) {
           _log(`[AUTO-ADD]: pool ${after > before ? '+' : '(dup)'} ${path}`);
         } catch (_) { /* pool render must not break results */ }
         if (settings.autoAddOpOutputsToSequence) {
-          import('/js/pool/sequence-composer.js').then((s) => {
+          import('/js/pool/sequence-composer.js?v=2').then((s) => {
             try { s.addPathsToSequence([path]); } catch (_) { /* ignore */ }
           }).catch(() => {});
         }

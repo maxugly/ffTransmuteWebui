@@ -1,4 +1,4 @@
-import { state, elements, allInputPaths } from '/app.js';
+import { state, elements, allInputPaths } from '/app.js?v=2';
 import { setupContinuousKnob, knobUnitHtml, setupBinaryKnob } from '/js/ui/knobs.js?v=6';
 import { flipRotateOptionsHtml } from '/js/utils.js';
 

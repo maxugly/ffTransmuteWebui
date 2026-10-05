@@ -1,4 +1,4 @@
-import { state, elements, bestInput, logConsole } from '/app.js';
+import { state, elements, bestInput, logConsole } from '/app.js?v=2';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 import { runOpWithCancel } from '/js/job-control.js';
 import {

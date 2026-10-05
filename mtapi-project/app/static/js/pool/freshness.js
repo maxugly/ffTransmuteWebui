@@ -9,8 +9,8 @@
  * assignThumbSrc (native loading=lazy) guarded by data-thumbKey so a card
  * never reassigns or clears its src on scroll.
  */
-import { state } from '/app.js';
-import { poolThumbUrl, itemShowsThumb } from '/js/pool/persistence.js';
+import { state } from '/app.js?v=2';
+import { poolThumbUrl, itemShowsThumb } from '/js/pool/persistence.js?v=2';
 import { enqueueSignature, assignThumbSrc } from '/js/lazy-loader.js';
 import { globalMediaIndex } from '/js/media-index.js';
 

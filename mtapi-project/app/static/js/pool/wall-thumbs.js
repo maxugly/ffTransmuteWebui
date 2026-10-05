@@ -5,7 +5,7 @@
  * src is assigned once and is never cleared because the user scrolled.
  * All tenants are created up front — no viewport-lazy, no unload.
  */
-import { poolThumbUrl, itemShowsThumb, wallPreviewWhich } from '/js/pool/persistence.js';
+import { poolThumbUrl, itemShowsThumb, wallPreviewWhich } from '/js/pool/persistence.js?v=2';
 
 const tenants = new Map(); // path → HTMLImageElement
 let park = null;

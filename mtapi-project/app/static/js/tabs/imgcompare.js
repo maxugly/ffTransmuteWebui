@@ -6,7 +6,7 @@
  *   js/ui/image-compare.js  (same as Cut / Zoompan)
  *   POST /ops/imagesort_rank (pairwise score)
  */
-import { state, elements, logConsole, switchTab, resolveGlobalImages } from '/app.js';
+import { state, elements, logConsole, switchTab, resolveGlobalImages } from '/app.js?v=2';
 import { basename, escapeHtml, isImagePath } from '/js/utils.js';
 import {
   defaultCompareState,

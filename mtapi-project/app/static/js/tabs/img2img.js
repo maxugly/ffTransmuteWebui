@@ -1,4 +1,4 @@
-import { elements, bestInput } from '/app.js';
+import { elements, bestInput } from '/app.js?v=2';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 import { withFrameRange } from '/js/utils.js';
 
@@ -153,7 +153,7 @@ function renderImg2ImgForm() {
     }
     try {
       var { runOpWithCancel } = await import('/js/job-control.js');
-      var { logConsole } = await import('/app.js');
+      var { logConsole } = await import('/app.js?v=2');
       logConsole('[IMG2IMG]: requesting SD1.5 prompt via agent…');
       var data = await runOpWithCancel('image_to_prompt', {
         image_path: input,

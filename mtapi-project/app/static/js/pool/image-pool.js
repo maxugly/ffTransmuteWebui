@@ -4,18 +4,18 @@
  * State: state.imagePool { items, selectedPath, filterQuery }
  * Persist: same session/project file under key `images` (see video-image-pools-spec).
  */
-import { state, elements, logConsole, showPreview, checkHealth, switchTab, formatBytes } from '/app.js';
+import { state, elements, logConsole, showPreview, checkHealth, switchTab, formatBytes } from '/app.js?v=2';
 import { isImagePath, basename, escapeHtml } from '/js/utils.js';
 import {
   scheduleSavePoolState, poolThumbUrl, shortHash, projectLabel,
   projectNew, projectOpen, projectSave,
-} from '/js/pool/persistence.js';
+} from '/js/pool/persistence.js?v=2';
 import { clearPending as lazyClearPending } from '/js/lazy-loader.js';
 import { validateItemSignature, metaRetryHtml, hasRestoredIdentity } from '/js/pool/freshness.js';
 import { globalMediaIndex } from '/js/media-index.js';
 import { installPoolScrollPaint } from '/js/pool/layout.js';
 import { repairItem } from '/js/repair-queue.js';
-import { addPathsToSequence } from '/js/pool/sequence-composer.js';
+import { addPathsToSequence } from '/js/pool/sequence-composer.js?v=2';
 import { createVirtualGrid } from '/js/pool/virtual-grid.js';
 import { prepareWallTenants, attachWallTenant, detachWallTenant } from '/js/pool/wall-thumbs.js';
 import { ensureTabRoot } from '/js/pool/tab-roots.js';

@@ -9,7 +9,7 @@
  */
 import {
   state, bestInput, resolveGlobalImages, resolveGlobalImage, showPreview,
-} from '/app.js';
+} from '/app.js?v=2';
 import { basename, escapeHtml, isVideoPath, isImagePath } from '/js/utils.js';
 
 const HIDE_TABS = new Set([

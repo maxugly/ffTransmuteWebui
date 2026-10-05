@@ -1,5 +1,5 @@
 /** Import-time VFR healing. Detection is opt-in and event-driven. */
-import { state } from '/app.js';
+import { state } from '/app.js?v=2';
 import { isVideoPath } from '/js/utils.js';
 import { runOpWithCancel } from '/js/job-control.js';
 
@@ -11,7 +11,7 @@ function fps() {
   return Number.isFinite(n) && n > 0 ? Math.min(240, Math.max(1, Math.round(n))) : null;
 }
 function log(msg, kind) {
-  try { import('/app.js').then(m => m.logConsole(msg, kind)).catch(() => {}); } catch (_) { /* best effort */ }
+  try { import('/app.js?v=2').then(m => m.logConsole(msg, kind)).catch(() => {}); } catch (_) { /* best effort */ }
 }
 
 async function normalizeOne(path) {
@@ -136,7 +136,7 @@ async function batchNormalizeSequence() {
     }
   } finally { state.settings.autoVfrToCfr = previous; }
   try {
-    const p = await import('/js/pool/persistence.js');
+    const p = await import('/js/pool/persistence.js?v=2');
     p.scheduleSavePoolState();
     const s = await import('/js/pool/sequence.js');
     s.renderSequenceBox({ skipInstantKick: true });

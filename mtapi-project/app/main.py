@@ -155,14 +155,24 @@ async def _probe_media_full(path_obj: Path) -> dict:
             file_size = path_obj.stat().st_size
         except Exception:
             file_size = _safe_int(fmt.get("size"))
+        fps_val = round(fps, 3) if fps else 0.0
+        fps_avg_val = round(fps_avg, 3) if fps_avg else 0.0
+        is_vfr_guess = False
+        try:
+            if fps_val > 0 and fps_avg_val > 0:
+                is_vfr_guess = abs(fps_avg_val - fps_val) / max(fps_val, 1e-9) > 0.01
+        except Exception:
+            is_vfr_guess = False
+
         return {
             "ok": True,
             "path": str(path_obj),
             "name": path_obj.name,
             "width": width,
             "height": height,
-            "fps": round(fps, 3) if fps else 0.0,
-            "fps_avg": round(fps_avg, 3) if fps_avg else 0.0,
+            "fps": fps_val,
+            "fps_avg": fps_avg_val,
+            "is_vfr_guess": is_vfr_guess,
             "duration": round(duration, 3) if duration else 0.0,
             "frames": frames,
             "video_codec": video_codec,
@@ -238,6 +248,12 @@ music.register(app)
 
 from .routes import lineage
 lineage.register(app)
+
+from .routes import ytdlp
+ytdlp.register(app)
+
+from .routes import comments
+comments.register(app)
 
 def _make_endpoint(spec):
     async def endpoint(

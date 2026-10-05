@@ -1,13 +1,13 @@
 // Extracted from pool/sequence.js — see sequence.js barrel. Vanilla ES6, no framework.
-import { state, elements, logConsole, setPreviewAspect, clearPreviewAspect } from '/app.js';
+import { state, elements, logConsole, setPreviewAspect, clearPreviewAspect } from '/app.js?v=2';
 import { selectPoolItem } from '/js/pool/items.js';
 import { basename, formatDurationExact } from '/js/utils.js';
-import { scheduleSavePoolState, savePoolStateNow, isApplyingFormState } from '/js/pool/persistence.js';
+import { scheduleSavePoolState, savePoolStateNow, isApplyingFormState } from '/js/pool/persistence.js?v=2';
 import { registerListKeys } from '/js/ui/list-keys.js';
 import { findPoolItem, updateSeqTotalTime } from '/js/pool/sequence-model.js';
-import { updateSelectionHighlights, displayFocusPath, updatePoolFocusFrame } from '/js/pool/sequence-select.js';
+import { updateSelectionHighlights, displayFocusPath, updatePoolFocusFrame } from '/js/pool/sequence-select.js?v=2';
 import { _maybeAutoRifeEntry } from '/js/pool/sequence-rife.js';
-import { renderSequenceBox } from '/js/pool/sequence-composer.js';
+import { renderSequenceBox } from '/js/pool/sequence-composer.js?v=2';
 import { normTagColor, sequenceUseCounts } from '/js/pool/sequence-tag.js';
 
 function updateSeqTransportUI() {
@@ -422,6 +422,16 @@ function seqLoadClip(index, { autoplay = true } = {}) {
   elements.mediaInfo.style.display = 'flex';
   elements.mediaViewer.innerHTML = '';
   clearPreviewAspect();
+
+  const vfrBadge = document.getElementById('mediaVfrBadge');
+  if (vfrBadge) {
+    const item = findPoolItem(filePath);
+    if (item && item.meta && item.meta.is_vfr_guess) {
+      vfrBadge.textContent = 'VFR';
+    } else {
+      vfrBadge.textContent = '';
+    }
+  }
 
   const video = document.createElement('video');
   video.src = `/api/video?path=${encodeURIComponent(filePath)}&t=${Date.now()}`;

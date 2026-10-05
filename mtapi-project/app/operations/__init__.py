@@ -40,4 +40,5 @@ from . import (  # noqa: F401
     erase_pipeline_ops,
     demucs_ops,
     music_ops,
+    ytdlp_ops,
 )

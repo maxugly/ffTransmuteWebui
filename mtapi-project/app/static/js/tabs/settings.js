@@ -1,7 +1,7 @@
 /** Settings: local preferences with a small server mirror for media routes. */
-import { state, elements } from '/app.js';
+import { state, elements } from '/app.js?v=2';
 import { setupContinuousKnob } from '/js/ui/knobs.js?v=6';
-import { normalizeSize, FRAME_WIDTHS, FRAME_SIZES, FRAME_SIZE_LABELS } from '/js/media-urls.js?v=1';
+import { normalizeSize, FRAME_WIDTHS, FRAME_SIZES, FRAME_SIZE_LABELS } from '/js/media-urls.js?v=2';
 
 const SIZE_LABELS = ['L', 'M', 'H'];
 /** Readout for the Frame peek size knob — the words plus the real pixel width. */
@@ -355,7 +355,7 @@ export function renderSettingsForm() {
       await m.batchNormalizeSequence();
       await m.batchNormalizePool();
     } catch (err) {
-      try { (await import('/app.js')).logConsole(`[AUTO CFR ERROR]: ${err.message}`, 'error'); } catch (_) { /* ignore */ }
+      try { (await import('/app.js?v=2')).logConsole(`[AUTO CFR ERROR]: ${err.message}`, 'error'); } catch (_) { /* ignore */ }
     } finally { btn.disabled = false; }
   });
   document.getElementById('btnVfrScan')?.addEventListener('click', async (e) => {
@@ -366,7 +366,7 @@ export function renderSettingsForm() {
       const m = await import('/js/pool/auto-vfrcfr.js');
       await m.scanCurrentMedia();
     } catch (err) {
-      try { (await import('/app.js')).logConsole(`[VFR SCAN ERROR]: ${err.message}`, 'error'); } catch (_) { /* ignore */ }
+      try { (await import('/app.js?v=2')).logConsole(`[VFR SCAN ERROR]: ${err.message}`, 'error'); } catch (_) { /* ignore */ }
     } finally { btn.disabled = false; }
   });
   document.getElementById('settingsAutoAddOutputs')?.addEventListener('change', (e) => {
@@ -389,7 +389,7 @@ export function renderSettingsForm() {
       await m.batchAutoFirstLast();
     } catch (err) {
       try {
-        const { logConsole } = await import('/app.js');
+        const { logConsole } = await import('/app.js?v=2');
         logConsole(`[AUTO F/L ERROR]: ${err.message}`, 'error');
       } catch (_) { /* ignore */ }
     } finally {

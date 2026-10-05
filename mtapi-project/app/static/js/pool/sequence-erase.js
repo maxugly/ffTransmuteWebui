@@ -5,9 +5,9 @@
 // Identity: lineageId groups occurrences of one source (sequence[].id stays
 // the occurrence identity). Masks belong to the lineage. Erase always starts
 // from entry.path (the original) — never variantPath/conformedPath.
-import { state, logConsole } from '/app.js';
+import { state, logConsole } from '/app.js?v=2';
 import { basename, escapeHtml } from '/js/utils.js';
-import { scheduleSavePoolState } from '/js/pool/persistence.js';
+import { scheduleSavePoolState } from '/js/pool/persistence.js?v=2';
 
 const ERASE_W = 960;
 const ERASE_H = 540;
@@ -424,7 +424,7 @@ async function saveEraseMask(entry, maskDataUrl, settings, mw, mh) {
   logConsole(`[ERASE]: mask saved for ${basename(entry.path)} (${mw || ERASE_W}×${mh || ERASE_H}) — pipeline will regenerate clean/RIFE/conform`);
   scheduleSavePoolState();
   try {
-    const { renderSequenceBox } = await import('/js/pool/sequence-composer.js');
+    const { renderSequenceBox } = await import('/js/pool/sequence-composer.js?v=2');
     renderSequenceBox({ skipInstantKick: true });
   } catch (_) { /* render optional */ }
   updateErasePanel();
@@ -447,7 +447,7 @@ async function clearEraseMask(entry) {
   logConsole(`[ERASE]: mask cleared for ${basename(entry.path)}`);
   scheduleSavePoolState();
   try {
-    const { renderSequenceBox } = await import('/js/pool/sequence-composer.js');
+    const { renderSequenceBox } = await import('/js/pool/sequence-composer.js?v=2');
     renderSequenceBox({ skipInstantKick: true });
   } catch (_) { /* ignore */ }
   updateErasePanel();
@@ -654,7 +654,7 @@ async function runErasePipeline({ selectedOnly = false, dryRun = false } = {}) {
   } catch (_) { /* ignore */ }
   scheduleSavePoolState();
   try {
-    const { renderSequenceBox } = await import('/js/pool/sequence-composer.js');
+    const { renderSequenceBox } = await import('/js/pool/sequence-composer.js?v=2');
     renderSequenceBox({ skipInstantKick: true });
   } catch (_) { /* ignore */ }
   updateErasePanel();
@@ -671,7 +671,7 @@ async function clearEraseStatus() {
   logConsole('[ERASE]: status cleared');
   scheduleSavePoolState();
   try {
-    const { renderSequenceBox } = await import('/js/pool/sequence-composer.js');
+    const { renderSequenceBox } = await import('/js/pool/sequence-composer.js?v=2');
     renderSequenceBox({ skipInstantKick: true });
   } catch (_) { /* ignore */ }
   updateErasePanel();

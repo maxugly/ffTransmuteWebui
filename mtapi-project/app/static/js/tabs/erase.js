@@ -1,8 +1,8 @@
-import { state, elements, logConsole, bestInput } from '/app.js';
+import { state, elements, logConsole, bestInput } from '/app.js?v=2';
 import { escapeHtml } from '/js/utils.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 import { runOpWithCancel } from '/js/job-control.js';
-import { normalizeSize } from '/js/media-urls.js?v=1';
+import { normalizeSize } from '/js/media-urls.js?v=2';
 
 // ── Erase tab (Clean section) ───────────────────────────────────────────
 // lama-cleaner erase settings, nothing else: binary mask exactly as drawn,

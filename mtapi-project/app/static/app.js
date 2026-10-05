@@ -15,7 +15,7 @@ import {
   captureCurrentFormState, captureAllMountedFormState, applySavedFormState,
   isApplyingFormState,
   _poolSeqId, _poolSaveTimer, _poolPersistReady,
-} from '/js/pool/persistence.js';
+} from '/js/pool/persistence.js?v=2';
 import {
   runOpWithCancel, runActiveOperation, stopActiveOperation,
   displayOpResult, setRunUiBusy,
@@ -47,6 +47,8 @@ import { renderImageSortForm, collectImageSortBody } from '/js/tabs/imagesort.js
 import { renderImgCompareForm } from '/js/tabs/imgcompare.js';
 import { renderNotesForm } from '/js/tabs/notes.js';
 import { renderDartForm } from '/js/tabs/dart.js';
+import { renderYtdlpForm } from '/js/tabs/ytdlp.js';
+import { renderCommentsForm } from '/js/tabs/comments.js';
 import { renderSkillsForm } from '/js/tabs/skills.js';
 import { renderScriptsForm } from '/js/tabs/scripts.js';
 import { renderWatermarkForm } from '/js/tabs/watermark.js';
@@ -499,6 +501,8 @@ const TAB_ACCEPTS = {
   zoompan:     'image',
   notes:       'none',
   dart:        'none',
+  ytdlp:       'none',
+  comments:    'none',
   settings:    'none',
   scripts:     'any',
   watermark:   'any',
@@ -659,7 +663,13 @@ function _syncTabInputFromGlobal() {
           const frames = data.true_frames ? `${data.true_frames} frames` : (data.frame_count ? `${data.frame_count} frames` : '1 frame');
           const size = data.file_size ? (data.file_size / (1024*1024)).toFixed(2) + 'MB' : '';
           const date = data.file_mtime ? new Date(data.file_mtime * 1000).toLocaleString() : '';
-          overlay.textContent = `[ ${res} | ${frames} | ${size} | ${date} ]`;
+          let vfrTag = '';
+          const fps = parseFloat(data.fps) || 0;
+          const avg = parseFloat(data.fps_avg) || 0;
+          if (fps > 0 && avg > 0 && Math.abs(avg - fps) / Math.max(fps, 1e-9) > 0.01) {
+            vfrTag = ' | VFR';
+          }
+          overlay.textContent = `[ ${res} | ${frames} | ${size} | ${date}${vfrTag} ]`;
         } else {
           overlay.style.display = 'none';
         }
@@ -1001,7 +1011,7 @@ function switchTab(tab) {
         item.classList.toggle('active', item.getAttribute('data-tab') === tab);
       });
       if (tab === 'pool') {
-        import('/js/pool/grid.js').then((m) => m.renderPoolGrid()).catch(() => {});
+        import('/js/pool/grid.js?v=2').then((m) => m.renderPoolGrid()).catch(() => {});
       } else if (tab === 'images') {
         import('/js/pool/image-pool.js').then((m) => m.renderImagePoolGrid()).catch(() => {});
       }
@@ -1066,6 +1076,8 @@ function switchTab(tab) {
   if (tab === 'erase') title = 'Erase · Clean';
   if (tab === 'settings') title = 'Settings';
   if (tab === 'stablefluids') title = 'Stable Fluids · Sim';
+  if (tab === 'ytdlp') title = 'yt-dlp Downloader · Web Ingest';
+  if (tab === 'comments') title = 'Comments · Reddit-Style Thread Viewer';
   // References tab: no big header (sidebar already shows active item)
   if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-music') title = '';
   // Library tabs: drop the big header title (sidebar already shows active item)
@@ -1079,6 +1091,8 @@ function switchTab(tab) {
     || tab === 'agent' || tab === 'jobs'
     || tab === 'skills'
     || tab === 'dart'
+    || tab === 'ytdlp'
+    || tab === 'comments'
     || tab === 'imgcompare'
     || tab === 'stablefluids'
     || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-music'
@@ -1117,10 +1131,11 @@ function switchTab(tab) {
   // Pool / Sequence / Image Pool take most of the workspace
   const appContent = document.querySelector('.app-content');
   if (appContent) {
-    appContent.classList.toggle(
-      'pool-workspace',
-      tab === 'pool' || tab === 'sequence' || tab === 'images'
-    );
+    const isPool = tab === 'pool' || tab === 'sequence' || tab === 'images';
+    appContent.classList.toggle('pool-workspace', isPool);
+    if (typeof window.__applyPanelSplit === 'function') {
+      window.__applyPanelSplit(isPool);
+    }
   }
 
   // Notes / Settings: bare workspace (sidebar + panel only; no global / preview)
@@ -1134,11 +1149,14 @@ function switchTab(tab) {
     || tab === 'quick' || tab === 'watcher' || tab === 'agent' || tab === 'jobs'
     || tab === 'skills'
     || tab === 'dart'
+    || tab === 'ytdlp'
+    || tab === 'comments'
     || tab === 'imgcompare'
     || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-music'
   );
   document.body.classList.toggle('no-global-inputs', noGlobalInputs);
   document.body.classList.toggle('sf-sim-tab-active', tab === 'stablefluids');
+  document.body.classList.toggle('comments-tab-active', tab === 'comments');
   // Calendar Dart: bare workspace (sidebar + dart workspace only), like References
   document.body.classList.toggle('dart-tab-active', tab === 'dart');
   // References: bare workspace (sidebar + reference card only)
@@ -1293,6 +1311,10 @@ function renderTabForm(tab) {
     renderNotesForm();
   } else if (tab === 'dart') {
     renderDartForm();
+  } else if (tab === 'ytdlp') {
+    renderYtdlpForm();
+  } else if (tab === 'comments') {
+    renderCommentsForm();
   } else if (tab === 'skills') {
     renderSkillsForm();
   } else if (tab === 'scripts') {
@@ -1322,7 +1344,7 @@ import { setupFramePeek, resetFramePeek } from '/js/frame-peek.js?v=5';
 import { setupListKeys } from '/js/ui/list-keys.js';
 import {
   renderPoolForm, renderSequenceForm, renderPoolGrid, sequencePositions,
-} from '/js/pool/grid.js';
+} from '/js/pool/grid.js?v=2';
 import {
   setPoolZoom, applyPoolZoom, setupTileInfoMenu, refreshPoolTileOverlays,
   hidePoolContextMenu, showPoolContextMenu,
@@ -1333,7 +1355,7 @@ import {
   gcdInt, setPreviewAspect, clearPreviewAspect,
   fitPreviewViewer, setupPreviewConsoleResize,
   showPreview, logConsole,
-} from '/js/preview.js';
+} from '/js/preview.js?v=2';
 
 // ── Sidebar & preview collapse ────────────────────────────────────────────
 
@@ -1477,7 +1499,8 @@ function setupPanelResize() {
 
   function updateDividerPos() {
     const leftPanel = content.children[0];
-    if (!leftPanel || document.body.classList.contains('preview-collapsed')) {
+    const previewPanel = content.children[1];
+    if (!leftPanel || !previewPanel || previewPanel.offsetParent === null || document.body.classList.contains('preview-collapsed')) {
       divider.style.display = 'none';
       return;
     }
@@ -1485,25 +1508,51 @@ function setupPanelResize() {
     const leftW = leftPanel.getBoundingClientRect().right - content.getBoundingClientRect().left;
     divider.style.left = (leftW - 3) + 'px';
   }
-  updateDividerPos();
 
-  // Restore saved split
-  try {
-    const saved = localStorage.getItem('mtapi_panel_split');
-    if (saved) {
-      content.style.gridTemplateColumns = saved;
-      requestAnimationFrame(updateDividerPos);
+  function parseSplit(str) {
+    if (!str) return null;
+    const pxMatch = str.match(/(\d+(?:\.\d+)?)px\s+(\d+(?:\.\d+)?)px/);
+    if (pxMatch) {
+      const w1 = parseFloat(pxMatch[1]);
+      const w2 = parseFloat(pxMatch[2]);
+      const total = w1 + w2;
+      if (total > 0) {
+        const p1 = Math.max(20, Math.min(80, (w1 / total) * 100));
+        const p2 = 100 - p1;
+        return `minmax(0, ${p1.toFixed(2)}%) minmax(0, ${p2.toFixed(2)}%)`;
+      }
     }
-  } catch (_) {}
+    return str;
+  }
+
+  function applyPanelSplit(isPool) {
+    const key = isPool ? 'mtapi_panel_split_pool' : 'mtapi_panel_split';
+    const fallback = isPool
+      ? 'minmax(0, 70.21%) minmax(0, 29.79%)'
+      : 'minmax(0, 59.18%) minmax(0, 40.82%)';
+    try {
+      const saved = parseSplit(localStorage.getItem(key));
+      content.style.gridTemplateColumns = saved || fallback;
+    } catch (_) {
+      content.style.gridTemplateColumns = fallback;
+    }
+    requestAnimationFrame(updateDividerPos);
+  }
+  window.__applyPanelSplit = applyPanelSplit;
+  window.__updateDividerPos = updateDividerPos;
+
+  const initialIsPool = content.classList.contains('pool-workspace');
+  applyPanelSplit(initialIsPool);
 
   _setupDragResize(divider, {
     axis: 'x',
     onDrag: (deltaX, start) => {
       const rect = content.getBoundingClientRect();
       if (rect.width <= 0 || document.body.classList.contains('preview-collapsed')) return;
-      const newLeftW = Math.max(300, Math.min(rect.width - 200, start.startLeftW + deltaX - 3));
-      const rightW = rect.width - newLeftW;
-      content.style.gridTemplateColumns = `${newLeftW}px ${rightW}px`;
+      const newLeftW = Math.max(260, Math.min(rect.width - 200, start.startLeftW + deltaX - 3));
+      const leftPct = Math.max(20, Math.min(80, (newLeftW / rect.width) * 100));
+      const rightPct = 100 - leftPct;
+      content.style.gridTemplateColumns = `minmax(0, ${leftPct.toFixed(2)}%) minmax(0, ${rightPct.toFixed(2)}%)`;
       divider.style.left = (newLeftW - 3) + 'px';
     },
     startVals: () => {
@@ -1512,7 +1561,10 @@ function setupPanelResize() {
     },
     onEnd: () => {
       const cols = content.style.gridTemplateColumns;
-      try { localStorage.setItem('mtapi_panel_split', cols); } catch (_) {}
+      const isPool = content.classList.contains('pool-workspace');
+      try {
+        localStorage.setItem(isPool ? 'mtapi_panel_split_pool' : 'mtapi_panel_split', cols);
+      } catch (_) {}
     },
   });
 
@@ -1520,6 +1572,7 @@ function setupPanelResize() {
   if (typeof ResizeObserver !== 'undefined') {
     const ro = new ResizeObserver(updateDividerPos);
     ro.observe(content);
+    if (content.children[0]) ro.observe(content.children[0]);
   }
 }
 

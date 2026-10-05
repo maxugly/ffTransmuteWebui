@@ -1,4 +1,4 @@
-import { state, elements, bestInput } from '/app.js';
+import { state, elements, bestInput } from '/app.js?v=2';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 import { withFrameRange } from '/js/utils.js';
 

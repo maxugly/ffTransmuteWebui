@@ -1,6 +1,6 @@
-import { state, elements, logConsole, showPreview, renderPoolForm, checkHealth, switchTab, formatBytes } from '/app.js';
+import { state, elements, logConsole, showPreview, renderPoolForm, checkHealth, switchTab, formatBytes } from '/app.js?v=2';
 import { isVideoPath, basename, formatDurationExact } from '/js/utils.js';
-import { shortHash, buildPoolMetaHtml, scheduleSavePoolState } from '/js/pool/persistence.js';
+import { shortHash, buildPoolMetaHtml, scheduleSavePoolState } from '/js/pool/persistence.js?v=2';
 import { attachWallTenant, prepareWallTenants } from '/js/pool/wall-thumbs.js';
 import { repairItem } from '/js/repair-queue.js';
 import { applySeqTokenTimeStyles, updateSeqClipSettings, displayFocusPath, updatePoolFocusFrame, setPoolFocus, updateSelectionHighlights, updateSeqTransportUI, seqStop, addPathsToSequence } from '/js/pool/sequence.js';
@@ -161,7 +161,7 @@ function removePoolItem(idx) {
   scheduleSavePoolState();
   if (state.activeTab === 'pool') renderPoolForm();
   else if (state.activeTab === 'sequence') {
-    import('/js/pool/grid.js').then(m => { m.renderSequenceForm(); }).catch(() => {});
+    import('/js/pool/grid.js?v=2').then(m => { m.renderSequenceForm(); }).catch(() => {});
   }
 }
 
@@ -178,7 +178,7 @@ function clearPool() {
   scheduleSavePoolState();
   if (state.activeTab === 'pool') renderPoolForm();
   else if (state.activeTab === 'sequence') {
-    import('/js/pool/grid.js').then(m => { m.renderSequenceForm(); }).catch(() => {});
+    import('/js/pool/grid.js?v=2').then(m => { m.renderSequenceForm(); }).catch(() => {});
   }
 }
 
@@ -256,7 +256,7 @@ async function importPoolFiles() {
       renderPoolForm();
       if (firstNew) selectPoolItem(firstNew);
     } else if (state.activeTab === 'sequence') {
-      import('/js/pool/grid.js').then(m => { m.renderSequenceForm(); });
+      import('/js/pool/grid.js?v=2').then(m => { m.renderSequenceForm(); });
     }
   } catch (err) {
     logConsole(`[POOL ERROR]: ${err.message}`, 'error');
@@ -309,7 +309,7 @@ async function importPoolFolder() {
       renderPoolForm();
       if (firstNew) selectPoolItem(firstNew);
     } else if (state.activeTab === 'sequence') {
-      import('/js/pool/grid.js').then(m => { m.renderSequenceForm(); });
+      import('/js/pool/grid.js?v=2').then(m => { m.renderSequenceForm(); });
     }
   } catch (err) {
     logConsole(`[POOL ERROR]: ${err.message}`, 'error');

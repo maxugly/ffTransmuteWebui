@@ -72,9 +72,14 @@ async def run_registered_op(
                 dry_run=False,
             )
         else:
+            log.exception("Op %s failed with unexpected exception: %s", spec.id, e)
             job_control.finish(token, status="error", message=str(e)[:200])
-            job_control.unregister(token)
-            raise
+            result = OperationResult(
+                ok=False,
+                operation=spec.id,
+                error=str(e) or "Operation failed",
+                dry_run=False,
+            )
     finally:
         job_control.unregister(token)
 

@@ -1,4 +1,4 @@
-import { state, elements, resolveGlobalImages, bestInput, showPreview } from '/app.js';
+import { state, elements, resolveGlobalImages, bestInput, showPreview } from '/app.js?v=2';
 import { basename, escapeHtml, withFrameRange, isVideoPath, isImagePath } from '/js/utils.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 import { runOpWithCancel } from '/js/job-control.js';

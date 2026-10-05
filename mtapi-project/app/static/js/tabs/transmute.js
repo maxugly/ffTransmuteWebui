@@ -1,4 +1,4 @@
-import { state, elements, updateStatusIndicators } from '/app.js';
+import { state, elements, updateStatusIndicators } from '/app.js?v=2';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 import { rifeModelSelectHtml } from '/js/ui/evolve-rife.js';
 import { flipRotateOptionsHtml } from '/js/utils.js';

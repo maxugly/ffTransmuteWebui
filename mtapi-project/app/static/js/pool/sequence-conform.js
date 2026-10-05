@@ -1,7 +1,7 @@
 // Sequence Conform state + badges + stitch prediction (vanilla ES6).
 // Spec: docs/sequence-conform-copy-spec.md. Conform is Video Sequence-only,
 // cache-fill beside the source, never a replacement for path/variantPath.
-import { state, logConsole } from '/app.js';
+import { state, logConsole } from '/app.js?v=2';
 import { basename } from '/js/utils.js';
 import { peekVariants } from '/js/pool/sequence-variants.js';
 import { isInstantArmed, armInstantRife } from '/js/pool/sequence-rife.js';
@@ -136,7 +136,7 @@ export function maybeAutoConformEntry(entry) {
   if (entry.conformedPath && entry.conformStatus !== 'stale' && entry.conformStatus !== 'invalid') return false;
   entry.conformStatus = 'pending';
   try {
-    import('/js/pool/sequence-composer.js').then((m) => {
+    import('/js/pool/sequence-composer.js?v=2').then((m) => {
       try { m.renderSequenceBox({ skipInstantKick: true }); } catch (_) {}
     }).catch(() => {});
   } catch (_) {}

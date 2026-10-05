@@ -5,9 +5,9 @@ import {
   probeGlobalVideo, updateGlobalInputs, updateStatusIndicators,
   showPreview,
   showQrScannability,
-} from '/app.js';
+} from '/app.js?v=2';
 import { basename, escapeHtml } from '/js/utils.js';
-import { setPreviewAspect } from '/js/preview.js';
+import { setPreviewAspect } from '/js/preview.js?v=2';
 import { collectFaceMorphBody } from '/js/tabs/facemorph.js';
 import { collectWithoutBgBody } from '/js/tabs/withoutbg.js';
 import { collectStyleTransferBody } from '/js/tabs/styletransfer.js?v=2';

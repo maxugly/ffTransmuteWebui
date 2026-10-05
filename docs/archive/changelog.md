@@ -1,5 +1,140 @@
 > **Archive — not law. STATUS.md is where we are now.**
 
+### 000.000.8.115 — Sequence & Media Pool View Resizable Split Fix
+- Root Cause & Layout Fix:
+  - Fixed issue where media output preview was frozen and did not resize when dragging the divider in Sequence view: `.app-content.pool-workspace` in `pool.css` had `grid-template-columns: minmax(0, 1.65fr) minmax(0, 0.7fr) !important;`. The `!important` rule completely blocked inline styles from `setupPanelResize()`'s `content.style.gridTemplateColumns`, leaving the columns static at 70/30 while the divider line moved.
+  - Removed `!important` from `pool.css` line 533 and moved `!important` into the `<= 1100px` media query (line 1538) where preview is collapsed.
+- Independent Workspace Splits & Smooth Drag:
+  - Upgraded `setupPanelResize()` and `switchTab()` in `app.js` to manage independent workspace splits:
+    - Standard tool tabs use `localStorage['mtapi_panel_split']` (default ~59%/41%).
+    - Pool / Sequence / Images tabs use `localStorage['mtapi_panel_split_pool']` (default ~70%/30%).
+  - Updated divider drag handler to update columns smoothly in real-time, save the split per active mode on pointer up, and reposition the divider line on tab switch and window resize.
+  - In `index.html`, bumped `main.js?v=5` to `?v=6`.
+- Verification:
+  - `./check-gate.sh` passed 5/5 green.
+  - 19/19 pytest unit tests pass.
+  - Playwright live verified on `:24590`: dragging divider in Sequence view smoothly resizes media preview (476px → 779px), tab switching between Datamosh and Sequence preserves each mode's custom split without drift. Proof screenshot saved in `mtapi-project/junk/sequence_resize_proof.png`.
+
+### 000.000.8.114 — Ultra-Dense Comments Layout, Exact Dates & Chronological Sorting
+- Timestamp & Date Storage:
+  - Verified yt-dlp stores Unix epoch timestamps (`timestamp`, integer in seconds) in comment objects, even when relative `time_text` strings are absent.
+  - Updated `routes/comments.py` to parse and serialize `timestamp` as an `int` for all parent threads and child replies.
+  - Implemented `_formatCommentDateTime(timestamp, timeText)` in `js/tabs/comments.js` formatting human-readable localized dates (`Oct 5, 2026 06:00 AM`) and hover tooltips (`title` with full timestamp) on both top-level comments and replies.
+  - Added true chronological sorting options `Newest (Date ↓)` and `Oldest (Date ↑)` sorting accurately down to the exact second.
+- Ultra-Dense UI Redesign:
+  - Addressed user feedback regarding vertical space waste and high padding/margins.
+  - Redesigned `css/comments.css` with a tight, high-density layout:
+    - Reduced `.comments-feed` gap from 12px down to 3px.
+    - Reduced `.comment-card` padding from 12px 16px down to 4px 8px, with 2px gap (saving over 20px of vertical space per comment).
+    - Reduced `.comment-reply-item` padding from 8px 12px down to 3px 6px.
+    - Reduced `.comment-replies` left margin and padding to 10px / 8px with 2px gap.
+    - Tightened top control bar height to 26px and voting buttons to compact 9px widgets.
+  - 13–15 comments and replies now comfortably fit on screen simultaneously above the fold.
+- Verification & Proof:
+  - `./check-gate.sh` passes 5/5 green.
+  - All 19 pytest unit tests in `test_comments_routes.py` and `test_ytdlp_ops.py` pass.
+  - Playwright live verified on `:24590`: sorting by Newest/Oldest verified with exact second timestamps; collapse/expand all verified; proof screenshot saved in `mtapi-project/junk/comments_dense_dates_proof.png`.
+
+### 000.000.8.113 — Return YouTube Dislike (RYD) & Interactive Reddit-Style Comment Voting
+- Integrated Return YouTube Dislike (RYD) API:
+  - Backend endpoints `GET /api/ytdlp/ryd?video_id=...` and `GET /api/comments/ryd?video_id=...` using non-blocking async `httpx` with 1-hour in-memory TTL caching and graceful fallback (Invariant 10).
+  - Calculates likes, dislikes, 5-star rating, and like ratio percentage.
+  - Video Stats Banner in Comments Tab: `#commentsRydBadge` displaying video likes (`👍 87.5K`), dislikes (`👎 1.5K`), like ratio (`98.3%`), and visual ratio progress bar.
+  - yt-dlp Downloader Probe Card: added `.ytdlp-ryd-badge` beside video views and likes showing live dislikes and like ratio percentage upon probe.
+- Built interactive Reddit-style comment voting:
+  - Each comment and reply now features a voting widget: `▲` upvote button, formatted compact net score, and `▼` downvote button.
+  - Session voting state: clicking upvote increments score (+1, orange `#f97316`), downvote decrements score (-1, indigo `#818cf8`), re-clicking toggles vote off back to base score.
+  - Top sort dynamically factors in user votes (`effective_score = base_likes + user_vote`).
+- Container fix:
+  - Targeted `#actionPanelForm` in `renderCommentsForm()` so tab navigation preserves the `#actionPanel` outer shell across all tabs.
+- Tests & Verification:
+  - Added unit test `test_comments_ryd_route` in `tests/test_comments_routes.py`. All 19 tests passing.
+  - `./check-gate.sh` passes 5/5 green.
+  - Playwright verified on `:24590` with real clicks across both tabs (RYD badges displayed, interactive upvote/downvote tested on parent and reply cards, zero console errors). Proof screenshots: `junk/comments_ryd_voting_proof.png`, `junk/ytdlp_ryd_proof.png`, and `junk/comments_downvotes_verified.png`.
+
+### 000.000.8.112 — Reddit-Style Threaded Comments Viewer Tab + Video Pool Integration
+- Built dedicated "Comments" viewer tab in Library navigation section:
+  - 2-level Reddit-style hierarchy: parent comment cards, vertical left rail collapse guides, indented reply trees, `📌 Pinned` and `Creator` badges, and formatted like counters.
+  - Interactive thread controls: per-thread `[-]`/`[+]` toggles with collapsed summary pills (`[+] @author · N likes · N replies (click to expand)`), master "Collapse All" / "Expand All" buttons.
+  - Search & Sorting: live text and author filtering; sorting by Top (Most Likes), Newest First, Oldest First.
+  - Efficient rendering: 50-thread incremental pagination with "Load More Threads" button to keep UI responsive even with 8,000+ comments.
+  - Auto-discovery & File picker: backend scans `~/Downloads` for `*.comments.json` and `*.info.json` files; plus manual file picker modal support.
+  - Inter-tab links: "💬 View Comments" button on yt-dlp probe card and post-download cards; "💬 View Comments…" in Video Pool card right-click context menu.
+  - Responsive design: zero horizontal scroll adhering to Invariant 2 and 8.109.
+- Backend additions:
+  - `app/routes/comments.py`: `GET /api/comments/files` and `GET /api/comments/data?path=...`.
+  - Registered router in `app/main.py`.
+  - Preserved `parent`, `is_pinned`, and `author_is_uploader` flags in `app/operations/ytdlp_ops.py`.
+  - Whitelisted `comments_json_path` in `app/media/pool.py`.
+- Tests & Verification:
+  - Created `mtapi-project/tests/test_comments_routes.py` (4 unit tests, all passing).
+  - All 18 pytest tests pass across `test_ytdlp_ops.py` and `test_comments_routes.py`.
+  - `./check-gate.sh` 5/5 green.
+  - Playwright verified live on port 24590 with real clicks across 8,188 comments (collapse/expand, search, sort, load more, source switching, zero console errors). Proof screenshots: `junk/comments_tab_proof.png` and `junk/comments_tab_collapsed.png`.
+
+### 000.000.8.111 — yt-dlp Auto-Extracted `.comments.json` Sidecar & Comments Diagnosis
+- Investigated and resolved user comments troubleshooting issue:
+  - Root-caused why user's `readable_comments.json` and `.info.json` were 0 bytes: at 14:43, a shell pipeline with nonexistent input (`cat comments.json | jq '.comments' > '<title>.info.json'`) truncated the `.info.json` to 0 bytes via shell redirection `>`; also during the original media download at 14:50, the comments checkbox was left unchecked.
+  - Re-fetched metadata and comments on demand for `ujkD4SxPKOI` into `~/Downloads`, populating both the full `.info.json` (689KB) and generating the user's `readable_comments.json` (21.8KB, 100 comments).
+- Auto-extract clean `.comments.json` sidecar:
+  - In `app/operations/ytdlp_ops.py`, whenever comments are extracted, the system now automatically parses and writes a clean, formatted companion `<title> [<id>].comments.json` containing `{author, text, like_count, time_text, timestamp, id}` directly next to the media file. Users no longer need to manually parse the giant `.info.json` using `jq`.
+  - Added `comments_json_path` to `source_meta` detection and recorded it alongside `info_json_path`.
+  - In `app/media/pool.py`, whitelisted `comments_json_path` in `_normalize_source_meta`.
+- Gate & tests: `./check-gate.sh` 5/5 green; 14/14 unit tests pass in `tests/test_ytdlp_ops.py`.
+
+### 000.000.8.110 — yt-dlp Subprocess Stream Buffer Fix & Invariant 10 Enforcement
+- Fixed download failure `Unexpected token 'I', "Internal S"... is not valid JSON`.
+- Root cause: yt-dlp streams download progress lines separated by `\r` (carriage return) rather than `\n`. Python's `asyncio.StreamReader.readline()` looks exclusively for `\n` and has a default buffer limit of 64KB (`65536` bytes). When downloading larger streams, the unconsumed `\r`-separated lines exceeded the 64KB buffer, throwing `asyncio.exceptions.LimitOverrunError: Separator is not found, and chunk exceed the limit`.
+- In `app/operations/ytdlp_ops.py`:
+  - Added `--newline` flag to both `build_ytdlp_argv` and `build_ytdlp_comments_argv`.
+  - Replaced `_read_stream`'s `stream.readline()` with a chunked buffer reader (`await stream.read(8192)`) that splits on either `\r` or `\n` and normalizes progress lines, cleanly reporting real-time progress to `report_progress()`.
+  - Set `limit=1024 * 1024 * 16` (16MB) in `asyncio.create_subprocess_exec`.
+  - Wrapped `ytdlp_download` with comprehensive exception handling returning `OperationResult(ok=False, error=str(e))`.
+- In `app/op_runner.py`:
+  - Fixed unhandled exception branch in `run_registered_op`: replaced re-raising `raise` with `result = OperationResult(ok=False, operation=spec.id, error=str(e) or "Operation failed", dry_run=False)` to strictly enforce Invariant 10 (`failures are HTTP 200 + {"ok": false}`).
+- In `app/static/js/tabs/ytdlp.js`:
+  - Added defensive `res.ok` check before `res.json()` with clear error extraction, preventing unhandled HTML 500 syntax errors in the WebUI.
+- In `mtapi-project/tests/test_ytdlp_ops.py`:
+  - Added `test_ytdlp_carriage_return_stream_handling` unit test verifying that 150KB of carriage-return separated stream progress without newlines (4,000 updates) processes smoothly without buffer overruns. All 13 unit tests passing.
+- Gate & UI proof: `./check-gate.sh` 5/5 green; Playwright-verified with live YouTube video download on :24590: media successfully downloaded, thumbnail generated, registered in Video Pool, and completed status displayed in the UI without any console or parse errors. Proof screenshot: `mtapi-project/junk/ytdlp_download_success.png`.
+
+### 000.000.8.109 — Responsive Autowrap Tiles & Zero Horizontal Scroll
+- Eliminated horizontal scrolling and fixed card autowrapping across all viewports and divider positions.
+- In `layout.css`, removed hardcoded pixel minimums from `.app-content` (`minmax(560px, 1.45fr) minmax(340px, 1fr)`) that caused horizontal blowout on narrower monitors; made columns fluid with `minmax(0, 1.45fr) minmax(0, 1fr)`, `width: 100%; max-width: 100%; min-width: 0; overflow: hidden;`.
+- Removed accidental 180-line duplicate block of layout CSS in `layout.css` lines 726–906 that had redundant `.app-content` and `.global-inputs-panel` declarations.
+- Hardened `.action-panel` and `.action-panel-form` with `min-width: 0; max-width: 100%; overflow-x: hidden; box-sizing: border-box;`.
+- Added `min-width: 0; max-width: 100%;` to `main` container in `layout.css` and `overflow: hidden; width: 100%; height: 100%;` to `html` in `base.css` to prevent root-level overflow.
+- In `app.js` (`setupPanelResize`), migrated divider drag and localStorage persistence from rigid pixel strings (`${newLeftW}px ${rightW}px`) to fluid percentages (`minmax(0, ${leftPct}%) minmax(0, ${rightPct}%)`). Added auto-migration for legacy pixel values in `localStorage['mtapi_panel_split']`.
+- In `ytdlp.css` and `forms.css`, applied `min-width: 0; max-width: 100%; box-sizing: border-box;` to `.ytdlp-workspace`, `.ytdlp-top-bar`, `.ytdlp-banks-grid`, `.ytdlp-bank`, `.ops-grid`, and `.card`, allowing cards to naturally reflow across 4, 3, 2, or 1 columns depending on available width.
+- Gate 5/5 green; 12/12 unit tests in `test_ytdlp_ops.py` green; verified in Playwright at 1024x768 and 1400x900 viewports with preview open and collapsed, confirming `scrollWidth === clientWidth` (0px horizontal overflow) and natural 4→3→2→1 column autowrapping. Proof screenshots: `mtapi-project/junk/ytdlp-autowrap-responsive.png` and `mtapi-project/junk/ytdlp-autowrap-1024.png`.
+
+### 000.000.8.108 — yt-dlp Comments Decoupled into Separate Post-Media Pass
+- Decoupled video comments extraction from the primary media download pass per user request.
+- Media pass (`build_ytdlp_argv`) omits `--write-comments` so video/audio streams, subtitles, thumbnails, description, and base metadata download and write to disk immediately without getting blocked or throttled by comment pagination.
+- Follow-up comments pass (`build_ytdlp_comments_argv`) runs as a dedicated second stage after media download finishes, using `--skip-download --write-comments --write-info-json` and an optional `youtube:max_comments` ceiling (default 100) to safely populate the `.info.json` sidecar.
+- If comment scraping encounters YouTube rate limits or dropped reply threads (`Incomplete data received`), it logs a warning without aborting or failing the already-saved media file.
+- UI (`js/tabs/ytdlp.js`): Updated Bank 4 checkbox to `Comments (after media)` and added `#ytdlpMaxComments` input field.
+- Gate 5/5; 12/12 unit tests passing in `tests/test_ytdlp_ops.py`. Playwright live-verified on port 24590 with console drawer proof of two-stage decoupled execution. Proof screenshot: `mtapi-project/junk/ytdlp-comments-separated.png`.
+
+
+### 000.000.8.107 — Global 2-column card flow + full horizontal control stretch
+- Responsive multi-column layout default across the entire app whenever room permits.
+- Action panel workspace split default updated from cramped 1.2fr (54%) to `minmax(560px, 1.45fr)` in `layout.css`, opening ~59-60% horizontal width by default so cards naturally flow into two columns on standard desktops without requiring manual divider adjustment.
+- In `ytdlp.css`, removed artificial centering (`margin: 0 auto`, `max-width: 1300px`, double-padding) that starved 156px of horizontal space; lowered grid minimum to `minmax(min(270px, 100%), 1fr)`; stretched all controls inside cards (`.ytdlp-row select`, `text-input`, `.button-group`, `.ytdlp-timerange-inputs`) to `flex: 1` / `width: 100%` so they occupy the full card width instead of sitting collapsed on the left.
+- In `settings.css`, `.settings-workspace` converted to a responsive CSS grid (`minmax(min(270px, 100%), 1fr)`) with `settings-lede` spanning full width and `.settings-card` width max-content removed to fill grid tracks (reflowing into 4→3→2 columns).
+- In `forms.css`, `.ops-grid` and general `.card` updated to responsive auto-fill grids with 100% width. Standardized `.dart-cards` (`dart.css`), `.cut-frames-grid` (`pool.css`), `.zp-frames-grid` (`zoompan.css`), and `.ref-music-grid`/`.ref-grid-2col`/`.ref-split` (`references.css`) to `repeat(auto-fit, minmax(min(270px, 100%), 1fr))`. Protected `.pool-workspace` grid with `!important` so divider drag styles do not interfere with pool layouts.
+- Gate 5/5. Playwright-verified live on port 24590 at 1440x900: yt-dlp option cards immediately form 2 columns with controls filling horizontal card space; Settings cards flow into 4 columns; Cut, ZoomPan, Dart, and References multi-column grids confirmed clean without console errors. Screenshots `junk/ytdlp-two-cols-final.png` and `junk/settings-columns-proof.png`.
+
+
+### 000.000.8.106 — yt-dlp Media Downloader Tab, Extended Metadata & Pool Sorting
+- Implemented full-featured yt-dlp media downloader tab based on Seal ([junkfood02/Seal](https://github.com/junkfood02/Seal)) with time-range clipping (`--download-sections "*START-END"`), subtitles (`--write-subs`, `--write-auto-subs`, `--sub-langs`), live chat replay (`.live_chat.json`), description (`--write-description`), comments (`--write-comments` into `.info.json`), thumbnails, sponsorblock, multi-threading, aria2c, proxy, browser cookies, and IPv4 flags.
+- Backend: `app/operations/ytdlp_ops.py` (`YtdlpParams`, `build_ytdlp_argv`, `ytdlp_download`, progress reporting via `report_progress()`, and `OperationSpec("ytdlp")`); `app/routes/ytdlp.py` with `GET /api/ytdlp/version` and `GET /api/ytdlp/info?url=...` with `--dump-single-json` and Node.js v22 runtime hint (`--js-runtimes node`).
+- Multi-site URL watcher records extractor/site and `is_youtube` flag across 1,700+ extractors so non-YouTube platforms can still be sorted and filtered by site.
+- Extended metadata: `source_meta` dictionary whitelisted and preserved in `app/media/pool.py` and `app/media/cache.py`; hydrated and displayed as author/platform badges in `pool/persistence.js`.
+- Video Pool search & sorting: added `#poolSortMode` select (Added, Date ↓/↑, Author A–Z, Site A–Z, Title A–Z, Duration ↓/↑, Size ↓) and enhanced search to match against site, author, channel, title, tags, and publish date.
+- Frontend: `js/tabs/ytdlp.js` and `css/ytdlp.css` providing interactive probe card with stream resolution pills, 6 categorized options banks, dry run preview, and post-download ingest wiring (`add_to_pool`, `send_to_media_in`, `add_to_sequence`).
+- Test suite & gate proof: `./check-gate.sh` 5/5 green; 10/10 pytest unit tests in `mtapi-project/tests/test_ytdlp_ops.py` green; Playwright-proven on port 24590 with live clicks (tab navigation, YouTube probe with metadata/thumbnail/streams, dry run command generation with all options, and Video Pool sort dropdown repainting cleanly). Screenshots saved to `mtapi-project/junk/ytdlp-tab-proof.png` and `mtapi-project/junk/pool-sort-proof.png`.
+
 ### 000.000.8.101 — Preview send replaces the Media In box (no append)
 - User's correction to `8.100`, caught by using it: clicking **→I-in** twice left the box holding *two* paths concatenated (`…_dream_0002.png` + `…_dream_0001.png`) — append-if-missing plus dedup means the first entry is never dropped and the box can never get back to a single file. Console read `Sent to Media In → …_0001.png` then `Already in Media In → …_0001.png`, which is the append behavior announcing itself.
 - Semantics: the preview shows exactly **one** file, so sending it means "this is the input", not "one more of a batch". `gi.value = path` + `input` dispatch — identical to what the pool send targets have always done (`items.js` cut → global video, image-pool sends), so the preview button is finally consistent with them.

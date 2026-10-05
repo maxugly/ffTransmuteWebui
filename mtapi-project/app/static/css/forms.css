@@ -389,8 +389,23 @@ body.job-stopping .status-dot.loading {
 /* Card layout */
 .ops-grid {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(min(270px, 100%), 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.card {
+  background: var(--bg-surface, #1e1d24);
+  border: 1px solid var(--border-color, #2b2a38);
+  border-radius: var(--radius-md, 8px);
+  padding: 12px 14px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .op-card {

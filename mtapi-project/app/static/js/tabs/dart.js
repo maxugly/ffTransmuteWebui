@@ -8,7 +8,7 @@
  *
  * Spec: docs/Calendar-Dart-Spec.md
  */
-import { elements, logConsole } from '/app.js';
+import { elements, logConsole } from '/app.js?v=2';
 import { escapeHtml } from '/js/utils.js';
 
 const STORAGE_KEY = 'mtapi.dart.history.v1';

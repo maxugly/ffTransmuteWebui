@@ -1,5 +1,5 @@
 // Preview panel + console output + AR fitting
-import { state, elements } from '/app.js';
+import { state, elements } from '/app.js?v=2';
 import { findPoolItem } from '/js/pool/sequence.js';
 import { bindPoolDragResize } from '/js/pool/layout.js';
 
@@ -122,7 +122,17 @@ function showPreview(filePath) {
   
   elements.mediaViewer.innerHTML = '';
   clearPreviewAspect();
-  
+
+  const item = findPoolItem(filePath);
+  const vfrBadge = document.getElementById('mediaVfrBadge');
+  if (vfrBadge) {
+    if (item && item.meta && item.meta.is_vfr_guess) {
+      vfrBadge.textContent = 'VFR';
+    } else {
+      vfrBadge.textContent = '';
+    }
+  }
+
   if (['.mp4', '.m4v', '.mov', '.avi', '.mkv', '.webm'].includes(ext)) {
     const video = document.createElement('video');
     video.src = `/api/video?path=${encodeURIComponent(filePath)}&t=${Date.now()}`;
