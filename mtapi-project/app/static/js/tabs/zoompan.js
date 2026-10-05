@@ -22,6 +22,7 @@ import {
   compareToolbarHtml,
   paintCompareView,
   bindCompareControls,
+  syncCompareToolbar,
 } from '/js/ui/image-compare.js';
 import { ensureImagePool } from '/js/pool/image-pool.js';
 
@@ -455,7 +456,7 @@ async function renderZoompanForm() {
 
   const html = `
     <div class="zp-workspace">
-      <div class="panel-title-desc">
+      <div class="panel-title-desc dense">
         <h3>Pan &amp; Zoom</h3>
         <p>
           Match two scenes that share content but don’t line up: set a
@@ -688,8 +689,17 @@ function _bindZoompanForm() {
       document.getElementById('zpViewEnd'),
       document.getElementById('zpCompareView'),
     ],
-    onModeChange: () => {
-      // Separate/overlay/ab — layout only, no full form rebuild
+    onModeChange: (mode) => {
+      // Separate/overlay/ab — layout only, no full form rebuild.
+      // Sync the toolbar immediately (the shared binder can't: this path
+      // skips its applyAll), so the clicked mode lights up at once.
+      try {
+        syncCompareToolbar(ZP_COMPARE_PREFIX, {
+          mode,
+          overlayOpacity: z.overlayOpacity,
+          abPosition: z.abPosition,
+        });
+      } catch (_) { /* cosmetic only */ }
       invalidateCropCache();
       scheduleLayout('both', { compare: true });
     },

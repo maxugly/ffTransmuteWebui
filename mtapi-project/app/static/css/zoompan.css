@@ -5,7 +5,7 @@
 .zp-workspace {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   max-width: 1100px;
 }
 
@@ -14,7 +14,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px 14px;
+  gap: 6px 10px;
 }
 
 .zp-field-label {
@@ -28,10 +28,10 @@
 .zp-global-path {
   flex: 1 1 240px;
   font-family: 'Fira Code', ui-monospace, monospace;
-  font-size: 0.82rem;
+  font-size: 0.75rem;
   color: var(--text, #e8eef8);
-  padding: 8px 10px;
-  border-radius: 8px;
+  padding: 4px 8px;
+  border-radius: 6px;
   border: 1px solid var(--panel-border, #2a3344);
   background: rgba(0, 0, 0, 0.25);
   overflow: hidden;
@@ -48,21 +48,22 @@
 .zp-params-row label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
+  gap: 4px;
+  font-size: 0.75rem;
   color: var(--text-muted, #94a3b8);
+  white-space: nowrap;
 }
 
 .zp-params-row input[type="number"],
 .zp-params-row select {
-  width: 72px;
-  padding: 4px 6px;
+  width: 64px;
+  padding: 3px 6px;
   background: var(--input-bg, rgba(0, 0, 0, 0.3));
   border: 1px solid var(--panel-border, #2a3344);
   border-radius: 6px;
   color: var(--text, #e8eef8);
   font-family: 'Fira Code', ui-monospace, monospace;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
 }
 
 .zp-params-row select {
@@ -79,7 +80,7 @@
 .zp-frames-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(270px, 100%), 1fr));
-  gap: 14px;
+  gap: 10px;
 }
 
 @media (max-width: 720px) {
@@ -91,8 +92,8 @@
 .zp-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px;
+  gap: 6px;
+  padding: 8px;
   border-radius: var(--radius-md, 10px);
   border: 1px solid var(--panel-border, #2a3344);
   background: rgba(10, 14, 22, 0.55);
@@ -295,7 +296,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px 14px;
+  gap: 6px 10px;
 }
 .zp-compare-controls .img-compare-bar {
   flex: 1 1 280px;
@@ -394,11 +395,11 @@
 }
 
 .zp-footer-hint {
-  font-size: 0.82rem;
+  font-size: 0.75rem;
   color: var(--text-muted, #94a3b8);
-  line-height: 1.45;
+  line-height: 1.4;
   border-top: 1px solid var(--panel-border, #2a3344);
-  padding-top: 12px;
+  padding-top: 8px;
 }
 .zp-footer-hint p {
   margin: 0;

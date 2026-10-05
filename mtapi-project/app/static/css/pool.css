@@ -1405,40 +1405,58 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 6px;
 }
 
 .pool-sequence-opts {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  flex: 1;
+  gap: 4px 8px;
+  flex: 1 1 100%;
   min-width: 0;
 }
 
 .pool-opt-label {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   font-size: 0.75rem;
   color: var(--text-muted);
   margin: 0;
   white-space: nowrap;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .pool-opt-label select {
   width: auto;
-  min-width: 90px;
-  padding: 6px 8px;
-  font-size: 0.78rem;
+  min-width: 0;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 4px 22px 4px 6px;
+  font-size: 0.75rem;
+}
+
+/* Checkbox items inside the sequence option flows: keep box + text glued
+   as one unit so rows wrap only between controls, never inside a control. */
+.pool-sequence-opts .checkbox-label,
+.seq-clip-settings .checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin: 0;
+  flex: 0 1 auto;
 }
 
 .pool-out-row {
-  flex: 1;
-  min-width: 160px;
-  max-width: 360px;
+  flex: 1 1 240px;
+  min-width: 180px;
+  max-width: 100%;
 }
 
 .pool-out-row input {
@@ -2497,8 +2515,8 @@ body.pool-resizing video {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 12px;
-  padding: 6px 8px;
+  gap: 4px 8px;
+  padding: 4px 6px;
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-md);
   background: rgba(59, 130, 246, 0.06);

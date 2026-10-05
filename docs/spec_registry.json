@@ -10,8 +10,15 @@
     "file": "audio-analysis-spec.md",
     "path": "docs/audio-analysis-spec.md",
     "category": "Core Architecture",
-    "status": "Proposed",
-    "summary": "Advanced audio analysis pipeline extracting Transients, BPM, Key, and generating MIDI using Spotify Basic Pitch, Aubio, Essentia, and Madmom."
+    "status": "Superseded by media-catalog-spec.md",
+    "summary": "Advanced audio analysis pipeline extracting Transients, BPM, Key, and generating MIDI using Spotify Basic Pitch, Aubio, Essentia, and Madmom. Engine stack and MIDI/transients design absorbed into media-catalog-spec.md §3/§7/§8; op id audio-analyze retired."
+  },
+  {
+    "file": "audio-quarry-spec.md",
+    "path": "docs/audio-quarry-spec.md",
+    "category": "Spec - Catalog",
+    "status": "Superseded by media-catalog-spec.md",
+    "summary": "Audio-only SQLite catalog (audio_catalog.db), directory scan, BPM/key/beats/onsets, .json/.mid sidecars, 3-phase scan/stems/slice design. Phase 1 absorbed into media-catalog-spec.md; Phases 2-3 parked (Stems tab ships)."
   },
   {
     "file": "automation-spec-legacy.md",
@@ -24,8 +31,8 @@
     "file": "analyzetag-spec.md",
     "path": "docs/backlog/analyzetag-spec.md",
     "category": "Backlog - Operation",
-    "status": "DRAFT",
-    "summary": "**Author:** m (Max) via Sprinter"
+    "status": "Superseded by media-catalog-spec.md",
+    "summary": "**Author:** m (Max) via Sprinter. File-or-directory key/BPM scan absorbed into media-catalog-spec.md §7/§10/§13; downloadable report replaced by .json sidecar."
   },
   {
     "file": "ascii-spec.md",
@@ -299,6 +306,13 @@
     "category": "Spec - Infrastructure",
     "status": "Spec only",
     "summary": "Serial FIFO queue of op payloads; Jobs tab; reuse REGISTRY/run_registered_op; one runner with job_control."
+  },
+  {
+    "file": "media-catalog-spec.md",
+    "path": "docs/media-catalog-spec.md",
+    "category": "Spec - Catalog",
+    "status": "Proposed",
+    "summary": "Master v2 unifying audio-quarry (catalog/DB), audio-analysis (Essentia/Madmom/Aubio/Basic Pitch engines), analyzetag (directory key/BPM scan). Unified audio/video/image SQLite DB, mine flag (dir rules + manual + generator auto-derive), auto-index on scan/yt-dlp/generator/pool-import, Media Catalog tab + pool is:mine tokens."
   },
   {
     "file": "media-persistence-spec.md",
