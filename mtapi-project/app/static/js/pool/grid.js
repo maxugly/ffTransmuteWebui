@@ -395,7 +395,115 @@ function poolItemSearchText(item) {
     m.audio_codec,
     m.width && m.height ? `${m.width}x${m.height}` : '',
     m.fps != null ? String(m.fps) : '',
+    // Provenance vocabulary — so bare words fuzzy-match too (spec §11.3)
+    sm.origin || '',
+    sm.is_mine ? 'mine' : '',
+    sm.made_by_me ? 'handmade hand drawn recorded composed' : '',
+    sm.ai_involved ? 'ai generated animated' : '',
   ].filter(Boolean).join(' ');
+}
+
+/* ── Structured query tokens (spec §11.3) ─────────────────────────────────
+ * is:mine · is:hand · is:ai · origin:generated|web|import · site:<name> ·
+ * is:youtube · after:<YYYY-MM-DD> · before:<YYYY-MM-DD> · key:<C major|Cmaj|C> ·
+ * bpm:<90-95|128>
+ * Tokens are stripped from the query before fuzzy/strict matching; the rest of
+ * the text still matches poolItemSearchText(). Unknown tokens stay in the text
+ * so a stray colon never silently swallows a search. */
+
+const TOKEN_RE = /^(is|origin|site|after|before|key|bpm):(.+)$/i;
+
+function _normalizeKeyToken(raw) {
+  const v = String(raw || '').trim().toLowerCase();
+  if (!v) return null;
+  // Mirror of the server table (routes/media_catalog.py::_build_canonical_keys):
+  // major aliases '', 'maj', 'major'; minor aliases 'm', 'min', 'minor';
+  // each accepted with or without a space. One table, one truth.
+  const tonics = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb',
+                  'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B'];
+  const forms = [];
+  for (const tonic of tonics) {
+    const t = tonic.toLowerCase();
+    for (const alias of ['', 'maj', 'major']) {
+      forms.push([`${t}${alias}`, `${tonic} major`]);
+      if (alias) forms.push([`${t} ${alias}`, `${tonic} major`]);
+    }
+    for (const alias of ['m', 'min', 'minor']) {
+      forms.push([`${t}${alias}`, `${tonic} minor`]);
+      forms.push([`${t} ${alias}`, `${tonic} minor`]);
+    }
+  }
+  for (const [form, canonical] of forms) {
+    if (form === v) return canonical;
+  }
+  return null;
+}
+
+function _itemKey(item) {
+  const k = item.source_meta?.key_name || item.key_name || '';
+  return String(k).trim().toLowerCase();
+}
+
+function _matchProvenanceToken(item, key, value) {
+  const sm = item.source_meta || {};
+  const v = value.trim().toLowerCase();
+  switch (key.toLowerCase()) {
+    case 'is':
+      if (v === 'mine') return sm.is_mine === true;
+      if (v === 'hand' || v === 'handmade') return sm.made_by_me === true;
+      if (v === 'ai') return sm.ai_involved === true;
+      if (v === 'youtube') return sm.is_youtube === true;
+      if (v === 'web') return sm.site != null || sm.is_youtube === true;
+      if (v === 'generated') return sm.origin === 'generated';
+      return true; // unknown is:* token → not a filter
+    case 'origin':
+      return String(sm.origin || '').toLowerCase() === v;
+    case 'site':
+      return String(sm.site || '').toLowerCase() === v;
+    case 'after': {
+      const d = String(sm.publish_date || '');
+      return !!d && d >= v;
+    }
+    case 'before': {
+      const d = String(sm.publish_date || '');
+      return !!d && d <= v;
+    }
+    case 'key': {
+      const canonical = _normalizeKeyToken(value);
+      if (!canonical) return true;
+      return _itemKey(item) === canonical.toLowerCase();
+    }
+    case 'bpm': {
+      const tempo = item.tempo != null ? Number(item.tempo) : (item.source_meta?.tempo != null ? Number(item.source_meta.tempo) : null);
+      if (tempo == null || Number.isNaN(tempo)) return false;
+      const range = String(value).split('-');
+      if (range.length === 2) {
+        const lo = Number(range[0]);
+        const hi = Number(range[1]);
+        if (Number.isNaN(lo) || Number.isNaN(hi)) return true;
+        return tempo >= lo && tempo <= hi;
+      }
+      const exact = Number(value);
+      if (Number.isNaN(exact)) return true;
+      // Tempo filters should be forgiving: 128 matches 128.4, not 128.44.
+      return Math.abs(tempo - exact) < 1;
+    }
+    default:
+      return true;
+  }
+}
+
+/** Split a query into structured tokens + leftover free text. */
+function parsePoolQuery(query) {
+  const tokens = [];
+  const words = [];
+  for (const raw of String(query || '').trim().split(/\s+/)) {
+    if (!raw) continue;
+    const m = TOKEN_RE.exec(raw);
+    if (m) tokens.push([m[1].toLowerCase(), m[2]]);
+    else words.push(raw);
+  }
+  return { tokens, text: words.join(' ') };
 }
 
 function _sortPoolItems(items, order) {
@@ -464,18 +572,23 @@ function filteredPoolItems() {
   const q = String(state.pool.filterQuery || '').trim();
   const items = state.pool.items || [];
   let result = items;
-  if (q) {
+  const { tokens, text } = parsePoolQuery(q);
+  if (tokens.length) {
+    result = result.filter((it) => tokens.every(([k, v]) => _matchProvenanceToken(it, k, v)));
+  }
+  const needle = text.trim();
+  if (needle) {
     const mode = state.pool.searchMode === 'strict' ? 'strict' : 'fuzzy';
     if (mode === 'strict') {
-      const needle = q.toLowerCase();
-      result = items.filter((it) => {
+      const lower = needle.toLowerCase();
+      result = result.filter((it) => {
         if (!it._searchString) {
           try { globalMediaIndex.refreshSearchString(it); } catch (_) { /* ignore */ }
         }
-        return String(it._searchString || poolItemSearchText(it).toLowerCase()).includes(needle);
+        return String(it._searchString || poolItemSearchText(it).toLowerCase()).includes(lower);
       });
     } else {
-      result = items.filter((it) => fuzzyMatch(q, poolItemSearchText(it)));
+      result = result.filter((it) => fuzzyMatch(needle, poolItemSearchText(it)));
     }
   }
   return _sortPoolItems(result, state.pool.sortOrder);
@@ -1712,4 +1825,5 @@ export {
   renderPoolForm, renderSequenceForm, renderPoolGrid, sequencePositions,
   showClipInfoOverlay, runPoolMatch, renderMatchResults,
   filteredPoolItems, ensureSelectedPaths, updateCatalogStatus, metadataUnavailableHtml,
+  parsePoolQuery, _normalizeKeyToken, _matchProvenanceToken,
 };

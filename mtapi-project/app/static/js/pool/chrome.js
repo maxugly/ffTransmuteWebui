@@ -208,6 +208,12 @@ function showPoolContextMenu(x, y, path) {
     <button type="button" class="pool-ctx-item" data-act="preview">Preview</button>
     ${hasComments ? `<button type="button" class="pool-ctx-item" data-act="view_comments">💬 View Comments…</button>` : ''}
     <div class="pool-ctx-sep"></div>
+    <button type="button" class="pool-ctx-item" data-act="prov_mine">✦ Toggle mine</button>
+    <button type="button" class="pool-ctx-item" data-act="prov_hand">Toggle made-by-me</button>
+    <button type="button" class="pool-ctx-item" data-act="prov_ai">Toggle AI-involved</button>
+    <button type="button" class="pool-ctx-item pool-ctx-muted" data-act="prov_clear">Clear provenance…</button>
+    <button type="button" class="pool-ctx-item pool-ctx-muted" data-act="prov_undo">Undo last provenance change</button>
+    <div class="pool-ctx-sep"></div>
     <button type="button" class="pool-ctx-item" data-act="save_first_png">Save first frame PNG…</button>
     <button type="button" class="pool-ctx-item" data-act="save_last_png">Save last frame PNG…</button>
     <div class="pool-ctx-sep"></div>
@@ -228,7 +234,7 @@ function showPoolContextMenu(x, y, path) {
   menu.style.top = `${top}px`;
 
   menu.querySelectorAll('.pool-ctx-item').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const act = btn.dataset.act;
       hidePoolContextMenu();
@@ -265,6 +271,21 @@ function showPoolContextMenu(x, y, path) {
         case 'quick':
           runQuickTransmute(path);
           break;
+        case 'prov_mine':
+        case 'prov_hand':
+        case 'prov_ai':
+        case 'prov_clear':
+        case 'prov_undo': {
+          const prov = await import('/js/pool/provenance.js');
+          const item = prov.findAnyPoolItem(path);
+          const sm = item?.source_meta || {};
+          const bit = act === 'prov_mine' ? 'is_mine' : (act === 'prov_hand' ? 'made_by_me' : 'ai_involved');
+          if (act === 'prov_clear') await prov.clearProvenance(path);
+          else if (act === 'prov_undo') await prov.undoLastProvenance(path);
+          else await prov.setProvenance(path, { [bit]: !sm[bit] });
+          try { await import('/js/pool/grid.js').then((m) => m.renderPoolGrid?.()); } catch (_) { /* ignore */ }
+          break;
+        }
         default:
           logConsole(`[POOL]: Unknown pool action: ${act}`, 'error');
       }

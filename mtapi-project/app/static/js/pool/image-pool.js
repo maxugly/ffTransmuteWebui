@@ -264,6 +264,13 @@ function addPathsToImagePool(paths) {
   if (newPaths.length > 0 && state.settings?.autoAddToSequence) {
     try { addPathsToSequence(newPaths); } catch (_) { /* sequence render must not break import */ }
   }
+  if (newPaths.length > 0) {
+    try {
+      import('/js/pool/auto-catalog.js').then((m) => {
+        try { m.maybeAutoCatalogForImport(newPaths); } catch (_) { /* ignore */ }
+      }).catch(() => {});
+    } catch (_) { /* catalog indexing must not break import */ }
+  }
   return { added, firstNew };
 }
 

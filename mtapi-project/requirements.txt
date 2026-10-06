@@ -29,3 +29,13 @@ optimum[openvino]>=1.20.0
 diffusers>=0.27.0
 # Music tab (server side: WAV peak read only; the runner executes in the ACE env)
 soundfile
+
+# Media Catalog key/tempo analysis (Scan slice): Essentia key + RhythmExtractor2013 tempo.
+# Installs as a single wheel with no dependency churn on this box (numpy/openvino/torch untouched).
+essentia>=2.1b6
+
+# Media Catalog Slice 4: tempo-map MIDI sidecar (mido). Essentia already covers
+# key/tempo/beats/onsets, so madmom (unbuildable here: missing Cython build dep +
+# numpy<2 pin) and basic-pitch (would downgrade tensorflow 2.21 -> 2.15 and break the
+# styletransfer Magenta path) are deliberately NOT installed.
+mido>=1.3

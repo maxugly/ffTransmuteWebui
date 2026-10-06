@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "global_frame_peek": True,
     "frame_peek_size": "M",
     "warm_models": {"deepdream": False, "styletransfer": False, "fastsam": False},
+    "owned_dirs": [],
+    "catalog_auto_index": True,
 }
 _settings_lock = asyncio.Lock()
 _settings_cache: tuple[float, dict[str, Any]] | None = None
@@ -50,6 +53,24 @@ def _normalize_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
     except (TypeError, ValueError):
         vfr_fps = DEFAULT_SETTINGS["vfr_cfr_fps"]
     vfr_fps = 0 if vfr_fps <= 0 else max(1, min(240, vfr_fps))
+
+    owned_raw = raw.get("owned_dirs")
+    owned_dirs: list[str] = []
+    if isinstance(owned_raw, list):
+        seen = set()
+        for entry in owned_raw:
+            if not isinstance(entry, str):
+                continue
+            expanded = os.path.expanduser(entry)
+            if not os.path.isabs(expanded):
+                continue
+            if expanded in seen:
+                continue
+            seen.add(expanded)
+            owned_dirs.append(expanded)
+            if len(owned_dirs) >= 256:
+                break
+
     return {
         "thumbnail_size": normalize_thumb_size(raw.get("thumbnail_size", "H")),
         "thumbnails_to_ram": bool(raw.get("thumbnails_to_ram", False)),
@@ -73,6 +94,8 @@ def _normalize_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
             name: bool(warm.get(name, False))
             for name in ("deepdream", "styletransfer", "fastsam")
         },
+        "owned_dirs": owned_dirs,
+        "catalog_auto_index": bool(raw.get("catalog_auto_index", True)),
     }
 
 

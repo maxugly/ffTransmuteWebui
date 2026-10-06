@@ -41,4 +41,5 @@ from . import (  # noqa: F401
     demucs_ops,
     music_ops,
     ytdlp_ops,
+    media_catalog_ops,
 )

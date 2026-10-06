@@ -223,10 +223,12 @@ def _normalize_source_meta(raw: Any) -> dict[str, Any] | None:
     str_keys = (
         "source", "site", "video_id", "title", "author", "channel",
         "channel_id", "publish_date", "source_url", "description_snippet",
-        "info_json_path", "comments_json_path",
+        "info_json_path", "comments_json_path", "origin", "key_name",
     )
     int_keys = ("view_count", "like_count", "comment_count")
-    bool_keys = ("is_youtube", "has_live_chat", "has_comments")
+    bool_keys = ("is_youtube", "has_live_chat", "has_comments",
+                 "is_mine", "made_by_me", "ai_involved")
+    float_keys = ("tempo", "tempo_conf")
     out: dict[str, Any] = {}
     for k in str_keys:
         val = raw.get(k)
@@ -239,6 +241,10 @@ def _normalize_source_meta(raw: Any) -> dict[str, Any] | None:
     for k in bool_keys:
         if k in raw and raw[k] is not None:
             out[k] = bool(raw[k])
+    for k in float_keys:
+        val = _opt_float(raw.get(k))
+        if val is not None:
+            out[k] = val
     tags = raw.get("tags")
     if isinstance(tags, list):
         out["tags"] = [str(t).strip() for t in tags if str(t).strip()][:50]

@@ -158,3 +158,46 @@ body.settings-tab-active .tool-input-preview {
 .settings-switch-row input:checked + .settings-switch { background: #2563eb; border-color: #60a5fa; box-shadow: 0 0 12px #2563eb66; }
 .settings-switch-row input:checked + .settings-switch::after { transform: translateX(19px); background: #fff; }
 .settings-switch-row input:focus-visible + .settings-switch { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+/* Media Catalog — Owned directories */
+.settings-mediacatalog {
+  grid-column: 1 / -1;
+}
+.settings-owned-dirs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+.settings-owned-dir-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--panel-border, rgba(255, 255, 255, 0.06));
+  border-radius: 8px;
+  min-height: 36px;
+}
+.settings-owned-dir-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.75rem;
+  color: var(--text, #e8eef8);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.settings-owned-dir-remove {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 0.85rem;
+  line-height: 1;
+  border-radius: 6px;
+}
+.settings-owned-dirs-add {
+  margin-top: 4px;
+}

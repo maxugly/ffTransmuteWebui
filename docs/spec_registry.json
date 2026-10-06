@@ -593,5 +593,41 @@
     "category": "Frontend / Media integrity",
     "status": "Spec ready, not started",
     "summary": "Builder prompt + spec for the VFR warning. The client already holds fps and fps_avg for every probed clip, so the badge costs zero extra requests; the blocker is that fps_avg is dropped on save by META_KEYS (js/pool/persistence.js) and _META_FLOAT_KEYS (app/media/pool.py), and restore never re-probes. Also documents a confirmed silent A/V desync: video is trimmed frame-exact (select=between(n,..)) while audio is trimmed by n0/fps at the nominal rate, so a VFR cut with sound is off by seconds."
+  },
+  {
+    "file": "pix2pix-openvino-spec.md",
+    "path": "docs/pix2pix-openvino-spec.md",
+    "category": "Operation",
+    "status": "Draft / Spec ready",
+    "summary": "pix2pix conditional GAN image-to-image translation running on Intel iGPU via OpenVINO. U-Net/ResNet generator, preset models (edges2shoes, facades, day2night, custom), staged frame pipeline with blend interpolation."
+  },
+  {
+    "file": "realesrgan-openvino-spec.md",
+    "path": "docs/realesrgan-openvino-spec.md",
+    "category": "Operation",
+    "status": "Draft / Spec ready",
+    "summary": "Real-ESRGAN super-resolution running natively on Intel iGPU via OpenVINO IR, replacing NCNN Vulkan with up to 5x throughput. Dynamic shape inference up to 1280px and seamless tiled processing for 4K+."
+  },
+  {
+    "file": "deblurgan-v2-openvino-spec.md",
+    "path": "docs/deblurgan-v2-openvino-spec.md",
+    "category": "Operation",
+    "status": "Draft / Spec ready",
+    "summary": "DeblurGAN-v2 real-time motion and defocus deblurring on Intel iGPU via OpenVINO. Lightweight FPN generator with MobileNet-v2 (fast) or Inception-ResNet-v2 (quality), frame-by-frame video processing."
+  },
+  {
+    "file": "codeformer-openvino-spec.md",
+    "path": "docs/codeformer-openvino-spec.md",
+    "category": "Operation",
+    "status": "Draft / Spec ready",
+    "summary": "CodeFormer blind face restoration using discrete codebook priors on Intel iGPU via OpenVINO. Face detection, 512x512 alignment, controllable fidelity weight w (0.0-1.0), and inverse affine feathered blending."
+  },
+  {
+    "file": "erase-deepfill-context-spec.md",
+    "path": "docs/erase-deepfill-context-spec.md",
+    "category": "Operation",
+    "status": "Draft / Spec ready",
+    "summary": "DeepFill v1/v2 (Gated Convolutions) and Context Encoders inpainting model backends for the Erase tab alongside LaMa. Native FP16 on Intel iGPU, reusing canvas mask and iopaint HD strategies."
   }
 ]
+

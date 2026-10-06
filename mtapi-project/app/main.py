@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import shutil
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -50,6 +51,53 @@ def _read_project_version() -> str:
     return "000.000.0.00"
 
 
+async def _startup_body() -> None:
+    from .media.catalog import CatalogLockHeld, get_catalog
+    try:
+        await get_catalog().startup()
+    except CatalogLockHeld as e:
+        log.error("mtapi startup: %s", e)
+        raise SystemExit(2) from e
+    for w in check_tools():
+        log.warning("mtapi startup: %s", w)
+    from . import job_queue
+    job_queue.start_worker()
+    # Load API keys from ~/.secrets (names only logged)
+    try:
+        from .agents.secrets import load_secrets, secrets_path
+        names = load_secrets()
+        sp = secrets_path()
+        if sp:
+            log.info(
+                "mtapi startup: loaded %d secret key name(s) from %s",
+                len(names), sp,
+            )
+        else:
+            log.info("mtapi startup: no ~/.secrets file found")
+    except Exception as e:
+        log.warning("mtapi startup: secrets load failed: %s", e)
+
+
+async def _shutdown_body() -> None:
+    from .media.catalog import get_catalog
+    try:
+        await get_catalog().shutdown()
+    except Exception as e:
+        log.warning("mtapi shutdown: catalog cleanup failed: %s", e)
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    # `on_event` is deprecated in Starlette/FastAPI; lifespan is the supported
+    # path (invariant 13 — migrate the moment the warning appears). Bodies stay
+    # importable coroutines so tests can await them directly.
+    await _startup_body()
+    try:
+        yield
+    finally:
+        await _shutdown_body()
+
+
 app = FastAPI(
     title="multitool API",
     description=(
@@ -61,6 +109,7 @@ app = FastAPI(
         "Don't expose it past localhost/your LAN without adding auth and path checks."
     ),
     version=_read_project_version(),
+    lifespan=_lifespan,
 )
 
 # Allow CORS for ease of local testing
@@ -249,6 +298,9 @@ music.register(app)
 from .routes import lineage
 lineage.register(app)
 
+from .routes import media_catalog
+media_catalog.register(app)
+
 from .routes import ytdlp
 ytdlp.register(app)
 
@@ -301,39 +353,3 @@ for _spec in REGISTRY.values():
 from .routes import meta
 meta.register(app, folder_watcher=folder_watcher, job_control=job_control,
               check_tools=check_tools, REGISTRY=REGISTRY)
-
-@app.on_event("startup")
-async def _warn_on_missing_tools() -> None:
-    from .media.catalog import CatalogLockHeld, get_catalog
-    try:
-        await get_catalog().startup()
-    except CatalogLockHeld as e:
-        log.error("mtapi startup: %s", e)
-        raise SystemExit(2) from e
-    for w in check_tools():
-        log.warning("mtapi startup: %s", w)
-    from . import job_queue
-    job_queue.start_worker()
-    # Load API keys from ~/.secrets (names only logged)
-    try:
-        from .agents.secrets import load_secrets, secrets_path
-        names = load_secrets()
-        sp = secrets_path()
-        if sp:
-            log.info(
-                "mtapi startup: loaded %d secret key name(s) from %s",
-                len(names), sp,
-            )
-        else:
-            log.info("mtapi startup: no ~/.secrets file found")
-    except Exception as e:
-        log.warning("mtapi startup: secrets load failed: %s", e)
-
-
-@app.on_event("shutdown")
-async def _catalog_shutdown() -> None:
-    from .media.catalog import get_catalog
-    try:
-        await get_catalog().shutdown()
-    except Exception as e:
-        log.warning("mtapi shutdown: catalog cleanup failed: %s", e)

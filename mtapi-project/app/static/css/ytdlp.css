@@ -315,6 +315,55 @@
   letter-spacing: 0.3px;
 }
 
+/* Media Catalog provenance badges (spec §11.4) */
+.pool-provenance-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 2px 0 3px;
+}
+
+.pool-provenance-badges > span {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.pool-badge-mine {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+
+.pool-badge-hand {
+  background: rgba(34, 197, 94, 0.16);
+  border-color: #22c55e;
+  color: #86efac;
+}
+
+.pool-badge-ai {
+  background: rgba(168, 85, 247, 0.18);
+  border-color: #a855f7;
+  color: #d8b4fe;
+}
+
+.pool-badge-gen {
+  background: rgba(59, 130, 246, 0.16);
+  border-color: #3b82f6;
+  color: #93c5fd;
+}
+
+.pool-badge-musical {
+  background: rgba(20, 184, 166, 0.16);
+  border-color: #14b8a6;
+  color: #5eead4;
+}
+
 .pool-source-yt .pool-source-pill {
   background: #dc2626;
   color: #fff;

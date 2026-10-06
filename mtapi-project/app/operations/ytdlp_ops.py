@@ -564,6 +564,35 @@ async def ytdlp_download(params: YtdlpParams) -> OperationResult:
 
         source_meta = _construct_source_meta(info_dict, params.url, chosen_media, params)
 
+        # Media Catalog harvest (spec §5 path 2): the downloaded file becomes a
+        # catalog row with web provenance. Craft bits stay 0 — downloading is
+        # neither authorship nor "AI I ran". Never fatal.
+        if chosen_media:
+            try:
+                from ..database import audio_db
+                from ..media.performance import load_settings
+                from ..routes.media_catalog import _is_video_file, _is_image_file
+
+                owned = load_settings().get("owned_dirs") or []
+                audio_db.catalog_upsert(
+                    str(chosen_media),
+                    origin="web",
+                    web_fields={
+                        "site": source_meta.get("site"),
+                        "is_youtube": source_meta.get("is_youtube"),
+                        "author": source_meta.get("author") or source_meta.get("channel"),
+                        "source_url": source_meta.get("source_url"),
+                        "video_id": source_meta.get("video_id"),
+                        "publish_date": source_meta.get("publish_date"),
+                    },
+                    owned_dirs=list(owned),
+                    status="pending",
+                    is_video_fn=_is_video_file,
+                    is_image_fn=_is_image_file,
+                )
+            except Exception as e:  # catalog is an index, never a gate
+                log.warning("[media-catalog] harvest skipped: %s", e)
+
         report_progress("Download complete", phase="done", current=100, total=100, unit="%")
         elapsed = time.time() - t0
 

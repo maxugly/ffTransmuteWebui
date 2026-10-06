@@ -53,10 +53,11 @@ import { renderSkillsForm } from '/js/tabs/skills.js';
 import { renderScriptsForm } from '/js/tabs/scripts.js';
 import { renderWatermarkForm } from '/js/tabs/watermark.js';
 import { renderDemucsForm } from '/js/tabs/demucs.js';
+import { renderMediaCatalogForm } from '/js/tabs/mediacatalog.js';
 import { renderMusicForm } from '/js/tabs/music.js';
 import { renderEraseForm } from '/js/tabs/erase.js';
 import { renderStableFluidsForm } from '/js/tabs/stablefluids.js';
-import { renderSettingsForm, applyUiTweaks, readStoredScrollbarWidth } from '/js/tabs/settings.js?v=2';
+import { renderSettingsForm, applyUiTweaks, readStoredScrollbarWidth } from '/js/tabs/settings.js?v=5';
 import { renderJobsForm, stopJobsPoll } from '/js/tabs/jobs.js';
 import { renderReferencesForm } from '/js/tabs/references.js?v=3';
 import { renderImageEditForm, collectImageEditBody } from '/js/tabs/imageedit.js';
@@ -324,6 +325,8 @@ const SETTINGS_DEFAULTS = {
   globalFramePeek: true,
   framePeekSize: 'M',
   warmModels: { deepdream: false, styletransfer: false, fastsam: false },
+  ownedDirs: [],
+  catalogAutoIndex: true,
 };
 
 function mapServerSettings(data) {
@@ -348,6 +351,8 @@ function mapServerSettings(data) {
   if (data.warm_models && typeof data.warm_models === 'object') {
     mapped.warmModels = { ...SETTINGS_DEFAULTS.warmModels, ...data.warm_models };
   }
+  if (Array.isArray(data.owned_dirs)) mapped.ownedDirs = data.owned_dirs.filter(s => typeof s === 'string' && s);
+  if (data.catalog_auto_index != null) mapped.catalogAutoIndex = !!data.catalog_auto_index;
   const idx = { L: 0, M: 1, H: 2 }[mapped.thumbnailSize];
   if (idx != null) mapped.thumbnailSizeIndex = idx;
   return mapped;
@@ -380,6 +385,7 @@ async function applySettingsPrecedence() {
       ...(server.warmModels || {}),
       ...(local.warmModels || {}),
     },
+    ownedDirs: Array.isArray(local.ownedDirs) ? local.ownedDirs : (Array.isArray(server.ownedDirs) ? server.ownedDirs : SETTINGS_DEFAULTS.ownedDirs),
   };
   if (state.settings.autoFirstLastMode !== 'sequence' && state.settings.autoFirstLastMode !== 'import') {
     state.settings.autoFirstLastMode = 'import';
@@ -1072,6 +1078,7 @@ function switchTab(tab) {
   if (tab === 'scripts') title = 'Script Runner';
   if (tab === 'watermark') title = 'Watermark · Clean';
   if (tab === 'demucs') title = 'Stems · Demucs separation';
+  if (tab === 'mediacatalog') title = 'Media Catalog';
   if (tab === 'music') title = 'Music · ACE-Step text-to-music';
   if (tab === 'erase') title = 'Erase · Clean';
   if (tab === 'settings') title = 'Settings';
@@ -1323,6 +1330,8 @@ function renderTabForm(tab) {
     renderWatermarkForm();
   } else if (tab === 'demucs') {
     renderDemucsForm();
+  } else if (tab === 'mediacatalog') {
+    renderMediaCatalogForm();
   } else if (tab === 'music') {
     renderMusicForm();
   } else if (tab === 'erase') {

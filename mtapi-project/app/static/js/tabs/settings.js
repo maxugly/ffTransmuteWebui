@@ -2,6 +2,7 @@
 import { state, elements } from '/app.js?v=2';
 import { setupContinuousKnob } from '/js/ui/knobs.js?v=6';
 import { normalizeSize, FRAME_WIDTHS, FRAME_SIZES, FRAME_SIZE_LABELS } from '/js/media-urls.js?v=2';
+import { escapeHtml } from '/js/utils.js';
 
 const SIZE_LABELS = ['L', 'M', 'H'];
 /** Readout for the Frame peek size knob — the words plus the real pixel width. */
@@ -77,6 +78,8 @@ function settingsSnapshot() {
     globalFramePeek: state.settings.globalFramePeek !== false,
     framePeekSize: normalizeSize(state.settings.framePeekSize, 'M'),
     warmModels: { ...(state.settings.warmModels || {}) },
+    ownedDirs: Array.isArray(state.settings.ownedDirs) ? state.settings.ownedDirs.filter(s => typeof s === 'string' && s) : [],
+    catalogAutoIndex: state.settings.catalogAutoIndex !== false,
   };
 }
 
@@ -111,6 +114,8 @@ async function saveSettings(patch = {}) {
         global_frame_peek: payload.globalFramePeek,
         frame_peek_size: payload.framePeekSize,
         warm_models: payload.warmModels,
+        owned_dirs: payload.ownedDirs,
+        catalog_auto_index: payload.catalogAutoIndex,
       }),
     });
   } catch (_) { /* localStorage remains authoritative for the browser */ }
@@ -148,9 +153,33 @@ export function renderSettingsForm() {
   state.settings.framePeekSize = peekSize;
   const peekSizeIndex = Math.max(0, FRAME_SIZES.indexOf(peekSize));
   const warm = state.settings.warmModels || {};
+  const ownedDirs = Array.isArray(state.settings.ownedDirs) ? state.settings.ownedDirs : [];
   elements.actionPanel.innerHTML = `
     <div class="settings-workspace" id="settingsWorkspace">
       <p class="settings-lede">Performance controls are stored locally and mirrored to the media server.</p>
+      <section class="settings-card settings-mediacatalog" aria-labelledby="settingsMediaCatalogTitle">
+        <div class="settings-card-head">
+          <span class="settings-card-kicker">Media</span>
+          <h4 class="settings-card-name" id="settingsMediaCatalogTitle">Media Catalog</h4>
+        </div>
+        <p class="settings-card-desc" data-help-title="Owned directories" data-help-text="Folders you consider 'yours'. Any media file found under these paths gets the ✦ mine badge automatically. Craft bits (HAND / AI) are set manually in the pool or Catalog tab.">Owned directories mark files as <strong>mine</strong> on ingest (badge ✦). Craft bits <strong>HAND</strong> (made by me) and <strong>AI</strong> (AI involved) are set manually per item.</p>
+        <div class="settings-autofl-sub" id="settingsCatalogAutoIndexSub" ${state.settings.catalogAutoIndex !== false ? '' : 'hidden'}>
+          ${switchHtml('settingsCatalogAutoIndex', 'Auto-index imports', state.settings.catalogAutoIndex !== false)}
+        </div>
+        <div class="settings-owned-dirs" id="settingsOwnedDirsList">
+          ${ownedDirs.length === 0
+            ? '<p class="settings-card-desc" style="opacity:.7">No directories configured.</p>'
+            : ownedDirs.map((d, i) => `
+                <div class="settings-owned-dir-row" data-index="${i}">
+                  <span class="settings-owned-dir-path" title="${escapeHtml(d)}">${escapeHtml(d)}</span>
+                  <button type="button" class="btn btn-sm settings-owned-dir-remove" data-index="${i}" data-help-title="Remove owned directory" data-help-text="Removes this folder from the owned-directories list. Files already marked mine by this rule keep the badge; re-scan will not re-apply it.">✕</button>
+                </div>
+              `).join('')}
+        </div>
+        <div class="settings-owned-dirs-add">
+          <button type="button" class="btn" id="btnAddOwnedDir" data-help-title="Add owned directory" data-help-text="Opens a folder picker. The chosen directory is added to the list and saved. Cap: 256 entries.">+ Add directory</button>
+        </div>
+      </section>
       <section class="settings-card settings-import" aria-labelledby="settingsImportTitle">
         <div class="settings-card-head">
           <span class="settings-card-kicker">Media</span>
@@ -332,6 +361,7 @@ export function renderSettingsForm() {
   bindSwitch('settingsAutoSeq', 'autoAddToSequence');
   bindSwitch('settingsMuteVideos', 'muteVideos');
   bindSwitch('settingsGlobalFramePeek', 'globalFramePeek');
+  bindSwitch('settingsCatalogAutoIndex', 'catalogAutoIndex');
   document.getElementById('settingsAutoFL')?.addEventListener('change', (e) => {
     saveSettings({ autoFirstLast: e.target.checked });
     document.getElementById('settingsAutoFLSub')?.toggleAttribute('hidden', !e.target.checked);
@@ -402,6 +432,40 @@ export function renderSettingsForm() {
   document.getElementById('settingsWarmDeepdream')?.addEventListener('change', e => saveSettings({ warmModels: { deepdream: e.target.checked } }));
   document.getElementById('settingsWarmStyle')?.addEventListener('change', e => saveSettings({ warmModels: { styletransfer: e.target.checked } }));
   document.getElementById('settingsWarmFastsam')?.addEventListener('change', e => saveSettings({ warmModels: { fastsam: e.target.checked } }));
+
+  // Media Catalog — Owned directories
+  document.getElementById('btnAddOwnedDir')?.addEventListener('click', async () => {
+    try {
+      const res = await fetch('/api/picker?mode=dir');
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      const path = data.path;
+      if (!path) return;
+      const absPath = path.trim();
+      const current = Array.isArray(state.settings.ownedDirs) ? [...state.settings.ownedDirs] : [];
+      if (current.includes(absPath)) return;
+      if (current.length >= 256) {
+        alert('Maximum of 256 owned directories reached.');
+        return;
+      }
+      const updated = [...current, absPath];
+      await saveSettings({ ownedDirs: updated });
+      renderSettingsForm();  // list is server-owned state — repaint, never lie
+    } catch (err) {
+      console.error('[Media Catalog] Add owned dir failed:', err);
+    }
+  });
+
+  document.getElementById('settingsOwnedDirsList')?.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.settings-owned-dir-remove');
+    if (!btn) return;
+    const idx = Number(btn.dataset.index);
+    if (!Number.isFinite(idx)) return;
+    const current = Array.isArray(state.settings.ownedDirs) ? [...state.settings.ownedDirs] : [];
+    current.splice(idx, 1);
+    await saveSettings({ ownedDirs: current });
+    renderSettingsForm();  // the row is gone server-side; the list must follow
+  });
 }
 
 export { saveSettings, applyUiTweaks, clampScrollbarWidth, readStoredScrollbarWidth };

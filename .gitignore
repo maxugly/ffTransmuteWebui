@@ -97,3 +97,8 @@ mtapi-project/tools/gemini-watermark-remover/build.js
 mtapi-project/tools/gemini-watermark-remover/package-lock.json
 mtapi-project/tools/gemini-watermark-remover/pnpm-lock.yaml
 mtapi-project/tools/gemini-watermark-remover/pnpm-workspace.yaml
+
+# Isolated Media Catalog analysis venvs (Slice 7) — rebuilt by scripts/setup_audio_venvs.sh,
+# never committed (they pin old numpy / old TensorFlow on purpose).
+.venv-audio/
+.venv-audio-legacy/

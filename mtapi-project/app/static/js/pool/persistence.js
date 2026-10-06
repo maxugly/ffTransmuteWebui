@@ -10,6 +10,7 @@ import { ensureTileInfo } from '/app.js?v=2';
 import { basename, escapeHtml, formatDurationExact } from '/js/utils.js';
 import { displayOpResult, runOpWithCancel, isMainJobBusy } from '/js/job-control.js';
 import { POOL_ZOOM, POOL_LAYOUT_DEFAULTS } from '/js/pool/constants.js';
+import { provenanceBadgesHtml } from '/js/pool/provenance.js';
 import { getTabRoot, mountedTabRoots, isCachedTab } from '/js/pool/tab-roots.js';
 
 let _poolSeqId = 1;
@@ -1248,6 +1249,10 @@ function buildPoolMetaHtml(item) {
 
   const parts = [];
   const sm = item.source_meta;
+  {
+    const provHtml = provenanceBadgesHtml(item);
+    if (provHtml) parts.push(provHtml);
+  }
   if (sm) {
     const siteLabel = sm.site ? sm.site.toUpperCase() : (sm.is_youtube ? 'YOUTUBE' : 'WEB');
     const authorStr = sm.author || sm.channel || '';

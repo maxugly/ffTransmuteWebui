@@ -234,6 +234,13 @@ async function addPathsToPool(paths) {
       }).catch(() => {});
     } catch (_) { /* auto F/L must not break import */ }
   }
+  if (newPaths.length > 0) {
+    try {
+      import('/js/pool/auto-catalog.js').then((m) => {
+        try { m.maybeAutoCatalogForImport(newPaths); } catch (_) { /* ignore */ }
+      }).catch(() => {});
+    } catch (_) { /* catalog indexing must not break import */ }
+  }
   return { added, firstNew };
 }
 

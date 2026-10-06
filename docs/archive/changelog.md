@@ -487,3 +487,319 @@ console errors); 261 pytest green (8 new `test_sequence_tags.py`). Caught live:
 stray braces from the transport edit broke the module graph in-browser while
 plain `node --check` stayed green — use `node --input-type=module --check`
 for ESM.
+
+---
+
+## Media Catalog Slices 1–2 (`8.119`)
+
+The music/media database arrives as two shipped slices against
+`docs/media-catalog-spec.md` (master v2, superseding `audio-quarry-spec.md`,
+`audio-analysis-spec.md`, `backlog/analyzetag-spec.md`).
+
+**Slice 1 — schema + settings.** `app/database/audio_db.py` rewritten from
+dead scaffold into the real unified catalog (`media` table over audio/video/
+image, provenance + web + analysis columns, 9 indexes, parked `stems`/`slices`
+DDL, new `provenance_log`). Provenance is `is_mine` plus the two orthogonal
+craft bits `made_by_me` and `ai_involved` — "AI-involved", never "AI-made", so
+hand-drawn-then-AI-animated keeps both facts and third-party AI downloads stay
+0/0. Write-time invariant `is_mine = is_mine OR made_by_me OR ai_involved` is
+enforced at the SQL boundary. Manual rows are never re-asserted by heuristics.
+New owned-dirs Settings card (first card) on the in-app folder picker, through
+the three-layer settings key pattern.
+
+**Slice 2 — ingest + mine plumbing.** `routes/media_catalog.py`
+(query/ingest/mark/undo/generated/status/history, failures HTTP 200 +
+`ok:false`), yt-dlp `origin='web'` harvest, generator `origin='generated'` +
+`✦ mine` + `AI` stamping fired before the auto-add gate, a delta-only
+`auto-catalog.js` pool-import hook for both pools, `source_meta` whitelist for
+`origin` + the three bits, the pool token grammar
+(`is:mine` `is:hand` `is:ai` `origin:` `site:` `is:youtube` `after:` `before:`
+`key:` `bpm:`), a confirm-gated provenance context menu with undo, and card
+badges.
+
+**Rev 3 safeguard** (user-requested): clearing provenance now asks first
+(house `confirm()`), and every triple write appends to `provenance_log`, so a
+bulk change can be undone as a batch (`POST /undo`) or per item; undo restores
+the pre-batch triple and never touches analysis columns.
+
+**Bugs found by testing, not reading:** owned-dirs list never repainted after
+save (UI lied while the server had changed); `path_is_owned` matched `/music2`
+against a rule for `/music`; re-upsert wiped web metadata; `undo_batch` logged
+nothing (identical old/new by construction); dir-rule never applied to
+existing rows; JS key table drifted from the server's (no-space `Amin`/
+`Cmajor`); `/ingest` returned counts so auto-indexed files couldn't know their
+own provenance.
+
+**Also:** `main.py` migrated off deprecated `on_event` onto `lifespan`
+(invariant 13); pytest warnings 5 → 1, remaining one third-party/test-only.
+
+40 new tests (`test_media_catalog.py`, `test_media_catalog_routes.py`,
+`test_media_catalog_tokens.py` — the last loads the real ESM grammar in Node so
+server and UI key tables cannot drift). Gate 5/5 (88 modules), 473 suite green,
+Playwright-proven on :24590 with real clicks.
+
+---
+
+## Media Catalog Slice 3 — scan op + key/tempo (`8.120`)
+
+The scanner stops being a skeleton. `essentia>=2.1b6` installs on this box as a
+single wheel with zero dependency churn — numpy 2.4.6, openvino 2026.3 and torch
+2.13 all untouched, so the OpenVINO work carries no risk from this.
+
+`audio_pipeline/scanner.py` is a real walker now: ffmpeg decodes any media file
+to a temporary 44.1 kHz mono wav through `shell.run_command` (argv list, never
+`shell=True`) — audio file or a video's audio track, one code path — then
+Essentia reads key and tempo. Engines are lazily imported, so neither server boot
+nor any unrelated request pays the load cost.
+
+`POST /ops/media_catalog_scan` scans a directory: per-item progress, a dry run
+that writes nothing, hash dedup so re-scanning an unchanged library is a no-op
+(`reanalyze` forces it), and the long-file guard from the analyzetag spec.
+
+**Tempo method was chosen by measurement, not taste.** On a generated C-major
+fixture at exactly 120 BPM: `degara` → 120.03 (0.02% error), `multifeature` →
+117.61 (~2% off) but the only one with a usable confidence. So `tempo` comes from
+degara, `tempo_conf` from multifeature (raw confidence is unbounded → clamped to
+0–1), with a >10% disagreement falling back to multifeature. Both raw estimates,
+the chosen source and the disagreement ratio land in `raw_metadata.tempo_alternates`
+and the sidecar, so disagreement stays visible rather than being averaged away.
+
+Beats and MIDI refuse loudly (`ok:false` naming Slice 4) instead of quietly
+producing nothing — a wrong beat grid is worse than no beat grid.
+
+Analysis now reaches the pool: `pool.py` grew a float path (`tempo`,
+`tempo_conf`) plus `key_name`, and the ingest hook mirrors key/tempo onto
+`source_meta`, so `key:`/`bpm:` tokens and the teal `key · BPM` chip work on any
+analysed file.
+
+Two bugs caught by tests: the op indexed each file (stamping `status='scanned'`)
+*before* asking whether it needed analysis, so every fresh row looked
+already-analysed and nothing was analysed; and the sidecar wrote SQLite `0/1`
+where it promised booleans.
+
+18 new tests assert against real ground truth (a generated C-major 120 BPM file
+must return `C major` within 1%), not mocks. Gate 5/5, 493 suite green. Live
+through the real HTTP op: `indexed=3 analyzed=3 unchanged=0 no_audio=0 errors=0`,
+`?key=Cmaj` returned exactly the C-major track at `tempo=120.03`, and Playwright
+confirmed `key:Cmaj`, `bpm:118-122` and `is:mine key:c major bpm:120` each select
+only the right card.
+
+**Also in Slice 3:** scans now sweep rows under the target directory whose file
+has vanished and mark them `status='missing'` instead of leaving them claiming
+`analyzed` forever — found live, after moving a fixture folder and seeing three
+ghost rows. Rows are never deleted (a mount may come back) and the sweep is
+scoped to the scanned directory, with tests for both the restore path and the
+cross-directory isolation. Suite now 495 green.
+
+---
+
+## Media Catalog Slice 5 — the Media Catalog tab (`8.121`)
+
+The payoff slice. New Library-section **Media Catalog** tab (`data-tab="mediacatalog"`):
+scan card (directory + in-app folder picker, Recursive, Re-analyze, four analysis
+toggles, long-file guard, Scan/Dry Run) driven through the standard job machinery
+so progress and cancel are free; an honest engine-status pill per analysis engine
+with the unwired ones' toggles disabled until installed; a facet sidebar (search,
+type, ✦ mine / HAND / AI / origin, 24-scale key dropdown, tempo min–max, site,
+status incl. `error` and `missing`); and a **virtualized** table — pad divs plus a
+windowed slice, server-side paging that loads more on scroll, per-row play/stop
+through the existing Range-capable `/api/video` route, inline audio player, ✦
+provenance, and `→I` send to Media In.
+
+Three bugs caught by clicking rather than reading:
+
+1. My own CSS wrote `.mc-dir-picker { flex: 1 1 320px }` inside a **column** flex
+   container, so `flex-basis` sized the *height* — the directory input rendered
+   320px tall. Measured live (input 320 / picker 320 / field 337) instead of
+   guessing, then dropped the shorthand.
+2. `→I` put a **directory** into the global Media In box, which then probed a
+   folder as media. Root cause was Slice 2's generator stamp running before the
+   media-type gates, so the scan op's directory `output_path` was stamped as a
+   generated *file* (`type=unknown, origin=generated`) and won the click. The
+   stamp now requires a real catalogable media path — audio extensions included,
+   since Music and Stems outputs are `.wav` — with tests pinning
+   guard-before-fetch and the audio list.
+3. Even then the preview panel showed "File generated: scanlib". A scan generates
+   nothing, so the op now returns `output_path=None` and carries the directory in
+   `meta.scanned_directory`.
+
+Gate 5/5 (89 modules), 498 suite green (3 new). Playwright-proven on :24590: a
+scan run *from the tab* reported "Scan complete" with
+`indexed=3 analyzed=3 unchanged=0 no_audio=0 missing=0 errors=0`; key=C major → 2
+rows, +100–130 BPM bound held at 2, Clear filters → 11, ✦ Mine only → 7,
+type=audio → 8; inline playback started; `→I` landed the file; re-scanning created
+no directory row. Proof in `junk/mediacatalog_tab_final.png`.
+
+---
+
+## Media Catalog Slice 4 — beats + MIDI (`8.122`)
+
+The last two analysis toggles went live, and **the spec's engine plan changed
+because it was measured rather than assumed.** It assigned madmom + aubio +
+Basic Pitch; all three were wrong for this box:
+
+- **madmom cannot build** — undeclared Cython build dependency, and its numpy<2
+  pin would fight the installed numpy 2.4.6.
+- **aubio** would only duplicate what Essentia already provides.
+- **basic-pitch would downgrade tensorflow 2.21 → 2.15**, breaking the
+  styletransfer Magenta path from 8.074. Rejected outright.
+
+So Essentia carries beats and onsets as well (`BeatTrackerMultiFeature` +
+`OnsetRate`), and **mido** — one clean wheel — writes the `.mid`.
+
+Beats land with a beat grid, per-beat confidence, onset list and rate, and
+downbeat phase is picked from the onset-density profile across the four
+candidate offsets. **Meter is assumed 4/4 and carries `meter_assumed: true`**:
+this Essentia wheel has no `LoudnessBandRatio`, so its `Meter` (which needs a
+band-ratio beatogram) is unavailable — and silently guessing would have been the
+dishonest option.
+
+**The MIDI is a tempo map, not transcription:** tempo meta-event, one short blip
+per beat, accented (velocity 100) notes on the detected downbeats. The sidecar
+says so in `midi_note: "… NOT note transcription"` — a fabricated note grid would
+be worse than none. The scaffold's `_write_midi_sidecar` TODO is finished.
+
+One source of truth for engines: `scanner.engine_status()` reports five real
+roles, and both the `/status` route and the tab's gating read it — which fixed the
+UI disabling the beats toggle for an engine that was never involved.
+
+504 suite green (6 new tests), all against ground truth: the 4/4-120 fixture must
+return a median beat interval of 0.45–0.55s, downbeats ~2.0s apart,
+`meter_assumed` true, and a `.mid` that re-parses at ≈120 bpm with one blip per
+beat and exactly the downbeats accented. Live on :24590 via the tab's own Beats +
+MIDI toggles: engine row showed essentia/mido green and the three parked engines
+grey; the re-parsed MIDI on disk read **120.03 bpm, 31 beat blips, 8 accented
+downbeats**, with the sidecar carrying `C major / 120.03 / 4/4 / 31 beats /
+25 onsets`.
+
+---
+
+## Media Catalog Slice 7 — isolated audio venvs + competing opinions (`8.123`)
+
+The user asked for the audio worker to move into its own venv, for *all* the
+libraries, and explicitly for **duplicates** — several engines answering, so the
+user can judge them on real files before deciding whether to keep one or always
+keep more opinions.
+
+**Isolation turned out to be mandatory, not tidy.** basic-pitch wants TF 2.15
+and would downgrade the app's TF 2.21, breaking the styletransfer Magenta path;
+madmom needs Python ≤3.9 (`collections.MutableSequence`) plus old numpy. So
+there are now two worker venvs, called as subprocesses:
+
+- `.venv-audio` — py3.11, numpy 1.26, TF 2.15: essentia, librosa, basic-pitch, mido
+- `.venv-audio-legacy` — py3.9, numpy 1.20.3: madmom
+
+The entry point `tools/audio_worker.py` imports nothing from `app` (that is what
+lets it run under an interpreter older than the app's own syntax), takes
+`--wav/--want/--engines/--midi-out`, and prints one JSON object behind a
+`@@MTAPI_AUDIO_JSON@@` sentinel so engine chatter can't corrupt it. A missing
+engine is reported, never fatal. Rebuilt by `scripts/setup_audio_venvs.sh`, both
+gitignored, paths overridable via `MTAPI_AUDIO_VENV` / `MTAPI_AUDIO_LEGACY_VENV`.
+
+**The duplicates exist, and nothing is averaged away.** One fixture file yields
+3 tempo opinions (essentia-degara 120.03, essentia-multifeature 117.61,
+librosa 0.0), 3 beat trackers (essentia 31, madmom 33, librosa 0), 2 onset
+detectors (essentia 25, librosa 39) and 1 key detector — all kept in the
+sidecar's `engine_opinions` and `raw_metadata.opinions`. The DB columns hold a
+consensus from an explicit preference order, and engines reporting 0.0 can never
+win. `tempo_spread_bpm` (2.42 on the fixture) and `beat_counts_by_engine` exist
+so the engines can be judged rather than trusted.
+
+`include_extra_opinions` (default on) is the duplicate switch, with the cost
+measured rather than hidden: **~16 s/file with extras vs ~3 s/file without**
+(5.4×) — each extra engine is another subprocess.
+
+Downbeat phase and the assumed 4/4 meter moved out of Essentia into the scanner,
+because which beat is beat 1 depends on the recording, not the tracker.
+
+**Two libraries could not be installed, honestly:** aubio (0.4.9's C bindings
+don't compile against any modern numpy; no wheel exists; the system CLI needs
+root) and keyfinder (broken sdist, missing `keyfinder/constants.h`).
+
+Basic Pitch runs and writes valid MIDI but found **0 notes** on a synthetic sine
+fixture — which is exactly why the next assignment is pointing a scan at real
+material. 520 suite green (15 new tests).
+
+---
+
+## Media Catalog Slice 8 — tags, tracker headers, tag-vs-detection (`8.124`)
+
+The user asked to read tags "not just tags I guess? I mean like the headers as
+well, any acidized or similar stuff". The 10-FLAC library at `junk/at` turned
+out to be a DJ library carrying real annotations — `key`, `initialkey`,
+**`camelotkey`**, `playlistkey`, `bpm` — which is exactly the ground truth needed
+to judge the detectors.
+
+**Two sources.** ffprobe (~50 ms, every index pass) for Vorbis/ID3/iTunes/RIFF,
+plus a **pure-Python tracker-header parser** for XM/IT/S3M/MOD — not audio
+containers, so ffprobe reads nothing from them — capturing title, tracker,
+channels/patterns, MOD sample names, initial BPM, and detecting **acidized**
+modules from their credit strings.
+
+Promoted tag columns plus the full unnormalised `tags_json`, added by explicit
+`ALTER TABLE` migration with a test that upgrades a real previous-version
+database **without losing rows**. Tracker headers win conflicts over container
+tags (the author typed those; container tags get rewritten by transcodes).
+Keys normalise for comparison (`Abm` → `G# minor`) while the raw tag is kept.
+
+**Tag-vs-detection per row:** `tempo_vs_tag_bpm`, `tempo_agrees_with_tag` (±2%
+or 1.5 BPM), `tempo_octave_equivalent`, and pitch-class key comparison that
+handles enharmonics and names a relative key instead of calling it wrong.
+
+**Two findings from the user's own files changed the code:**
+
+1. **Octave errors dominate.** `top41` detected 82.03 against a tagged 164;
+   `sylenth111` 83.01 against 160. So the fixed preference order became
+   `tempo_consensus_by_vote`: tempi fold into octave groups so a majority can win
+   *across* octaves, while the split is judged on the **raw** values (folding
+   would hide exactly what must be seen) and reported as `tempo_octave_split`.
+2. **Key detection has systematic bias.** Every `1A`/Abm track detected as
+   `Eb minor` — one consistent fifth, not three separate bugs.
+
+Measured on the library: tempo within 2% of tag **4/10**, exact key match
+**3/10**, octave-equivalent misses **4/10**, and `space2.flac` returned tempo
+1.0 (a detection failure now flagged as the next fix). The tab shows it inline —
+`D minor · 108.0 · 7A · tag 109 (-1.0) ✓` versus
+`C minor · 82.0 · 6A · tag 164 (-82.0) ×½?` — and the musical column was widened
+after a live check caught it clipping.
+
+549 suite green (26 new). Live re-scan: `indexed=10 tagged=10 analyzed=0
+unchanged=10` in **1 second**, because hash dedup skips analysis while tags still
+refresh.
+
+---
+
+## Media Catalog Slice 9 — source of truth (`8.125`)
+
+The user set the rule precisely: *"we store everything and for each track we
+can select which we want to use for anything with disagreeing numbers. We should
+default to the tagged tempo … we don't do anything destructive. We keep all the
+numbers. The only variable is the one we choose as the source of truth."*
+
+Implemented literally. `tag_bpm`/`tag_initial_key` (the owner's tag) and
+`tempo_detected`/`key_detected` (the engines) are both stored permanently;
+`tempo`/`key_name` hold the **effective** value used for filtering and the UI,
+with `tempo_source`/`key_source` saying which is in charge. **A tagged value
+wins by default**, and `apply_source_defaults` only touches rows whose choice is
+not manual — so an explicit selection survives later scans and even a re-tag.
+Tempo and key switch independently. The Catalog tab shows a clickable
+`⚡ tagged` / `⚡ detected` chip per row.
+
+Library state after the pass: **9/10 tracks using the tagged tempo, 10/10 using
+the tagged key**, with every detection preserved beside it. Live proof:
+`top41.flac` switched by click from `⚡ TAGGED` (164.0) to `⚡ DETECTED` (82.0)
+while its tag stayed on screen and a neighbouring track stayed tagged.
+
+**Two bugs caught by testing:** my SQL edit added the new columns' *values*
+without their placeholders (11 bindings vs 13), marking every analysed row
+`status=error`; and the tag-vs-detection delta read the *effective* value, so
+once the tag won it showed 0.0 everywhere and hid the very disagreements it
+exists to surface.
+
+**Honest migration note:** rows analysed before this split had their detection in
+`tempo`/`key_name`; reusing those columns for the effective value left the
+detection only in the sibling `.json` sidecar, so
+`backfill_detected_from_sidecars()` recovers it on the next scan. Rows with no
+sidecar keep NULL — nothing is invented.
+
+563 suite green (17 new tests).
