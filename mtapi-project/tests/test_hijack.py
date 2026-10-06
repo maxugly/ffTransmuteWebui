@@ -136,13 +136,13 @@ class HijackTestBase(unittest.TestCase):
             cmd = [
                 "ffmpeg", "-y", "-i", video_path,
                 "-vf", f"select=not(mod(n\\,{every_n}))",
-                "-vsync", "0",
+                "-fps_mode", "passthrough",
                 os.path.join(dst_dir, "frame_%03d.png"),
             ]
         else:
             cmd = [
                 "ffmpeg", "-y", "-i", video_path,
-                "-vsync", "0",
+                "-fps_mode", "passthrough",
                 os.path.join(dst_dir, "frame_%03d.png"),
             ]
         code, _, err = subprocess_run(cmd)
@@ -191,7 +191,7 @@ class DecoderValidationTests(HijackTestBase):
         total_green = 0
         for fp in frames:
             im = Image.open(fp).convert("RGB")
-            px = list(im.getdata())
+            px = list(im.get_flattened_data())
             green = sum(1 for p in px if p[0] == 0 and p[1] == 135 and p[2] == 0)
             total_green += green
         self.assertEqual(total_green, 0, f"Found {total_green} decoder-error green pixels")
@@ -215,7 +215,7 @@ class ImageInjectionTests(HijackTestBase):
 
         def avg_color(fp):
             im = Image.open(fp).convert("RGB")
-            px = list(im.getdata())
+            px = list(im.get_flattened_data())
             return tuple(sum(c) // len(px) for c in zip(*px))
 
         # Frame 30 (1-indexed) = first hijacked frame → red
@@ -292,7 +292,7 @@ class FrameInjectionTests(HijackTestBase):
 
         def avg_color(path: str) -> tuple[int, int, int]:
             im = Image.open(path).convert("RGB")
-            px = list(im.getdata())
+            px = list(im.get_flattened_data())
             return tuple(sum(c) // len(px) for c in zip(*px))
 
         # The hijacked region should contain the injected frame's visual content
@@ -451,7 +451,7 @@ class FreezeModeTests(HijackTestBase):
         # Hijacked frames are 0-indexed 29-48 (1-indexed 30-49)
         for idx in range(29, 49):  # 0-indexed 29-48
             im = Image.open(frames[idx]).convert("RGB")
-            px = list(im.getdata())
+            px = list(im.get_flattened_data())
             red = sum(1 for p in px if p[0] > 200 and p[1] < 50 and p[2] < 50)
             self.assertGreater(red, len(px) * 0.9,
                                f"Frame {idx} not red in freeze: only {red}/{len(px)} red")

@@ -967,6 +967,74 @@ def _write_filter_script(workspace: JobWorkspace, parts: list[str], tag: str) ->
     return p
 
 
+# Linux MAX_ARG_STRLEN caps a single argv element at 131072 bytes. Keep inline
+# filter graphs comfortably below that so large joins never hit execve limits.
+_MAX_INLINE_FILTER_BYTES = 100_000
+
+# Cached result of the -filter_complex_script capability probe (None = unprobed).
+# ffmpeg 9 removed -filter_script/-filter_complex_script entirely, so on new
+# builds the graph must go inline via -filter_complex.
+_filter_script_probe: bool | None = None
+
+
+async def _ffmpeg_supports_filter_complex_script() -> bool:
+    """Probe once per process whether this ffmpeg accepts -filter_complex_script."""
+    global _filter_script_probe
+    if _filter_script_probe is None:
+        try:
+            _code, out, err = await run_command(["ffmpeg", "-hide_banner", "-h", "full"])
+            _filter_script_probe = "filter_complex_script" in (out or "") + (err or "")
+        except Exception:
+            # Probe failure must never break the run — inline is always safe
+            # for our chunked graph sizes (see _MAX_INLINE_FILTER_BYTES).
+            _filter_script_probe = False
+    return _filter_script_probe
+
+
+async def _filter_complex_argv(
+    workspace: JobWorkspace, parts: list[str], tag: str,
+) -> tuple[list[str], list[Path]]:
+    """Build the argv fragment carrying a complex filtergraph.
+
+    Prefers ``-filter_complex_script <file>`` when this ffmpeg supports it
+    (dodges ARG_MAX/MAX_ARG_STRLEN entirely for huge joins); otherwise passes
+    the graph inline via ``-filter_complex`` with a byte-length guard.
+
+    Returns (argv_fragment, temp_files) — the caller must best-effort unlink
+    the temp files after the ffmpeg run (workspace cleanup also removes them).
+    """
+    if await _ffmpeg_supports_filter_complex_script():
+        script_path = _write_filter_script(workspace, parts, tag)
+        return ["-filter_complex_script", str(script_path)], [script_path]
+    graph = ";".join(parts)
+    if len(graph.encode("utf-8")) > _MAX_INLINE_FILTER_BYTES:
+        raise RuntimeError(
+            f"filter graph ({len(graph)} chars) exceeds inline limit "
+            f"({_MAX_INLINE_FILTER_BYTES}) and this ffmpeg "
+            f"({await _ffmpeg_version_short()}) has no -filter_complex_script; "
+            "reduce _CONCAT_CHUNK_SIZE"
+        )
+    return ["-filter_complex", graph], []
+
+
+async def _ffmpeg_version_short() -> str:
+    """Best-effort one-line ffmpeg version for error messages."""
+    try:
+        _code, out, _err = await run_command(["ffmpeg", "-version"])
+        first = (out or "").splitlines()
+        return first[0].strip() if first else "unknown"
+    except Exception:
+        return "unknown"
+
+
+def _cleanup_temp_files(paths: list[Path]) -> None:
+    for p in paths:
+        try:
+            p.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
 async def _probe_many_with_progress(srcs: list[Path]) -> list[dict[str, Any]]:
     """Probe srcs with live progress (never silent on 300+ clips)."""
     n = len(srcs)
@@ -1020,7 +1088,12 @@ async def _run_concat_single(
     audio_engine: str = "rubberband",
     encode_preset: Any | None = None,
 ) -> None:
-    """Run one ffmpeg concat with filter_complex_script (no ARG_MAX blowup).
+    """Run one ffmpeg concat, dodging ARG_MAX blowup.
+
+    The filter graph goes via ``-filter_complex_script <file>`` when this
+    ffmpeg supports it (ffmpeg < 9); on newer builds that removed the option
+    it goes inline via ``-filter_complex`` with a byte-length guard (chunked
+    joins stay far below MAX_ARG_STRLEN — see _filter_complex_argv).
 
     When ``encode_preset`` (EncodePreset) is given, the filtered re-encode
     uses that preset's codec/audio recipe instead of the legacy libx264
@@ -1047,7 +1120,7 @@ async def _run_concat_single(
 
     out_path = Path(output_path).resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    script_path = _write_filter_script(workspace, parts, f"join_{n}")
+    filter_argv, filter_tmps = await _filter_complex_argv(workspace, parts, f"join_{n}")
 
     token = job_control.current_token()
     if token:
@@ -1058,7 +1131,8 @@ async def _run_concat_single(
     argv: list[str] = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
     for sp in srcs:
         argv.extend(["-i", str(sp)])
-    argv.extend(["-filter_complex_script", str(script_path), "-map", "[v]"])
+    argv.extend(filter_argv)
+    argv.extend(["-map", "[v]"])
     if encode_preset is not None:
         if has_audio:
             argv.extend(["-map", "[a]"])
@@ -1081,10 +1155,7 @@ async def _run_concat_single(
 
     code, _, stderr = await run_command(argv)
     # best-effort remove script (workspace cleanup also does it)
-    try:
-        script_path.unlink(missing_ok=True)
-    except Exception:
-        pass
+    _cleanup_temp_files(filter_tmps)
     if code != 0:
         raise RuntimeError(
             f"ffmpeg concat join failed (exit {code}): {stderr.strip() or 'no stderr'}"
@@ -1117,9 +1188,10 @@ async def concat_clips(
     Returns {output_path, fps, duration, frame_count, width, height, has_audio}.
 
     Robust to large joins (373+ clips): probes stream progress so the UI never
-    sits frozen, filter graph goes via -filter_complex_script to dodge
-    MAX_ARG_STRLEN (131072), and batches > _CONCAT_CHUNK_SIZE are stitched
-    chunkwise then demuxer-joined (avoiding ARG_MAX total).
+    sits frozen, the filter graph goes via -filter_complex_script file (or
+    guarded inline -filter_complex on ffmpeg builds that removed the option)
+    to dodge MAX_ARG_STRLEN (131072), and batches > _CONCAT_CHUNK_SIZE are
+    stitched chunkwise then demuxer-joined (avoiding ARG_MAX total).
     """
     if len(inputs) == 0:
         raise ValueError("concat_clips needs at least 1 input")
@@ -1209,21 +1281,19 @@ async def concat_clips(
         else:
             labels2 = "".join(f"[{i}:v]" for i in range(m))
             parts2.append(f"{labels2}concat=n={m}:v=1:a=0[v]")
-        script2 = _write_filter_script(workspace, parts2, "final")
+        filter2_argv, filter2_tmps = await _filter_complex_argv(workspace, parts2, "final")
         argv2: list[str] = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
         for cp in chunk_paths:
             argv2.extend(["-i", str(cp)])
-        argv2.extend(["-filter_complex_script", str(script2), "-map", "[v]"])
+        argv2.extend(filter2_argv)
+        argv2.extend(["-map", "[v]"])
         if has_audio_final:
             argv2.extend(["-map", "[a]", "-c:a", "aac", "-b:a", "192k"])
         else:
             argv2.append("-an")
         argv2.extend(["-c:v", "libx264", "-crf", "18", "-preset", "medium", str(out_path)])
         code2, _, err2 = await run_command(argv2)
-        try:
-            script2.unlink(missing_ok=True)
-        except Exception:
-            pass
+        _cleanup_temp_files(filter2_tmps)
         if code2 != 0:
             raise RuntimeError(
                 f"ffmpeg final chunk concat failed (exit {code2}): {err2.strip() or 'no stderr'}"
@@ -1310,19 +1380,16 @@ async def grid_clips(
 
     out_path = Path(output_path).resolve()
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    script_path = _write_filter_script(workspace, parts, "grid")
+    filter_argv, filter_tmps = await _filter_complex_argv(workspace, parts, "grid")
     argv: list[str] = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
     for sp in srcs:
         argv.extend(["-i", str(sp)])
-    argv.extend(["-filter_complex_script", str(script_path)])
+    argv.extend(filter_argv)
     argv.extend(vmap)
     argv.extend(["-c:v", "libx264", "-crf", "18", "-preset", "medium", str(out_path)])
 
     code, _, stderr = await run_command(argv)
-    try:
-        script_path.unlink(missing_ok=True)
-    except Exception:
-        pass
+    _cleanup_temp_files(filter_tmps)
     if code != 0:
         raise RuntimeError(
             f"ffmpeg grid failed (exit {code}): {stderr.strip() or 'no stderr'}"
