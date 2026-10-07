@@ -333,6 +333,28 @@ collect_inputs() {
   fi
 }
 
+build_output_name() {
+  local in_file="$1"
+  local filename; filename="$(basename -- "$in_file")"
+  local basename="${filename%.*}"
+  local ext=""
+  if [[ "$filename" == *.* ]]; then ext="${filename##*.}"; else ext="mp4"; fi
+  [[ -z "$basename" ]] && basename="$filename"
+  if $FIRST; then echo "${basename}_f:00001.png"; return; fi
+  if $LAST; then echo "${basename}_l:${LAST_SEEK}s.jpg"; return; fi
+  if $AUDIO; then echo "${basename}_a.m4a"; return; fi
+  local suffix=""
+  $SQUARE_CROP && suffix="${suffix}_1x1s"
+  $SQUARE_PAD && suffix="${suffix}_1x1b"
+  $CROP && suffix="${suffix}_16x9c"
+  $LETTERBOX && suffix="${suffix}_16x9b"
+  [[ -n "$CROP_RES" ]] && suffix="${suffix}_${CROP_RES}z"
+  [[ -n "$STRETCH_RES" ]] && suffix="${suffix}_${STRETCH_RES}x"
+  $REVERSE && suffix="${suffix}_rev"
+  [[ -z "$suffix" ]] && suffix="_copy"
+  echo "${basename}${suffix}.${ext}"
+}
+
 # --- GRID MODE ---
 if $GRID; then
   declare -a INPUTS=()
@@ -558,7 +580,6 @@ build_output_name() {
 
 # --- HIJACK MODE ---
 if [[ -n "$HYDRAID" ]]; then
-   # HYDRAID format: IMG:START:END[:STYLE]
    IFS=':' read -r H_IMG H_START H_END H_STYLE <<< "$HYDRAID"
    H_STYLE="${H_STYLE:-smear}"
    [[ -f "$H_IMG" ]] || { echo "Error: hijack image not found: $H_IMG" >&2; exit 1; }
@@ -570,13 +591,13 @@ if [[ -n "$HYDRAID" ]]; then
    elif [[ -d "$OUTPUT" ]]; then OUTPUT="$OUTPUT/$(build_output_name "$INPUT")"
    fi
 
-   # Invoke the Python-based hijack pipeline (ffgac + ffedit + ffmpeg)
-   SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
-   REPO_ROOT="$(cd "$SCRIPT_DIR/../.." &>/dev/null && pwd)"
+    SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+    MTAPI_ROOT="$SCRIPT_DIR/mtapi-project"
+    [[ -d "$MTAPI_ROOT" ]] || MTAPI_ROOT="$(cd "$SCRIPT_DIR/../.." &>/dev/null && pwd)/mtapi-project"
 
     CMD=(python3 -c "
 import asyncio, os, sys
-sys.path.insert(0, os.path.join('$REPO_ROOT', 'mtapi-project'))
+sys.path.insert(0, '$MTAPI_ROOT')
 from app.operations.datamosh.hijack import DatamoshHijackParams, datamosh_hijack
 p = DatamoshHijackParams(
     input_path='$INPUT',
@@ -595,10 +616,10 @@ if not res.ok:
     sys.exit(1)
 ")
 
-    echo "Output: $OUTPUT"
-    echo "Command: ${CMD[*]}"
-    if ! $DRYRUN; then "${CMD[@]}"; fi
-    exit 0
+   echo "Output: $OUTPUT"
+   echo "Command: ${CMD[*]}"
+   if ! $DRYRUN; then "${CMD[@]}"; fi
+   exit 0
  fi
 
 process_file() {
