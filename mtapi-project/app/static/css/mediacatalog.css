@@ -281,6 +281,7 @@ body.mediacatalog-tab-active .tool-input-preview {
   padding: 4px 2px;
   border-left: 1px solid rgba(255, 255, 255, 0.06);
   min-width: 0;
+  overflow: hidden;
 }
 
 .mc-headcell:first-child { border-left: none; }

@@ -920,3 +920,18 @@ Playwright 17/17 with real clicks and 0 console errors — including the
 over-limit refusal with numbers, a real blur render landing on disk with the
 catalog stamp and an inline player, mid-render cancel leaving no partial
 file, and the last tool surviving reload.
+
+---
+
+## Media Catalog table: tooltips purged + column rebalance (`8.130`)
+
+User correction: no native tooltips on this tab — the bottom help strip is the
+location, and the house already audits it (`HelpStrip.audit()`). All 10 native
+`title=` popups introduced with the v2 table are gone (9 catalog, 1 settings,
+1 pool badge), each replaced with `data-help-title`; the tab now reports zero
+audit hits. Hovering a row shows its full path in the strip.
+
+Layout, measured at 2560px: File 180–520px, Tags capped at 140px, Src 88px,
+Act 72px, spacer absorbing 787px of leftover at the end, worst row overflow 0
+across 10 rows, no horizontal overflow. Every `.mc-cell` audited for
+`overflow: hidden; min-width: 0`. Gate 5/5.

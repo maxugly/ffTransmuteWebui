@@ -95,13 +95,13 @@ function badgesHtml(row) {
     out.push('<span class="mc-badge mc-badge-split" data-help-title="Engines disagreed by an octave" data-help-text="At least one engine counted the pulse at double or half time. The majority reading is used.">½ octave</span>');
   }
   if (row.tag_acidized) out.push('<span class="mc-badge mc-badge-acid">ACID</span>');
-  if (row.title) out.push(`<span class="mc-badge mc-badge-title" title="${_esc(row.title)}">♪ ${_esc(row.title.slice(0, 22))}</span>`);
+  if (row.title) out.push(`<span class="mc-badge mc-badge-title" data-help-title="${_esc(row.title)}">♪ ${_esc(row.title.slice(0, 22))}</span>`);
   if (row.status === 'missing') out.push('<span class="mc-badge mc-badge-missing">missing</span>');
   if (row.status === 'error') out.push('<span class="mc-badge mc-badge-error">error</span>');
   // Single line, never wrapped — the row height is virtualized, so a wrapped
   // cell would silently break scroll math. Full text lives on the title.
   const plain = out.map((h) => h.replace(/<[^>]+>/g, '').trim()).filter(Boolean);
-  return out.length ? `<div class="mc-badges" title="${_esc(plain.join(' · '))}">${out.join('')}</div>` : '';
+  return out.length ? `<div class="mc-badges" data-help-title="${_esc(plain.join(' · '))}">${out.join('')}</div>` : '';
 }
 
 /* ── column model (reference-table design) ──────────────────────────────
@@ -114,15 +114,15 @@ const MC_COLS = [
   { key: 'type', label: 'Type', width: '44px', sortable: true, order: 'type' },
   // File is content-sized but capped: long paths truncate with the full path
   // on hover, and leftover space belongs to the trailing spacer, not here.
-  { key: 'name', label: 'File', width: 'minmax(140px, 380px)', sortable: true, order: 'name' },
-  { key: 'tags', label: 'Tags', width: 'minmax(0, 200px)', sortable: true, order: 'mine' },
+  { key: 'name', label: 'File', width: 'minmax(180px, 520px)', sortable: true, order: 'name' },
+  { key: 'tags', label: 'Tags', width: 'minmax(0, 140px)', sortable: true, order: 'mine' },
   { key: 'dur', label: 'Dur', width: '48px', sortable: true, order: 'duration' },
   { key: 'key', label: 'Key', width: '52px', sortable: true, order: 'key' },
   { key: 'bpm', label: 'BPM', width: '58px', sortable: true, order: 'tempo' },
   { key: 'tag', label: 'Tag', width: '104px', sortable: true, order: 'tag_key' },
   { key: 'rel', label: 'Rel', width: '84px', sortable: true, order: 'key' },
-  { key: 'src', label: 'Src', width: '78px', sortable: true, order: 'source' },
-  { key: 'act', label: 'Act', width: '64px', sortable: false },
+  { key: 'src', label: 'Src', width: '88px', sortable: true, order: 'source' },
+  { key: 'act', label: 'Act', width: '72px', sortable: false },
   // Trailing spacer: takes whatever space is left over — columns use only
   // what they need, no more, no less. Never toggled, never sorted.
   { key: 'gap', label: '', width: 'minmax(0, 1fr)', sortable: false, spacer: true },
@@ -185,12 +185,12 @@ function mcHeadHtml() {
       const active = mcSort.key === c.key;
       const arrow = !c.sortable ? '' :
         `<span class="mc-sort-arrow${active ? '' : ' dim'}">${active ? (mcSort.dir === 1 ? ' ▲' : ' ▼') : ' ⇅'}</span>`;
-      return `<div class="mc-headcell${visible ? '' : ' mc-col-collapsed'}" data-mc-col="${c.key}" title="${_esc(c.label)}">`
+      return `<div class="mc-headcell${visible ? '' : ' mc-col-collapsed'}" data-mc-col="${c.key}">`
         + `<span class="mc-head-top">`
         + `<label class="mc-col-toggle" data-help-title="Toggle column"><input type="checkbox"${visible ? ' checked' : ''} data-mc-toggle="${c.key}"></label>`
         + arrow
         + `</span>`
-        + (visible ? `<span class="mc-head-label">${_esc(c.label)}</span>` : '')
+        + (visible ? `<span class="mc-head-label" data-help-title="${_esc(c.label)}">${_esc(c.label)}</span>` : '')
         + `</div>`;
     }).join('') + `</div>`;
 }
@@ -200,7 +200,7 @@ function cellKey(row) {
   const full = row.key_name || '';
   const tip = [full, row.key_engine ? `detected: ${row.key_engine}` : '']
     .filter(Boolean).join(' · ');
-  return `<span class="mc-key" title="${_esc(tip)}">${short}</span>`;
+  return `<span class="mc-key" data-help-title="${_esc(tip)}">${short}</span>`;
 }
 
 function cellBpm(row) {
@@ -210,7 +210,7 @@ function cellBpm(row) {
   if (spread != null && Number(spread) > 0.05) {
     tip.push(`engines disagreed by ${Number(spread).toFixed(1)} BPM — full breakdown in the sidecar .json`);
   }
-  return `<span class="mc-bpm" title="${_esc(tip.join(' · '))}">${Number(row.tempo).toFixed(1)}</span>`;
+  return `<span class="mc-bpm" data-help-title="${_esc(tip.join(' · '))}">${Number(row.tempo).toFixed(1)}</span>`;
 }
 
 function cellTag(row) {
@@ -227,7 +227,7 @@ function cellTag(row) {
   if (!bits.length) return '—';
   const cam = row.tag_camelot ? `camelot: ${row.tag_camelot}` : '';
   const tagKey = row.tag_key ? `tagged key: ${row.tag_key}` : '';
-  return `<span class="mc-cell-tag" title="${_esc([cam, tagKey].filter(Boolean).join(' · '))}">${bits.join(' · ')}</span>`;
+  return `<span class="mc-cell-tag" data-help-title="${_esc([cam, tagKey].filter(Boolean).join(' · '))}">${bits.join(' · ')}</span>`;
 }
 
 function cellRel(row) {
@@ -237,7 +237,7 @@ function cellRel(row) {
   const tip = row.key_name
     ? `Relative of ${row.key_name}: ${row.relative_key}`
     : `Relative key: ${row.relative_key}`;
-  return `<span class="mc-rel" title="${_esc(tip)}">${_esc(short)}${_esc(cam)}</span>`;
+  return `<span class="mc-rel" data-help-title="${_esc(tip)}">${_esc(short)}${_esc(cam)}</span>`;
 }
 
 function cellSrc(row) {
@@ -266,8 +266,8 @@ function rowHtml(row) {
       <div class="mc-cell">${playBtn}</div>
       <div class="mc-cell mc-cell-type mc-type-${type}">${_esc(type.slice(0, 4).toUpperCase())}</div>
       <div class="mc-cell mc-cell-name">
-        <span class="mc-name" title="${_esc(row.name || row.path)}">${_esc(row.name || row.path)}</span>
-        <span class="mc-cell-path" title="${_esc(row.path)}">${_esc(row.path)}</span>
+        <span class="mc-name" data-help-title="${_esc(row.path)}">${_esc(row.name || row.path)}</span>
+        <span class="mc-cell-path" data-help-title="${_esc(row.path)}">${_esc(row.path)}</span>
       </div>
       <div class="mc-cell">${badgesCell(row)}</div>
       <div class="mc-cell mc-cell-dur">${_fmtDuration(row.duration)}</div>

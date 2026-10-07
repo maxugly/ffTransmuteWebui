@@ -171,7 +171,7 @@ export function renderSettingsForm() {
             ? '<p class="settings-card-desc" style="opacity:.7">No directories configured.</p>'
             : ownedDirs.map((d, i) => `
                 <div class="settings-owned-dir-row" data-index="${i}">
-                  <span class="settings-owned-dir-path" title="${escapeHtml(d)}">${escapeHtml(d)}</span>
+                  <span class="settings-owned-dir-path" data-help-title="${escapeHtml(d)}">${escapeHtml(d)}</span>
                   <button type="button" class="btn btn-sm settings-owned-dir-remove" data-index="${i}" data-help-title="Remove owned directory" data-help-text="Removes this folder from the owned-directories list. Files already marked mine by this rule keep the badge; re-scan will not re-apply it.">✕</button>
                 </div>
               `).join('')}

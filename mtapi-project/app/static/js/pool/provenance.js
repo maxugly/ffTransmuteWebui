@@ -147,7 +147,7 @@ function provenanceBadgesHtml(item) {
   if (sm.key_name) {
     // Short spelling on the chip (G#m), full form on hover. One truth shared
     // with js/utils.js shortKey, pinned by the Node contract test.
-    musical.push(`<span title="${escapeHtml(sm.key_name)}">${escapeHtml(shortKey(sm.key_name))}</span>`);
+    musical.push(`<span data-help-title="${escapeHtml(sm.key_name)}">${escapeHtml(shortKey(sm.key_name))}</span>`);
   }
   if (sm.tempo != null) musical.push(`${Number(sm.tempo).toFixed(1)}`);
   if (musical.length) {
