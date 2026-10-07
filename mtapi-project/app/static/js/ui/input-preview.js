@@ -14,7 +14,7 @@ import { basename, escapeHtml, isVideoPath, isImagePath } from '/js/utils.js';
 
 const HIDE_TABS = new Set([
   'pool', 'sequence', 'images', 'jobs', 'notes', 'settings', 'watcher', 'txt2img', 'dart',
-  'mediacatalog',
+  'mediacatalog', 'cdp',
 ]);
 
 /** @typedef {{ label: string, path: string|null }} InputSlot */

@@ -43,7 +43,7 @@ stage_js_compile() {
                 shown=$((shown + 1))
             fi
         fi
-    done < <(find "$STATIC" -name '*.js' -type f | sort)
+    done < <(find "$STATIC" -name '*.js' -type f -not -path '*/stablefluids/*' -not -path '*/vendor/*' | sort)
     if [ "$bad" -eq 0 ]; then
         stage_pass "$label ($n modules clean)"
         return 0
@@ -59,7 +59,8 @@ stage_imports() {
 import os, re, sys
 
 static_root, script_meta, cap = sys.argv[1], sys.argv[2], int(sys.argv[3])
-exclude_dirs = {"stablefluids"}
+# vendored third-party runtimes (stablefluids build, cdp-wasm) are not repo sources
+exclude_dirs = {"stablefluids", "vendor"}
 extract = re.compile(r"""["']([^"']+)["']""")
 
 def local_spec(spec):

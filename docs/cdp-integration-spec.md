@@ -327,6 +327,15 @@ Three options, one recommendation:
 
 ### Phase 1 — Minimal viable integration ("run ten tools well")
 
+**Shipped 2026-10-07 (`8.129`).** One execution path (browser Worker + vendored `cdp-wasm 0.7.0` at `app/static/vendor/`, gitignored, fetched by `scripts/update_cdp_wasm.sh` with pinned sha512) + tool-entry schema (`js/cdp/tools.js`: 8 curated EFFECTS-backed + 3 raw entries = 11 tools) + menu with search and group drill-down + schema-rendered forms with verbatim usage and live raw-argv preview + Prepare/Run/Cancel with stage-honest progress + outputs beside the source, catalog-stamped (origin=generated), inline playback via `/api/video` + limits enforced with the concrete numbers + 11 pytest route tests + Playwright click-proof (`junk/cdp-phase1-prove.mjs`, 17/17, 0 console errors, screenshot `junk/cdp_phase1_proof.png`).
+
+**Measured implementation notes (deviations, all click-proven):**
+- `postMessage` to the Worker carries a slim tool descriptor — 0.7.0's EFFECTS entries contain function-valued `srcMin`/`srcDefault`, which structured clone refuses (caught live as DataCloneError; the Worker re-looks the entry up in its own catalog).
+- **Acceptance wording correction:** audio outputs do not enter the pools — repo invariant keeps pools video/image; the CDP output surface is the Media Catalog (generated stamp) + inline player, which is what "appears in pool and plays" means here.
+- This ffprobe build (n9) rejects `-nostdin` (invariant 13): the prepare route omits it for ffprobe while ffmpeg keeps it.
+- `finalize_output_path` needs explicit `default_ext=""` for artifacts — its generic default would have renamed WAVs to `.png`.
+- Memory readout in the tab is deliberately absent (§10.3 gap): the pre-flight estimator is the Phase-2 memory surface.
+
 **Ships:** vendored-or-server execution path (one path, §7.1 decision closed) + tool-entry schema + ~10 curated tools (see list) with schema-rendered forms, verbatim usage, raw-argv preview + linear single-tool run (no chains yet) with progress/cancel + outputs to pools/catalog with provenance + limits enforced + gate green + Playwright click-proof.
 **Suggested 10 (cover every file-type and both domains):** `pvoc anal`, `pvoc synth`, `blur blur`, `hilite trace`, `stretch time`, `modify speed`, `modify brassage`, `distort distort` **[inference: verify mode name]**, `grain` (one simple mode — verify), `sndinfo`-class info tool. Each must include one spectral-wrap, one breakpoint-free, one info-only, and one data-file-free tool — no data-file tools in Phase 1.
 **Acceptance:** all 10 runnable from menu search *and* drill-down; over-limit input blocked with numbers; cancel mid-render preserves prior artifacts; `./check-gate.sh` green; suite green; Playwright: pick tool → set param → run → output appears in pool and plays.

@@ -71,6 +71,10 @@ mtapi-project/bin/srmd-ncnn-vulkan
 # Fetch commands are in the tab's placeholder / docs/stablefluids-sim-spec.md §2.1.
 mtapi-project/app/static/stablefluids/
 
+# Vendored cdp-wasm runtime (~10 MB, pinned 0.7.0 tarball).
+# Fetch: mtapi-project/scripts/update_cdp_wasm.sh — docs/cdp-integration-spec.md §2.2/§7.1.
+mtapi-project/app/static/vendor/
+
 # Node modules
 /node_modules/
 mtapi-project/tools/**/node_modules/

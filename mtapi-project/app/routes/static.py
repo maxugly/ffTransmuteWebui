@@ -50,3 +50,9 @@ def register(app: FastAPI) -> None:
     stablefluids_dir = STATIC_DIR / "stablefluids"
     if stablefluids_dir.is_dir():
         app.mount("/stablefluids", StaticFiles(directory=str(stablefluids_dir), html=True), name="stablefluids")
+
+    # Vendored third-party runtimes, binary-safe (the /js route read_text's
+    # every file — fine for sources, fatal for .wasm). Stable Fluids precedent.
+    vendor_dir = STATIC_DIR / "vendor"
+    if vendor_dir.is_dir():
+        app.mount("/vendor", StaticFiles(directory=str(vendor_dir)), name="vendor")

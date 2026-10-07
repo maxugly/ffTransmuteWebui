@@ -882,3 +882,41 @@ Memory readout is an honest gap: headless Chromium refuses
 `measureUserAgentSpecificMemory` and Workers expose no `performance.memory`;
 the true WASM peak estimator stays Phase-1 work. [A2] closed; [A1] staged for
 the user's yes before Phase 1. Gate 5/5.
+
+---
+
+## CDP Phase 1: "run ten tools well" ships (`8.129`)
+
+User confirmed [A1]. The vendored `cdp-wasm` 0.7.0 runtime now lives at
+`app/static/vendor/` (gitignored, fetched by
+`mtapi-project/scripts/update_cdp_wasm.sh` with a pinned sha512) and is served
+through a new binary-safe `/vendor` StaticFiles mount — the `/js` route
+`read_text`s everything, which would have corrupted the `.wasm` binaries. The
+gate's source scans now exclude vendored dirs: Emscripten's dynamic
+`./this.program` imports are not repo code.
+
+New Library tab **CDP Tools** (`js/tabs/cdp.js` + `css/cdp.css`, bare-workspace
+pattern): 11 tools — 8 curated from the EFFECTS catalog (modify.speed,
+modify.brassage, blur.blur, hilite.trace, stretch.time, distort.overload,
+grain.omit, envel.dovetail) plus raw `pvoc anal`, `pvoc synth` and `sndinfo` —
+with search, schema-rendered params, verbatim CDP usage, a live raw-argv
+preview, and stage-honest progress. Execution runs in `js/cdp/worker.js`;
+the server (`app/routes/cdp.py`) only validates inputs against the Phase-1
+caps with real numbers, decodes canonical WAV via ffmpeg, and ingests
+rendered artifacts beside the source with the Media Catalog generated stamp
+(audio only — `.ana` intermediates are not catalog citizens, §6.3).
+
+Three bugs caught in the live pass. Posting the full EFFECTS entry to the
+Worker threw `DataCloneError` — 0.7.0 entries carry function-valued
+`srcMin`/`srcDefault`; the Worker now gets a slim descriptor and looks the
+entry up in its own catalog. `finalize_output_path`'s generic default
+extension silently renamed WAV outputs to `.png` — caught by the route test,
+fixed with explicit `default_ext=""`. This box's ffprobe 9 rejects
+`-nostdin` (invariant 13) — the prepare route drops it for ffprobe; ffmpeg
+keeps it.
+
+Verification: gate 5/5 (91 modules), 581 suite green (11 new route tests),
+Playwright 17/17 with real clicks and 0 console errors — including the
+over-limit refusal with numbers, a real blur render landing on disk with the
+catalog stamp and an inline player, mid-render cancel leaving no partial
+file, and the last tool surviving reload.

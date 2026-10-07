@@ -54,6 +54,7 @@ import { renderScriptsForm } from '/js/tabs/scripts.js';
 import { renderWatermarkForm } from '/js/tabs/watermark.js';
 import { renderDemucsForm } from '/js/tabs/demucs.js';
 import { renderMediaCatalogForm } from '/js/tabs/mediacatalog.js';
+import { renderCdpForm } from '/js/tabs/cdp.js';
 import { renderMusicForm } from '/js/tabs/music.js';
 import { renderEraseForm } from '/js/tabs/erase.js';
 import { renderStableFluidsForm } from '/js/tabs/stablefluids.js';
@@ -507,6 +508,7 @@ const TAB_ACCEPTS = {
   zoompan:     'image',
   notes:       'none',
   dart:        'none',
+  cdp:         'any',
   ytdlp:       'none',
   comments:    'none',
   settings:    'none',
@@ -1079,6 +1081,7 @@ function switchTab(tab) {
   if (tab === 'watermark') title = 'Watermark · Clean';
   if (tab === 'demucs') title = 'Stems · Demucs separation';
   if (tab === 'mediacatalog') title = 'Media Catalog';
+  if (tab === 'cdp') title = 'CDP Sound Tools';
   if (tab === 'music') title = 'Music · ACE-Step text-to-music';
   if (tab === 'erase') title = 'Erase · Clean';
   if (tab === 'settings') title = 'Settings';
@@ -1101,6 +1104,7 @@ function switchTab(tab) {
     || tab === 'ytdlp'
     || tab === 'comments'
     || tab === 'mediacatalog'
+    || tab === 'cdp'
     || tab === 'imgcompare'
     || tab === 'stablefluids'
     || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-music'
@@ -1160,6 +1164,7 @@ function switchTab(tab) {
     || tab === 'ytdlp'
     || tab === 'comments'
     || tab === 'mediacatalog'
+    || tab === 'cdp'
     || tab === 'imgcompare'
     || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-music'
   );
@@ -1170,6 +1175,7 @@ function switchTab(tab) {
   document.body.classList.toggle('dart-tab-active', tab === 'dart');
   // Media Catalog: bare workspace too — no preview panel, no input preview strip.
   document.body.classList.toggle('mediacatalog-tab-active', tab === 'mediacatalog');
+  document.body.classList.toggle('cdp-tab-active', tab === 'cdp');
   // References: bare workspace (sidebar + reference card only)
   document.body.classList.toggle('references-tab-active', tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-music');
 
@@ -1336,6 +1342,8 @@ function renderTabForm(tab) {
     renderDemucsForm();
   } else if (tab === 'mediacatalog') {
     renderMediaCatalogForm();
+  } else if (tab === 'cdp') {
+    renderCdpForm();
   } else if (tab === 'music') {
     renderMusicForm();
   } else if (tab === 'erase') {
