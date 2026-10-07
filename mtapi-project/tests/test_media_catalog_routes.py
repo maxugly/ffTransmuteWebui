@@ -379,3 +379,20 @@ def test_query_content_and_implausible_filters(client, tmp_path):
     row = client.get("/api/media-catalog/query?implausible=1").json()["rows"][0]
     assert row["tempo_implausible"] is True
     assert row["tempo"] is None
+
+
+# ── derived artifacts stay off the main list (8.135) ─────────────────────
+def test_query_hides_derived_by_default(client, tmp_path):
+    track = _wav(tmp_path / "song.wav")
+    stem = _wav(tmp_path / "song_vocals.wav")
+    client.post("/api/media-catalog/ingest", json={"paths": [track, stem]})
+    with audio_db.get_db() as db:
+        db.execute("UPDATE media SET derived_from=? WHERE path=?", (track, stem))
+
+    main = client.get("/api/media-catalog/query?limit=100").json()
+    assert [r["name"] for r in main["rows"]] == ["song.wav"]      # stem hidden
+    with_derived = client.get("/api/media-catalog/query?include_derived=1").json()
+    names = sorted(r["name"] for r in with_derived["rows"])
+    assert names == ["song.wav", "song_vocals.wav"]
+    row = next(r for r in with_derived["rows"] if r["name"] == "song_vocals.wav")
+    assert row["derived_from"] == track                         # payload carries the link

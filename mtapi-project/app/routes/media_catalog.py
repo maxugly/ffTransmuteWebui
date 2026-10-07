@@ -135,6 +135,7 @@ def _row_payload(row: dict[str, Any]) -> dict[str, Any]:
         "level_db": row.get("level_db"),
         "peak_db": row.get("peak_db"),
         "flatness": row.get("flatness"),
+        "derived_from": row.get("derived_from"),
         "title": row.get("title"),
         "artist": row.get("artist"),
         "album": row.get("album"),
@@ -271,6 +272,10 @@ async def catalog_query(request: Request) -> JSONResponse:
             args.append(params["content"])
     if params.get("implausible") == "1":
         where.append("tempo_implausible = 1")
+    # Derived artifacts (stems, MIDI) stay out of the main list — they live on
+    # the dive panel. include_derived=1 is the explicit audit view.
+    if params.get("include_derived") != "1":
+        where.append("derived_from IS NULL")
     if params.get("q"):
         where.append("(path LIKE ? OR IFNULL(author,'') LIKE ? "
                      "OR IFNULL(title,'') LIKE ? OR IFNULL(artist,'') LIKE ?)")

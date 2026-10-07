@@ -95,6 +95,7 @@ def test_deep_dive_groups_all_models(db, tmp_path, monkeypatch):
         "meter_assumed": True, "time_signature": "4/4",
         "tempo_engine": "essentia-degara", "key_engine": "essentia-key",
         "tempo_spread_bpm": 1.2, "content_class": "ok",
+        "opinions": {"tempo": [{"engine": "essentia-degara", "bpm": 120.0}]},
         "midi_path": str(tmp_path / "track.mid"),
         "notes_midi_path": str(tmp_path / "track.notes.mid"),
         "notes_midi_count": 44,
@@ -110,6 +111,7 @@ def test_deep_dive_groups_all_models(db, tmp_path, monkeypatch):
     assert list(meta["results"]["demucs"]["stems"]) == ["drums", "bass"]
     assert meta["results"]["essentia"]["ok"] is True
     assert meta["results"]["essentia"]["tempo"] == 120.0
+    assert meta["results"]["essentia"]["engine_opinions"]["tempo"][0]["engine"] == "essentia-degara"  # panel payload
     assert meta["results"]["basic_pitch"]["ok"] is True
     assert meta["results"]["basic_pitch"]["note_count"] == 44
     assert meta["results"]["cdp"]["ok"] is False          # no pipeline requested
@@ -152,8 +154,13 @@ def test_deep_dive_stamps_generated_artifacts(db, tmp_path, monkeypatch):
     row = audio_db.get_row(str(tmp_path / "t_drums.wav"))
     assert row is not None
     assert row["origin"] == "generated"
+    # 8.135: derived artifacts point at the track — they stay off the main list
+    assert row["derived_from"] == str(src)
     midi_row = audio_db.get_row(str(tmp_path / "track.mid"))
     assert midi_row is not None and midi_row["origin"] == "generated"
+    assert midi_row["derived_from"] == str(src)
+    notes_row = audio_db.get_row(str(tmp_path / "track.notes.mid"))
+    assert notes_row is not None and notes_row["derived_from"] == str(src)
 
 
 def test_deep_dive_cdp_echo_and_bad_json(db, tmp_path, monkeypatch):

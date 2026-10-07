@@ -202,6 +202,9 @@ TAG_COLUMNS: dict[str, str] = {
     "peak_db": "REAL",
     "flatness": "REAL",
     "content_class": "TEXT",         # 'ok' | 'silent' | 'noise-like' | 'dc-offset'
+    # 8.135: derived artifacts (stems, MIDI) point at the track they came from;
+    # the main catalog list hides them, the dive panel shows them.
+    "derived_from": "TEXT",
 }
 
 
@@ -217,7 +220,8 @@ def _migrate(db: sqlite3.Connection) -> None:
 def tag_indexes(db: sqlite3.Connection) -> None:
     """Index the promoted tag columns once they exist (idempotent)."""
     existing = {row["name"] for row in db.execute("PRAGMA table_info(media)")}
-    for column in ("tag_bpm", "tag_key", "title", "artist", "content_class"):
+    for column in ("tag_bpm", "tag_key", "title", "artist", "content_class",
+                   "derived_from"):
         if column in existing:
             name = f"idx_media_{column}"
             db.execute(f"CREATE INDEX IF NOT EXISTS {name} ON media({column})")
@@ -528,8 +532,13 @@ def catalog_upsert(
     batch_id: str | None = None,
     is_video_fn: Callable[[Path], bool] | None = None,
     is_image_fn: Callable[[Path], bool] | None = None,
+    derived_from: str | None = None,
 ) -> dict[str, Any]:
     """Upsert one media file, resolving provenance per spec §6.
+
+    ``derived_from`` marks artifacts a tool produced FROM a track (stems,
+    MIDI transcriptions) — they exist in the DB for provenance and queries but
+    are excluded from the catalog's main list (see /query include_derived).
 
     Returns ``{row_id, path, type, changed, batch_id}`` where ``changed`` means
     the provenance triple actually changed (what gets an audit row).
@@ -601,15 +610,15 @@ def catalog_upsert(
                     path, file_hash, type, status,
                     is_mine, made_by_me, ai_involved, mine_source, origin,
                     site, is_youtube, author, source_url, video_id, publish_date,
-                    created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    derived_from, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     abs_path, file_hash, media_type, status,
                     is_mine, made_by_me, ai_involved, mine_source, final_origin,
                     web["site"], web["is_youtube"], web["author"],
                     web["source_url"], web["video_id"], web["publish_date"],
-                    now, now,
+                    derived_from, now, now,
                 ),
             )
             row_id = cur.lastrowid
@@ -620,7 +629,8 @@ def catalog_upsert(
                     file_hash = ?, type = ?, status = ?,
                     is_mine = ?, made_by_me = ?, ai_involved = ?, mine_source = ?,
                     origin = ?, site = ?, is_youtube = ?, author = ?,
-                    source_url = ?, video_id = ?, publish_date = ?, updated_at = ?
+                    source_url = ?, video_id = ?, publish_date = ?,
+                    derived_from = COALESCE(?, derived_from), updated_at = ?
                 WHERE path = ?
                 """,
                 (
@@ -628,7 +638,7 @@ def catalog_upsert(
                     is_mine, made_by_me, ai_involved, mine_source, final_origin,
                     web["site"], web["is_youtube"], web["author"],
                     web["source_url"], web["video_id"], web["publish_date"],
-                    now, abs_path,
+                    derived_from, now, abs_path,
                 ),
             )
             row_id = row["id"]

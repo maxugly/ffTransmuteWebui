@@ -510,3 +510,10 @@ body.mediacatalog-tab-active .tool-input-preview {
   color: #ff7b72;
   font-weight: 600;
 }
+
+/* 8.135 — derived artifacts (shown only with the include-derived facet) */
+.mc-badge-derived {
+  background: #2b6cb022;
+  border-color: #2b6cb055;
+  color: #9ec3ef;
+}

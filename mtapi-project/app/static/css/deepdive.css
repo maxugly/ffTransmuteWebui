@@ -204,3 +204,44 @@ body.deepdive-tab-active .action-panel-form {
   flex: 1 1 auto;
   min-height: 0;
 }
+
+/* 8.135 — derived artifacts stay off the main list; the panel is their home */
+.dd-extended { margin-top: 6px; }
+.dd-extended summary {
+  font-size: 0.7rem;
+  color: #d2a8ff;
+  cursor: pointer;
+  user-select: none;
+}
+.dd-extended-body {
+  margin-top: 4px;
+  padding: 4px 8px;
+  background: #1a1a1a;
+  border-radius: 3px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.dd-opinions { display: flex; flex-direction: column; gap: 1px; }
+.dd-opinion {
+  font-family: var(--mono, monospace);
+  font-size: 0.68rem;
+  color: var(--text, #bbb);
+  overflow-wrap: anywhere;
+}
+.dd-opinion-kind {
+  color: var(--text-dim, #888);
+  display: inline-block;
+  min-width: 70px;
+}
+.dd-midi-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  margin: 2px 0;
+}
+.dd-midi-label {
+  font-size: 0.7rem;
+  color: var(--text-dim, #999);
+  flex: 0 0 110px;
+}

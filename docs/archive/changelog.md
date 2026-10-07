@@ -1054,3 +1054,36 @@ Playwright 17/17 with zero console errors: real dive on top41.flac — four
 stem players, C minor at 82.03 BPM with 31 beats and 8 downbeats, `.notes.mid`
 and `.mid` and the dive report on disk, and the CDP pipeline-mode handoff
 with the echoed chain loaded.
+
+---
+
+## Deep Dive panel owns the derived artifacts; main list shows tracks only (`8.136`)
+
+Follow-up on the dive: "lets make the panel show the stems, midi, extended
+info, etc... we don't want the individual stems in the main list".
+
+Derived artifacts now carry a `derived_from` parent link (migrated column,
+`catalog_upsert` param, COALESCE on update so re-ingests never orphan one),
+and the dive stamps every stem and MIDI file with the track's path. The main
+catalog list hides derived rows by default; a "derived (stems/MIDI)" facet is
+the audit view, with a `derived ← <track>` badge per row. The live DB's 27
+pre-existing derived rows were backfilled from the dive reports plus a
+never-guess pattern pass (a stem/MIDI name only backfills when the parent
+track row exists).
+
+The dive panel became the full home for what a dive collects: level/peak/
+flatness rows, a collapsible "extended info" section (engine opinions per
+kind and engine, rejected tempo readings, worker venvs — engine_opinions now
+rides the op meta), and labeled MIDI rows with the note count.
+
+One more latent bug surfaced: the catalog tab sent `tempoMin`/
+`includeDerived` camelCase while the route reads snake_case — the tempo-bounds
+filter had been silently dead since it shipped. Facet keys are now the
+server's spelling.
+
+Gate 5/5 (93 modules), 618 suite green, Playwright 22/22 with zero console
+errors: backfilled stems hidden from the main list, a fresh dive on
+war36.flac showing four stem players, Eb minor at 138.26 BPM with 463 beats,
+extended-info opinions, a 1280-note transcription row, the main list still
+showing only the track afterwards, and the derived facet revealing the eleven
+artifacts with badges.

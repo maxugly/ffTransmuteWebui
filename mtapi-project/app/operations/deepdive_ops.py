@@ -91,7 +91,7 @@ async def deep_dive(p: DeepDiveParams) -> OperationResult:
                 "infer_s": dr.meta.get("infer_s"),
             }
             for path in stems_written.values():
-                _catalog_stamp(path)
+                _catalog_stamp(path, str(src))
                 logs.append(f"✓ demucs stem: {path}")
         else:
             failures["demucs"] = dr.error or "separation failed"
@@ -116,7 +116,12 @@ async def deep_dive(p: DeepDiveParams) -> OperationResult:
         include_legacy=p.include_legacy,
     )
     if ok:
+        from ..audio_pipeline.scanner import _trim_opinions
         analysis = {k: v for k, v in feats.items() if k != "opinions"}
+        # The dive panel shows the extended info, competing engines included —
+        # trimmed (the sidecar keeps the full arrays).
+        if feats.get("opinions"):
+            analysis["engine_opinions"] = _trim_opinions(feats["opinions"], limit=64)
         results["essentia"] = {"ok": True, **analysis}
         logs.append(f"✓ essentia: key={feats.get('key')} tempo={feats.get('tempo')} "
                     f"beats={feats.get('beats_count')} onsets={feats.get('onset_rate')}")
@@ -129,13 +134,13 @@ async def deep_dive(p: DeepDiveParams) -> OperationResult:
     midi_out: dict[str, Any] = {"ok": False}
     if ok and feats.get("midi_path"):
         midi_out = {"ok": True, "tempo_map": feats.get("midi_path")}
-        _catalog_stamp(feats["midi_path"])
+        _catalog_stamp(feats["midi_path"], str(src))
         logs.append(f"✓ tempo-map midi: {feats['midi_path']}")
     if ok and feats.get("notes_midi_path"):
         midi_out["ok"] = True
         midi_out["notes"] = feats["notes_midi_path"]
         midi_out["note_count"] = feats.get("notes_midi_count")
-        _catalog_stamp(feats["notes_midi_path"])
+        _catalog_stamp(feats["notes_midi_path"], str(src))
         logs.append(f"✓ basic-pitch notes: {feats['notes_midi_path']} "
                     f"({feats.get('notes_midi_count', 0)} notes)")
     if not midi_out["ok"]:
@@ -182,11 +187,13 @@ async def deep_dive(p: DeepDiveParams) -> OperationResult:
     )
 
 
-def _catalog_stamp(path: str) -> None:
-    """Generated-artifact stamp, best-effort — never fails the dive."""
+def _catalog_stamp(path: str, parent: str) -> None:
+    """Generated-artifact stamp, best-effort — never fails the dive. The
+    parent link keeps stems/MIDI out of the catalog's main list (8.135)."""
     try:
         audio_db.catalog_upsert(
             path, origin="generated", generated_flag=True, status="pending",
+            derived_from=parent,
         )
     except Exception:  # noqa: BLE001
         pass

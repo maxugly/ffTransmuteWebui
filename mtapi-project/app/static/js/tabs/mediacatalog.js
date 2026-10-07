@@ -32,8 +32,8 @@ const PAGE = 200;
 
 const facets = {
   q: '', type: '', mine: '', hand: '', ai: '', origin: '', site: '',
-  key: '', tempoMin: '', tempoMax: '', status: '',
-  content: '', implausible: '',
+  key: '', tempo_min: '', tempo_max: '', status: '',
+  content: '', implausible: '', include_derived: '',
 };
 
 function _log(msg, kind) {
@@ -100,6 +100,10 @@ function badgesHtml(row) {
       ? `Rejected readings: ${Object.entries(row.tempo_rejected).map(([e, v]) => `${e} ${v} BPM`).join(', ')}. Kept in the sidecar; the effective tempo is NULL.` 
       : 'Tempo readings sat outside the 30–300 BPM plausibility band; effective tempo is NULL.';
     out.push(`<span class="mc-badge mc-badge-impl" data-help-title="Implausible tempo" data-help-text="${_esc(rej)}">BPM?</span>`);
+  }
+  if (row.derived_from) {
+    const parent = (row.derived_from || '').split('/').pop();
+    out.push(`<span class="mc-badge mc-badge-derived" data-help-title="Derived artifact" data-help-text="Generated from ${_esc(row.derived_from || '')} — shown only with the derived facet on. Its home is the Deep Dive panel.">derived ← ${_esc(parent || '?')}</span>`);
   }
   if (row.content_class && row.content_class !== 'ok') {
     const label = { 'silent': 'SILENT', 'noise-like': 'NOISE', 'dc-offset': 'DC' }[row.content_class] || row.content_class;
@@ -601,13 +605,14 @@ function bindFacets() {
   onChange('mcOrigin', 'origin');
   onChange('mcSite', 'site');
   onChange('mcKey', 'key');
-  onChange('mcTempoMin', 'tempoMin');
-  onChange('mcTempoMax', 'tempoMax');
+  onChange('mcTempoMin', 'tempo_min');
+  onChange('mcTempoMax', 'tempo_max');
   onChange('mcStatusFilter', 'status');
   onChange('mcSourceFilter', 'source');
   onChange('mcDisagree', 'disagree');
   onChange('mcContent', 'content');
   onChange('mcImplausible', 'implausible');
+  onChange('mcIncludeDerived', 'include_derived');
 
   _el('mcReset')?.addEventListener('click', async () => {
     Object.keys(facets).forEach((k) => { facets[k] = ''; });
@@ -626,6 +631,7 @@ function bindFacets() {
     _el('mcDisagree').checked = false;
     _el('mcContent').value = '';
     _el('mcImplausible').checked = false;
+    _el('mcIncludeDerived').checked = false;
     pageOffset = 0;
     await refresh();
   });
@@ -719,6 +725,7 @@ export function renderMediaCatalogForm() {
               <option value="dc-offset">DC wall</option>
             </select>
             <label class="mc-toggle" data-help-title="Implausible tempo only" data-help-text="Rows whose only tempo readings sat outside the 30–300 BPM band — corrupt, silent or noise files. The effective tempo is NULL; the raw readings stay in the sidecar."><input type="checkbox" id="mcImplausible" /> ⚠ implausible BPM</label>
+            <label class="mc-toggle" data-help-title="Include derived" data-help-text="Show derived artifacts (Demucs stems, MIDI transcriptions) in the list. They are hidden by default — the Deep Dive panel is their home."><input type="checkbox" id="mcIncludeDerived" /> derived (stems/MIDI)</label>
           </div>
           <div class="mc-facet-group">
             <span class="mc-facet-title">Site &amp; status</span>

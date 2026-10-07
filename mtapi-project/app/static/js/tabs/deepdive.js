@@ -225,6 +225,7 @@ function renderResults(meta) {
   // Essentia
   const es = r.essentia || {};
   let essentiaHtml = '';
+  let extendedHtml = '';
   if (es.ok) {
     const rows = [
       ['key', es.key ? `${es.key} (${(es.key_confidence ?? 0).toFixed(2)})` : '—'],
@@ -233,6 +234,8 @@ function renderResults(meta) {
       ['onsets', es.onset_rate != null ? `${es.onset_rate}/s` : '—'],
       ['meter', es.meter_assumed ? '4/4 (assumed)' : (es.time_signature || '—')],
       ['content', es.content_class || '—'],
+      ['level', es.level_db != null ? `${es.level_db} dBFS RMS (peak ${es.peak_db})` : '—'],
+      ['flatness', es.flatness != null ? es.flatness : '—'],
       ['engines', es.tempo_engine && es.key_engine ? `${es.tempo_engine} · ${es.key_engine}` : '—'],
       ['spread', es.tempo_spread_bpm != null ? `${es.tempo_spread_bpm} BPM across engines` : '—'],
     ].map(([k, v]) => `<tr><td>${k}</td><td>${_esc(String(v))}</td></tr>`).join('');
@@ -240,6 +243,32 @@ function renderResults(meta) {
     if (es.sidecar_json_path) {
       essentiaHtml += `<div class="dd-out-meta">sidecar: ${_esc(es.sidecar_json_path)}</div>`;
     }
+
+    // Extended info: the full dive payload — competing engine opinions,
+    // rejected readings, worker venvs, and every scalar the analysis stored.
+    const opinionLines = (es.engine_opinions && typeof es.engine_opinions === 'object')
+      ? Object.entries(es.engine_opinions).flatMap(([kind, items]) =>
+          (Array.isArray(items) ? items : []).map((o) => {
+            const engine = o?.engine || '?';
+            const val = o?.value ?? o?.bpm ?? o?.count ?? o?.midi_note ?? '';
+            return `<div class="dd-opinion"><span class="dd-opinion-kind">${_esc(kind)}</span> ${_esc(engine)} → ${_esc(String(val))}</div>`;
+          })).join('')
+      : '<div class="dd-out-meta">no engine opinions captured</div>';
+    const rejected = es.tempo_rejected
+      ? Object.entries(es.tempo_rejected).map(([e, v]) => `${_esc(e)} ${_esc(v)}`).join(', ')
+      : '';
+    const pythons = es.worker_pythons
+      ? Object.entries(es.worker_pythons).map(([k, v]) => `${_esc(k)}:${_esc(v)}`).join(' · ')
+      : '';
+    extendedHtml = `
+      <details class="dd-extended">
+        <summary>extended info — engine opinions + full payload</summary>
+        <div class="dd-extended-body">
+          ${rejected ? `<div class="dd-out-meta">rejected tempo readings: ${rejected}</div>` : ''}
+          ${pythons ? `<div class="dd-out-meta">worker venvs: ${pythons}</div>` : ''}
+          <div class="dd-opinions">${opinionLines}</div>
+        </div>
+      </details>`;
   }
 
   // Basic Pitch / MIDI
@@ -247,10 +276,13 @@ function renderResults(meta) {
   let midiHtml = '';
   if (bp.ok) {
     if (bp.notes) {
-      midiHtml += `<div class="dd-out-meta">notes: ${_esc(bp.notes)} (${bp.note_count ?? '?'} notes)</div>`;
+      midiHtml += `<div class="dd-midi-row"><span class="dd-midi-label">note transcription</span>
+        <span class="dd-stem-path" title="${_esc(bp.notes)}">${_esc(bp.notes)}</span>
+        <span class="dd-out-meta">${bp.note_count ?? '?'} notes</span></div>`;
     }
     if (bp.tempo_map) {
-      midiHtml += `<div class="dd-out-meta">tempo map: ${_esc(bp.tempo_map)}</div>`;
+      midiHtml += `<div class="dd-midi-row"><span class="dd-midi-label">tempo map</span>
+        <span class="dd-stem-path" title="${_esc(bp.tempo_map)}">${_esc(bp.tempo_map)}</span></div>`;
     }
   }
 
@@ -274,6 +306,7 @@ function renderResults(meta) {
       <div class="dd-model-card">
         <div class="dd-model-head">${badge(es.ok, 'Essentia analysis')}</div>
         ${essentiaHtml}
+        ${extendedHtml}
       </div>
       <div class="dd-model-card">
         <div class="dd-model-head">${badge(bp.ok, 'Basic Pitch · MIDI')}</div>
