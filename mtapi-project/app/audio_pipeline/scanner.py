@@ -20,6 +20,7 @@ stays visible instead of being silently averaged away.
 from __future__ import annotations
 
 import json
+import math
 import os
 import tempfile
 from pathlib import Path
@@ -35,6 +36,15 @@ from app.database import audio_db
 
 DEFAULT_LONG_FILE_GUARD_SEC = 300
 ESSENTIA_SAMPLE_RATE = 44100
+
+# Plausibility band for tempo readings (user ruling: nothing below ~40 BPM is
+# a real song tempo, and sub-40 detections are what corrupt/silent/noise files
+# produce). Readings outside [30, 300] are excluded from the consensus and the
+# effective value goes NULL with tempo_implausible=1 — the raw reading stays in
+# the sidecar. 30 (not 40) is the hard floor so half-time notations at 32 can
+# still be flagged-but-visible; the *effective* value is what never lies.
+TEMPO_MIN_BPM = 30.0
+TEMPO_MAX_BPM = 300.0
 
 _ess_module: Any = None
 
@@ -193,9 +203,19 @@ def tempo_consensus_by_vote(tempos: list[dict[str, Any]]) -> dict[str, Any]:
     order hides that; a vote across octave-folded groups surfaces the split and
     lets the side with more engines win.
     """
-    usable = [o for o in tempos if (o.get("bpm") or 0) > 0]
+    usable = [o for o in tempos if (o.get("bpm") or 0) > 0
+              and TEMPO_MIN_BPM <= float(o["bpm"]) <= TEMPO_MAX_BPM]
     if not usable:
-        return {}
+        # Every reading is outside the plausibility band (silent / corrupt /
+        # noise-only source): no consensus exists. Surface what was rejected
+        # so the row can be flagged instead of storing a junk number.
+        rejected = {o.get("engine"): round(float(o["bpm"]), 2)
+                    for o in tempos if (o.get("bpm") or 0) > 0}
+        return {
+            "tempo": None,
+            "tempo_implausible": bool(rejected),
+            "tempo_rejected": rejected,
+        } if rejected else {}
     groups: dict[int, list[dict[str, Any]]] = {}
     for opinion in usable:
         groups.setdefault(octave_group(float(opinion["bpm"])), []).append(opinion)
@@ -226,6 +246,14 @@ def tempo_consensus_by_vote(tempos: list[dict[str, Any]]) -> dict[str, Any]:
     out["tempo_spread_bpm"] = round(max(all_bpms) - min(all_bpms), 2)
     out["tempo_agreeing_engines"] = len(usable)
     out["tempo_octave_group"] = group_key
+
+    # Out-of-band readings that lost their vote slot are still reported — the
+    # sidecar keeps them, the DB just never stores them as the tempo.
+    rejected = {o.get("engine"): round(float(o["bpm"]), 2) for o in tempos
+                if (o.get("bpm") or 0) > 0
+                and not (TEMPO_MIN_BPM <= float(o["bpm"]) <= TEMPO_MAX_BPM)}
+    if rejected:
+        out["tempo_rejected"] = rejected
 
     # Octave disagreement must be judged on the RAW values, not the folded
     # group — folding is what makes the vote work, and it would hide exactly
@@ -341,6 +369,76 @@ def _load_mono44k(wav_path: Path):
     return np.ascontiguousarray(y, dtype=np.float32)
 
 
+# Content-class thresholds, measured on fixtures before pinning (see
+# tests/test_media_catalog_content.py): digital silence sits far below -60 dBFS
+# peak; broadband white noise drives frame spectral flatness (geometric/arithmetic
+# power mean ratio) towards ~1 while tonal material stays well under 0.5.
+CONTENT_SILENCE_PEAK_DB = -60.0
+CONTENT_NOISE_FLATNESS = 0.7
+CONTENT_DC_RATIO = 0.5       # |mean| vs |peak|: a DC wall is its own signal
+
+
+def content_stats(y) -> dict[str, Any]:
+    """Cheap numpy-only 'is this even music?' measurements (user ruling:
+    silence/noise/corrupt signatures are provable; 'music' as a positive claim
+    is not — the classifier says what a file is NOT, never what it is).
+
+    Returns level_db (RMS dBFS), peak_db, flatness (frame spectral
+    flatness, median across frames), content_class in
+    {'ok', 'silent', 'noise-like', 'dc-offset'}.
+    """
+    import numpy as np
+
+    out: dict[str, Any] = {}
+    if y is None or len(y) == 0:
+        return {"level_db": None, "peak_db": None, "flatness": None,
+                "content_class": "silent"}
+    peak = float(np.max(np.abs(y)))
+    rms = float(np.sqrt(np.mean(np.square(y), dtype=np.float64)))
+    peak_db = 20.0 * math.log10(peak) if peak > 0 else -200.0
+    level_db = 20.0 * math.log10(rms) if rms > 0 else -200.0
+    out["peak_db"] = round(peak_db, 2)
+    out["level_db"] = round(level_db, 2)
+
+    # Band spectral flatness: the classic SFM (geometric/arithmetic mean) over
+    # 32 log-spaced band energies, median across frames. Measured on fixtures:
+    # broadband white noise lands near 1, tonal material near 0. (A per-bin
+    # ratio is wrong here — Rayleigh amplitudes floor it at e^-γ ≈ 0.56 for
+    # ANY signal, measured 0.559 on pure white noise.)
+    nfft = 4096
+    if len(y) >= nfft:
+        frames = len(y) // (nfft // 2) - 1
+        idx = np.arange(nfft)[None, :] + (np.arange(frames) * (nfft // 2))[:, None]
+        windowed = y[idx] * np.hanning(nfft)[None, :]
+        spec = np.abs(np.fft.rfft(windowed, axis=1)) ** 2  # frames × bins
+        freqs = np.fft.rfftfreq(nfft, 1.0 / ESSENTIA_SAMPLE_RATE)
+        edges = np.geomspace(max(freqs[1], 20.0), freqs[-1], 33)
+        bands = np.digitize(freqs, edges)  # bin -> band id 1..32
+        # Aggregate across frames BEFORE the band ratio: per-frame ratios are
+        # destroyed by the sparse low bands (2–3 bins each — measured white
+        # noise at 0.33). A whole-file mean power spectrogram gives every band
+        # hundreds of effective samples, so white noise lands near 1.
+        energy = np.bincount(bands, weights=spec.mean(axis=0), minlength=33)[1:33]
+        counts = np.bincount(bands, minlength=33)[1:33].astype(np.float64)
+        keep = counts > 0  # empty log bands (log(ε)) would poison the mean
+        energy = (energy[keep] / counts[keep]) + 1e-12
+        flatness = float(np.exp(np.mean(np.log(energy))) / np.mean(energy))
+    else:
+        flatness = 1.0 if peak > 0 else None
+    out["flatness"] = round(flatness, 4) if flatness is not None else None
+
+    dc = abs(float(np.mean(y, dtype=np.float64)))
+    if peak <= 0 or peak_db < CONTENT_SILENCE_PEAK_DB:
+        out["content_class"] = "silent"
+    elif dc > CONTENT_DC_RATIO * peak:
+        out["content_class"] = "dc-offset"
+    elif flatness is not None and flatness >= CONTENT_NOISE_FLATNESS:
+        out["content_class"] = "noise-like"
+    else:
+        out["content_class"] = "ok"
+    return out
+
+
 def _canonical_key(tonic: str, scale: str) -> str:
     """Essentia gives ('C', 'major'); the catalog stores '<Tonic> <mode>'."""
     mode = "minor" if str(scale).lower().startswith("min") else "major"
@@ -386,10 +484,19 @@ def analyze_signal(y: Any) -> dict[str, Any]:
 
     ticks = ticks_degara if (ticks_degara is not None and len(ticks_degara)) else ticks_multi
     tick_list = list(ticks) if (ticks is not None and len(ticks)) else []
+    # Plausibility band (§ user ruling 2026-10-07): a reading outside
+    # TEMPO_MIN_BPM..TEMPO_MAX_BPM is not a musical tempo — it is what the
+    # detectors return for corrupt, silent or noise-only files (measured:
+    # degara reported 1.0 BPM on a near-empty test file and that value was
+    # stored, then filterable as "1 BPM"). Rejected readings keep the row's
+    # tempo at NULL and set the implausible flag; the raw numbers survive in
+    # tempo_alternates / the sidecar (nothing is deleted).
+    implausible = tempo is not None and not (TEMPO_MIN_BPM <= float(tempo) <= TEMPO_MAX_BPM)
     return {
         "key_name": key_name,
         "key_strength": key_strength,
-        "tempo": round(float(tempo), 2) if tempo else None,
+        "tempo": None if implausible else (round(float(tempo), 2) if tempo else None),
+        "tempo_implausible": bool(implausible),
         "tempo_conf": round(min(1.0, max(0.0, conf_multi)), 4),
         "ticks": [round(float(t), 4) for t in tick_list],
         "tempo_alternates": {
@@ -523,6 +630,9 @@ def analyze_wav(wav_path: Path, *, want_key: bool = True, want_tempo: bool = Tru
     """Run the selected analyses over a 44.1 kHz wav. Always returns a dict."""
     y = _load_mono44k(wav_path)
     out: dict[str, Any] = {"duration": round(len(y) / float(ESSENTIA_SAMPLE_RATE), 3)}
+    # Content class runs on every analysis pass, regardless of which engines
+    # are wanted — it is numpy-cheap and is the "is this even music" surface.
+    out.update(content_stats(y))
     engines: dict[str, Any] = {}
     if want_key or want_tempo:
         feats = analyze_signal(y)
@@ -678,6 +788,10 @@ class AudioScanner:
                 feats = consensus(merged)
                 feats["opinions"] = merged
                 feats["worker_errors"] = worker_errors
+                # Content class runs on the app side for BOTH paths — numpy on
+                # the same decoded wav, so the classification never depends on
+                # which engine venvs happen to be installed.
+                feats.update(content_stats(_load_mono44k(wav)))
                 feats["worker_pythons"] = {
                     label: availability[label]["python"] for label in availability
                     if availability[label]["available"]
@@ -745,7 +859,9 @@ class AudioScanner:
                     "beat_confidence", "onsets", "onset_rate", "midi_path", "midi_kind",
                     "notes_midi_path", "notes_midi_count", "tempo_spread_bpm",
                     "tempo_agreeing_engines", "tempo_engine", "key_engine", "beats_engine",
-                    "beat_counts_by_engine", "onset_counts_by_engine", "worker_pythons"):
+                    "beat_counts_by_engine", "onset_counts_by_engine", "worker_pythons",
+                    "tempo_implausible", "tempo_rejected", "content_class",
+                    "level_db", "peak_db", "flatness"):
             if feats.get(key) is not None:
                 payload[key] = feats[key]
         if feats.get("midi_path"):
@@ -777,7 +893,9 @@ class AudioScanner:
                     status = ?, tempo = ?, tempo_conf = ?, key_name = ?,
                     key_strength = ?, duration = ?, sidecar_json_path = ?,
                     midi_path = ?, raw_metadata = ?,
-                    tempo_detected = ?, key_detected = ?, updated_at = ?
+                    tempo_detected = ?, key_detected = ?, updated_at = ?,
+                    tempo_implausible = ?, level_db = ?, peak_db = ?,
+                    flatness = ?, content_class = ?
                 WHERE path = ?
                 """,
                 (
@@ -791,6 +909,7 @@ class AudioScanner:
                     feats.get("midi_path"),
                     json.dumps({
                         "tempo_alternates": feats.get("tempo_alternates"),
+                        "tempo_rejected": feats.get("tempo_rejected"),
                         "beats": feats.get("beats"),
                         "downbeats": feats.get("downbeats"),
                         "downbeat_index": feats.get("downbeat_index"),
@@ -819,6 +938,11 @@ class AudioScanner:
                     feats.get("tempo"),
                     feats.get("key"),
                     _now(),
+                    1 if feats.get("tempo_implausible") else 0,
+                    feats.get("level_db"),
+                    feats.get("peak_db"),
+                    feats.get("flatness"),
+                    feats.get("content_class"),
                     str(path),
                 ),
             )

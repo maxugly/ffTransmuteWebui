@@ -129,6 +129,12 @@ def _row_payload(row: dict[str, Any]) -> dict[str, Any]:
         "tempo_octave_equivalent": raw.get("tempo_octave_equivalent"),
         "key_matches_tag": raw.get("key_matches_tag"),
         "key_pitch_class_delta": raw.get("key_pitch_class_delta"),
+        "tempo_implausible": bool(row.get("tempo_implausible")) if row.get("tempo_implausible") is not None else None,
+        "tempo_rejected": raw.get("tempo_rejected"),
+        "content_class": row.get("content_class"),
+        "level_db": row.get("level_db"),
+        "peak_db": row.get("peak_db"),
+        "flatness": row.get("flatness"),
         "title": row.get("title"),
         "artist": row.get("artist"),
         "album": row.get("album"),
@@ -254,6 +260,17 @@ async def catalog_query(request: Request) -> JSONResponse:
     if params.get("disagree") == "1":
         where.append("(tag_bpm IS NOT NULL AND tempo_detected IS NOT NULL "
                      "AND ABS(COALESCE(tempo_detected,0) - COALESCE(tag_bpm,0)) > 1.5)")
+    # Content class (8.133): 'ok' | 'silent' | 'noise-like' | 'dc-offset'.
+    # content=ok means "classified ok OR never analysed" — an unanalysed row is
+    # not suspicious, it is just unmeasured.
+    if params.get("content") in ("ok", "silent", "noise-like", "dc-offset"):
+        if params["content"] == "ok":
+            where.append("IFNULL(content_class, 'ok') = 'ok'")
+        else:
+            where.append("content_class = ?")
+            args.append(params["content"])
+    if params.get("implausible") == "1":
+        where.append("tempo_implausible = 1")
     if params.get("q"):
         where.append("(path LIKE ? OR IFNULL(author,'') LIKE ? "
                      "OR IFNULL(title,'') LIKE ? OR IFNULL(artist,'') LIKE ?)")

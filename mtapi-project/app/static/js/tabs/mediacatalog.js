@@ -33,6 +33,7 @@ const PAGE = 200;
 const facets = {
   q: '', type: '', mine: '', hand: '', ai: '', origin: '', site: '',
   key: '', tempoMin: '', tempoMax: '', status: '',
+  content: '', implausible: '',
 };
 
 function _log(msg, kind) {
@@ -93,6 +94,21 @@ function badgesHtml(row) {
   else if (row.site) out.push(`<span class="mc-badge mc-badge-web">${_esc(row.site)}</span>`);
   if (row.tempo_octave_split) {
     out.push('<span class="mc-badge mc-badge-split" data-help-title="Engines disagreed by an octave" data-help-text="At least one engine counted the pulse at double or half time. The majority reading is used.">½ octave</span>');
+  }
+  if (row.tempo_implausible) {
+    const rej = row.tempo_rejected && Object.values(row.tempo_rejected).length
+      ? `Rejected readings: ${Object.entries(row.tempo_rejected).map(([e, v]) => `${e} ${v} BPM`).join(', ')}. Kept in the sidecar; the effective tempo is NULL.` 
+      : 'Tempo readings sat outside the 30–300 BPM plausibility band; effective tempo is NULL.';
+    out.push(`<span class="mc-badge mc-badge-impl" data-help-title="Implausible tempo" data-help-text="${_esc(rej)}">BPM?</span>`);
+  }
+  if (row.content_class && row.content_class !== 'ok') {
+    const label = { 'silent': 'SILENT', 'noise-like': 'NOISE', 'dc-offset': 'DC' }[row.content_class] || row.content_class;
+    const tip = {
+      'silent': `Peak level ${row.peak_db} dBFS — digital silence or near-silence.`,
+      'noise-like': `Spectral flatness ${row.flatness} — broadband noise signature, no tonal centre.`,
+      'dc-offset': 'A constant DC level dominates the signal — not a recording of sound.',
+    }[row.content_class] || row.content_class;
+    out.push(`<span class="mc-badge mc-badge-content" data-help-title="${_esc(label)}" data-help-text="${_esc(tip)}">${_esc(label)}</span>`);
   }
   if (row.tag_acidized) out.push('<span class="mc-badge mc-badge-acid">ACID</span>');
   if (row.title) out.push(`<span class="mc-badge mc-badge-title" data-help-title="${_esc(row.title)}">♪ ${_esc(row.title.slice(0, 22))}</span>`);
@@ -207,6 +223,9 @@ function cellKey(row) {
 }
 
 function cellBpm(row) {
+  if (row.tempo_implausible) {
+    return '<span class="mc-bpm mc-bpm-impl" data-help-title="Implausible tempo" data-help-text="Every detector reading sat outside the 30–300 BPM band (corrupt, silent or noise-only file). Effective tempo is NULL; raw readings are in the sidecar .json.">BPM?</span>';
+  }
   if (row.tempo == null) return '—';
   const spread = row.tempo_spread_bpm;
   const tip = [`engine: ${row.tempo_engine || 'scan'}`];
@@ -580,6 +599,8 @@ function bindFacets() {
   onChange('mcStatusFilter', 'status');
   onChange('mcSourceFilter', 'source');
   onChange('mcDisagree', 'disagree');
+  onChange('mcContent', 'content');
+  onChange('mcImplausible', 'implausible');
 
   _el('mcReset')?.addEventListener('click', async () => {
     Object.keys(facets).forEach((k) => { facets[k] = ''; });
@@ -596,6 +617,8 @@ function bindFacets() {
     _el('mcStatusFilter').value = '';
     _el('mcSourceFilter').value = '';
     _el('mcDisagree').checked = false;
+    _el('mcContent').value = '';
+    _el('mcImplausible').checked = false;
     pageOffset = 0;
     await refresh();
   });
@@ -681,6 +704,14 @@ export function renderMediaCatalogForm() {
               <span class="mc-tempo-sep">–</span>
               <input type="number" id="mcTempoMax" placeholder="max" step="0.1" data-help-title="Tempo max" data-help-text="Upper BPM bound of the tempo filter." />
             </div>
+            <select id="mcContent" data-help-title="Content" data-help-text="What the scan pass measured the file to be: ok (music-like), silent, noise-like, or a DC wall. ok also matches rows never analysed.">
+              <option value="">Any content</option>
+              <option value="ok">Music-like</option>
+              <option value="silent">Silent</option>
+              <option value="noise-like">Noise-like</option>
+              <option value="dc-offset">DC wall</option>
+            </select>
+            <label class="mc-toggle" data-help-title="Implausible tempo only" data-help-text="Rows whose only tempo readings sat outside the 30–300 BPM band — corrupt, silent or noise files. The effective tempo is NULL; the raw readings stay in the sidecar."><input type="checkbox" id="mcImplausible" /> ⚠ implausible BPM</label>
           </div>
           <div class="mc-facet-group">
             <span class="mc-facet-title">Site &amp; status</span>

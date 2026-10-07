@@ -359,3 +359,23 @@ def test_order_source_uses_chosen_source_of_truth(client, tmp_path):
                    " tempo=140.0, tempo_source='tagged' WHERE path=?", (a,))
     rows = client.get("/api/media-catalog/query?order=source_asc").json()["rows"]
     assert rows[0]["tempo_source"] == "tagged"
+
+
+# ── content class + implausible tempo facets (8.133) ──────────────────────
+def test_query_content_and_implausible_filters(client, tmp_path):
+    a = _wav(tmp_path / "silent.wav")
+    b = _wav(tmp_path / "good.wav")
+    c = _wav(tmp_path / "impl.wav")
+    client.post("/api/media-catalog/ingest", json={"paths": [a, b, c]})
+    with audio_db.get_db() as db:
+        db.execute("UPDATE media SET content_class='silent', level_db=-91.0, peak_db=-90.0 WHERE path=?", (a,))
+        db.execute("UPDATE media SET tempo_implausible=1, tempo_detected=NULL WHERE path=?", (c,))
+
+    names_of = lambda q: sorted(r["name"] for r in
+                                client.get(f"/api/media-catalog/query?{q}").json()["rows"])
+    assert names_of("content=silent") == ["silent.wav"]
+    assert names_of("content=ok") == ["good.wav", "impl.wav"]  # unanalysed is not suspicious
+    assert names_of("implausible=1") == ["impl.wav"]
+    row = client.get("/api/media-catalog/query?implausible=1").json()["rows"][0]
+    assert row["tempo_implausible"] is True
+    assert row["tempo"] is None

@@ -193,6 +193,15 @@ TAG_COLUMNS: dict[str, str] = {
     "key_source": "TEXT",            # 'tagged' | 'detected'
     "key_source_manual": "INTEGER",
     "key_detected": "TEXT",          # the detector's key, always kept
+    # Content classification (8.133): what the file is NOT — silence, broadband
+    # noise, DC — computed numpy-side on every analysis pass. tempo_implausible
+    # marks rows whose only tempo readings sat outside the [30, 300] band: the
+    # effective value is NULL, the raw readings stay in the sidecar.
+    "tempo_implausible": "INTEGER",
+    "level_db": "REAL",
+    "peak_db": "REAL",
+    "flatness": "REAL",
+    "content_class": "TEXT",         # 'ok' | 'silent' | 'noise-like' | 'dc-offset'
 }
 
 
@@ -208,7 +217,7 @@ def _migrate(db: sqlite3.Connection) -> None:
 def tag_indexes(db: sqlite3.Connection) -> None:
     """Index the promoted tag columns once they exist (idempotent)."""
     existing = {row["name"] for row in db.execute("PRAGMA table_info(media)")}
-    for column in ("tag_bpm", "tag_key", "title", "artist"):
+    for column in ("tag_bpm", "tag_key", "title", "artist", "content_class"):
         if column in existing:
             name = f"idx_media_{column}"
             db.execute(f"CREATE INDEX IF NOT EXISTS {name} ON media({column})")

@@ -494,3 +494,19 @@ body.mediacatalog-tab-active .tool-input-preview {
 }
 
 .mc-src:hover { filter: brightness(1.25); }
+
+/* 8.133 — content classification + implausible tempo */
+.mc-badge-impl {
+  background: #f8514922;
+  border-color: #f8514966;
+  color: #ff7b72;
+}
+.mc-badge-content {
+  background: #d2992222;
+  border-color: #d2992266;
+  color: #e3b341;
+}
+.mc-bpm-impl {
+  color: #ff7b72;
+  font-weight: 600;
+}

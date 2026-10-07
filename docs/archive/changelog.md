@@ -986,3 +986,37 @@ pipeline page and swallowed the click that blurred the field (state-only
 update now), and the post-prepare re-render overwrote the prepare summary
 (persisted note). Gate 5/5 (92 modules), 594 suite green. Shipped as 8.132 —
 8.130/8.131 went to the concurrent catalog-table session mid-flight.
+
+---
+
+## Media Catalog: tempo plausibility band + content classification (`8.133`)
+
+The user's corrupt-file test finally met its ruling. `space2.flac` — left in
+the library deliberately as a corrupt/emptyish file — had its detector
+reading of 1.0 BPM stored as if it were a tempo. Now: readings outside
+**[30, 300] BPM** never enter the octave-vote and never land in the DB; when
+every reading is out of band the row gets `tempo_detected = NULL` +
+`tempo_implausible = 1`, with the rejected readings preserved in
+`tempo_rejected` (sidecar + raw_metadata — nothing deleted). Measured on the
+real engines: degara reads 738 BPM on digital silence and 86 BPM on white
+noise — the band catches the first; only the new content class catches the
+second.
+
+Content classification is numpy-only (same result regardless of which engine
+venvs exist): RMS/peak dBFS plus 32 log-band spectral flatness over the
+whole-file mean power spectrum, classifying `ok | silent | noise-like |
+dc-offset`. Two measurement traps were caught before pinning: per-bin
+flatness is floored at e^-γ ≈ 0.56 for ANY signal by Rayleigh amplitudes
+(white noise measured 0.559), and empty log-spaced bands poison the
+geometric mean (white noise 0.38). The shipped band-flatness measures white
+noise at 0.998 and tonal material near 0. "Music" is never claimed
+positively — that needs a proper classifier (essentia-TF MusiCNN, parked,
+needs weights). The CDP suggestion was declined with reasoning: browser-side
+DSP is the wrong layer for scan-time classification.
+
+Surface: 5 migrated columns, `content=`/`implausible=1` query facets
+(`ok` also matches never-analysed rows), tab facet controls with help-strip
+text, and `BPM?`/`SILENT`/`NOISE`/`DC` row badges. Live pass on the real DJ
+library through the tab: `space2.flac` now reads `BPM? + SILENT`, tempo NULL,
+rejected `{madmom-dbn-histogram: 1.0}` — all 10 real tracks classify `ok`
+with tempi 80–142. Gate 5/5, 608 suite green (14 new tests).
