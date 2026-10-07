@@ -18,6 +18,19 @@ function basename(path) {
   return i >= 0 ? path.substring(i + 1) : path;
 }
 
+/** Compact key for tight table cells: 'C major' → 'CM', 'G# minor' → 'G#m'.
+ *  M/m plus #/b, never a word. Mirrors the server table
+ *  (metadata.short_key) — the Node contract test pins both spellings. */
+function shortKey(canonical) {
+  if (!canonical) return '';
+  const parts = String(canonical).trim().split(/\s+/);
+  if (parts.length < 2) return String(canonical);
+  const mode = parts[1].toLowerCase();
+  if (mode.startsWith('maj')) return `${parts[0]}M`;
+  if (mode.startsWith('min')) return `${parts[0]}m`;
+  return String(canonical);
+}
+
 function formatDurationExact(seconds) {
   if (seconds == null || isNaN(seconds)) return '—';
   const s = Math.max(0, Number(seconds));
@@ -69,4 +82,4 @@ function flipRotateOptionsHtml(selectedValue) {
   ).join('');
 }
 
-export { isVideoPath, isImagePath, basename, formatDurationExact, escapeHtml, globalFrameRange, withFrameRange, FLIP_ROTATE_MODES, flipRotateOptionsHtml };
+export { isVideoPath, isImagePath, basename, formatDurationExact, escapeHtml, globalFrameRange, withFrameRange, FLIP_ROTATE_MODES, flipRotateOptionsHtml, shortKey };

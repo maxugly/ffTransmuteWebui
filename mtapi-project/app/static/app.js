@@ -1100,6 +1100,7 @@ function switchTab(tab) {
     || tab === 'dart'
     || tab === 'ytdlp'
     || tab === 'comments'
+    || tab === 'mediacatalog'
     || tab === 'imgcompare'
     || tab === 'stablefluids'
     || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-music'
@@ -1158,6 +1159,7 @@ function switchTab(tab) {
     || tab === 'dart'
     || tab === 'ytdlp'
     || tab === 'comments'
+    || tab === 'mediacatalog'
     || tab === 'imgcompare'
     || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-music'
   );
@@ -1166,6 +1168,8 @@ function switchTab(tab) {
   document.body.classList.toggle('comments-tab-active', tab === 'comments');
   // Calendar Dart: bare workspace (sidebar + dart workspace only), like References
   document.body.classList.toggle('dart-tab-active', tab === 'dart');
+  // Media Catalog: bare workspace too — no preview panel, no input preview strip.
+  document.body.classList.toggle('mediacatalog-tab-active', tab === 'mediacatalog');
   // References: bare workspace (sidebar + reference card only)
   document.body.classList.toggle('references-tab-active', tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-music');
 

@@ -272,6 +272,22 @@ Library section, `data-tab="mediacatalog"` (`js/tabs/mediacatalog.js` + `css/med
 - **Scan card:** target directory input + folder picker, recursive toggle, the four analysis checkboxes (§7), long-file guard input, Scan / Dry Run, engine-status row (`GET …/status`).
 - **Facets sidebar:** type (audio/video/image), Mine only, Made by me, AI involved, origin (generated/web/import), site (youtube/…), key dropdown (24 scales + N/A — same option set as the Music tab metas, `8.088`), tempo range slider/inputs, error-only + missing-only views.
 - **Table:** virtualized rows — play/stop (audio), path, badges (✦ mine · HAND · AI · GEN · YT/site · key · tempo), duration; click row → preview; double-click → reveal pool item if pooled. Inline audio player for audio rows (quarry acceptance carried over).
+- **Table follows the reference-table design** (the `refs-*` house pattern): tight
+  single-line rows with faint column dividers and a `min-width` so wide screens
+  grow the File column instead of crushing cells; rotated header labels with a
+  toggle-checkbox + sort-arrow strip per column; a hidden column collapses to a
+  checkbox strip and never vanishes; visibility persists in its own
+  `localStorage` key. Sorting travels with the query (server-side, since the
+  table is paged): click a header for `<column>_asc`, again for `_desc`; NULLs
+  and empties always sort last in both directions. Sortable columns are
+  file/type/duration/key/BPM/tag-key/relative(=key)/source/tags(=mine-flag) –
+  the two play/action columns are not.
+- **Keys are stored long, displayed short**: `G# minor` → `G#m`, `C major` →
+  `CM` (server `metadata.short_key` and `js/utils.js` `shortKey`, pinned
+  against each other by the Node contract test; full form always in the hover
+  tooltip). The `Rel` column is the complementary (relative) key with its
+  Camelot (`Am · 8A`), computed server-side from the canonical key so the
+  flip invariant (relatives share a Camelot number) is asserted in tests.
 - Empty states name the fix ("No rows — run a Scan, import media, or download via the Downloader tab").
 
 ---

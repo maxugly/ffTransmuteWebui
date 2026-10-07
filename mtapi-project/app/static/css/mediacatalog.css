@@ -1,5 +1,46 @@
 /* Media Catalog tab — facets + virtualized catalog table (spec §10) */
 
+/* Bare workspace (Dart/Notes/Settings pattern): the catalog is a library tab —
+   no global inputs, no Run, no preview panel, no input-preview strip. */
+body.mediacatalog-tab-active .global-inputs-panel {
+  display: none !important;
+}
+body.mediacatalog-tab-active header .header-actions,
+body.mediacatalog-tab-active header .global-quick-btns {
+  display: none !important;
+}
+body.mediacatalog-tab-active .app-content {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+body.mediacatalog-tab-active .app-content .preview-panel {
+  display: none !important;
+}
+body.mediacatalog-tab-active .action-panel {
+  flex: 1 1 100%;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+}
+body.mediacatalog-tab-active .action-panel-form {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+body.mediacatalog-tab-active .tool-input-preview {
+  display: none !important;
+}
+
 .mc-workspace {
   display: grid;
   grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
@@ -195,18 +236,86 @@
 
 .mc-row {
   display: grid;
-  grid-template-columns: 26px 34px minmax(0, 1fr) 58px minmax(180px, 232px) 54px;
-  gap: 8px;
+  gap: 0;
   align-items: center;
-  padding: 5px 8px;
+  padding: 3px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   font-size: 12px;
   min-height: 34px;
+  /* Columns are content-sized and capped, so the natural width is small;
+     below that the scroller scrolls — never crushed, never clipped. */
+  min-width: 760px;
 }
 
 .mc-row:hover { background: rgba(255, 255, 255, 0.04); }
 .mc-row.mc-row-playing { background: rgba(20, 184, 166, 0.10); }
 .mc-row-spacer { visibility: hidden; }
+
+/* Faint division between every column */
+.mc-cell {
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 2px 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.mc-cell:first-child { border-left: none; }
+
+/* ── Reference-style header: toggle + sort arrow on top, rotated label ── */
+.mc-headrow {
+  display: grid;
+  gap: 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: rgba(10, 12, 20, 0.96);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.12);
+  min-width: 760px;
+}
+
+.mc-headcell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 2px;
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  min-width: 0;
+}
+
+.mc-headcell:first-child { border-left: none; }
+
+.mc-head-top {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 14px;
+}
+
+.mc-col-toggle input { cursor: pointer; margin: 0; }
+
+.mc-sort-arrow { font-size: 10px; color: rgba(232, 238, 248, 0.9); }
+.mc-sort-arrow.dim { color: rgba(232, 238, 248, 0.28); }
+
+.mc-head-label {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+  max-height: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(232, 238, 248, 0.75);
+}
+
+/* Collapsed columns shrink to a checkbox strip, never vanish (house rule). */
+.mc-headcell.mc-col-collapsed { padding: 4px 1px; }
+.mc-headcell.mc-col-collapsed .mc-head-label,
+.mc-headcell.mc-col-collapsed .mc-sort-arrow { display: none; }
 
 .mc-cell-play {
   background: none;
@@ -245,7 +354,10 @@
   text-overflow: ellipsis;
 }
 
-.mc-badges { display: flex; flex-wrap: wrap; gap: 3px; }
+.mc-badges { display: flex; flex-wrap: nowrap; gap: 3px; overflow: hidden; }
+
+/* Trailing spacer: absorbs leftover width so columns use only what they need. */
+.mc-cell-gap, .mc-head-spacer { min-width: 0; padding: 0; border: none; }
 
 .mc-badge {
   font-size: 9px;
@@ -271,6 +383,26 @@
   font-family: var(--font-mono, ui-monospace, monospace);
   font-size: 11px;
   color: #5eead4;
+  white-space: nowrap;
+}
+
+.mc-key {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.mc-bpm {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.mc-rel {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: rgba(216, 180, 254, 0.85);
   white-space: nowrap;
 }
 

@@ -39,6 +39,82 @@ _SHARP_FLAT = {
 # Semitone values, not scale degrees — B is 11, not 6.
 _SEMITONES = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
 
+# Canonical keys are sharp-spelled, so this table is keyed sharp.
+_CANONICAL_TO_CAMELOT = {
+    "Ab minor": "1A", "D# minor": "2A", "Bb minor": "3A", "F minor": "4A",
+    "C minor": "5A", "G minor": "6A", "D minor": "7A", "A minor": "8A",
+    "E minor": "9A", "B minor": "10A", "F# minor": "11A", "C# minor": "12A",
+    "B major": "1B", "F# major": "2B", "Db major": "3B", "Ab major": "4B",
+    "Eb major": "5B", "Bb major": "6B", "F major": "7B", "C major": "8B",
+    "G major": "9B", "D major": "10B", "A major": "11B", "E major": "12B",
+}
+
+_PC_TO_SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+
+def short_key(canonical: str | None) -> str | None:
+    """Compact key for tight table columns: 'C major' → 'CM', 'G# minor' → 'G#m'.
+
+    M/m and #/b exactly as the user asked — never a word, never a guess.
+    """
+    if not canonical:
+        return None
+    parts = str(canonical).strip().split(" ")
+    if len(parts) < 2:
+        return None
+    tonic, mode = parts[0], parts[1].lower()
+    if mode.startswith("maj"):
+        return f"{tonic}M"
+    if mode.startswith("min"):
+        return f"{tonic}m"
+    return None
+
+
+def key_to_camelot(canonical: str | None) -> str | None:
+    """Canonical key → Camelot number+letter (flats resolve to their sharp twin)."""
+    if not canonical:
+        return None
+    key = str(canonical).strip()
+    if key in _CANONICAL_TO_CAMELOT:
+        return _CANONICAL_TO_CAMELOT[key]
+    # Enharmonic twins, both spellings: 'Db major' → 'C# major' is in the
+    # table, but 'G# minor' must first become its 'Ab minor' twin.
+    tonic, _, mode = key.partition(" ")
+    if mode and tonic:
+        twin = _FLAT_TO_SHARP.get(tonic.upper()) or _SHARP_FLAT.get(tonic.upper())
+        if twin:
+            twin = twin[0] + twin[1:].lower()  # 'AB' → 'Ab', 'G#' stays 'G#'
+            hit = _CANONICAL_TO_CAMELOT.get(f"{twin} {mode}")
+            if hit:
+                return hit
+    return None
+
+
+def flip_camelot(camelot: str | None) -> str | None:
+    """Camelot complementary: same number, other letter — 8A ↔ 8B."""
+    if not camelot:
+        return None
+    m = re.match(r"^\s*(\d{1,2})\s*([ABab])\s*$", str(camelot))
+    if not m:
+        return None
+    other = "B" if m.group(2).upper() == "A" else "A"
+    return f"{int(m.group(1))}{other}"
+
+
+def relative_key(canonical: str | None) -> str | None:
+    """The complementary (relative) key: C major ↔ A minor.
+
+    A relative pair shares every pitch, so this is the number the user compares
+    when the detector says one and the tag says the other.
+    """
+    pc = key_pitch_class(canonical)
+    if pc is None or not canonical:
+        return None
+    is_minor = str(canonical).lower().endswith("minor")
+    partner_pc = (pc + 3) % 12 if is_minor else (pc - 3) % 12
+    return f"{_PC_TO_SHARP[partner_pc]} {'major' if is_minor else 'minor'}"
+
+
 
 def normalize_key_tag(raw: str | None) -> str | None:
     """'Abm' / 'A minor' / 'CMAJ' → canonical 'G# minor' (sharps, long form)."""

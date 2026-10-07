@@ -13,6 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 GRID_JS = ROOT / "app" / "static" / "js" / "pool" / "grid.js"
+UTILS_JS = ROOT / "app" / "static" / "js" / "utils.js"
 
 NODE = shutil.which("node")
 
@@ -39,15 +40,17 @@ globalThis.ResizeObserver = class { observe() {} unobserve() {} disconnect() {} 
 globalThis.IntersectionObserver = class { observe() {} unobserve() {} disconnect() {} };
 globalThis.requestAnimationFrame = (fn) => setTimeout(fn, 0);
 
-const SRC = fs.readFileSync(process.argv[2], 'utf8');
-// Strip the app-level imports; we only need the pure token helpers, which are
-// defined in this module. Replace imports with stubs and export the helpers.
-const stripped = SRC
-  .replace(/^import[\s\S]*?from\s+'[^']*';?$/gm, '')
-  .replace(/^import\s+'[^']*';?$/gm, '')
-  .replace(/^export\s*\{[\s\S]*?\}\s*;?$/gm, '');
+const FILES = process.argv[2].split(',');
+let stripped = '';
+for (const f of FILES) {
+  const SRC = fs.readFileSync(f, 'utf8');
+  stripped += SRC
+    .replace(/^import[\s\S]*?from\s+'[^']*';?$/gm, '')
+    .replace(/^import\s+'[^']*';?$/gm, '')
+    .replace(/^export\s*\{[\s\S]*?\}\s*;?$/gm, '') + '\n';
+}
 const EXPORTS = `
-globalThis.__api = { parsePoolQuery, _normalizeKeyToken, _matchProvenanceToken };
+globalThis.__api = { parsePoolQuery, _normalizeKeyToken, _matchProvenanceToken, shortKey };
 `;
 const mod = stripped + EXPORTS;
 // eslint-disable-next-line no-eval
@@ -61,6 +64,7 @@ for (const c of cases) {
     if (c.op === 'parse') value = globalThis.__api.parsePoolQuery(c.query);
     else if (c.op === 'key') value = globalThis.__api._normalizeKeyToken(c.key);
     else if (c.op === 'match') value = globalThis.__api._matchProvenanceToken(c.item, c.k, c.v);
+    else if (c.op === 'short') value = globalThis.__api.shortKey(c.key);
     else throw new Error('unknown op ' + c.op);
   } catch (e) {
     value = { __error: String(e && e.message) };
@@ -76,7 +80,7 @@ def _run(cases: list[dict]) -> list[dict]:
     harness.parent.mkdir(parents=True, exist_ok=True)
     harness.write_text(_HARNESS)
     proc = subprocess.run(
-        [NODE, str(harness), str(GRID_JS), json.dumps(cases)],
+        [NODE, str(harness), f"{GRID_JS},{UTILS_JS}", json.dumps(cases)],
         capture_output=True, text=True, timeout=60, cwd=str(ROOT),
     )
     if proc.returncode != 0:
@@ -183,6 +187,25 @@ class PoolTokenGrammarTest(unittest.TestCase):
         self.assertIs(out["b2"], False)
         self.assertIs(out["b3"], True)   # 128.4 within 1 of 128
 
+
+    def test_short_key_matches_server_table(self):
+        """The pool chips (JS) and the tab rows (server) must spell keys the
+        same way — this pins both spellings against one table."""
+        cases = [
+            {"id": "cmaj", "op": "short", "key": "C major"},
+            {"id": "gm", "op": "short", "key": "G minor"},
+            {"id": "gsharp", "op": "short", "key": "G# minor"},
+            {"id": "eb", "op": "short", "key": "Eb major"},
+            {"id": "none", "op": "short", "key": None},
+            {"id": "bare", "op": "short", "key": "C"},
+        ]
+        out = {c["id"]: c["value"] for c in _run(cases)}
+        self.assertEqual(out["cmaj"], "CM")
+        self.assertEqual(out["gm"], "Gm")
+        self.assertEqual(out["gsharp"], "G#m")
+        self.assertEqual(out["eb"], "EbM")
+        self.assertEqual(out["none"], "")
+        self.assertEqual(out["bare"], "C")
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,7 +7,7 @@
  * row back onto the pool item so badges and filters never lag the database.
  */
 import { state } from '/app.js?v=2';
-import { basename, escapeHtml } from '/js/utils.js';
+import { basename, escapeHtml, shortKey } from '/js/utils.js';
 
 function _log(msg, kind) {
   try {
@@ -144,8 +144,12 @@ function provenanceBadgesHtml(item) {
   if (sm.origin === 'generated') bits.push('<span class="pool-badge-gen" data-help-title="Generated here" data-help-text="Produced by this app.">GEN</span>');
   if (!bits.length && !(sm.key_name || sm.tempo != null)) return '';
   const musical = [];
-  if (sm.key_name) musical.push(escapeHtml(sm.key_name));
-  if (sm.tempo != null) musical.push(`${Number(sm.tempo).toFixed(1)} BPM`);
+  if (sm.key_name) {
+    // Short spelling on the chip (G#m), full form on hover. One truth shared
+    // with js/utils.js shortKey, pinned by the Node contract test.
+    musical.push(`<span title="${escapeHtml(sm.key_name)}">${escapeHtml(shortKey(sm.key_name))}</span>`);
+  }
+  if (sm.tempo != null) musical.push(`${Number(sm.tempo).toFixed(1)}`);
   if (musical.length) {
     bits.push(`<span class="pool-badge-musical" data-help-title="Analysis" data-help-text="Key and tempo extracted by the Media Catalog scan (Essentia). Filter with key:c major or bpm:90-120.">${musical.join(' · ')}</span>`);
   }

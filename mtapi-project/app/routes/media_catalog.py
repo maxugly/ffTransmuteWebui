@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,12 @@ from typing import Any
 from fastapi import APIRouter, Request
 from starlette.responses import JSONResponse
 
+from ..audio_pipeline.metadata import (
+    flip_camelot,
+    key_to_camelot,
+    relative_key,
+    short_key,
+)
 from ..database import audio_db
 from ..media import performance as media_perf
 from .pool import IMAGE_EXTENSIONS
@@ -132,6 +139,9 @@ def _row_payload(row: dict[str, Any]) -> dict[str, Any]:
         "tempo_agreeing_engines": raw.get("tempo_agreeing_engines"),
         "tempo_engine": raw.get("tempo_engine"),
         "key_engine": raw.get("key_engine"),
+        "short_key": short_key(row.get("key_name")),
+        "relative_key": relative_key(row.get("key_name")),
+        "relative_camelot": flip_camelot(key_to_camelot(row.get("key_name"))),
         "beat_counts_by_engine": raw.get("beat_counts_by_engine"),
         "onset_counts_by_engine": raw.get("onset_counts_by_engine"),
         "notes_midi_path": raw.get("notes_midi_path"),
@@ -258,13 +268,31 @@ async def catalog_query(request: Request) -> JSONResponse:
         limit, offset = 200, 0
 
     order = params.get("order") or "recent"
-    order_sql = {
-        "recent": "is_mine DESC, IFNULL(updated_at,'') DESC",
-        "path": "path COLLATE NOCASE ASC",
-        "tempo": "IFNULL(tempo, 999999) ASC",
-        "key": "IFNULL(key_name, '~') ASC, IFNULL(tempo, 999999) ASC",
-        "duration": "IFNULL(duration, 0) DESC",
-    }.get(order, "is_mine DESC, IFNULL(updated_at,'') DESC")
+    # Full column sort grammar: <column>_<dir>. NULLs/empties always sort last
+    # in both directions (the reference-table house rule), so dir never hides
+    # real values behind blanks.
+    SORTABLE = {
+        "name": "path", "path": "path", "type": "type",
+        "duration": "duration", "tempo": "tempo", "key": "key_name",
+        "tag_bpm": "tag_bpm", "tag_key": "tag_initial_key",
+        "mine": "is_mine", "origin": "origin", "site": "site",
+        "status": "status", "created": "created_at", "updated": "updated_at",
+        "source": "tempo_source",
+    }
+    order_sql = "is_mine DESC, IFNULL(updated_at,'') DESC"
+    if order != "recent":
+        m = re.match(r"^([a-z_]+)_(asc|desc)$", order)
+        if m and m.group(1) in SORTABLE:
+            col = SORTABLE[m.group(1)]
+            direction = "ASC" if m.group(2) == "asc" else "DESC"
+            if col in ("is_mine",):
+                order_sql = f"{col} {direction}"
+            else:
+                order_sql = f"({col} IS NULL), {col} COLLATE NOCASE {direction}" \
+                    if col in ("path", "type", "key_name", "tag_initial_key",
+                               "origin", "site", "status", "created_at",
+                               "updated_at", "tempo_source") \
+                    else f"({col} IS NULL), {col} {direction}"
 
     try:
         audio_db.init_db()

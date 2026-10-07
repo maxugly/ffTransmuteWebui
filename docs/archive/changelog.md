@@ -803,3 +803,51 @@ detection only in the sibling `.json` sidecar, so
 sidecar keep NULL — nothing is invented.
 
 563 suite green (17 new tests).
+
+---
+
+## Media Catalog table v2 — reference design, short keys, relatives (`8.126`)
+
+User request: tighten the whitespace, spell keys as short as possible (`M/m`,
+`#/b`), add an optional complementary-key column, faint dividers, sortable by
+anything, columns on/off switches — in the language of the reference tables.
+
+The Catalog table now uses the reference header shape (toggle-checkbox +
+`⇅`/`▲`/`▼` on top, rotated labels), faint dividers, a `min-width` so wide
+screens grow File instead of crushing cells, and the house collapse rule
+(hidden columns shrink to a strip, never vanish) with visibility in its own
+localStorage key. Sorting travels with the query (server-side, since paged):
+click for `<column>_asc`, again for `_desc`, NULLs/empties last in both
+directions, enforced in SQL.
+
+Keys are stored long and displayed short (`G#m`, `CM`) — one table server-side
+and one in `js/utils.js`, pinned together by the Node contract test, full form
+on hover. The **Rel** column is the complementary (relative) key with its
+Camelot (`Am · 8A`), computed server-side; a test asserts the fundamental
+invariant that relatives share a Camelot number. Pool musical chips shrunk the
+same way.
+
+Caught by clicking: the new musical column clipped longer rows live, and the
+fresh `⚡ TAGGED` chip truncated at 66px — measured per cell, then widened.
+Playwright: BPM asc/desc both directions, key sort with empties last, Rel
+toggle collapse + persistence, combined filtering unchanged. Gate 5/5.
+
+---
+
+## Media Catalog: bare workspace + content-sized table (`8.127`)
+
+Follow-up on the v2 table. The "Media Output Preview" panel and the "Input
+Preview · set a path above" strip are gone from this tab — it joined the
+Dart/Notes bare-workspace pattern (`hideRun`, `noGlobalInputs`,
+`mediacatalog-tab-active`, `input-preview.js` HIDE_TABS), so the table owns the
+whole workspace. The `→I` send and inline audio playback are untouched.
+
+The File column was greedy (`1fr`) and shoved the late columns off the edge, so
+it is now capped with a trailing spacer column absorbing leftover space —
+columns use only what they need. Tags cap at one line with the list on hover.
+A duplicate-badge bug (badges in both the File cell and the Tags column) went
+with the rewrite, taking rows from 59px to 42px. Virtualization measures the
+real row height from the DOM instead of trusting a constant.
+
+Playwright: both panels `display: none`, first row's action buttons fully
+visible, measured rows. Gate 5/5.

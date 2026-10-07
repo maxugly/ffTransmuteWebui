@@ -261,3 +261,60 @@ def test_save_tags_writes_promoted_columns(tmp_path):
         assert "Lavf" in row["tags_json"]
     finally:
         audio_db.set_db_path(prev)
+
+# ── Slice 10: short keys, relatives, Camelot ───────────────────────────────
+def test_short_key_compactness():
+    from app.audio_pipeline.metadata import short_key
+    assert short_key("C major") == "CM"
+    assert short_key("G# minor") == "G#m"
+    assert short_key("A minor") == "Am"
+    assert short_key("Eb major") == "EbM"
+    assert short_key(None) is None
+
+
+def test_key_to_camelot_covering_both_spellings():
+    from app.audio_pipeline.metadata import key_to_camelot
+    # Minor ring (each a fifth apart, Camelot order)
+    assert key_to_camelot("A minor") == "8A"
+    assert key_to_camelot("D minor") == "7A"
+    assert key_to_camelot("G# minor") == "1A"   # sharp spelling lands on Ab's slot
+    assert key_to_camelot("Ab minor") == "1A"   # flat spelling lands too
+    # Major ring
+    assert key_to_camelot("C major") == "8B"
+    assert key_to_camelot("B major") == "1B"
+    assert key_to_camelot("Db major") == "3B"
+    assert key_to_camelot("C# major") == "3B"  # enharmonic twin
+    assert key_to_camelot(None) is None
+    assert key_to_camelot("garbage") is None
+
+
+def test_flip_camelot_pairs_relatives():
+    from app.audio_pipeline.metadata import flip_camelot, relative_key, key_to_camelot
+    # The fundamental DJ invariant: relatives share a number.
+    for minor, major, num in (("A minor", "C major", "8"), ("G# minor", "B major", "1"),
+                              ("D minor", "F major", "7")):
+        cam_min = key_to_camelot(minor)
+        cam_maj = key_to_camelot(major)
+        assert cam_min and cam_maj, minor
+        assert cam_min[:-1] == cam_maj[:-1] == num
+        assert flip_camelot(cam_min) == cam_maj
+        assert flip_camelot(cam_maj) == cam_min
+        assert relative_key(minor) == major
+        assert relative_key(major) == minor
+    assert flip_camelot(None) is None
+    assert flip_camelot("nope") is None
+
+
+def test_row_payload_carries_relative_fields():
+    """The tab renders short/relative from the row — the server must provide them."""
+    import json as _json
+    from app.routes.media_catalog import _row_payload
+
+    row = {
+        "path": "/m/x.flac", "key_name": "G# minor", "tempo": 82.99,
+        "tag_camelot": "1A", "raw_metadata": _json.dumps({}),
+    }
+    payload = _row_payload(row)
+    assert payload["short_key"] == "G#m"
+    assert payload["relative_key"] == "B major"
+    assert payload["relative_camelot"] == "1B"

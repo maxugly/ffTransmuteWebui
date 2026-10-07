@@ -11,13 +11,16 @@
  */
 import { state, elements, switchTab, logConsole } from '/app.js?v=2';
 import { runOpWithCancel } from '/js/job-control.js';
-import { escapeHtml } from '/js/utils.js';
+import { escapeHtml, shortKey } from '/js/utils.js';
 
 const KEY_OPTIONS = [
   'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B',
 ].flatMap((t) => [`${t} major`, `${t} minor`]);
 
-const ROW_H = 35;      // must match .mc-row min-height + border in CSS
+const ROW_H_FALLBACK = 35;
+// Measured from the DOM after first render — rows must be a fixed height for
+// the virtualization math, and CSS is the authority, not this constant.
+let rowHPx = ROW_H_FALLBACK;
 const OVERSCAN = 6;
 
 let audio = null;            // single <audio> element, reused per row
@@ -72,6 +75,13 @@ async function fetchRows({ append = false } = {}) {
   return { rows: data.rows, total: data.total };
 }
 
+/* sorting travels with the query (server-side — the table is paged) */
+function mcApplyOrder() {
+  const order = mcOrderParam();
+  if (order) facets.order = order;
+  else delete facets.order;
+}
+
 /* ── badges ─────────────────────────────────────────────────────────── */
 function badgesHtml(row) {
   const out = [];
@@ -88,48 +98,161 @@ function badgesHtml(row) {
   if (row.title) out.push(`<span class="mc-badge mc-badge-title" title="${_esc(row.title)}">♪ ${_esc(row.title.slice(0, 22))}</span>`);
   if (row.status === 'missing') out.push('<span class="mc-badge mc-badge-missing">missing</span>');
   if (row.status === 'error') out.push('<span class="mc-badge mc-badge-error">error</span>');
-  return out.length ? `<div class="mc-badges">${out.join('')}</div>` : '';
+  // Single line, never wrapped — the row height is virtualized, so a wrapped
+  // cell would silently break scroll math. Full text lives on the title.
+  const plain = out.map((h) => h.replace(/<[^>]+>/g, '').trim()).filter(Boolean);
+  return out.length ? `<div class="mc-badges" title="${_esc(plain.join(' · '))}">${out.join('')}</div>` : '';
 }
 
-function musicalHtml(row) {
-  const bits = [];
-  if (row.key_name) {
-    bits.push(_esc(row.key_name));
-    if (row.key_source === 'detected' && row.key_detected && row.tag_key) {
-      bits.push(`<button type="button" class="mc-src mc-src-detected" data-mc-source="${_esc(row.path)}" data-field="key" data-to="tagged" data-help-title="Key source of truth" data-help-text="Using the detected key. Click to prefer the tagged key instead. Both are always kept.">⚡ detected</button>`);
-    }
+/* ── column model (reference-table design) ──────────────────────────────
+ * Every column: toggle checkbox + sort arrow in the header, rotated label,
+ * faint dividers, collapsed columns shrink to a strip (never vanish), and all
+ * sorting travels with the query (server-side, since the table is paged).
+ * Visibility persists in localStorage, independent of the filter facets. */
+const MC_COLS = [
+  { key: 'play', label: 'Play', width: '26px', sortable: false },
+  { key: 'type', label: 'Type', width: '44px', sortable: true, order: 'type' },
+  // File is content-sized but capped: long paths truncate with the full path
+  // on hover, and leftover space belongs to the trailing spacer, not here.
+  { key: 'name', label: 'File', width: 'minmax(140px, 380px)', sortable: true, order: 'name' },
+  { key: 'tags', label: 'Tags', width: 'minmax(0, 200px)', sortable: true, order: 'mine' },
+  { key: 'dur', label: 'Dur', width: '48px', sortable: true, order: 'duration' },
+  { key: 'key', label: 'Key', width: '52px', sortable: true, order: 'key' },
+  { key: 'bpm', label: 'BPM', width: '58px', sortable: true, order: 'tempo' },
+  { key: 'tag', label: 'Tag', width: '104px', sortable: true, order: 'tag_key' },
+  { key: 'rel', label: 'Rel', width: '84px', sortable: true, order: 'key' },
+  { key: 'src', label: 'Src', width: '78px', sortable: true, order: 'source' },
+  { key: 'act', label: 'Act', width: '64px', sortable: false },
+  // Trailing spacer: takes whatever space is left over — columns use only
+  // what they need, no more, no less. Never toggled, never sorted.
+  { key: 'gap', label: '', width: 'minmax(0, 1fr)', sortable: false, spacer: true },
+];
+
+const MC_VIS_KEY = 'mediacatalog-col-vis';
+
+function mcLoadVis() {
+  try {
+    return JSON.parse(localStorage.getItem(MC_VIS_KEY) || '{}');
+  } catch (_) {
+    return {};
   }
-  if (row.tempo != null) bits.push(`${Number(row.tempo).toFixed(1)}`);
-  if (!bits.length) return '—';
-  // The owner's own annotation, when present, is the ground truth to judge by.
-  const tagBits = [];
-  if (row.tag_camelot) tagBits.push(_esc(row.tag_camelot));
+}
+
+let mcVis = mcLoadVis();
+let mcSort = { key: null, dir: 1 };  // dir: 1 asc, -1 desc
+
+function mcIsVisible(key) {
+  return mcVis[key] !== false;
+}
+
+function mcSetVisible(key, visible) {
+  mcVis[key] = visible;
+  try {
+    localStorage.setItem(MC_VIS_KEY, JSON.stringify(mcVis));
+  } catch (_) { /* ignore */ }
+}
+
+function mcGridTemplate() {
+  return MC_COLS.map((c) => (mcIsVisible(c.key) ? c.width : '12px')).join(' ');
+}
+
+function mcOrderParam() {
+  if (!mcSort.key) return null;
+  const col = MC_COLS.find((c) => c.key === mcSort.key);
+  if (!col || !col.sortable) return null;
+  return `${col.order}_${mcSort.dir === 1 ? 'asc' : 'desc'}`;
+}
+
+function mcToggleSort(key) {
+  const col = MC_COLS.find((c) => c.key === key);
+  if (!col || !col.sortable) return;
+  if (mcSort.key === key) {
+    mcSort.dir = mcSort.dir === 1 ? -1 : 1;
+  } else {
+    mcSort = { key, dir: 1 };
+  }
+  pageOffset = 0;
+  const scroller = _el('mcScroll');
+  if (scroller) scroller.scrollTop = 0;
+  refresh();
+}
+
+function mcHeadHtml() {
+  return `<div class="mc-headrow" style="grid-template-columns: ${mcGridTemplate()}">` +
+    MC_COLS.map((c) => {
+      if (c.spacer) return `<div class="mc-headcell mc-head-spacer"></div>`;
+      const visible = mcIsVisible(c.key);
+      const active = mcSort.key === c.key;
+      const arrow = !c.sortable ? '' :
+        `<span class="mc-sort-arrow${active ? '' : ' dim'}">${active ? (mcSort.dir === 1 ? ' ▲' : ' ▼') : ' ⇅'}</span>`;
+      return `<div class="mc-headcell${visible ? '' : ' mc-col-collapsed'}" data-mc-col="${c.key}" title="${_esc(c.label)}">`
+        + `<span class="mc-head-top">`
+        + `<label class="mc-col-toggle" data-help-title="Toggle column"><input type="checkbox"${visible ? ' checked' : ''} data-mc-toggle="${c.key}"></label>`
+        + arrow
+        + `</span>`
+        + (visible ? `<span class="mc-head-label">${_esc(c.label)}</span>` : '')
+        + `</div>`;
+    }).join('') + `</div>`;
+}
+
+function cellKey(row) {
+  const short = _esc(row.short_key || shortKey(row.key_name) || '—');
+  const full = row.key_name || '';
+  const tip = [full, row.key_engine ? `detected: ${row.key_engine}` : '']
+    .filter(Boolean).join(' · ');
+  return `<span class="mc-key" title="${_esc(tip)}">${short}</span>`;
+}
+
+function cellBpm(row) {
+  if (row.tempo == null) return '—';
+  const spread = row.tempo_spread_bpm;
+  const tip = [`engine: ${row.tempo_engine || 'scan'}`];
+  if (spread != null && Number(spread) > 0.05) {
+    tip.push(`engines disagreed by ${Number(spread).toFixed(1)} BPM — full breakdown in the sidecar .json`);
+  }
+  return `<span class="mc-bpm" title="${_esc(tip.join(' · '))}">${Number(row.tempo).toFixed(1)}</span>`;
+}
+
+function cellTag(row) {
+  const bits = [];
+  if (row.tag_camelot) bits.push(_esc(row.tag_camelot));
   if (row.tag_bpm != null) {
     const delta = row.tempo_vs_tag_bpm;
     const agree = row.tempo_agrees_with_tag;
     const oct = row.tempo_octave_equivalent && !agree;
-    tagBits.push(`tag ${Number(row.tag_bpm).toFixed(0)}`
+    bits.push(`tag ${Number(row.tag_bpm).toFixed(0)}`
       + (delta != null ? ` (${delta > 0 ? '+' : ''}${Number(delta).toFixed(1)})` : '')
       + (oct ? ' ×½?' : (agree ? ' ✓' : '')));
   }
-  if (tagBits.length) {
-    bits.push(`<span class="mc-cell-tag">${tagBits.join(' · ')}</span>`);
-  }
-  // Both readings are always stored. This chip says which one is authoritative
-  // and switches it — choosing the other never discards anything.
+  if (!bits.length) return '—';
+  const cam = row.tag_camelot ? `camelot: ${row.tag_camelot}` : '';
+  const tagKey = row.tag_key ? `tagged key: ${row.tag_key}` : '';
+  return `<span class="mc-cell-tag" title="${_esc([cam, tagKey].filter(Boolean).join(' · '))}">${bits.join(' · ')}</span>`;
+}
+
+function cellRel(row) {
+  if (!row.relative_key) return '—';
+  const short = shortKey(row.relative_key);
+  const cam = row.relative_camelot ? ` · ${row.relative_camelot}` : '';
+  const tip = row.key_name
+    ? `Relative of ${row.key_name}: ${row.relative_key}`
+    : `Relative key: ${row.relative_key}`;
+  return `<span class="mc-rel" title="${_esc(tip)}">${_esc(short)}${_esc(cam)}</span>`;
+}
+
+function cellSrc(row) {
   const src = row.tempo_source;
-  if (src && row.tag_bpm != null && row.tempo_detected != null) {
-    const other = src === 'tagged' ? 'detected' : 'tagged';
-    const otherValue = Number(other === 'tagged' ? row.tag_bpm : row.tempo_detected);
-    bits.push(`<button type="button" class="mc-src mc-src-${src}" data-mc-source="${_esc(row.path)}" data-field="tempo" data-to="${other}" data-help-title="Tempo source of truth" data-help-text="Using the ${src} tempo (${Number(row.tempo).toFixed(1)} BPM). Click to use the ${other} one instead (${otherValue.toFixed(1)} BPM). Both numbers are always kept.">⚡ ${src}</button>`);
-  }
-  // Hover the disagreement, if the catalog recorded one.
-  let title = '';
-  const spread = row.tempo_spread_bpm;
-  if (spread != null && Number(spread) > 0.05) {
-    title = ` data-help-title="Engine opinions" data-help-text="Engines disagreed by ${Number(spread).toFixed(1)} BPM on this file. Hover for the stored spread; the full per-engine breakdown lives in the sidecar .json and raw_metadata.engine_opinions."`;
-  }
-  return `<span class="mc-cell-musical"${title}>${bits.join(' · ')}</span>`;
+  if (!(src && row.tag_bpm != null && row.tempo_detected != null)) return '—';
+  const other = src === 'tagged' ? 'detected' : 'tagged';
+  const otherValue = Number(other === 'tagged' ? row.tag_bpm : row.tempo_detected);
+  return `<button type="button" class="mc-src mc-src-${src}" data-mc-source="${_esc(row.path)}" data-field="tempo" data-to="${other}" data-help-title="Tempo source of truth" data-help-text="Using the ${src} tempo (${Number(row.tempo).toFixed(1)} BPM). Click to use the ${other} one instead (${otherValue.toFixed(1)} BPM). Both numbers are always kept.">⚡ ${src.slice(0, 4)}</button>`;
+}
+
+function cellAct(row) {
+  return `<div class="mc-actions-cell">`
+    + `<button type="button" class="btn btn-sm" data-mc-provenance="${_esc(row.path)}" data-help-title="Provenance" data-help-text="Open the three-bit provenance editor for this file.">✦</button>`
+    + `<button type="button" class="btn btn-sm" data-mc-send="${_esc(row.path)}" data-help-title="Send to Media In" data-help-text="Send this file to the global Media In box as the input.">→I</button>`
+    + `</div>`;
 }
 
 function rowHtml(row) {
@@ -139,49 +262,86 @@ function rowHtml(row) {
     ? `<button type="button" class="mc-cell-play" data-mc-play="${_esc(row.path)}" data-help-title="Play" data-help-text="Play or stop this audio file inline.">${playing ? '■' : '▶'}</button>`
     : '<span class="mc-cell-play">—</span>';
   return `
-    <div class="mc-row${playing ? ' mc-row-playing' : ''}" data-mc-row="${_esc(row.path)}">
-      <div>${playBtn}</div>
-      <div class="mc-cell-type mc-type-${type}">${_esc(type.slice(0, 4).toUpperCase())}</div>
-      <div class="mc-cell-name">
+    <div class="mc-row${playing ? ' mc-row-playing' : ''}" data-mc-row="${_esc(row.path)}" style="grid-template-columns: ${mcGridTemplate()}">
+      <div class="mc-cell">${playBtn}</div>
+      <div class="mc-cell mc-cell-type mc-type-${type}">${_esc(type.slice(0, 4).toUpperCase())}</div>
+      <div class="mc-cell mc-cell-name">
         <span class="mc-name" title="${_esc(row.name || row.path)}">${_esc(row.name || row.path)}</span>
         <span class="mc-cell-path" title="${_esc(row.path)}">${_esc(row.path)}</span>
-        ${badgesHtml(row)}
       </div>
-      <div class="mc-cell-dur">${_fmtDuration(row.duration)}</div>
-      <div>${musicalHtml(row)}</div>
-      <div class="mc-actions-cell">
-        <button type="button" class="btn btn-sm" data-mc-provenance="${_esc(row.path)}" data-help-title="Provenance" data-help-text="Open the three-bit provenance editor for this file.">✦</button>
-        <button type="button" class="btn btn-sm" data-mc-send="${_esc(row.path)}" data-help-title="Send to Media In" data-help-text="Send this file to the global Media In box as the input.">→I</button>
-      </div>
+      <div class="mc-cell">${badgesCell(row)}</div>
+      <div class="mc-cell mc-cell-dur">${_fmtDuration(row.duration)}</div>
+      <div class="mc-cell">${cellKey(row)}</div>
+      <div class="mc-cell">${cellBpm(row)}</div>
+      <div class="mc-cell">${cellTag(row)}</div>
+      <div class="mc-cell">${cellRel(row)}</div>
+      <div class="mc-cell">${cellSrc(row)}</div>
+      <div class="mc-cell">${cellAct(row)}</div>
+      <div class="mc-cell mc-cell-gap"></div>
     </div>`;
+}
+
+function badgesCell(row) {
+  const html = badgesHtml(row);
+  return html || '—';
 }
 
 /* ── virtualized render ─────────────────────────────────────────────── */
 function renderTable() {
   const scroller = _el('mcScroll');
   if (!scroller) return;
+  const head = mcHeadHtml();
   const total = rowsCache.length;
   if (total === 0) {
-    scroller.innerHTML = `<div class="mc-empty">
+    scroller.innerHTML = head + `<div class="mc-empty">
       No rows match these filters.<br />
       Try <code>Clear filters</code>, run a <b>Scan</b> on a folder, import media into a pool,
       or download something with the <code>yt-dlp</code> tab.
     </div>`;
     _updateCount(0, 0);
+    bindHeadControls();
     return;
   }
+  mcApplyOrder();
   const viewH = scroller.clientHeight || 480;
-  const first = Math.max(0, Math.floor(scroller.scrollTop / ROW_H) - OVERSCAN);
-  const visible = Math.ceil(viewH / ROW_H) + OVERSCAN * 2;
+  const first = Math.max(0, Math.floor(scroller.scrollTop / rowHPx) - OVERSCAN);
+  const visible = Math.ceil(viewH / rowHPx) + OVERSCAN * 2;
   const slice = rowsCache.slice(first, first + visible);
-  const padTop = first * ROW_H;
-  const padBottom = Math.max(0, (total - first - slice.length) * ROW_H);
+  const padTop = first * rowHPx;
+  const padBottom = Math.max(0, (total - first - slice.length) * rowHPx);
 
-  scroller.innerHTML =
+  scroller.innerHTML = head +
     `<div style="height:${padTop}px"></div>` +
     slice.map(rowHtml).join('') +
     `<div style="height:${padBottom}px"></div>`;
   _updateCount(total, total);
+  bindHeadControls();
+  // Measure the real row height once — CSS owns it, the constant only falls back.
+  const probe = scroller.querySelector('.mc-row');
+  if (probe && probe.offsetHeight > 10) rowHPx = probe.offsetHeight;
+}
+
+/* Header sort + toggle clicks — rebound after every render (headers re-render). */
+function bindHeadControls() {
+  const scroller = _el('mcScroll');
+  if (!scroller) return;
+  scroller.querySelectorAll('[data-mc-toggle]').forEach((box) => {
+    box.addEventListener('change', () => {
+      mcSetVisible(box.dataset.mcToggle, box.checked);
+      renderTable();
+    });
+  });
+  scroller.querySelectorAll('.mc-headcell').forEach((cell) => {
+    const key = cell.dataset.mcCol;
+    const col = MC_COLS.find((c) => c.key === key);
+    if (!col || !col.sortable) return;
+    cell.style.cursor = 'pointer';
+    cell.addEventListener('click', (e) => {
+      // The checkbox has its own handler — don't sort when toggling.
+      if (e.target.closest('[data-mc-toggle]')) return;
+      mcToggleSort(key);
+    });
+  });
 }
 
 function _updateCount(shown, total) {
@@ -381,6 +541,7 @@ async function loadEngineStatus() {
 async function refresh() {
   try {
     pageOffset = 0;
+    mcApplyOrder();
     await fetchRows();
     renderTable();
   } catch (err) {

@@ -322,3 +322,40 @@ def test_query_filters_disagreements_and_source(client, tmp_path):
     assert disagree["total"] == 1
     tagged = client.get("/api/media-catalog/query?source=tagged").json()
     assert tagged["total"] == 2
+
+
+def test_order_grammar_sorts_every_column(client, tmp_path):
+    """Every sortable column must order server-side with NULLs last in both
+    directions (the reference-table house rule), and unknown orders must fall
+    back instead of breaking."""
+    alpha = _wav(tmp_path / "alpha.wav")
+    zeta = _wav(tmp_path / "zeta.wav")
+    client.post("/api/media-catalog/ingest", json={"paths": [alpha, zeta]})
+    with audio_db.get_db() as db:
+        db.execute("UPDATE media SET tempo=100.0, key_name='D minor', tag_bpm=90, is_mine=1 WHERE path=?", (zeta,))
+    rows_of = lambda q: [r["name"] for r in
+                         client.get(f"/api/media-catalog/query?{q}").json()["rows"]]
+
+    assert rows_of("order=name_asc") == ["alpha.wav", "zeta.wav"]
+    assert rows_of("order=name_desc") == ["zeta.wav", "alpha.wav"]
+    # zeta is the only one with tempo/key/tags: empties must sort last in ASC…
+    assert rows_of("order=tempo_asc")[0] == "zeta.wav"
+    assert rows_of("order=key_asc")[0] == "zeta.wav"
+    assert rows_of("order=tag_bpm_asc")[0] == "zeta.wav"
+    assert rows_of("order=mine_desc")[0] == "zeta.wav"
+    # …and still last in DESC (mine is a 0/1 flag, so desc shows it first).
+    assert rows_of("order=tempo_desc")[0] == "zeta.wav"
+    # Unknown/legacy orders fall back to the default without error.
+    data = client.get("/api/media-catalog/query?order=bogus").json()
+    assert data["ok"] is True and data["total"] == 2
+    assert client.get("/api/media-catalog/query").json()["total"] == 2
+
+
+def test_order_source_uses_chosen_source_of_truth(client, tmp_path):
+    a = _wav(tmp_path / "a.wav")
+    client.post("/api/media-catalog/ingest", json={"paths": [a]})
+    with audio_db.get_db() as db:
+        db.execute("UPDATE media SET tag_bpm=140.0, tempo_detected=120.0,"
+                   " tempo=140.0, tempo_source='tagged' WHERE path=?", (a,))
+    rows = client.get("/api/media-catalog/query?order=source_asc").json()["rows"]
+    assert rows[0]["tempo_source"] == "tagged"
