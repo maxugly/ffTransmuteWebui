@@ -14,6 +14,13 @@
     "summary": "Advanced audio analysis pipeline extracting Transients, BPM, Key, and generating MIDI using Spotify Basic Pitch, Aubio, Essentia, and Madmom. Engine stack and MIDI/transients design absorbed into media-catalog-spec.md §3/§7/§8; op id audio-analyze retired."
   },
   {
+    "file": "cdp-integration-spec.md",
+    "path": "docs/cdp-integration-spec.md",
+    "category": "Spec - Audio",
+    "status": "Proposal (unreviewed; needs user confirmation on 24 labeled assumptions)",
+    "summary": "Composers Desktop Project as a menu-driven WebUI capability via cdp-wasm: scaling menu architecture, schema-driven params, chain execution reusing the audio_pipeline decode pattern, phased rollout. Found untracked in the tree 2026-10-07 and committed as-is; not reviewed in the 8.119–8.127 build sessions."
+  },
+  {
     "file": "audio-quarry-spec.md",
     "path": "docs/audio-quarry-spec.md",
     "category": "Spec - Catalog",
