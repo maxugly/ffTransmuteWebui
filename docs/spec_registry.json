@@ -17,8 +17,8 @@
     "file": "cdp-integration-spec.md",
     "path": "docs/cdp-integration-spec.md",
     "category": "Spec - Audio",
-    "status": "Proposal (unreviewed; needs user confirmation on 24 labeled assumptions)",
-    "summary": "Composers Desktop Project as a menu-driven WebUI capability via cdp-wasm: scaling menu architecture, schema-driven params, chain execution reusing the audio_pipeline decode pattern, phased rollout. Found untracked in the tree 2026-10-07 and committed as-is; not reviewed in the 8.119–8.127 build sessions."
+    "status": "Spec - reviewed + spike-proven (GO); needs user yes on execution path [A1] before Phase 1",
+    "summary": "Composers Desktop Project as a menu-driven WebUI capability via cdp-wasm: scaling menu architecture, schema-driven params, chain execution reusing the audio_pipeline decode pattern, phased rollout. Reviewed 2026-10-07 (8.128): cdp-wasm 0.7.0 pinned (232 effects / 110 programs / 16 generators / 215 bundled, zero deps), §10.3 de-risk spike executed — browser Worker vendoring proven with Playwright (8/8 checks, 0 console errors, junk/cdp-spike/), determinism contract corrected to RIFF data-chunk compare (PEAK/LIST carry libsndfile timestamps)."
   },
   {
     "file": "audio-quarry-spec.md",

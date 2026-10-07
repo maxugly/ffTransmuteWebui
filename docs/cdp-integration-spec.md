@@ -1,8 +1,9 @@
 # CDP Integration Spec — Composers Desktop Project for the WebUI
 
-> **Status:** proposal / needs user confirmation on assumptions marked **[A]**.
-> **Scope:** spec only, no code. Target reader: the user + a future Builder agent.
+> **Status:** reviewed + spike-proven (`§10.3` executed 2026-10-07, **GO**) — awaiting user confirmation on assumptions marked **[A]**.
+> **Scope:** spec only, no app code. Target reader: the user + a future Builder agent.
 > **Repo fit note:** this repo is vanilla HTML5/CSS3/ES6 with **no npm** (invariant 7) and FastAPI ops that fail as HTTP 200 + `{"ok": false}` (invariant 10). That constrains how `cdp-wasm` (an npm package) can be consumed — see §7 and **[A1]**.
+> **Pinned at build time (verify again before Phase 1 code):** `cdp-wasm` **0.7.0** (npm, 2026-09-02) — tarball 3.2 MB, sha512 `1b5331f0…`, unpacked 9,521,131 B / 496 files, **zero runtime dependencies**, licence `(MIT AND LGPL-2.1-or-later)`; CDP8 sources as bundled by that build (215 programs / 26 spectral). Spike evidence: `mtapi-project/junk/cdp-spike/` (gitignored, throwaway per invariant 8).
 
 ---
 
@@ -50,17 +51,19 @@ The practical way to use CDP in a browser in 2026 is **`cdp-wasm`** (by Oli Lark
 
 ### 2.2 The `cdp-wasm` port
 
-| Fact | Value (verify at pin time) |
+| Fact | Value (verified against **0.7.0**, 2026-10-07; re-verify at pin) |
 |---|---|
 | Source | CDP8 C sources, unmodified at build; Emscripten toolchain (`npm run build:wasm`); `.wasm` built at publish (`prepack`), not committed |
-| Package | `cdp-wasm` on npmjs.org, public, provenance-attested, zero-dep runtime **[inference: verify dep count at pin]** |
-| Size | Project site: **3.22 MB tarball**; npm.io reports **~9.0 MB** (unpacked, v0.6.0) — same artifact, different measure **[A: confirm which number gates vendoring]** |
-| Coverage | **215 program modules** (197 main-suite + 18 self-contained externals + shared `cdp-core`); only exclusions are ~3 build helpers + programs that don't compile/run headless |
-| Curated layer | `EFFECTS` catalog: **232 effects across 110 programs + 16 generators**, each with named params, min/max/default, flags for spectral / mono-only / spatial |
-| Runtime | Node ≥ 18; browser via same JS entry; each program a `.wasm` module on a virtual FS |
-| Audio I/O | **Byte arrays, not disk**: `cdp.run(program, argv)` (raw argv, virtual-FS staging + `callMain`) → `cdp.process(program, args, bytes)` (`$IN`/`$OUT` tokens, one-in/one-out) → `applyEffect(cdp, effect, values, wav)` (typed catalog; auto `pvoc` + channel handling). Helpers: `decodeWav`, `extractEnvelope`, `getPitch`, `findPeaks`, `parseBreakpoints`/`formatBreakpoints` (↔ CDP text format via `envel`), `warpBreakpoints` (`REPLOT_MODES`), `eachChannel` (any channel count, recombined same-count WAV) |
+| Package | `cdp-wasm` on npmjs.org, public, provenance-attested, **zero runtime dependencies (verified 0.7.0)** |
+| Size | 0.7.0 measured: **3.2 MB tarball**, 9,521,131 B unpacked, 496 files — includes the full `man/` page set and the typed catalog sources |
+| Coverage | **215 program modules** (manifest-verified in the browser spike: `programs()=215, spectralPrograms()=26`); 220 `.wasm` files shipped in a *dynamic layout* — one shared `cdp-core.js`/`cdp-core.wasm` + `manifest.json`, program modules fetched on demand; only exclusions are ~3 build helpers + programs that don't compile/run headless |
+| Curated layer | `EFFECTS`: **232 effects across 110 programs** (verified) + `GENERATORS`: **16**, each with named params, min/max/default, flags for spectral / mono-only / spatial |
+| 0.7.0 additions over 0.6.0 | source-relative parameter bounds (`srcMin`/`srcMax`, 57 entries), `defaultsFor`/`paramDefaultFor` resolving against the actual source, `minSrcDur`/`maxSrcDur` refusals (31 entries), float32 conformance before two-input spectral analysis |
+| Runtime | Node ≥ 18; browser via same JS entry (ESM, **no bundler needed — spike-proven, §10.3**); SIMD auto-detect with `.scalar` fallbacks |
+| Audio I/O | **Byte arrays, not disk**: `cdp.run(program, argv)` (raw argv, virtual-FS staging + `callMain`) → `cdp.process(program, args, bytes, {inExt, outExt, channels})` (`$IN`/`$OUT` tokens, one-in/one-out, `channels:'split'|'mix'` for mono-only programs) → `applyEffect(cdp, effect, values, wav)` (typed catalog; auto `pvoc` wrap via `['anal','1',…]`/`['synth',…]`, mono analysis, per-channel handling). Helpers: `decodeWav`/`encodeWav` (32-bit float), `extractEnvelope`, `getPitch`, `findPeaks`, `parseBreakpoints`/`formatBreakpoints` (↔ CDP text format via `envel`), `warpBreakpoints` (`REPLOT_MODES`), `eachChannel` |
 | Fidelity | Same code, same args, same formats as native — ergonomics layer changes no DSP |
 | Hard limit | **32-bit WASM, single render must fit input + output + working buffers in ~4 GB address space**; intermediates staged in memory |
+| Determinism | Audio-identical but **not whole-file byte-identical**: libsndfile stamps `PEAK`/`LIST` RIFF chunks with wall-clock timestamps (measured: 1–3 bytes differ run-to-run; the `data` chunk is always identical — spike C, §10.3). §5.2's re-run contract therefore compares the `data` chunk, never the whole file. |
 
 CLI parity matters for spec fidelity: `cdp modify speed 2 in.wav out.wav -12` and `cdp --pvoc blur blur in.wav out.wav 10` (the `--pvoc` flag auto-wraps spectral analysis/synthesis — the single best UX idea to steal).
 
@@ -220,7 +223,7 @@ Any `file-*` slot accepts three sources: (a) pool asset, (b) upload, (c) **upstr
 
 - A pipeline = ordered `steps[]`, each `{toolId, paramValues, inputBindings, enabled, note}` + pipeline-level `name, notes, inputAsset(s), createdFrom}`.
 - Execution is sequential render-then-feed: step output becomes next step's `main` input (typed; auto-inserted `pvoc` conversions are explicit steps, never magic).
-- Determinism: re-run = same tool revisions + same params + same input bytes → byte-comparable output (modulo stated nondeterministic tools, flagged in schema). Every run stamps tool id + `cdp-wasm`/CDP8 revision into provenance.
+- Determinism: re-run = same tool revisions + same params + same input bytes → **audio-identical output**. The concrete contract (measured, spike C): the RIFF `data` chunk must be byte-identical; `PEAK`/`LIST` metadata chunks carry libsndfile wall-clock timestamps and will differ by a few bytes — they are excluded from the comparison, never "fixed". Every run stamps tool id + `cdp-wasm`/CDP8 revision into provenance.
 - Failure: stop at first failing step; failing step's inputs/outputs/logs preserved for inspection; resume-after-fix supported.
 
 ### 5.3 Intermediate files: representation & management
@@ -283,7 +286,7 @@ Three options, one recommendation:
 - **(ii) Main thread.** Rejected — long renders would freeze the tab; no benefit over (i).
 - **(iii) Server-side.** Two sub-options: (iii-a) Node + `cdp-wasm` via existing audio venv pattern (new `.venv-cdp`?); (iii-b) native CDP binaries via `shell.run_command` argv. (iii-b) is the natural fallback if vendoring is refused, and the honest spike (§10.4) should prototype (i) vs (iii-b). Either server path reuses `op_runner` + `report_progress()` + job queue directly.
 
-**Recommend (i), spike (i) vs (iii-b) before committing.** Do not split execution across client and server in Phase 1 — one path, one set of limits.
+**Recommend (i), spike (i) vs (iii-b) before committing.** **Spike verdict (2026-10-07, §10.3): GO for (i).** The vendored package loads as plain static ESM in a module Worker with zero npm/bundler tooling (the default `new CDP()` resolves `../wasm/` relative to `src/index.js`, so serving the package directory as-is is the whole vendoring procedure), `modify speed` + the `pvoc` wrap render correctly in Chromium, re-runs are audio-identical, `terminate()` cancels in <1 ms, and artifacts POST to the server as bytes. *(iii-b) remains the documented fallback if user confirmation of vendoring is refused. Do not split execution across client and server in Phase 1 — one path, one set of limits.*
 
 ### 7.2 Progress, cancellation, queueing
 
@@ -293,7 +296,7 @@ Three options, one recommendation:
 
 ### 7.3 Memory & limits
 
-- Hard ceiling: 32-bit WASM 4 GB per render (input + output + working buffers). Practical Phase-1 caps (tune after spike): **input ≤ 200 MB WAV or ≤ 60 s at 44.1 kHz stereo** (whichever binds first); spectral intermediates count against the same budget (`.ana` ≈ 2–4× source — state the multiplier in the UI).
+- Hard ceiling: 32-bit WASM 4 GB per render (input + output + working buffers). Phase-1 caps, now grounded in spike measurements (F: 60 s stereo = 20.2 MB WAV → 20.2 MB out in 3.5–6.7 s, comfortably inside budget): **input ≤ 200 MB WAV or ≤ 60 s at 44.1 kHz stereo (whichever binds first)** — the 200 MB/60 s figure stands as the Phase-1 cap with measured headroom, not as a guess; spectral intermediates count against the same budget (**`.ana` measured ≈ 4× source**: 5 s mono = 0.85 MB WAV → 7.1 MB `.ana` — state the multiplier in the UI).
 - Strategy: pre-flight estimator (duration × rate × channels × tool multiplier) blocks over-budget runs with the concrete trim/downsample/mono-mix fix; **no silent chunking in Phase 1** (spectral tools are non-local — chunking changes the sound; chunked spectral processing is Phase-3 research, not a default). Time-domain-only chunking may be explored in Phase 2 behind an explicit toggle.
 - Browser audio formats: decode/parity via ffmpeg server-side to canonical WAV before bytes enter the worker — never rely on `<audio>`-decodable formats as processing inputs.
 
@@ -344,12 +347,12 @@ Three options, one recommendation:
 
 ### 10.1 Assumptions requiring user confirmation
 
-- **[A1]** Execution path: browser Worker with vendored `cdp-wasm` build is permissible despite the no-npm invariant (vendored static files, no bundler). Fallback: server-side native CDP.
-- **[A2]** Package numbers (215 programs / 232 effects / 16 generators / 3.22 MB tarball / Node ≥ 18) are pinned from `cdp-wasm` v0.6.0-era sources; Builder re-verifies at pin and records revisions in the spec header.
+- **[A1]** Execution path: browser Worker with vendored `cdp-wasm` build is permissible despite the no-npm invariant (vendored static files, no bundler). **Spike-proven feasible (§10.3, GO); still needs the user's yes to make it binding.** Fallback: server-side native CDP.
+- **[A2]** ~~Package numbers pinned from v0.6.0-era sources~~ **Closed 2026-10-07:** verified against `cdp-wasm` **0.7.0** (215 programs / 26 spectral / 232 effects / 110 programs / 16 generators / zero deps / 3.2 MB tarball — all measured, see §2.2 and the spec header). Builder re-verifies at pin and records revisions in the spec header.
 - **[A3]** Canonical interchange is ffmpeg-decoded WAV (44.1 kHz); `.ana`/text outputs are derived artifacts, not pool citizens.
 - **[A4]** Parameter ranges/defaults are scraped from the curated catalog + manuals, never guessed; missing range = box-only input.
 - **[A5]** IndexedDB is at most an offline cache; server files + catalog/pools are the store of record.
-- **[A6]** Phase-1 caps (~200 MB / ~60 s stereo) are placeholders to be replaced by spike measurements.
+- **[A6]** Phase-1 caps (~200 MB / ~60 s stereo) — spike-measured for headroom (60 s stereo renders in seconds, well inside the 4 GB ceiling); the *binding* numbers stay as stated until a Builder measures the true OOM boundary on real material.
 - **[A7]** "CDP texture into Stable Diffusion" means rendered spectrogram images via the Image pool, not raw audio bytes.
 - **[A8]** Patch-in-link sharing is Phase 3 and optional.
 - **[A9]** Distort/grain mode names listed as examples must be verified against the reference; any unverified name blocks its tool entry until confirmed.
@@ -361,7 +364,7 @@ Three options, one recommendation:
 2. **Browser audio-format support:** processing inputs must be canonical WAV regardless of what `<audio>` plays; all decoding server-side via ffmpeg.
 3. **Parameter-schema completeness:** 232 curated effects have ranges; the raw tail (~100 programs) may not — those ship box-only + verbatim usage, never guessed sliders.
 4. **Documentation gaps/decay:** manuals span decades; pin revisions, quote verbatim, and treat forum/MCP examples as hints, not contracts.
-5. **No-npm vs npm-delivered engine:** vendoringk procedure, licence files (MIT/LGPL), and update story must be written before Phase 1 code; if refused, re-spec around native binaries.
+5. **No-npm vs npm-delivered engine:** largely de-risked by the §10.3 spike — serving the package directory as static files is the whole procedure, with the licence files (`MIT` + `LGPL-2.1-or-later` at `LICENSE` and `wasm/LICENSE`) vendored alongside. Remaining: write the update procedure (re-fetch pinned tarball, verify sha512, commit) before Phase 1 code; if vendoring is refused by the user, re-spec around native binaries.
 6. **Vanilla-ES6 graph cost:** a canvas node editor without libraries is the highest-cost item — hence gated to Phase 3 evidence.
 7. **Long-render UX:** no fake progress; indeterminate-with-heartbeat + cancel + queue discipline (§7.2).
 
@@ -369,6 +372,21 @@ Three options, one recommendation:
 
 Build a throwaway page (junk/ only, per invariant 8) that: loads vendored `cdp-wasm`, runs `modify speed` on a 5 s WAV **and** the `pvoc anal → blur blur → pvoc synth` wrap in a Worker, reports peak memory/time, cancels mid-render, and POSTs bytes to a temp artifact endpoint. **Go/no-go:** both renders bit-plausible (byte-identical re-run), cancel responsive (<1 s), peak measured and under budget, vendored files load with zero npm tooling. If vendoring fails the repo's constraints, spike the server-native fallback the same day and bring both numbers back for the [A1] decision.
 
+**Executed 2026-10-07 — GO.** Spike: `mtapi-project/junk/cdp-spike/` (`server.py` static+artifact server, `worker.js`, `spike.js`, `index.html`, `prove_cdp_spike.mjs`, proof screenshot `spike_proof.png`; gitignored). Method: gate 5/5 first; vendored `cdp-wasm 0.7.0` tarball fetched from the npm registry straight into `junk/` and served as-is; Node smoke pass first (argv shapes), then real Chromium via Playwright 1.58.2 clicking the page's Run button. Results (8/8 checks, 0 console errors):
+
+| Check | Result |
+|---|---|
+| A `modify speed 2` −12, 5 s stereo | exit 0, 3.37 MB out, 440,998 fr (want ≈441,000 = 2×220,500; resampler tail) — 51–106 ms |
+| B `pvoc anal 1 → blur 20 → synth`, 5 s mono | exit 0, 0.85 MB out, 221,440 fr — 151–372 ms; `.ana` measured ≈ 4× source (0.85 MB → 7.1 MB) |
+| C `applyEffect(blur.blur)` ×2 | **`data` chunk byte-identical every run**; whole-file compare differs by 1–3 bytes in `PEAK`/`LIST` (libsndfile timestamps) — the §5.2 contract change |
+| D manifest | `programs()=215`, `spectralPrograms()=26` through the vendored files |
+| E artifact POST | worker bytes → server disk, size-exact |
+| F scale probe | 60 s stereo (20.2 MB in) → 20.2 MB out in 3.5–6.7 s |
+| G memory readout | honest gap: headless Chromium refuses `measureUserAgentSpecificMemory` and Workers expose no `performance.memory`; end-state main-thread jsHeap 9.5 MB; true WASM peak needs the pre-flight estimator work (Phase 1) |
+| H cancel | `terminate()` from mid-`stretch time` render returns in <1 ms |
+
+Vendoring procedure proven: copy the package directory into the static tree; done — no npm, no bundler, no import-map work. `pvoc anal` requires **mono** input and the wrapper's `analyse()` already enforces it (a direct stereo call fails with "doesn't work with this type of infile") — the §4 file-type discipline must also gate channel count.
+
 ---
 
-*End of spec. Builder entry point: close [A1] (execution path), pin `cdp-wasm` + CDP8 revisions in the header above, then execute the §10.3 spike.*
+*End of spec. Builder entry point: get the user's yes on [A1] (the §10.3 spike says browser vendoring is GO — 8/8 checks, 0 console errors, evidence in `mtapi-project/junk/cdp-spike/`), then execute Phase 1. The 0.7.0 revisions are pinned in the header above.*

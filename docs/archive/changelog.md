@@ -851,3 +851,34 @@ real row height from the DOM instead of trusting a constant.
 
 Playwright: both panels `display: none`, first row's action buttons fully
 visible, measured rows. Gate 5/5.
+
+---
+
+## CDP integration spec: reviewed, pinned, spike-proven GO (`8.128`)
+
+The as-found Composers Desktop Project proposal (`bd7a7fa`) was reviewed and
+de-risked. `cdp-wasm` **0.7.0** is now pinned (zero runtime deps,
+`(MIT AND LGPL-2.1-or-later)`); every 0.6.0-era catalog claim was verified
+against the real package: 232 effects across 110 programs, 16 generators, 215
+bundled programs (26 spectral), 3.2 MB tarball.
+
+The §10.3 de-risk spike ran and returned GO. The tarball was fetched from the
+npm registry into `junk/cdp-spike/` (gitignored) and served as plain static
+ESM — no npm, no bundler. A module Worker rendered `modify speed 2` (5 s
+stereo −12 → exactly 2× frames) and the `pvoc anal 1 → blur 20 → synth` wrap;
+re-runs audio-identical; `terminate()` killed a mid-`stretch` render in <1 ms;
+worker bytes POSTed to a server artifact endpoint size-exact; a 60 s stereo
+20.2 MB probe rendered in 3.5–6.7 s. Playwright 1.58.2 clicked Run in real
+Chromium: 8/8 checks, 0 console errors (`junk/cdp-spike/spike_proof.png`).
+
+Two measured findings changed the spec. (1) Whole-file byte-comparison is the
+wrong determinism bar: libsndfile stamps `PEAK`/`LIST` RIFF chunks with
+wall-clock timestamps (1–3 bytes differ run to run) while the `data` chunk is
+always identical — §5.2's re-run contract now compares the `data` chunk.
+(2) `pvoc anal` requires mono input; the wrapper's `analyse()` already
+enforces it, and §4's file-type discipline must gate channel count too.
+
+Memory readout is an honest gap: headless Chromium refuses
+`measureUserAgentSpecificMemory` and Workers expose no `performance.memory`;
+the true WASM peak estimator stays Phase-1 work. [A2] closed; [A1] staged for
+the user's yes before Phase 1. Gate 5/5.
