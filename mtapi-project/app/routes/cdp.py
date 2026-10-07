@@ -56,6 +56,14 @@ def vendor_dir() -> Path:
     return Path(__file__).resolve().parent.parent / "static" / "vendor" / VENDOR_DIRNAME
 
 
+def native_launcher_path() -> Path:
+    return Path.home() / ".local" / "bin" / "cdp"
+
+
+def native_bin_dir() -> Path:
+    return Path.home() / ".local" / "share" / "cdp" / "bin"
+
+
 def _fail(error: str, **extra) -> JSONResponse:
     return JSONResponse({"ok": False, "error": error, **extra})
 
@@ -107,6 +115,56 @@ def register(app) -> None:
             "hint": "" if manifest.is_file() else (
                 "CDP runtime not vendored — run mtapi-project/scripts/update_cdp_wasm.sh"
             ),
+        })
+
+    @router.get("/native-status")
+    async def cdp_native_status() -> JSONResponse:
+        launcher = native_launcher_path()
+        bin_dir = native_bin_dir()
+        installed = launcher.is_file() and os.access(launcher, os.X_OK) and bin_dir.is_dir()
+        tool_count = 0
+        if installed:
+            try:
+                tool_count = len([f for f in bin_dir.iterdir() if f.is_file() and os.access(f, os.X_OK)])
+            except Exception:
+                tool_count = 0
+        return JSONResponse({
+            "ok": True,
+            "installed": installed,
+            "toolCount": tool_count,
+            "launcher": str(launcher),
+            "binDir": str(bin_dir),
+            "githubUrl": "https://github.com/ComposersDesktop/CDP8",
+        })
+
+    @router.post("/native-install")
+    async def cdp_native_install() -> JSONResponse:
+        from app.shell import run_command
+
+        script = Path(__file__).resolve().parent.parent.parent / "scripts" / "install_native_cdp.sh"
+        if not script.is_file():
+            return _fail(f"install script not found: {script}")
+        code, out, err = await run_command(["bash", str(script)])
+        if code != 0:
+            tail = (err or out or "unknown error").strip().splitlines()
+            return _fail("CDP8 build/install failed: " + (tail[-1][:200] if tail else "exit code non-zero"))
+
+        launcher = native_launcher_path()
+        bin_dir = native_bin_dir()
+        installed = launcher.is_file() and os.access(launcher, os.X_OK) and bin_dir.is_dir()
+        tool_count = 0
+        if installed:
+            try:
+                tool_count = len([f for f in bin_dir.iterdir() if f.is_file() and os.access(f, os.X_OK)])
+            except Exception:
+                tool_count = 0
+        return JSONResponse({
+            "ok": True,
+            "installed": installed,
+            "toolCount": tool_count,
+            "launcher": str(launcher),
+            "binDir": str(bin_dir),
+            "message": f"Successfully installed CDP8 native CLI ({tool_count} binaries) with launcher at {launcher}",
         })
 
     @router.post("/prepare")

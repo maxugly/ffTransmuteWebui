@@ -31,6 +31,45 @@
 .cdp-pill.ok { color: #6ee787; border-color: #2ea04366; }
 .cdp-pill.bad { color: #ff7b72; border-color: #f8514966; }
 
+.cdp-native-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cdp-btn-install {
+  font-size: 0.72rem;
+  padding: 2px 8px;
+  height: 22px;
+  line-height: 18px;
+  background: var(--bg-surface, #21262d);
+  border: 1px solid var(--accent, #58a6ff);
+  color: var(--accent, #58a6ff);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cdp-btn-install:hover:not(:disabled) {
+  background: var(--accent, #58a6ff);
+  color: #fff;
+}
+.cdp-btn-install:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.cdp-gh-link {
+  font-size: 0.72rem;
+  color: var(--text-dim, #8b949e);
+  text-decoration: none;
+  border: 1px solid var(--border, #30363d);
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.cdp-gh-link:hover {
+  color: var(--text, #c9d1d9);
+  border-color: var(--border-hover, #8b949e);
+}
+
 .cdp-cols {
   display: grid;
   grid-template-columns: minmax(230px, 300px) minmax(0, 1fr);

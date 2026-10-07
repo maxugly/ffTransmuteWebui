@@ -202,3 +202,41 @@ def test_prepared_tokens_do_not_leak_between_names(client, tmp_path):
     cdp_routes._PREPARED[token]["ts"] -= cdp_routes.TOKEN_TTL_SEC + 10
     cdp_routes._cleanup_tokens()
     assert token not in cdp_routes._PREPARED
+
+
+# ── native CLI ────────────────────────────────────────────────────────────
+def test_native_status_uninstalled(client, tmp_path, monkeypatch):
+    monkeypatch.setattr(cdp_routes, "native_launcher_path", lambda: tmp_path / "bin" / "cdp")
+    monkeypatch.setattr(cdp_routes, "native_bin_dir", lambda: tmp_path / "share" / "cdp" / "bin")
+    res = client.get("/api/cdp/native-status")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["ok"] is True
+    assert data["installed"] is False
+    assert data["toolCount"] == 0
+    assert "github.com" in data["githubUrl"]
+
+
+def test_native_status_installed(client, tmp_path, monkeypatch):
+    launcher = tmp_path / "bin" / "cdp"
+    launcher.parent.mkdir(parents=True)
+    launcher.write_text("#!/bin/sh\n")
+    launcher.chmod(0o755)
+
+    bin_dir = tmp_path / "share" / "cdp" / "bin"
+    bin_dir.mkdir(parents=True)
+    for name in ("blur", "distort", "modify"):
+        f = bin_dir / name
+        f.write_text("#!/bin/sh\n")
+        f.chmod(0o755)
+
+    monkeypatch.setattr(cdp_routes, "native_launcher_path", lambda: launcher)
+    monkeypatch.setattr(cdp_routes, "native_bin_dir", lambda: bin_dir)
+
+    res = client.get("/api/cdp/native-status")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["ok"] is True
+    assert data["installed"] is True
+    assert data["toolCount"] == 3
+

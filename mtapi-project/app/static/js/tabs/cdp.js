@@ -86,6 +86,10 @@ export function renderCdpForm() {
           <button type="button" class="btn cdp-mode" id="cdpModePipe" data-help-title="Pipeline mode" data-help-text="Build a linear chain: each step renders, its artifact is saved, and the next step feeds on it.">Pipeline</button>
         </span>
         <span class="cdp-pill" id="cdpStatus">checking runtime…</span>
+        <span class="cdp-native-group" id="cdpNativeGroup">
+          <span class="cdp-pill" id="cdpNativeStatus">checking native CLI…</span>
+          <a href="https://github.com/ComposersDesktop/CDP8" target="_blank" rel="noopener" class="cdp-gh-link" data-help-title="CDP8 GitHub" data-help-text="Official Composers Desktop Project Release 8 repository on GitHub">GitHub</a>
+        </span>
       </div>
       <div class="cdp-cols" id="cdpCols">
         <section class="cdp-menu card">
@@ -170,19 +174,62 @@ function renderToolEmpty() {
 
 async function refreshStatus() {
   const pill = _el('cdpStatus');
-  if (!pill) return;
-  try {
-    const j = await (await fetch('/api/cdp/status')).json();
-    if (j.ok && j.vendored) {
-      pill.textContent = `cdp-wasm ${j.version} · vendored ✓`;
-      pill.className = 'cdp-pill ok';
-    } else {
-      pill.textContent = j.hint || 'CDP runtime not vendored';
+  if (pill) {
+    try {
+      const j = await (await fetch('/api/cdp/status')).json();
+      if (j.ok && j.vendored) {
+        pill.textContent = `cdp-wasm ${j.version} · vendored ✓`;
+        pill.className = 'cdp-pill ok';
+      } else {
+        pill.textContent = j.hint || 'CDP runtime not vendored';
+        pill.className = 'cdp-pill bad';
+      }
+    } catch (_) {
+      pill.textContent = 'status check failed';
       pill.className = 'cdp-pill bad';
     }
+  }
+  await refreshNativeStatus();
+}
+
+async function refreshNativeStatus() {
+  const container = _el('cdpNativeStatus');
+  if (!container) return;
+  try {
+    const j = await (await fetch('/api/cdp/native-status')).json();
+    if (j.ok && j.installed) {
+      container.textContent = `Native CLI ✓ (${j.toolCount} tools)`;
+      container.className = 'cdp-pill ok';
+    } else {
+      container.className = 'cdp-native-install-wrap';
+      container.innerHTML = `<button type="button" class="btn btn-sm cdp-btn-install" id="btnCdpInstallNative" data-help-title="Install Native CDP" data-help-text="Build and install full ~500 tool native CDP8 CLI suite into ~/.local/share/cdp with launcher ~/.local/bin/cdp">Install Native CDP8 (500+ tools)</button>`;
+      _el('btnCdpInstallNative')?.addEventListener('click', installNativeCdp);
+    }
   } catch (_) {
-    pill.textContent = 'status check failed';
-    pill.className = 'cdp-pill bad';
+    container.textContent = 'native CLI check failed';
+    container.className = 'cdp-pill bad';
+  }
+}
+
+async function installNativeCdp() {
+  const btn = _el('btnCdpInstallNative');
+  if (!btn) return;
+  btn.disabled = true;
+  btn.textContent = 'Building & installing CDP8…';
+  try {
+    const res = await (await fetch('/api/cdp/native-install', { method: 'POST' })).json();
+    if (res.ok && res.installed) {
+      _log(`[CDP] Native CLI installed: ${res.toolCount} tools ready at ${res.launcher}`);
+      await refreshNativeStatus();
+    } else {
+      _log(`[CDP] Native install failed: ${res.error || 'unknown error'}`, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Install failed (Retry)';
+    }
+  } catch (err) {
+    _log(`[CDP] Native install error: ${err.message}`, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Install failed (Retry)';
   }
 }
 
