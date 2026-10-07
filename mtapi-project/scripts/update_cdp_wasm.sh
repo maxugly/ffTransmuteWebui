@@ -22,9 +22,11 @@ echo "${SHA512}  ${TMP}/cdp-wasm-${VERSION}.tgz" | sha512sum -c -
 
 mkdir -p "${TARGET}"
 tar xzf "${TMP}/cdp-wasm-${VERSION}.tgz" -C "$TMP"
-# Runtime subset only: sources + wasm build + licence. man/docs stay out.
+# Runtime subset: sources + wasm build + man pages (verbatim CDP usage for the
+# raw-program menu) + licence. docs/ stays out.
 cp -r "${TMP}/package/src" "${TARGET}/src"
 cp -r "${TMP}/package/wasm" "${TARGET}/wasm"
+cp -r "${TMP}/package/man" "${TARGET}/man"
 cp "${TMP}/package/LICENSE" "${TARGET}/LICENSE"
 cp "${TMP}/package/package.json" "${TARGET}/package.json"
 

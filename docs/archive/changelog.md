@@ -949,3 +949,40 @@ Tags capped tighter (0–140px), spacer still absorbing leftovers at the end.
 Zero `mc-sort-arrow` elements with no active sort; exactly one `▲` after
 clicking BPM; every Act button and SRC chip measured fully inside its cell;
 worst row overflow 0; no horizontal overflow. Gate 5/5.
+
+---
+
+## CDP Phase 2: full menu, favorites/recents, linear pipelines (`8.132`)
+
+Phase-2 acceptance shipped. The CDP menu now exposes the whole vendored
+catalog: all 232 curated effects drilled category → program → mode, all 215
+raw programs from the build manifest (each a zero-interpretation runner
+seeded with the verbatim usage text parsed from the vendored man pages —
+the update script now vendors `man/`), and 5 hand-listed raw modes with
+explicit `.ana` types for building explicit analysis/resynthesis chains.
+Favorites (★) and last-15 recents persist across reloads.
+
+Linear pipelines arrived (`js/cdp/pipeline.js`, schema
+`mtapi-cdp-pipeline/1`): Tool/Pipeline modes over one menu, steps with
+per-step values, bypass, reorder, a type-graph validator that names the fix
+("expects .ana but the chain provides .wav — insert pvoc anal") and refuses
+curated spectral effects fed `.ana` (applyEffect owns the pvoc wrap — never
+silently converted), 22 two-input effects via a second prepared input
+(morph.bridge proven), per-step artifacts saved as steps complete, and
+schema-versioned save/download/load JSON. Breakpoint envelopes (any
+ENVELOPE_PARAMS parameter → time/value textarea → `extra.brk`) work in
+single-tool mode this phase.
+
+13 Node contract tests pin the model in `tests/test_cdp_pipeline_model.py`
+(the 4-step recipe type graph, mismatch-fix messages, bypass, info-tool
+refusal, schema rejection, cloneable slim steps, man-usage extraction).
+Playwright acceptance 21/21, 0 console errors: full menu counts, search, man
+usage, favorites across reload, recents, the §3.5 recipe end-to-end (4
+artifacts with `.ana` intermediates and a listenable final wav), save →
+fresh session → load → re-run, and the morph 2-input step.
+
+Two click-caught races fixed: the Input-2 change handler re-rendered the
+pipeline page and swallowed the click that blurred the field (state-only
+update now), and the post-prepare re-render overwrote the prepare summary
+(persisted note). Gate 5/5 (92 modules), 594 suite green. Shipped as 8.132 —
+8.130/8.131 went to the concurrent catalog-table session mid-flight.
