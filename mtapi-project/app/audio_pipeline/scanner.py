@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any, Iterator
@@ -815,11 +816,15 @@ class AudioScanner:
                 }
                 # Move the worker's temp MIDI files to canonical siblings:
                 # <media>.mid (tempo map) and <media>.notes.mid (transcription).
+                # shutil.move, NOT Path.replace: the worker's temp dir lives on
+                # /tmp (tmpfs) while media sits on /home (btrfs) — a bare
+                # rename raises EXDEV cross-device and silently nulls the path
+                # (measured: Basic Pitch transcribed 33 notes, then lost them).
                 if feats.get("midi_path"):
                     canonical = f"{path}.mid"
                     try:
                         if feats["midi_path"] != canonical:
-                            Path(feats["midi_path"]).replace(canonical)
+                            shutil.move(feats["midi_path"], canonical)
                         feats["midi_path"] = canonical
                     except OSError:
                         feats["midi_path"] = None
@@ -827,7 +832,7 @@ class AudioScanner:
                     canonical_notes = f"{path}.notes.mid"
                     try:
                         if feats["notes_midi_path"] != canonical_notes:
-                            Path(feats["notes_midi_path"]).replace(canonical_notes)
+                            shutil.move(feats["notes_midi_path"], canonical_notes)
                         feats["notes_midi_path"] = canonical_notes
                     except OSError:
                         feats["notes_midi_path"] = None

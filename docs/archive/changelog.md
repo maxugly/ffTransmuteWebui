@@ -1020,3 +1020,37 @@ text, and `BPM?`/`SILENT`/`NOISE`/`DC` row badges. Live pass on the real DJ
 library through the tab: `space2.flac` now reads `BPM? + SILENT`, tempo NULL,
 rejected `{madmom-dbn-histogram: 1.0}` — all 10 real tracks classify `ok`
 with tempi 80–142. Gate 5/5, 608 suite green (14 new tests).
+
+---
+
+## Deep Dive: per-track analysis workbench (`8.134`)
+
+"Run all the models on one track" is now one click. The Media Catalog rows
+gained a 🔬 action that hands a track to the new Deep Dive Library tab, and a
+single `deep_dive` op runs everything server-side through the standard job
+machinery: Demucs stem separation (model/device/stems), Essentia
+key/tempo/beats/onsets with competing-engine opinions, Basic Pitch note
+transcription plus the mido tempo-map MIDI, and an optional CDP pipeline echo
+— the tab's autosaved chain comes back in the results with an "Open in CDP
+pipeline mode" handoff, which is the generation half.
+
+One model failing never fails the dive: every result lands in meta with its
+own badge (proven live both ways — on the silent `space2.flac` the dive
+completed with Basic Pitch ✗ honestly, since silence has no notes; on
+`top41.flac` everything ✓). The report is a sibling `<track>.deepdive.json`
+and every generated artifact is stamped in the Media Catalog.
+
+Two real bugs caught by the live pass. First, the scanner's canonical MIDI
+move used `Path.replace`, which raises EXDEV across devices — /tmp is tmpfs
+and the media lives on btrfs, so Basic Pitch transcribed 33 notes and then
+silently lost them; fixed with `shutil.move` and a regression test that
+forces the exact cross-device pairing. Second, the catalog→tab handoff lost
+to the universal form-state restore, which overwrote the prefill with the
+previous session's snapshot; the handoff now re-asserts after the restore
+pass.
+
+Gate 5/5 (93 modules), 615 suite green (7 new in tests/test_deepdive.py),
+Playwright 17/17 with zero console errors: real dive on top41.flac — four
+stem players, C minor at 82.03 BPM with 31 beats and 8 downbeats, `.notes.mid`
+and `.mid` and the dive report on disk, and the CDP pipeline-mode handoff
+with the echoed chain loaded.

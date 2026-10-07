@@ -38,6 +38,7 @@ from . import (  # noqa: F401
     watermark_ops,
     erase_ops,
     erase_pipeline_ops,
+    deepdive_ops,
     demucs_ops,
     music_ops,
     ytdlp_ops,

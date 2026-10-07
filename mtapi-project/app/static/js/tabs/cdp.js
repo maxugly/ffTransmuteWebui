@@ -117,6 +117,13 @@ export function renderCdpForm() {
     if (catalog.missing.length) {
       _log(`[CDP] catalog drift: ${catalog.missing.join(', ')}`, 'error');
     }
+    // Deep Dive hands off here: "Open in CDP pipeline mode" lands the tab in
+    // pipeline mode with the echoed chain already autosaved.
+    if (localStorage.getItem('cdp_start_mode') === 'pipeline') {
+      localStorage.removeItem('cdp_start_mode');
+      setMode('pipeline');
+      return;
+    }
     if (mode === 'pipeline') { setMode('pipeline'); return; }
     const last = localStorage.getItem(LS.tool);
     const pick = toolsById.get(last);

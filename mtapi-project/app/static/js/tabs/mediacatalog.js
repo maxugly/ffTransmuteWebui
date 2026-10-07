@@ -274,6 +274,7 @@ function cellAct(row) {
   return `<div class="mc-actions-cell">`
     + `<button type="button" class="btn btn-sm" data-mc-provenance="${_esc(row.path)}" data-help-title="Provenance" data-help-text="Open the three-bit provenance editor for this file.">✦</button>`
     + `<button type="button" class="btn btn-sm" data-mc-send="${_esc(row.path)}" data-help-title="Send to Media In" data-help-text="Send this file to the global Media In box as the input.">→I</button>`
+    + `<button type="button" class="btn btn-sm" data-mc-dive="${_esc(row.path)}" data-help-title="Deep Dive" data-help-text="Open this track in the Deep Dive tab: Demucs stems, Essentia analysis, Basic Pitch MIDI, optional CDP chain.">🔬</button>`
     + `</div>`;
 }
 
@@ -439,6 +440,12 @@ async function sendToMediaIn(path) {
   gi.value = path;
   gi.dispatchEvent(new Event('input', { bubbles: true }));
   _log(`[CATALOG]: sent to Media In → ${path}`);
+}
+
+function openDeepDive(path) {
+  localStorage.setItem('deepdive_pending_path', path);
+  switchTab('deepdive');
+  _log(`[CATALOG]: deep dive → ${path}`);
 }
 
 async function switchSource(btn) {
@@ -759,6 +766,8 @@ export function renderMediaCatalogForm() {
     if (play?.dataset.mcPlay) { togglePlay(play.dataset.mcPlay); return; }
     const send = e.target.closest('[data-mc-send]');
     if (send?.dataset.mcSend) { sendToMediaIn(send.dataset.mcSend); return; }
+    const dive = e.target.closest('[data-mc-dive]');
+    if (dive?.dataset.mcDive) { openDeepDive(dive.dataset.mcDive); return; }
     const prov = e.target.closest('[data-mc-provenance]');
     if (prov?.dataset.mcProvenance) { openProvenanceEditor(prov.dataset.mcProvenance); return; }
     const srcBtn = e.target.closest('[data-mc-source]');
