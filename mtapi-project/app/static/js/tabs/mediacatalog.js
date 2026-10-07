@@ -122,7 +122,7 @@ const MC_COLS = [
   { key: 'tag', label: 'Tag', width: '104px', sortable: true, order: 'tag_key' },
   { key: 'rel', label: 'Rel', width: '84px', sortable: true, order: 'key' },
   { key: 'src', label: 'Src', width: '88px', sortable: true, order: 'source' },
-  { key: 'act', label: 'Act', width: '72px', sortable: false },
+  { key: 'act', label: 'Act', width: '86px', sortable: false },
   // Trailing spacer: takes whatever space is left over — columns use only
   // what they need, no more, no less. Never toggled, never sorted.
   { key: 'gap', label: '', width: 'minmax(0, 1fr)', sortable: false, spacer: true },
@@ -183,9 +183,12 @@ function mcHeadHtml() {
       if (c.spacer) return `<div class="mc-headcell mc-head-spacer"></div>`;
       const visible = mcIsVisible(c.key);
       const active = mcSort.key === c.key;
-      const arrow = !c.sortable ? '' :
-        `<span class="mc-sort-arrow${active ? '' : ' dim'}">${active ? (mcSort.dir === 1 ? ' ▲' : ' ▼') : ' ⇅'}</span>`;
-      return `<div class="mc-headcell${visible ? '' : ' mc-col-collapsed'}" data-mc-col="${c.key}">`
+      // One text line per title: the arrow renders only on the actively sorted
+      // column. Every sortable header still sorts on click; the strip text for
+      // the active column names its direction.
+      const arrow = (!c.sortable || !active) ? '' :
+        `<span class="mc-sort-arrow">${mcSort.dir === 1 ? ' ▲' : ' ▼'}</span>`;
+      return `<div class="mc-headcell${visible ? '' : ' mc-col-collapsed'}" data-mc-col="${c.key}"${c.sortable ? ` data-help-title="Sort by ${_esc(c.label)}" data-help-text="${active ? `Sorted ${mcSort.dir === 1 ? 'ascending' : 'descending'} — click to flip.` : 'Click to sort ascending.'}"` : ''}>`
         + `<span class="mc-head-top">`
         + `<label class="mc-col-toggle" data-help-title="Toggle column"><input type="checkbox"${visible ? ' checked' : ''} data-mc-toggle="${c.key}"></label>`
         + arrow

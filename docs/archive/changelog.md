@@ -935,3 +935,17 @@ Layout, measured at 2560px: File 180–520px, Tags capped at 140px, Src 88px,
 Act 72px, spacer absorbing 787px of leftover at the end, worst row overflow 0
 across 10 rows, no horizontal overflow. Every `.mc-cell` audited for
 `overflow: hidden; min-width: 0`. Gate 5/5.
+
+---
+
+## Media Catalog table: single-line headers, tight cells (`8.131`)
+
+Follow-up fixes, all measured live at 2560px. Sort arrows (`⇅`) render only on
+the actively sorted column now — every other header is a single rotated label
+line, and clicking any sortable header still sorts (the active direction moved
+into the header's bottom-strip help text). Cell right padding 6px → 3px,
+Act 72px → 86px so both buttons fit with room, File capped wider (180–520px),
+Tags capped tighter (0–140px), spacer still absorbing leftovers at the end.
+Zero `mc-sort-arrow` elements with no active sort; exactly one `▲` after
+clicking BPM; every Act button and SRC chip measured fully inside its cell;
+worst row overflow 0; no horizontal overflow. Gate 5/5.

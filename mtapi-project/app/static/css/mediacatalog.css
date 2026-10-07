@@ -244,17 +244,18 @@ body.mediacatalog-tab-active .tool-input-preview {
   min-height: 34px;
   /* Columns are content-sized and capped, so the natural width is small;
      below that the scroller scrolls — never crushed, never clipped. */
-  min-width: 760px;
+  min-width: 1250px;
 }
 
 .mc-row:hover { background: rgba(255, 255, 255, 0.04); }
 .mc-row.mc-row-playing { background: rgba(20, 184, 166, 0.10); }
 .mc-row-spacer { visibility: hidden; }
 
-/* Faint division between every column */
+/* Faint division between every column — breathing room on the divider side,
+   tight on the reading side. */
 .mc-cell {
   border-left: 1px solid rgba(255, 255, 255, 0.06);
-  padding: 2px 6px;
+  padding: 2px 3px 2px 6px;
   min-width: 0;
   overflow: hidden;
 }
@@ -270,7 +271,7 @@ body.mediacatalog-tab-active .tool-input-preview {
   z-index: 2;
   background: rgba(10, 12, 20, 0.96);
   border-bottom: 2px solid rgba(255, 255, 255, 0.12);
-  min-width: 760px;
+  min-width: 1250px;
 }
 
 .mc-headcell {
