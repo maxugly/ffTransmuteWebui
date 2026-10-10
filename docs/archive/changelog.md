@@ -1087,3 +1087,133 @@ war36.flac showing four stem players, Eb minor at 138.26 BPM with 463 beats,
 extended-info opinions, a 1280-note transcription row, the main list still
 showing only the track afterwards, and the derived facet revealing the eleven
 artifacts with badges.
+
+## Coding Models reference: clickable per-model pages + community verdicts (`8.138`)
+
+User request: "make the models clickable and each have their own page… each
+model will be a subtab of the models overview comparison which is a tab under
+references." The References section already carried the Coding Models tab
+(`refs-code`), so no new nav entry was needed — the overview comparison table
+stays the tab, and each model is now a sub-tab within it.
+
+Every model name in the overview is a button (`data-open-model`, delegated on
+the table so sort/column-toggle repaints survive) that opens that model's own
+page. The page shows a chip strip — `← Overview` plus all 30 models, active one
+highlighted, horizontally scrollable at narrow widths — a spec-sheet card built
+from the overview row (provider, context, strengths, benchmarks, availability,
+best-for), and a Community Verdict card. The first verdict is seeded for
+BigPickle from the user's pasted community table: ten categories
+(Code / Debug / Plan / Agentic Use / Tool Use / Frontend / Speed / Reliability /
+Reasoning / Cost) rendered with the house badge tones (green/amber/red, source
+emojis kept) plus the "bottom line from the community" callout. BigPickle was on
+the doc's dropped-as-unconfirmed list; the user's own usage confirms it, so it
+ships as an overview row too (provider/context unknown — cells render `—`).
+An earlier pass guessed DeepSeek V4 Flash; the user corrected it, the verdict
+moved, and that page returns to the honest empty card. Models without a
+verdict get an honest empty card. Re-clicking the active Coding Models segment
+resets to the overview; an open page survives switching to other reference
+tabs and back.
+
+Verification: gate 5/5 (93 modules); pytest 657 passed with 2 pre-existing
+environmental failures (madmom legacy-venv native crash, watermark npm vendor
+phase) untouched by this static-only change; Playwright 24/24 with zero console
+errors (real clicks: name → page, chip switching, verdict moved off DeepSeek,
+back to overview, sort-then-click, state across tab switches, segment re-click
+reset) and a measured layout audit 10/10 (0px h-overflow at 1560px and 800px,
+unclipped verdict cells, last card reachable, strip scrolls narrow).
+
+Follow-up in the same stretch (user: "prepare each model's detail page, fill in
+what you know and leave <placeholder> on things we need to fill in"): every one
+of the 30 models now has a full detail page — provider / released / context /
+availability / key strengths / watch-outs / personality / best-for / benchmarks
+/ compare / sources (rendered as real links), mined from the per-model research
+in docs/llm_mod_ref.md with the overview row as fallback. Unknown fields render
+a literal `<placeholder>` marker (amber, italic, greppable), and models without
+a community verdict get the 10-category skeleton with placeholder cells —
+partial fills render what's filled and keep placeholders on the rest. The gap
+list is persisted in a new "Data gaps" section of docs/llm_mod_ref.md (verdicts
+for 29 models, free-tier verification for all 30, whole-model verification for
+7, single-field gaps for 9, vendor-only benchmarks for 8). Re-proven with real
+clicks against the live server: Playwright 31/31, 0 console errors (BigPickle
+filled verdict + spec placeholders, GLM-5.2 and Kimi K3 fully filled with zero
+placeholders, DeepSeek skeleton with 20 placeholder cells, North Mini Code
+provider `<placeholder>`), layout audit 10/10. Environment note: the uv-built project venv lacked the
+`version` key in pyvenv.cfg and the zcode wrapper breaks /proc/self/exe-based
+prefix resolution, so the server and pytest run with an explicit PYTHONPATH —
+see the STATUS top box for the exact command.
+
+## 000.000.8.139 — AI Rapper tab
+
+Shipped the `airapper` desk tab (spec: `docs/airapper-spec.md`). Write bars in a
+tile workspace, direct the session with an agent sidebar, set the musical
+pocket, render with ACE-Step, keep finished songs in a library.
+
+Two persistence layers, deliberately not merged:
+- **Layer A** — every tile control carries a stable `id`, so the existing
+  delegated form-state capture persists it for free into `pool_state.json` and
+  `*.ffproject.json`. No new state endpoint, no fetch code for it.
+  `/api/ai_rapper/state` was cut from the original plan: it duplicated that
+  snapshot, and the named-project copy would have omitted the tab entirely.
+- **Layer B** — saved songs are a real library: `app/airapper_store.py` (pure
+  storage, one `<id>.json` per track, atomic tmp-then-replace, `threading.Lock`,
+  size caps, index version, `MTAPI_AIRAPPER_ROOT`) + `app/routes/airapper.py`
+  with list / detail / save / delete. Orthogonal to named projects — never
+  written into `*.ffproject.json`. UI prefs (sidebar collapse, tile hide,
+  In/Out defaults) live in `localStorage` only.
+
+Grounded against the repo rather than the draft: "Antigravity" does not exist
+here — the agent surface is `agent_chat` and the render is `music_generate`.
+The Music Theory tile rides `music_generate`'s own `bpm` / `key` / `timesig`
+SFT-meta fields, which the draft spec had omitted. The track list is CSS
+`columns: 4 220px` with `break-inside: avoid` and is ordered by `created_at`
+descending — never by `title.length`, which cannot widen a column and
+reshuffles equal-length titles on every save.
+
+Three defects found and fixed while verifying, none of them visible from a
+diff:
+1. **Invariant 10 was being broken by FastAPI itself.** A Pydantic-typed body
+   answers 422 before the handler runs, so an out-of-contract payload escaped
+   as a 4xx. The POST body is now read by hand and validated in the store —
+   every body shape now answers HTTP 200 + `ok:false` (tests prove it).
+2. **`knobs.js` imported unversioned**, which tripped
+   `test_every_knobs_importer_is_cache_busted` — the knob engine is global and
+   every importer has to move together. Now `?v=6`.
+3. **A numeric option list rendered `undefined`.** The screenshot's produce row
+   showed "SECONDS: undefined"; the proof asserted nothing about select labels
+   and sailed past it. Fixed at the source, and the proof now audits every
+   select's options plus guards the follow-on case where a stale restored value
+   matches no option and leaves the control blank.
+
+Also removed the last native `title=` in the app (`#mediaVfrBadge`,
+"Convert to CFR") so `HelpStrip.audit()` reports zero hits — a pre-existing
+house-law violation that the audit exists to catch.
+
+Verification: gate 5/5 (94 modules), **suite green except one pre-existing
+failure** (`test_watermark.py::test_setup_flat_vendor_skips_clone`, confirmed
+failing on a stashed clean tree — unrelated to this work), Playwright
+**53/53 with 0 console errors** and `HelpStrip.audit()` at zero
+(`junk/airapper-prove.mjs`, screenshot `junk/airapper_proof.png`).
+
+## 000.000.8.140 — APIs / Free Tiers Reference Tab
+
+User request: "do one for apis, start with this one, have a free tier column with all these having a Y" (10 gateways: Google AI Studio, Groq, Cerebras, OpenRouter, NVIDIA NIM, Cloudflare Workers AI, Mistral, Cohere, Z.ai / Zhipu, Reka).
+
+Built under References as sub-tab `refs-apis` (`APIs / Free Tiers`):
+- Overview comparison table listing all 10 providers with `Free Tier: Y`, sortable column headers, and clickable provider buttons that open dedicated detail pages.
+- Per-provider sub-tab detail pages equipped with a chip strip (`← Overview` + 10 providers with active highlights and horizontal scroll on mobile/narrow viewports).
+- Complete spec sheet cards rendering Provider, Free Tier, Card Required?, Free Rate Limit, Models Accessible, Notes, and Sources as verified links.
+- Quick Notes community callout card.
+- All 7 initial research data gaps were investigated and resolved with verified facts, leaving zero placeholders:
+  1. Cerebras: Credit card required for new accounts ($5 trial credits for 30 days; legacy free tier was ~1M tokens/day).
+  2. Z.ai / Zhipu: No card required for free Flash models on the international Z.ai endpoint.
+  3. Z.ai / Zhipu: Concurrency-based rate limit of 1 concurrent request on free Flash models.
+  4. Reka: Credit card / identity verification requested upon sign-up for API key generation.
+  5. Reka: Verified model access (`Reka Core, Reka Flash, Reka Spark`).
+  6. Mistral: Experiment tier rate limits (~1 RPS, ~500k TPM, 1B tokens/month workspace cap).
+  7. Google AI Studio: Standard per-project free quota on Flash models (15 RPM / 1M TPM / 1,500 RPD, variable by project/region).
+
+Verification:
+- Gate 5/5 (94 modules clean).
+- Playwright proof `junk/refs-apis-prove.mjs`: 15/15 checks pass, 0 console errors (overview table, sorting, chip strip, cross-tab state retention, zero placeholders).
+- Layout audit `junk/refs-apis-layout-audit.mjs`: 10/10 checks pass (0px horizontal overflow at 1560px and 800px, chip strip scrolling, unclipped spec cells).
+- Docs updated: `docs/llm_mod_ref_apis.md` records all verified details and links.

@@ -389,3 +389,55 @@ gateway's live model list before you ship this table anywhere important.
 - `Avail.` markers: `+` throughout. The researcher did not invent `*` / `+` per model unless the source string itself said "(free)"; everything else is `+ (unconfirmed)`. Verify free-tier status against the gateway's live model list before treating any row as actually free.
 - Dropped from the UI table (could not confirm): BigPickle, Charm, Dots3-Note Preview, Free Models Router, Laguna S/XS 2.1, "Latest", Ling Sante/Fin. Kimi K2.7 Code noted but not in source list.
 - Nemotron 3.5 Content Safety is a safety-classifier variant, not a coding driver — kept as a labeled row so the name doesn't get re-added later as a mystery model.
+
+---
+
+## Data gaps (fill these in — the UI shows `<placeholder>` wherever one is missing)
+
+### 1. Community verdicts — the big one
+Every model except **BigPickle** has an empty 10-category verdict skeleton
+(Code (general) / Debug / Plan / Agentic Use / Tool Use / Frontend / Speed /
+Reliability / Reasoning / Cost + bottom line). Fill per model as experience
+lands; a partial fill renders the filled categories and keeps placeholders on
+the rest.
+
+### 2. Free-tier / availability verification (all rows are `+ (unconfirmed)`)
+- **DeepSeek V4 Pro / V4 Flash** — which free router actually carries them?
+- **GLM-5.2 / 5.3 · Kimi K2 / K2.6 / K3 · Qwen3.6 / 3.8 · Llama 4 Maverick ·
+  Muse Spark 1.2 / 1.3 · Mistral Medium / Small · Inkling / Inkling Small** —
+  confirm the free router per model.
+- **Ling 3.0 Flash** — Vercel's free slot rotated to "Ling 3.0 Tiny" on
+  2026-08-06; re-check currency.
+- **Nemotron 3 Ultra** — OpenRouter's genuinely-free endpoint: still live?
+
+### 3. Whole-model verification (no reliable specs at all)
+- **BigPickle** — provider, release date, real specs, benchmarks, compare,
+  sources. Only the community verdict + your own usage so far.
+- **North Mini Code** — everything (only an AA table listing exists).
+- **MiMo V2.5** — release date, context, specs, bestfor, compare; find the
+  first-party Xiaomi sheet.
+- **Nemotron 3.5 Lightning / 3.5 Content Safety / 3 Nano Omni** — everything;
+  even their existence needs a first-party page.
+- **Gemma 4 26B / 31B** — release date, context, specs, personality, bestfor;
+  confirm "268"/"318" in the source really is 26B/31B.
+- **gpt-oss 120B / 20B** — context, personality, bestfor; verify the literal
+  gateway model-ID ("GPT 0SS 1208" is a guess).
+
+### 4. Single missing fields on otherwise-documented models
+- **Mistral Medium / Small** — context window, exact release/version.
+- **MiniMax M3** — release date, first-party model card (param counts).
+- **MiniMax M2.7** — context, personality.
+- **Inkling Small** — context (separately confirmed), full-weights status.
+- **Qwen3.8 27B** — confirm the "Qwen3.8 278" source string is 27B; find
+  independent benchmarks (Alibaba-only so far).
+- **Qwen3.6 Flash** — any benchmarks at all.
+- **Muse Spark 1.2** — exact release date.
+- **Muse Spark 1.3** — independent verification of the review's numbers.
+
+### 5. Independent benchmarks needed (vendor-reported only right now)
+- **DeepSeek V4 Pro** ("best open-source model" claim), **DeepSeek V4 Flash**
+  (Terminal-Bench 2.1 / DeepSWE post-training jumps), **Kimi K3** (ahead of
+  Opus 4.8 / GPT-5.5), **Qwen3.8** (beats DeepSeek-V4-Flash / Opus 4.6),
+  **Ling 3.0 Flash** (beats Ring-2.6-1T), **Llama 4 Maverick** (beats
+  GPT-4o / Gemini 2.0 — also now a year old), **Muse Spark 1.3** (review
+  numbers), **GLM-5.3** (Terminal-Bench 3.0 on its own scale).

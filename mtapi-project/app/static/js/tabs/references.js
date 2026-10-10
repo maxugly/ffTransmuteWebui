@@ -24,6 +24,7 @@ function renderReferencesForm() {
   const sub = state.activeTab === 'refs-models' ? 'models'
     : state.activeTab === 'refs-images' ? 'imgmodels'
     : state.activeTab === 'refs-code' ? 'code'
+    : state.activeTab === 'refs-apis' ? 'apis'
     : state.activeTab === 'refs-music' ? 'music' : 'yt';
   const wide = sub !== 'yt';
   const html = `
@@ -33,9 +34,10 @@ function renderReferencesForm() {
         <button class="ref-subtab${sub === 'models' ? ' active' : ''}" data-ref-tab="refs-models">Video Models</button>
         <button class="ref-subtab${sub === 'imgmodels' ? ' active' : ''}" data-ref-tab="refs-images">Image Models</button>
         <button class="ref-subtab${sub === 'code' ? ' active' : ''}" data-ref-tab="refs-code">Coding Models</button>
+        <button class="ref-subtab${sub === 'apis' ? ' active' : ''}" data-ref-tab="refs-apis">APIs / Free Tiers</button>
         <button class="ref-subtab${sub === 'music' ? ' active' : ''}" data-ref-tab="refs-music">Music Prompts</button>
       </div>
-      ${sub === 'models' ? buildModelsSection() : sub === 'imgmodels' ? buildImageModelsSection() : sub === 'code' ? buildCodeModelsSection() : sub === 'music' ? buildMusicSection() : buildYtSections()}
+      ${sub === 'models' ? buildModelsSection() : sub === 'imgmodels' ? buildImageModelsSection() : sub === 'code' ? (codeModelOpen ? buildCodeModelPage(codeModelOpen) : buildCodeModelsSection()) : sub === 'apis' ? (apiPageOpen ? buildApiPage(apiPageOpen) : buildApisSection()) : sub === 'music' ? buildMusicSection() : buildYtSections()}
     </div>
   `;
   elements.actionPanel.innerHTML = html;
@@ -43,11 +45,26 @@ function renderReferencesForm() {
   elements.actionPanel.querySelectorAll('#refSubtabs .ref-subtab').forEach((btn) => {
     btn.addEventListener('click', () => {
       const target = btn.getAttribute('data-ref-tab');
-      if (target && target !== state.activeTab) switchTab(target);
+      if (target === state.activeTab) {
+        // Re-clicking the active Coding Models segment exits an open model page.
+        if (target === 'refs-code' && codeModelOpen) {
+          codeModelOpen = null;
+          renderReferencesForm();
+        }
+        // Re-clicking the active APIs segment exits an open API page.
+        if (target === 'refs-apis' && apiPageOpen) {
+          apiPageOpen = null;
+          renderReferencesForm();
+        }
+        return;
+      }
+      if (target) switchTab(target);
     });
   });
   bindSortableTables();
   bindMusicBank();
+  bindCodeModelNav();
+  bindApisNav();
 }
 
 function buildYtSections() {
@@ -241,6 +258,7 @@ function bindSortableTables() {
   if (table) {
     const cfg = table.getAttribute('data-mtable') === 'image' ? imageTableCfg()
       : table.getAttribute('data-mtable') === 'code' ? codeTableCfg()
+      : table.getAttribute('data-mtable') === 'apis' ? apiTableCfg()
       : videoTableCfg();
     table.querySelectorAll('th[data-sort]').forEach((th) => {
       th.addEventListener('click', (e) => {
@@ -317,6 +335,10 @@ function bindSortableTables() {
 let modelsSort = { key: 'model', dir: 1 };
 let imageModelsSort = { key: 'company', dir: 1 };
 let codeModelsSort = { key: 'model', dir: 1 };
+/* Coding-model detail pages: every overview row opens its own page; the model
+   chip strip under the sub-tab bar is the model nav. Survives tab switches. */
+let codeModelOpen = null;
+let apiPageOpen = null;
 
 /* Column visibility state — per table type, keyed by column key */
 function loadColVisibility() {
@@ -608,38 +630,41 @@ function imageModelRow(r) {
    column that quotes the reported number AND its provenance
    (vendor-reported vs independent tracker). Data curated from
    docs/llm_mod_ref.md (Sept 2026 gateway-list verification pass).
+   BigPickle was dropped as unconfirmed by that pass; the user's own
+   usage confirms it, and its page carries a community verdict.
    Unconfirmed cells render `—` (sort last) until verified.
    ═══════════════════════════════════════════════ */
 const CODE_MODELS_ROWS = [
-  { model: 'Kimi K3', provider: 'Moonshot AI', context: '1M', strengths: '2.8T-param MoE, native vision, built for multi-hour repo-scale sessions; largest open-weight model in this set', benchmarks: 'Vendor: ahead of Opus 4.8 & GPT-5.5 on coding/agent tasks (unverified independently)', availability: '+', bestfor: 'Biggest, longest-horizon open coder; custom license w/ revenue share' },
-  { model: 'GLM-5.2', provider: 'Zhipu AI', context: '1M', strengths: '753B MoE (~40B active); holds project-scale context well — retains module boundaries across long tasks', benchmarks: 'SWE-bench Pro 62.1 (> GPT-5.5 58.6); Terminal-Bench 2.1: 81.0', availability: '+', bestfor: 'Repo-scale coding agents — strongest open-weight coding benchmarks', highlight: true },
-  { model: 'GLM-5.3', provider: 'Zhipu AI', context: '1M', strengths: 'Post-trained upgrade of 5.2 base; leads on CyberGym vulnerability discovery in its comparison set', benchmarks: 'Terminal-Bench 3.0: 28.3 (own scale); mixed vs Opus 4.8 per Zhipu footnotes', availability: '+', bestfor: 'Security-adjacent code review and vuln discovery workflows' },
-  { model: 'DeepSeek V4 Pro', provider: 'DeepSeek', context: '1M', strengths: '1.6T-param MoE (49B active); native OpenAI + Anthropic-compatible API, drops into agent harnesses directly', benchmarks: 'Vendor: SOTA open-source claim (not independently confirmed)', availability: '+', bestfor: 'Max open-weight capability where token cost is secondary' },
-  { model: 'Kimi K2.6', provider: 'Moonshot AI', context: '256K', strengths: '1T/32B MoE, open-weight, native multimodal; Agent Swarm scales to 300 sub-agents / 4,000 steps', benchmarks: 'SWE-Bench Pro 58.6% (ties GPT-5.5, third-party writeups)', availability: '+', bestfor: 'Swarm-style parallel agent orchestration' },
-  { model: 'Kimi K2 Thinking', provider: 'Moonshot AI', context: '256K', strengths: 'Interleaves chain-of-thought with tool calls across 200–300 sequential calls without drift', benchmarks: 'SOTA at release: HLE, BrowseComp, LiveCodeBench', availability: '+', bestfor: 'Long tool-call chains; weaker prose / non-English quality' },
-  { model: 'Qwen3.8 27B', provider: 'Alibaba', context: '262K–1M', strengths: 'Efficiency architecture preview for Qwen4; Flash-Next activates ~6B of 125B + 51B N-gram layer', benchmarks: 'Vendor: beats DeepSeek-V4-Flash & Opus 4.6 on coding/office', availability: '+', bestfor: 'Frontier-adjacent quality on small-team compute budgets' },
-  { model: 'DeepSeek V4 Flash', provider: 'DeepSeek', context: '1M', strengths: '284B/13B-active MoE, same 1M stack as Pro at ~1/3 price; fast, cheap, chatty', benchmarks: 'Terminal-Bench 2.1: 61.8→82.7 post-training (vendor)', availability: '+', bestfor: 'Budget agentic coding at 1M context' },
-  { model: 'Nemotron 3 Ultra', provider: 'NVIDIA', context: '1M', strengths: '550B/55B-active hybrid Mamba-Transformer MoE; fast, controllable open worker for pipelines', benchmarks: 'AA Intelligence Index: 48 (leading US open-weight in snapshot)', availability: '+', bestfor: 'Terminal / review pipelines needing speed over peak reasoning' },
-  { model: 'Qwen3.6 Flash', provider: 'Alibaba', context: '1M', strengths: 'Native vision-language Flash tier; fast/cheap with spatial visual understanding', benchmarks: '—', availability: '+', bestfor: 'Fast multimodal drafts, cost-sensitive agent loops' },
-  { model: 'MiniMax M3', provider: 'MiniMax', context: '~1M', strengths: 'Open-weight coding + multimodal; the practical pick when you need local deploy / fine-tuning', benchmarks: 'Aggregator-sourced only; no first-party numbers found', availability: '+', bestfor: 'Local / self-hosted coding-agent deployment' },
+  { model: 'Kimi K3', provider: 'Moonshot AI', context: '1M', strengths: '2.8T-param MoE, native vision, built for multi-hour repo-scale sessions; largest open-weight model in this set', benchmarks: 'AA Index 44 — beats Opus 4.8 (42)', availability: '—', bestfor: 'Biggest, longest-horizon open coder; custom license w/ revenue share' },
+  { model: 'GLM-5.2', provider: 'Zhipu AI', context: '1M', strengths: '753B MoE (~40B active); holds project-scale context well — retains module boundaries across long tasks', benchmarks: 'AA Index 34 · Antigma TB 2.1 74.6% (81.0 vendor-only)', availability: '—', bestfor: 'Repo-scale coding agents — strongest open-weight coding benchmarks', highlight: true },
+  { model: 'GLM-5.3', provider: 'Zhipu AI', context: '1M', strengths: 'Post-trained upgrade of 5.2 base; leads on CyberGym vulnerability discovery in its comparison set', benchmarks: 'AA Index 45 — ties Qwen3.8 Max as top verified open', availability: '—', bestfor: 'Security-adjacent code review and vuln discovery workflows' },
+  { model: 'DeepSeek V4 Pro', provider: 'DeepSeek', context: '1M', strengths: '1.6T-param MoE (49B active); native OpenAI + Anthropic-compatible API, drops into agent harnesses directly', benchmarks: 'AA Index 36 · Antigma TB 2.1 69.1% — "best open" contradicted', availability: '—', bestfor: 'Max open-weight capability where token cost is secondary' },
+  { model: 'Kimi K2.6', provider: 'Moonshot AI', context: '256K', strengths: '1T/32B MoE, open-weight, native multimodal; Agent Swarm scales to 300 sub-agents / 4,000 steps', benchmarks: 'SWE-Bench Pro 58.6% (ties GPT-5.5, third-party writeups)', availability: '—', bestfor: 'Swarm-style parallel agent orchestration' },
+  { model: 'Kimi K2 Thinking', provider: 'Moonshot AI', context: '256K', strengths: 'Interleaves chain-of-thought with tool calls across 200–300 sequential calls without drift', benchmarks: 'SOTA at release: HLE, BrowseComp, LiveCodeBench', availability: '—', bestfor: 'Long tool-call chains; weaker prose / non-English quality' },
+  { model: 'Qwen3.8 27B', provider: 'Alibaba', context: '262K–1M', strengths: 'Efficiency architecture preview for Qwen4; Flash-Next activates ~6B of 125B + 51B N-gram layer', benchmarks: 'AA Index 34 · SWE-bench Pro 61.7 (HF card)', availability: '—', bestfor: 'Frontier-adjacent quality on small-team compute budgets' },
+  { model: 'DeepSeek V4 Flash', provider: 'DeepSeek', context: '1M', strengths: '284B/13B-active MoE, same 1M stack as Pro at ~1/3 price; fast, cheap, chatty', benchmarks: 'TB 2.1 82.7% independently reproduced (Antigma)', availability: '—', bestfor: 'Budget agentic coding at 1M context' },
+  { model: 'Nemotron 3 Ultra', provider: 'NVIDIA', context: '1M', strengths: '550B/55B-active hybrid Mamba-Transformer MoE; fast, controllable open worker for pipelines', benchmarks: 'AA Intelligence Index: 48 (leading US open-weight in snapshot)', availability: '*+', bestfor: 'Terminal / review pipelines needing speed over peak reasoning' },
+  { model: 'Qwen3.6 Flash', provider: 'Alibaba', context: '262K–1M', strengths: '35B/3B MoE vision-language Flash tier; spatial visual understanding', benchmarks: 'AA Index 18 · SWE-bench Verified 73.4 (vendor)', availability: '—', bestfor: 'Fast multimodal drafts, cost-sensitive agent loops' },
+  { model: 'MiniMax M3', provider: 'MiniMax', context: '~1M', strengths: 'Open-weight coding + multimodal; the practical pick when you need local deploy / fine-tuning', benchmarks: 'AA Index 29 · SWE-bench Verified 80.5 (HF card)', availability: '—', bestfor: 'Local / self-hosted coding-agent deployment' },
   { model: 'Inkling', provider: 'Thinking Machines', context: '1M', strengths: '975B/41B-active multimodal MoE; trained in randomized harnesses; self-directed fine-tuning via Tinker', benchmarks: 'AA Intelligence Index: 41 (top US open-weight at release; behind Opus 4.8 at 56)', availability: '+', bestfor: 'Fine-tuning base, not out-of-box frontier performance' },
-  { model: 'Ling 3.0 Flash', provider: 'InclusionAI', context: '256K', strengths: '124B/5.1B-active MoE; token-efficient agentic inference from 10K+ interactive training envs', benchmarks: 'Vendor: matches/beats 1T-class Ring-2.6-1T', availability: '+', bestfor: 'High-frequency agent loops; free slot may have rotated — re-check' },
+  { model: 'Ling 3.0 Flash', provider: 'InclusionAI', context: '256K', strengths: '124B/5.1B-active MoE; token-efficient agentic inference from 10K+ interactive training envs', benchmarks: 'AA Index 20 · AIME 2026 93.2 (vendor)', availability: '*', bestfor: 'High-frequency agent loops; free slot may have rotated — re-check' },
   { model: 'Nemotron 3 Super', provider: 'NVIDIA', context: '1M', strengths: '120B/12B-active hybrid Mamba MoE; context-gathering workhorse ahead of frontier reasoners', benchmarks: 'Production use: CodeRabbit PR-review context stage', availability: '+', bestfor: 'Long-context summarization / retrieval stage in a pipeline' },
-  { model: 'Llama 4 Maverick', provider: 'Meta', context: '1M', strengths: '400B/17B-active MoE, natively multimodal; solid 2025 generalist (source “178B” figure was wrong)', benchmarks: 'Vendor (2025): beats GPT-4o / Gemini 2.0; dated vs 2026 field', availability: '+', bestfor: 'Multimodal on a budget; dated vs mid-2026 open field' },
-  { model: 'Inkling Small', provider: 'Thinking Machines', context: '~1M', strengths: '12B-active sibling; near-Inkling quality on reasoning/agentic at much lower cost', benchmarks: '—', availability: '+', bestfor: 'Cost-sensitive coding / grading tasks' },
+  { model: 'Llama 4 Maverick', provider: 'Meta', context: '1M', strengths: '400B/17B-active MoE, natively multimodal; solid 2025 generalist (source “178B” figure was wrong)', benchmarks: 'AA Index 10 — 2025 claims contradicted', availability: '—', bestfor: 'Multimodal on a budget; dated vs mid-2026 open field' },
+  { model: 'Inkling Small', provider: 'Thinking Machines', context: '1M', strengths: '276B/12B-active sibling; near-Inkling quality at much lower cost', benchmarks: 'AA Index 26 · SWE-bench Verified 80.2 (vendor)', availability: '+', bestfor: 'Cost-sensitive coding / grading tasks' },
   { model: 'Nemotron 3 Nano', provider: 'NVIDIA', context: '1M', strengths: '4B / 30B-A3B tiers; 4x throughput over Nemotron 2 Nano; fits single consumer GPU at 4-bit', benchmarks: '—', availability: '+', bestfor: 'Lightweight pipeline steps, routing, simple extraction' },
-  { model: 'Muse Spark 1.3', provider: 'Meta', context: '1M', strengths: 'Closed-weight agentic orchestrator; plans, delegates across subagents, tools, multimodal inputs', benchmarks: 'Review: competitive w/ Sol & Opus 5 on agentic/coding, ahead of 1.2 (unverified)', availability: '+', bestfor: 'Top overall free pick right now', highlight: true },
-  { model: 'Muse Spark 1.2', provider: 'Meta', context: '1M', strengths: 'Same orchestrator line as 1.3, one generation behind; closed weight, no local deploy', benchmarks: 'Superseded by 1.3 per same review', availability: '+', bestfor: 'Use 1.3 instead unless pinned for a reason' },
-  { model: 'Mistral Medium', provider: 'Mistral AI', context: '—', strengths: 'Balanced mid-tier flagship; comparison point in 2026 benchmark trackers (3.1 / 3.5 version churn)', benchmarks: '—', availability: '+', bestfor: 'General coding/reasoning at mid price; “Latest” is a routing alias, not a version' },
-  { model: 'Mistral Small', provider: 'Mistral AI', context: '—', strengths: 'Small/cheap tier; fast drafts and lightweight agent steps', benchmarks: '—', availability: '+', bestfor: 'Fast drafts, simple pipeline steps' },
-  { model: 'MiniMax M2.7', provider: 'MiniMax', context: '—', strengths: 'Predecessor to M3; appears in benchmark comparison tables only, no spec sheet found', benchmarks: 'AA comparison tables only', availability: '+', bestfor: 'Superseded by M3 — pin only for a specific reason' },
-  { model: 'Gemma 4 26B / 31B', provider: 'Google', context: '—', strengths: 'Small open-weight baseline; “268/318” source strings read as garbled 26B/31B — unconfirmed', benchmarks: 'Beaten by Nemotron 3 Ultra on AA Index', availability: '+', bestfor: 'Needs first-party spec check before real use' },
-  { model: 'gpt-oss 120B / 20B', provider: 'OpenAI', context: '—', strengths: 'Small-open-weight comparison baseline; source “GPT 0SS 1208” likely mangled gpt-oss-120b — verify model ID', benchmarks: 'Baseline in others’ benchmark tables', availability: '+', bestfor: 'Verify the literal model ID before using' },
-  { model: 'North Mini Code', provider: '—', context: '—', strengths: 'Real (appears in AA tracker) but no dedicated writeup found — specifics unconfirmed', benchmarks: '—', availability: '+', bestfor: 'Needs direct lookup before use' },
-  { model: 'MiMo V2.5', provider: 'Xiaomi', context: '—', strengths: 'Coding agents + real-world automation w/ long-context reasoning, per one aggregator description', benchmarks: '—', availability: '+', bestfor: 'Needs first-party spec check' },
+  { model: 'Muse Spark 1.3', provider: 'Meta', context: '1M', strengths: 'Closed-weight agentic orchestrator; plans, delegates across subagents, tools, multimodal inputs', benchmarks: 'AA Index 48 vs Sol 47 / Opus 5 51 — corroborated', availability: '*', bestfor: 'Top overall free pick right now', highlight: true },
+  { model: 'Muse Spark 1.2', provider: 'Meta', context: '1M', strengths: 'Same orchestrator line as 1.3, one generation behind; closed weight, no local deploy', benchmarks: 'AA Index 40', availability: '*', bestfor: 'Use 1.3 instead unless pinned for a reason' },
+  { model: 'Mistral Medium', provider: 'Mistral AI', context: '256K (3.5)', strengths: '3.5: 128B dense "first flagship merged model"; 3.1 deprecated (retired 2026-08-31)', benchmarks: 'Vendor (3.5): SWE-bench Verified 77.6%', availability: '—', bestfor: 'General coding/reasoning at mid price — pin 3.5' },
+  { model: 'Mistral Small', provider: 'Mistral AI', context: '256K', strengths: 'Small 4: 119B/6.5B MoE unifying instruct/reasoning/coding', benchmarks: 'Vendor: GPQA Diamond 71.2', availability: '—', bestfor: 'Fast drafts, simple pipeline steps' },
+  { model: 'MiniMax M2.7', provider: 'MiniMax', context: '200K', strengths: '~230B/10B MoE billed as a self-evolving agent model', benchmarks: 'AA Index 23 · SWE-bench Pro 56.2 (vendor)', availability: '—', bestfor: 'Superseded by M3 — pin only for a specific reason' },
+  { model: 'Gemma 4 26B / 31B', provider: 'Google DeepMind', context: '256K', strengths: 'First Apache-licensed + first MoE Gemma; multimodal, 140+ languages', benchmarks: 'Vendor: LiveCodeBench v6 77.1–80.0', availability: '—', bestfor: 'Small open multimodal — edge / consumer GPU' },
+  { model: 'gpt-oss 120B / 20B', provider: 'OpenAI', context: '128K', strengths: 'STEM/coding MoE pair — 117B/5.1B and 21B/3.6B active', benchmarks: 'Vendor: SWE-bench Verified 45.8–60.7%', availability: '—', bestfor: 'Small open STEM baseline; single-GPU deploy' },
+  { model: 'North Mini Code', provider: 'Cohere', context: '256K', strengths: 'Cohere "North" family; 30B/3B MoE for agentic coding; ~73 tok/s live', benchmarks: 'AA: Coding Index 33.4 · Agentic 21.7 · GPQA 75.7%', availability: '+', bestfor: 'Coding-focused agentic on one GPU' },
+  { model: 'MiMo V2.5', provider: 'Xiaomi', context: '1M', strengths: '1.02T/42B MoE, hybrid attention; 1M-context retention (vendor card)', benchmarks: 'Vendor: 512K/1M retention 0.56–0.92 / 0.37–0.62', availability: '*', bestfor: 'Long-context open-weight coding' },
   { model: 'Nemotron 3.5 Lightning', provider: 'NVIDIA', context: '—', strengths: 'Plausible .5 point release in Nemotron 3 line; no first-party page found', benchmarks: '—', availability: '+', bestfor: 'Needs first-party spec check' },
   { model: 'Nemotron 3 Nano Omni', provider: 'NVIDIA', context: '—', strengths: 'Plausible omni-modal small variant; no first-party page found', benchmarks: '—', availability: '+', bestfor: 'Needs first-party spec check' },
   { model: 'Nemotron 3.5 Content Safety', provider: 'NVIDIA', context: '—', strengths: 'Safety-classifier variant, not a coding driver — kept so the name is not re-added as a mystery model', benchmarks: '—', availability: '+', bestfor: 'Safety classification, not code generation' },
+  { model: 'BigPickle', provider: '—', context: '—', strengths: 'Fast free workhorse — community-verified: 10k+ line codebases, code review, clean tool calls; weak on frontend and long multi-domain planning', benchmarks: '—', availability: '*', bestfor: 'User-confirmed free fallback: small-to-medium backend tasks, review, exploration; rotating backend — experience varies by week. Full community verdict on its page' },
 ];
 
 const CODE_MODELS_COLS = [
@@ -673,7 +698,7 @@ function buildCodeModelsSection() {
     <div class="ref-card">
       <div class="ref-card-head">
         <div class="ref-card-head-icon">${SVG_UPRIGHT}</div>
-        <h2>Coding Models<span class="ref-sub">Verified open-weight comparison for OpenCode / Kilo use — benchmarks quote provenance</span></h2>
+        <h2>Coding Models<span class="ref-sub">Verified open-weight comparison for OpenCode / Kilo use — benchmarks quote provenance · click a model name for its page</span></h2>
       </div>
       <div class="ref-card-body ref-table-scroll">
         <table class="ref-table ref-models-table" data-mtable="code">
@@ -707,7 +732,7 @@ function buildCodeModelsSection() {
         </ul>
         <div class="ref-callout">
           ${SVG_INFO}
-          <p>Curated from <strong>docs/llm_mod_ref.md</strong> (Sept 2026 gateway-list verification). Avail. is <strong>+ throughout</strong>: free-tier status was not re-verified per model — check the gateway live list. Benchmark cells say vendor vs AA/third-party. Dropped as unconfirmed: BigPickle, Charm, Dots3-Note, Laguna S/XS, “Latest”, Ling Sante/Fin. Real agent-loop performance can differ from benchmarks — test a couple on your own repo.</p>
+          <p>Curated from <strong>docs/llm_mod_ref.md</strong> (Sept 2026 gateway-list verification). Avail. is <strong>+ throughout</strong>: free-tier status was not re-verified per model — check the gateway live list. Benchmark cells say vendor vs AA/third-party. Dropped as unconfirmed: Charm, Dots3-Note, Laguna S/XS, “Latest”, Ling Sante/Fin. (BigPickle was on that list — since confirmed by real use; its page carries the community verdict.) Real agent-loop performance can differ from benchmarks — test a couple on your own repo.</p>
         </div>
       </div>
     </div>`;
@@ -719,7 +744,7 @@ function codeModelRow(r) {
     : `<span class="ref-cell">${esc(r.bestfor)}</span>`;
   const benchmarks = r.benchmarks ? `<span class="ref-cell">${esc(r.benchmarks)}</span>` : '<span class="ref-muted">—</span>';
   return `<tr${r.highlight ? ' class="ref-highlight"' : ''}>
-    <td><span class="ref-lic-name">${esc(r.model)}</span></td>
+    <td><button type="button" class="ref-model-link" data-open-model="${esc(r.model)}" data-help-title="Open ${esc(r.model)} page">${esc(r.model)}</button></td>
     <td><span class="ref-cell">${esc(r.provider)}</span></td>
     <td><span class="ref-cell">${esc(r.context)}</span></td>
     <td><span class="ref-cell">${esc(r.strengths)}</span></td>
@@ -727,6 +752,888 @@ function codeModelRow(r) {
     <td class="ref-col-center"><span class="ref-cell">${esc(r.availability)}</span></td>
     <td>${bestfor}</td>
   </tr>`;
+}
+
+/* ── Per-model pages ──
+   Keyed by the overview row's `model` string. Each page has `details`
+   (mined from docs/llm_mod_ref.md — Sept 2026 pass — plus a 2026-10-09
+   web-research pass over live gateway catalogs, HF model cards and
+   Artificial Analysis pages; provenance is noted in the text) and
+   optionally `verdicts` (the community Category|Verdict|Notes table).
+   A field that is null/absent renders a literal <placeholder> so the gaps
+   are visible and greppable; models without verdicts get the 10-category
+   skeleton with <placeholder> cells. Verdict tones map to the house badge
+   colors (green/amber/red); the emoji is the source table's marker. */
+const VERDICT_CATEGORIES = ['Code (general)', 'Debug', 'Plan', 'Agentic Use', 'Tool Use', 'Frontend / UI', 'Speed', 'Reliability', 'Reasoning / Analysis', 'Cost'];
+const PLACEHOLDER = '<span class="ref-placeholder">&lt;placeholder&gt;</span>';
+
+const CODE_MODEL_PAGES = {
+  'DeepSeek V4 Pro': {
+    details: {
+      provider: 'DeepSeek',
+      released: '2026-04 (preview) / 2026-08-13 GA (V4-Pro-0813)',
+      context: '1M (384K max output)',
+      params: '1.6T total / 49B active MoE; hybrid CSA+HCA sparse attention',
+      availability: 'NOT FREE — paid on OpenRouter / Zen / Kilo ($0.21/$0.42 per M on OpenRouter); no :free variant in live catalogs (2026-10-09)',
+      strengths: 'Strong agentic coding benchmarks; native OpenAI + Anthropic-compatible API (drops into Claude Code / OpenCode without a proxy).',
+      weaknesses: "Self-reported superiority claims aren't independently verified — the AA index contradicts them (below). Heavier compute footprint than the Flash sibling.",
+      personality: 'Reasoning-heavy, willing to grind long-horizon tasks — "a big model that wants to think before it types."',
+      bestfor: 'Long-horizon agentic coding; maximum open-weight capability where token cost is secondary.',
+      benchmarks: 'Independent: AA Intelligence Index 36 (0813 Max); Antigma Terminal-Bench 2.1 69.1% ±2.24. Vendor "best open-source" claim contradicted — GLM-5.3 (45), Qwen3.8 Max (45), Kimi K3 (44) all score higher.',
+      compare: 'GLM-5.2 — GLM is more coding-benchmark-focused and cheaper; V4 Pro leans on raw scale.',
+      sources: ['https://api-docs.deepseek.com/news/news260424/', 'https://www.morphllm.com/deepseek-v4', 'https://deepinfra.com/deepseek-ai/DeepSeek-V4-Pro', 'https://artificialanalysis.ai/models/deepseek-v4-pro', 'https://antigma.ai/eval'],
+    },
+  },
+  'DeepSeek V4 Flash': {
+    details: {
+      provider: 'DeepSeek',
+      released: '2026-04 (preview) / 2026-07-31 GA (V4-Flash-0731)',
+      context: '1M (384K max output)',
+      params: '284B total / 13B active MoE',
+      availability: 'NOT FREE — deepseek-v4-flash:free removed ~2026-05; paid on OpenRouter / Zen / Kilo (2026-10-09)',
+      strengths: 'Same 1M stack as Pro at ~1/3 price; big post-training jump on Terminal-Bench 2.1 and DeepSWE from preview to GA.',
+      weaknesses: 'Runs verbose — ~2x the output-token cost per Intelligence-Index run vs similarly-sized models; ~1 point behind Pro on the AA index despite the price gap.',
+      personality: 'Fast, cheap, chatty — good for high-throughput loops where you pay per call.',
+      bestfor: 'Budget agentic coding, high-volume tool-use pipelines, fast drafts at 1M context.',
+      benchmarks: 'Independent (Antigma, 2026-08-09): Terminal-Bench 2.1 82.7% ±1.79 reproduced — the 61.8→82.7 post-training jump confirmed (pre-release build 66.4%). DeepSWE 7.3→54.4 is vendor-only, no independent score.',
+      compare: 'Qwen3.8 27B — similarly cheap+fast tier; Alibaba\'s own numbers claim Qwen edges it on coding/office.',
+      sources: ['https://www.morphllm.com/deepseek-v4-flash', 'https://openrouter.ai/deepseek/deepseek-v4-flash', 'https://lmstudio.ai/models/deepseek-v4-flash', 'https://www.orcarouter.ai/blog/deepseek-v4-flash-arc-verified', 'https://antigma.ai/eval'],
+    },
+  },
+  'GLM-5.2': {
+    details: {
+      provider: 'Zhipu AI (Z.ai)',
+      released: '2026-06-13, MIT license',
+      context: '1M (128K max output; Together AI serves it at 262K in FP4)',
+      params: '753B total / ~40B active MoE, IndexShare sparse attention',
+      availability: 'NOT FREE — paid on OpenRouter / Kilo / Zen / Vercel ($0.19/$1.80 per M); no live :free listing (2026-10-09)',
+      strengths: 'Strongest open-weight model on standard coding benchmarks at release: SWE-bench Pro 62.1 (beats GPT-5.5\'s 58.6), Terminal-Bench 2.1 81.0 (vendor).',
+      weaknesses: 'Verbose — ~43K output tokens per Index task (37K reasoning) vs 16K for GPT-5.5. Real latency/cost overhead.',
+      personality: 'Holds project-scale context well — users report it retaining module boundaries and architectural constraints across long tasks.',
+      bestfor: 'Long-horizon repo-scale coding agents; doesn\'t lose the plot after 50 tool calls.',
+      benchmarks: 'Independent: AA Index 34; Antigma Terminal-Bench 2.1 74.6% ±2.06 (the claimed 81.0 is vendor-only). SWE-bench Pro 62.1 vendor-only.',
+      compare: 'DeepSeek V4 Pro — GLM wins standard coding benchmarks head-to-head; DeepSeek has the bigger raw parameter count.',
+      sources: ['https://docs.z.ai/guides/llm/glm-5.2', 'https://www.morphllm.com/glm-5-2', 'https://docs.together.ai/docs/glm-5.2-quickstart', 'https://artificialanalysis.ai/models/glm-5-2', 'https://antigma.ai/eval'],
+    },
+  },
+  'GLM-5.3': {
+    details: {
+      provider: 'Zhipu AI (Z.ai)',
+      released: '2026-08-14 (API), weights public 2026-08-25 under custom GLM-5.3 License',
+      context: '1M',
+      params: '743B base, post-training upgrade of 5.2',
+      availability: 'NOT FREE — paid everywhere checked (Z.ai $1.40/$4.40 per M); only off-gateway third-party free aliases (2026-10-09)',
+      strengths: 'Same 743B base as 5.2, upgraded via post-training only. Leads on CyberGym vulnerability discovery among the compared labs.',
+      weaknesses: 'Zhipu\'s own notes flag it mixed vs Claude Opus 4.8 depending on task, and it plainly trails Claude Fable 5 on their internal coding benchmark. Release table mixed three Anthropic models across sections — read footnotes before quoting.',
+      personality: 'Same behavioral profile as 5.2, sharpened post-training rather than a new brain.',
+      bestfor: 'Security-adjacent code review and vuln-discovery workflows; long-horizon coding where 5.2 already fit.',
+      benchmarks: 'Independent: AA Intelligence Index 45 — ties Qwen3.8 Max as the highest open-weight score verified (2026-10-09). Terminal-Bench 3.0 28.3 is vendor-only (own scale).',
+      compare: 'Kimi K3 — both landed within weeks; Kimi is bigger (2.8T) and self-reported ahead on more tasks, GLM is cheaper to run.',
+      sources: ['https://www.artificialintelligence-news.com/news/zhipu-glm-5-3-benchmarks-explained/', 'https://vercel.com/ai-gateway/models/glm-5.3-flash/latency', 'https://artificialanalysis.ai/models/glm-5-3'],
+    },
+  },
+  'Kimi K2 Thinking': {
+    details: {
+      provider: 'Moonshot AI',
+      released: '2025-11',
+      context: '256K (262,144)',
+      params: '1T total / 32B active MoE, native INT4',
+      availability: 'NOT FREE — paid on OpenRouter and Kilo ($0.60/$2.50 per M); not listed on Zen (2026-10-09)',
+      strengths: 'Interleaves chain-of-thought with tool calls across 200–300 sequential calls without drift; set open-source SOTA at release on HLE, BrowseComp, SWE-Multilingual, LiveCodeBench.',
+      weaknesses: 'Independent review found it below the non-thinking K2 Instruct on creative-writing quality; undertrained-feeling non-English output. Superseded on coding by K2.6/K2.7/K3.',
+      personality: 'A reasoning grinder — stays on task through very long tool-call chains, weaker on prose quality.',
+      bestfor: 'Long-horizon autonomous research/coding tasks needing hundreds of sequential tool calls without the model wandering.',
+      benchmarks: 'HLE / BrowseComp / LiveCodeBench SOTA at release (2025-11).',
+      compare: 'DeepSeek V4 Pro — similar MoE scale class; Kimi wins on sustained tool-call stability, DeepSeek on raw benchmark breadth.',
+      sources: ['https://openrouter.ai/moonshotai/kimi-k2-thinking', 'https://ndurner.substack.com/p/kimi-k2-thinking', 'https://leanware.co/insights/kimi-k2'],
+    },
+  },
+  'Kimi K2.6': {
+    details: {
+      provider: 'Moonshot AI',
+      released: '2026-04-20',
+      context: '256K (262,144)',
+      params: '1T total / 32B active MoE, native multimodal',
+      availability: 'NOT FREE — paid on OpenRouter, Kilo, and Zen (2026-10-09)',
+      strengths: 'Open-weight, native multimodal; "Agent Swarm" scales to 300 sub-agents / 4,000 coordinated steps. Ties GPT-5.5 on SWE-Bench Pro (58.6%) per third-party writeups; leads HLE-with-tools (54.0%) in some comparisons.',
+      weaknesses: 'Headline capability is sustained autonomous execution, not peak single-shot benchmark score.',
+      personality: 'Built for horizontal scale-out — many cheap agents working in parallel rather than one very deep reasoner.',
+      bestfor: 'Swarm-style agent orchestration, large parallel task decomposition.',
+      benchmarks: 'SWE-bench Pro 58.6% (ties GPT-5.5, third-party).',
+      compare: 'Claude Opus 4.6/4.7 — writeups position it ~80% cheaper per token while trading blows on SWE-bench Pro.',
+      sources: ['https://llm-stats.com/models/kimi-k2.6', 'https://miraflow.ai/blog/kimi-k2-6-explained-moonshot-ai-open-source-model-ties-gpt-5-5-coding', 'https://huggingface.co/moonshotai/Kimi-K2.6'],
+    },
+  },
+  'Kimi K3': {
+    details: {
+      provider: 'Moonshot AI',
+      released: '2026-07-16 (API), weights July 27 under Kimi K3 License (custom, revenue-share above $20M/yr inference revenue)',
+      context: '1M (1,048,576)',
+      params: '2.8T total, native vision, Delta Attention + Attention Residuals',
+      availability: 'NOT FREE — paid on OpenRouter ($0.80/$13.50 per M), Kilo, Zen; Copilot access is paid-plan only (2026-10-09)',
+      strengths: '2.8T total params (largest open-weight at writing), native vision. Moonshot places it ahead of Claude Opus 4.8 and GPT-5.5 on several coding/agent tasks.',
+      weaknesses: 'Custom license, not clean permissive open-weight — 30% revenue-share for large inference providers. "Open weight" claims launched slightly ahead of the weights shipping.',
+      personality: 'The family heavyweight — built for multi-hour engineering sessions across large repos.',
+      bestfor: 'The biggest, longest-horizon coding/agent tasks you\'d otherwise reach for a closed frontier model.',
+      benchmarks: 'Independent: AA Intelligence Index 44 — beats Claude Opus 4.8 (42) on the same composite. Coding/agent-specific "ahead of Opus 4.8/GPT-5.5" claims vendor-only.',
+      compare: 'Claude Fable 5 / GPT-5.6 Sol — Moonshot\'s own marketing comparison; independent confirmation thinner than for K2.6.',
+      sources: ['https://en.wikipedia.org/wiki/Kimi_(AI)', 'https://amplifilabs.com/post/kimi-k3-the-complete-guide-to-moonshot-ais-2-8t-model', 'https://github.com/MoonshotAI/Kimi-K3', 'https://openrouter.ai/moonshotai/kimi-k3', 'https://artificialanalysis.ai/models/kimi-k3'],
+    },
+  },
+  'Qwen3.6 Flash': {
+    details: {
+      provider: 'Alibaba (Qwen team)',
+      released: '2026-04-15/16; Apache 2.0 (API alias qwen3.6-flash)',
+      context: '262,144 native, extensible to ~1.01M; max output 65,536',
+      params: '35B total / 3B active (AA lists 36B); sparse MoE + hybrid linear attention',
+      availability: 'NOT FREE — paid on OpenRouter ($0.19/$1.13 per M) and Kilo; absent from Zen (2026-10-09)',
+      strengths: 'Native vision-language Flash tier; fast/cheap agentic coding with spatial visual understanding (object localization/detection).',
+      weaknesses: 'Flash tier — not the reasoning-depth flagship; superseded by the Qwen3.7/3.8 lines within the year.',
+      personality: 'Quick, cost-efficient, multimodal-first.',
+      bestfor: 'Fast drafts, cost-sensitive agent loops that also need image/video input.',
+      benchmarks: 'Vendor (HF card): SWE-bench Verified 73.4, Terminal-Bench 2.0 51.5. Independent: AA Intelligence Index 18.',
+      compare: 'DeepSeek V4 Flash — similar fast/cheap positioning; Qwen adds native vision, DeepSeek focuses text/code.',
+      sources: ['https://huggingface.co/Qwen/Qwen3.6-35B-A3B', 'https://artificialanalysis.ai/models/qwen3-6-35b-a3b', 'https://www.mindstudio.ai/models/qwen-3-6-flash', 'https://opencode.ai/data/alibaba'],
+    },
+  },
+  'Qwen3.8 27B': {
+    details: {
+      provider: 'Alibaba (Qwen team)',
+      released: '"27B" naming confirmed — HF repo 2026-08-05 (AA lists 2026-08-14), Apache 2.0. Flash-Next: HF 2026-08-24, Qwen Community License 1.0',
+      context: '262,144 native, extensible to 1M (YaRN) — both variants',
+      params: '27B: 64 layers (48 Gated DeltaNet linear attention + 16 gated attention), hidden 5,120. Flash-Next: 180B total / 6B active MoE + 51B n-gram table + 4B MTP module',
+      availability: 'NOT FREE — 27B paid on OpenRouter / Kilo / Vercel; Flash-Next is open-weights only, not on the gateways (2026-10-09). Source string "Qwen3.8 278" = 27B confirmed',
+      strengths: '27B runs in ~55.6GB BF16 / ~17GB 4-bit. Flash-Next: Qwen4 architecture preview — 7.6–10.2x prefill speedups at 1M context (vendor).',
+      weaknesses: 'Independent production numbers still thin — the throughput story is mostly Alibaba\'s own.',
+      personality: 'Efficiency-obsessed — an architecture preview for Qwen4, testing cost tricks rather than chasing peak score.',
+      bestfor: 'Small teams running their own coding/document agents who want frontier-adjacent quality without frontier compute bills.',
+      benchmarks: '27B vendor (HF): SWE-bench Pro 61.7, Terminal-Bench 2.1 73.0, GPQA Diamond 89.2, LiveCodeBench v6 90.3. Independent: AA Index 34. Flash-Next vendor: SWE-bench Pro 62.5, DeepSWE 1.1 58.7 (no independent numbers found).',
+      compare: 'DeepSeek V4 Flash — the direct comparison target in Alibaba\'s release materials.',
+      sources: ['https://huggingface.co/Qwen/Qwen3.8-27B', 'https://huggingface.co/Qwen/Qwen3.8-Flash-Next', 'https://artificialanalysis.ai/models/qwen3-8-27b', 'https://opencode.ai/data/alibaba'],
+    },
+  },
+  'Nemotron 3 Nano': {
+    details: {
+      provider: 'NVIDIA',
+      released: '2025-12',
+      context: '1M (default deploy config often 262,144 to avoid OOM)',
+      params: '4B / 30B-A3B variants, hybrid MoE',
+      availability: 'FREE — OpenRouter + Kilo (nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free); NVIDIA trial terms, usage logged',
+      strengths: '4x throughput over Nemotron 2 Nano, up to 60% less reasoning-token generation. Fits a single consumer GPU at 4-bit.',
+      weaknesses: 'Smallest of the three — not the one for hard reasoning/coding; that\'s Super/Ultra\'s job.',
+      personality: 'Fast, cheap, disposable-agent-worker energy.',
+      bestfor: 'High-throughput lightweight steps in a multi-agent pipeline (routing, simple extraction).',
+      benchmarks: null,
+      compare: 'Qwen3.6 Flash — similar small/fast tier; Nemotron leans agentic-pipeline-step use, Qwen leans multimodal.',
+      sources: ['https://nvidianews.nvidia.com/news/nvidia-debuts-nemotron-3-family-of-open-models', 'https://unsloth.ai/docs/models/nemotron-3'],
+    },
+  },
+  'Nemotron 3 Super': {
+    details: {
+      provider: 'NVIDIA',
+      released: '2026-03',
+      context: '1M native',
+      params: '120B total / 12B active, hybrid Mamba-Transformer MoE',
+      availability: 'FREE — OpenRouter + Kilo (nvidia/nemotron-3-super-120b-a12b:free); NVIDIA trial terms, usage logged',
+      strengths: 'Mamba layers make the 1M context practical rather than theoretical. CodeRabbit uses it in production for PR-review context gathering ahead of frontier reasoners.',
+      weaknesses: 'Positioned as the mid-tier context-gathering workhorse, not the top-line reasoner.',
+      personality: 'A capable pre-processor/summarizer that keeps a big context pile organized for whatever reasons over it next.',
+      bestfor: 'Long-context summarization and retrieval stages inside a larger agent pipeline; software-dev and cybersecurity triage.',
+      benchmarks: 'Production use: CodeRabbit PR-review context stage.',
+      compare: 'Nemotron 3 Nano — same family; Super trades some throughput for real reasoning depth.',
+      sources: ['https://developer.nvidia.com/blog/introducing-nemotron-3-super-an-open-hybrid-mamba-transformer-moe-for-agentic-reasoning/', 'https://www.coderabbit.ai/blog/faster-code-reviews-with-nemotron-3-super', 'https://www.verdent.ai/guides/what-is-nemotron-3-super'],
+    },
+  },
+  'Nemotron 3 Ultra': {
+    details: {
+      provider: 'NVIDIA',
+      released: '2026-06',
+      context: '1M native; scores 95% on Ruler-at-1M recall benchmark',
+      params: '550B total / 55B active, hybrid Mamba-Transformer MoE, latent MoE routing + multi-token prediction',
+      availability: 'FREE — OpenRouter + Kilo + OpenCode Zen (nvidia/nemotron-3-ultra-550b-a55b:free); NVIDIA trial terms, usage logged',
+      strengths: 'AA Intelligence Index 48 — leading US open-weight model in that snapshot, ahead of Gemma 4 31B and gpt-oss-120b.',
+      weaknesses: 'A third-party review explicitly frames it as NOT "the new best coding assistant" — a fast, controllable open worker for pipelines, not a frontier reasoning champion.',
+      personality: 'Built for developers who stay in the loop — fast enough to retry, controllable enough to keep inside a harness.',
+      bestfor: 'Terminal/coding-agent harnesses, review pipelines, churning through messy long context fast.',
+      benchmarks: 'AA Intelligence Index: 48 (leading US open-weight in snapshot).',
+      compare: 'Inkling — both "open US model, closely watched" releases; Inkling leans generalist/fine-tunable, Ultra leans speed + agent-pipeline fit.',
+      sources: ['https://www.coderabbit.ai/blog/nemotron-3-ultra-release', 'https://openrouter.ai/nvidia/nemotron-3-ultra-550b-a55b:free', 'https://vercel.com/ai-gateway/models/nemotron-3-ultra-550b-a55b/faq'],
+    },
+  },
+  'Inkling': {
+    details: {
+      provider: 'Thinking Machines Lab',
+      released: '2026-07-15, Apache 2.0',
+      context: '1M',
+      params: '975B total / 41B active multimodal MoE',
+      availability: 'FREE — OpenRouter (thinkingmachines/inkling:free); on Kilo only the Small variant is free (2026-10-09)',
+      strengths: 'Trained inside randomized coding/agent harnesses so it doesn\'t overfit to one tool schema. Can drive its own fine-tuning via the Tinker platform.',
+      weaknesses: 'Thinking Machines says it plainly: "not the strongest overall model available today, open or closed." AA Index 41 — behind Claude Opus 4.8 (56) and GPT-5.6 (59). Code-gen solid, not exceptional.',
+      personality: 'A balanced generalist tuned for customization rather than leaderboard-topping.',
+      bestfor: 'Teams that want an open-weight base to fine-tune for a specific domain.',
+      benchmarks: 'AA Intelligence Index: 41 (top US open-weight at release; behind Opus 4.8 at 56).',
+      compare: 'Nemotron 3 Ultra — Inkling is the fine-tuning-first play, Ultra the pipeline-speed play.',
+      sources: ['https://thinkingmachines.ai/news/introducing-inkling/', 'https://www.analyticsvidhya.com/blog/2026/07/thinking-machines-inkling/', 'https://www.databricks.com/blog/inkling-thinking-machines-lab-now-databricks', 'https://thinkingmachines.ai/model-card/inkling/'],
+    },
+  },
+  'Inkling Small': {
+    details: {
+      provider: 'Thinking Machines Lab',
+      released: '2026-07-30; Apache 2.0 — full weights shipped (BF16 + NVFP4)',
+      context: 'Up to 1M (AA)',
+      params: '276B total / 12B active (AA lists 266B; HF card 276B); MoE 6-of-256 + 2 shared; 42 layers; text+image+audio',
+      availability: 'FREE — OpenRouter + Kilo (thinkingmachines/inkling-small:free); serverless API ~$0.30/$1.20 per M at launch (vendor)',
+      strengths: '~1/4 the size of flagship Inkling (975B) — near-Inkling reasoning/agentic at much lower cost/latency.',
+      weaknesses: 'Specs provisional at launch; AA and HF card disagree on total params (266B vs 276B).',
+      personality: 'The cheap-and-fast sibling — LLM-as-judge grading, synthetic data where cost matters more than peak capability.',
+      bestfor: 'Cost-sensitive coding/grading tasks with Inkling\'s behavior profile without Inkling\'s compute bill.',
+      benchmarks: 'Vendor (HF): SWE-bench Verified 80.2, HLE 31.6, GPQA Diamond 89.5, SWE-bench Pro 55.9. Independent: AA Intelligence Index 26.',
+      compare: 'Nemotron 3 Nano — both are the "small, cheap sibling" of their families.',
+      sources: ['https://huggingface.co/thinkingmachines/Inkling-Small', 'https://artificialanalysis.ai/models/inkling-small', 'https://thinkingmachines.ai/news/introducing-inkling/'],
+    },
+  },
+  'Llama 4 Maverick': {
+    details: {
+      provider: 'Meta',
+      released: '2025-04-05, Llama 4 Community License',
+      context: '1M (1,048,576)',
+      params: '400B total / 17B active MoE (128 experts), natively multimodal',
+      availability: 'NOT FREE — paid on OpenRouter / Kilo / Vercel ($0.24/$0.97 per M); absent from Zen (2026-10-09)',
+      strengths: 'Natively multimodal (early fusion), 12 supported output languages.',
+      weaknesses: 'The source list\'s "178 Instruct" param count is wrong — the real Maverick is 400B/17B. Meta\'s agent progress acknowledged behind plan — weigh the 2025 claims accordingly.',
+      personality: 'Solid 2025 multimodal generalist; dated next to the mid-2026 open-weight field.',
+      bestfor: 'Multimodal (image+text) tasks on a budget where you don\'t need frontier-2026 coding.',
+      benchmarks: 'Independent: AA Intelligence Index 10 (2026-10-09) — far below the 2025 "beats GPT-4o/Gemini 2.0" positioning and below every 2026 open-weight rival measured; coding subscores not published.',
+      compare: 'DeepSeek V3 — Meta\'s own launch comparison; both ~a year+ old by this list.',
+      sources: ['https://ai.meta.com/blog/llama-4-multimodal-intelligence/', 'https://huggingface.co/blog/llama4-release', 'https://openrouter.ai/meta-llama/llama-4-maverick', 'https://artificialanalysis.ai/models/llama-4-maverick'],
+    },
+  },
+  'Mistral Medium': {
+    details: {
+      provider: 'Mistral AI',
+      released: '3.1: ~2025-08-12 (API 25.08), deprecated — retirement 2026-08-31. 3.5: 2026-05-22, open weights (modified MIT) — current',
+      context: '3.1: 131K (max output ~40K). 3.5: 256K',
+      params: '3.5: 128B dense (not MoE) + custom vision encoder; 3.1 params undisclosed',
+      availability: 'NOT FREE — paid on OpenRouter and Kilo; not on Zen/Vercel (2026-10-09). 3.5 API $1.50/$7.50 per M; self-host on ~4 GPUs',
+      strengths: '3.5 is Mistral\'s "first flagship merged model" (instruct + reasoning + coding); replaced 3.1 in Le Chat.',
+      weaknesses: '3.1 is now deprecated (retired 2026-08-31) — pin 3.5. Don\'t ship a benchmark entry for "Mistral Medium | Latest" as a stable target.',
+      personality: 'Balanced mid-tier option in Mistral\'s lineup.',
+      bestfor: 'General coding/reasoning tasks at a mid price point.',
+      benchmarks: 'Vendor (3.5): SWE-Bench Verified 77.6%, τ³-Telecom 91.4 — no independent verification found.',
+      compare: 'GLM-5.2 — GLM is the more benchmark-aggressive open-weight coder; Mistral trades peak score for an established vendor.',
+      sources: ['https://docs.mistral.ai/getting-started/models/models_overview/', 'https://mistral.ai/news/vibe-remote-agents-mistral-medium-3-5'],
+    },
+  },
+  'Mistral Small': {
+    details: {
+      provider: 'Mistral AI',
+      released: 'Current: Small 4 v26.03 (2026-03), Apache 2.0. Predecessor Small 3.2 (24B dense, 2025-06)',
+      context: '256K (Small 4); 3.2 was 131,072',
+      params: '119B total / 6.5B active, sparse MoE (128 experts, 4 active)',
+      availability: 'NOT FREE — paid on OpenRouter and Kilo; absent from Zen (2026-10-09). API ~$0.15/$0.60 per M reported',
+      strengths: 'Hybrid unifying instruct/reasoning/coding.',
+      weaknesses: 'No independent benchmark numbers found — card numbers vendor-reported.',
+      personality: 'Fast, cheap, no-frills.',
+      bestfor: 'Fast drafts, simple extraction/classification steps in a larger pipeline.',
+      benchmarks: 'Vendor (HF): GPQA Diamond 71.2 (reasoning high). Independent numbers not found.',
+      compare: 'Qwen3.6 Flash — same small/fast tier positioning from a different lab.',
+      sources: ['https://huggingface.co/mistralai/Mistral-Small-4-119B-2603', 'https://docs.mistral.ai/getting-started/models/models_overview/'],
+    },
+  },
+  'MiniMax M3': {
+    details: {
+      provider: 'MiniMax',
+      released: '2026-06-01/02; MiniMax Community license',
+      context: '1M (vendor: guaranteed min 512K; max output ~512K — unverified)',
+      params: '428B total / ~23B active; sparse MoE (128 experts, 4 active + 1 shared); MiniMax Sparse Attention (MSA) block-level KV cache',
+      availability: 'NOT FREE — paid on OpenRouter / Kilo / Zen / Vercel; earlier minimax-m3:free listings gone from live catalogs (2026-10-09)',
+      strengths: 'Open-weight multimodal (text/image/video); MSA marketed as ~1/20th per-token compute at 1M context.',
+      weaknesses: 'Context/benchmark numbers still vendor-reported — treat the 1M claims as unverified.',
+      personality: 'The practical open-weight coding option when closed models won\'t give you local deploy.',
+      bestfor: 'Local/self-hosted coding-agent deployment where you need the actual weights.',
+      benchmarks: 'Vendor (HF): SWE-bench Verified 80.5, SWE-bench Pro 59, MMMU-Pro 78.1. Independent: AA Intelligence Index 29.',
+      compare: 'Muse Spark 1.1/1.2/1.3 — framed as "the open-weight alternative" to Meta\'s closed line.',
+      sources: ['https://huggingface.co/MiniMaxAI/MiniMax-M3', 'https://artificialanalysis.ai/models/minimax-m3'],
+    },
+  },
+  'MiniMax M2.7': {
+    details: {
+      provider: 'MiniMax',
+      released: '2026-03-18 (AA); weights on HF 2026-04-09',
+      context: '200K (AA FAQ; one spec says 205K)',
+      params: '~230B total / 10B active; sparse MoE (256 experts, 8 active per third-party)',
+      availability: 'NOT FREE — paid on OpenRouter / Kilo / Zen; earlier minimax-m2.7:free gone (2026-10-09)',
+      strengths: 'Billed as a self-evolving agent model.',
+      weaknesses: 'No independent verification of the self-evolving claims — superseded by M3.',
+      personality: null,
+      bestfor: 'Treat as superseded by M3 unless pinned for a specific reason.',
+      benchmarks: 'Vendor (HF): SWE-bench Pro 56.2, Terminal-Bench 2 57, SkillsBench v1.1 34.9. Independent: AA Intelligence Index 23.',
+      compare: 'MiniMax-M3 — direct predecessor/successor pair.',
+      sources: ['https://artificialanalysis.ai/models/minimax-m2-7', 'https://huggingface.co/MiniMaxAI/MiniMax-M2.7'],
+    },
+  },
+  'Muse Spark 1.2': {
+    details: {
+      provider: 'Meta (Superintelligence Labs)',
+      released: '2026-08-05 (Artificial Analysis page)',
+      context: '1M input (131K output reported)',
+      params: 'Not disclosed',
+      availability: 'FREE on OpenCode Zen (muse-spark-1.2-contributor-free — prompts train the model); paid on OpenRouter and Kilo ($1.25/$4.25 per M)',
+      strengths: 'Successor to 1.1, launched with the Muse Code terminal agent; multimodal (text/image/video/audio/PDF).',
+      weaknesses: 'Closed weight, proprietary — no local deployment, no fine-tuning, no published architecture specs.',
+      personality: 'An orchestrator — plans, delegates, and keeps track across multi-tool, multi-modal sessions.',
+      bestfor: 'Consumer-facing agentic tasks via meta.ai or the Meta Model API.',
+      benchmarks: 'Independent: AA Intelligence Index 40 (2026-10-09).',
+      compare: 'MiniMax M3 — closed vs open-weight version of roughly the same "agentic orchestrator" pitch.',
+      sources: ['https://artificialanalysis.ai/models/muse-spark-1-2', 'https://www.datacamp.com/blog/muse-spark-1-1'],
+    },
+  },
+  'Muse Spark 1.3': {
+    details: {
+      provider: 'Meta (Superintelligence Labs)',
+      released: '2026-09-02 (Artificial Analysis page)',
+      context: '1M',
+      params: 'Not disclosed',
+      availability: 'FREE on OpenCode Zen (muse-spark-1.3-contributor-free — prompts train the model); paid on OpenRouter and Kilo ($1.25/$4.25 per M); "Max" reasoning tier in limited preview',
+      strengths: 'Same agentic/multimodal orchestration line; AA: 48 — 1pt above GPT-5.6 Sol (47), 3 behind Claude Opus 5 (51).',
+      weaknesses: 'Params undisclosed; no open-weights commitment. The original review lacked Fable 5.1 / Gemini 3.8 Flash comparisons and confidence intervals.',
+      personality: 'Same orchestrator profile as 1.1/1.2, incrementally sharpened.',
+      bestfor: 'Consumer/API agentic orchestration — use the newest point release.',
+      benchmarks: 'Independent (AA, 2026-10-09): 48 (Max) vs GPT-5.6 Sol 47 / Claude Opus 5 51 — the "competitive with Sol and Opus 5" review claim corroborated.',
+      compare: 'GPT-5.6 Sol / Claude Opus 5 — the review\'s own comparison set.',
+      sources: ['https://artificialanalysis.ai/models/muse-spark-1-3', 'https://artificialanalysis.ai/models/gpt-5-6-sol', 'https://artificialanalysis.ai/models/claude-opus-5', 'https://kingy.ai/blog/muse-spark-1-3-review-benchmarks-pricing-verdict/'],
+    },
+  },
+  'Ling 3.0 Flash': {
+    details: {
+      provider: 'InclusionAI (Ant Group)',
+      released: '2026-07-23 (Vercel); MIT open weights',
+      context: '256K native (expandable to 1M per some listings)',
+      params: '124B total / ~5.1B active; sparse MoE, hybrid Delta attention + MLA (1/64)',
+      availability: 'FREE on OpenCode Zen (ling-3.0-flash-fin-free); Vercel\'s free slot ended 2026-08-03; paid on OpenRouter/Kilo; successor ling-3.1-flash is free on more gateways',
+      strengths: 'Token-efficient agentic inference; matches/beats its 1T-class predecessor Ring-2.6-1T. 10,000+ interactive training environments.',
+      weaknesses: 'The Vercel free promo has expired — free access now only via Zen.',
+      personality: 'Efficiency-first — more agentic work per token, not raw leaderboard topping.',
+      bestfor: 'High-frequency agentic workflows and document processing where token cost per action matters.',
+      benchmarks: 'Vendor (HF): AIME 2026 93.2, SWE-bench Pro 56.6, HLE 22.7. Independent: AA Intelligence Index 20.',
+      compare: 'Qwen3.8 Flash-Next — similar "efficiency architecture experiment" positioning.',
+      sources: ['https://vercel.com/changelog/ling-3-0-flash-is-now-available-on-ai-gateway', 'https://huggingface.co/inclusionAI/Ling-3.0-flash', 'https://artificialanalysis.ai/models/ling-3-0-flash'],
+    },
+  },
+  'Gemma 4 26B / 31B': {
+    details: {
+      provider: 'Google DeepMind',
+      released: '2026-04-02 (blog; 31B HF card shows 2026-03-11); Apache 2.0 — first Apache-licensed Gemma',
+      context: '256K',
+      params: '26B: 25.2B/3.8B MoE (128 experts, top-8), 30 layers. 31B: 30.7B dense, 60 layers',
+      availability: 'Open weights on HF; 26B ~52GB bf16, 31B ~62GB — single 80GB GPU',
+      strengths: 'First MoE in the Gemma series; multimodal text+image (video as frames); 140+ languages; configurable <|think|> thinking mode.',
+      weaknesses: 'No independent benchmark verification located — card numbers are vendor-reported.',
+      personality: null,
+      bestfor: 'Small/efficient open Google multimodal — edge / consumer-GPU deployment.',
+      benchmarks: 'Vendor card (26B-it): MMLU Pro 82.6%, AIME 2026 88.3%, LiveCodeBench v6 77.1%, GPQA Diamond 82.3%. (31B-it): MMLU Pro 85.2%, AIME 2026 89.2%, LiveCodeBench v6 80.0%, GPQA Diamond 84.3%, HLE 19.5%.',
+      compare: 'gpt-oss-20b — similar small-open-weight class, different vendor.',
+      sources: ['https://developers.googleblog.com/en/bring-state-of-the-art-agentic-skills-to-the-edge-with-gemma-4/', 'https://huggingface.co/google/gemma-4-26B-A4B-it', 'https://huggingface.co/google/gemma-4-31b-it'],
+    },
+  },
+  'gpt-oss 120B / 20B': {
+    details: {
+      provider: 'OpenAI',
+      released: '2025-08-04 (HF card date); Apache 2.0',
+      context: '128K (131,072 per Azure listing); Codex splits 96K in / 32K out',
+      params: '120B: ~117B/5.1B active MoE, 36 layers, 128 experts top-4, MXFP4. 20B: ~21B/3.6B active, 24 layers, 32 experts top-4',
+      availability: 'Open weights on HF; 120B fits one 80GB GPU, 20B ~16GB; Azure/AWS/Vercel/Databricks; llama.cpp/Ollama/LM Studio',
+      strengths: 'Decoder-only, STEM/coding-focused; o200k_harmony tokenizer open-sourced.',
+      weaknesses: 'Do not ship "GPT 0SS 1208" as a row — that source string is a mangled gpt-oss-120b, now confirmed.',
+      personality: null,
+      bestfor: 'Small open-weight STEM/coding baseline; local single-GPU deploy.',
+      benchmarks: 'Vendor card (120B): GPQA Diamond 69.0%, MMLU-Pro 73.7%, SWE-bench Verified 45.8%, HLE 10.0%. (20B): SWE-bench Verified 60.7% (high) / 53.2% (med), GPQA Diamond 71.5%, MMLU-Pro 73.6%.',
+      compare: 'Gemma 4 — both show up as the "small open baseline" in the same tables.',
+      sources: ['https://huggingface.co/openai/gpt-oss-120b', 'https://huggingface.co/openai/gpt-oss-20b'],
+    },
+  },
+  'North Mini Code': {
+    details: {
+      provider: 'Cohere (HF: CohereLabs/North-Mini-Code-1.0)',
+      released: '2026-06-09; Apache 2.0 open weights',
+      context: '256K (AA lists 260K); up to 64K output',
+      params: '30B total / 3B active; sparse MoE — 128 experts, 8 active per token, SwiGLU; decoder-only reasoning model',
+      availability: 'FREE on Cohere API (launch period, rate-limited); weights on HF; runs on one H100 at FP8/FP4',
+      strengths: 'First model of Cohere\'s "North" family, aimed at agentic coding; ~73 tok/s live (199 t/s pre-release).',
+      weaknesses: 'Emits more output tokens than peers; weak on non-coding agentic tasks (AA).',
+      personality: null,
+      bestfor: 'Coding-focused agentic work on a single GPU.',
+      benchmarks: 'Independent (AA): Coding Index 33.4, Agentic Index 21.7, GPQA Diamond 75.7%, IFBench 57.6%, SciCode 38.8%.',
+      compare: null,
+      sources: ['https://artificialanalysis.ai/models/north-mini-code', 'https://artificialanalysis.ai/articles/north-mini-code-cohere-s-small-coding-focused-moe-model', 'https://cohere.com/north-mini-code', 'https://huggingface.co/CohereLabs/North-Mini-Code-1.0'],
+    },
+  },
+  'MiMo V2.5': {
+    details: {
+      provider: 'Xiaomi (HF org XiaomiMiMo)',
+      released: '2026 (exact date unconfirmed); MIT license',
+      context: '1M (V2.5-Pro); 256K (FP8 base); native 32K pretraining sequences',
+      params: 'V2.5-Pro: 1.02T total / 42B active; 70 layers, hidden 6144, 384 routed experts × 8 active, 3 MTP modules; hybrid attention (10 global + 60 sliding-window layers)',
+      availability: 'Open weights on HF (MIT); "MiMo-V2.5 Free" in the OpenCode Zen free pool; SGLang/vLLM day-0 support',
+      strengths: 'Pretrained on 27T tokens FP8; SFT + agentic RL + Multi-Teacher On-Policy Distillation; holds long context at 512K/1M where MiMo V2 Pro collapsed to 0.00.',
+      weaknesses: 'MiMo-V2-Flash specs still not located; the benchmark table is vendor-reported.',
+      personality: null,
+      bestfor: 'Long-context coding/automation on open weights.',
+      benchmarks: 'Vendor card: long-context retention 0.56/0.92 @512K, 0.37/0.62 @1M (V2 Pro: 0.00 @1M); compares vs DeepSeek-V4-Pro/Flash and Kimi-K2.',
+      compare: null,
+      sources: ['https://huggingface.co/collections/XiaomiMiMo/mimo-v25', 'https://huggingface.co/XiaomiMiMo/MiMo-V2.5-Pro-Base'],
+    },
+  },
+  'Nemotron 3.5 Lightning': {
+    details: {
+      provider: 'NVIDIA',
+      released: '2026-08-11; OpenMDW-1.1 (open weights, data, recipes)',
+      context: 'Up to 1M model-level; ~256K practical on one H100; OpenRouter standard endpoints ~262K, the :free endpoint exposes 1M',
+      params: '30B total / ~3B active (AA: 31.6B/3.6B); hybrid Mamba-2 + MoE with select attention layers',
+      availability: 'FREE — OpenRouter (:free) and OpenCode Zen free tier; open weights BF16 + NVFP4; runs on RTX/DGX Spark/Station/Jetson',
+      strengths: 'Distilled from Nemotron 3 Ultra; 20T+ token NVFP4 recipe; multi-token prediction + DFlash/DSpark draft models; ~4x throughput vs similar-size (vendor).',
+      weaknesses: 'Free tier is trial-based with usage logging.',
+      personality: null,
+      bestfor: 'Long-running specialized task execution; fast open agentic worker.',
+      benchmarks: 'Vendor: PinchBench 86% while finishing 10k tasks ~30% faster than Qwen3.6 35B. Independent: AA Intelligence Index 13, ~283 tok/s output.',
+      compare: null,
+      sources: ['https://blogs.nvidia.com/blog/nemotron-lightning-switchyard-rtx-dgx/', 'https://developer.nvidia.com/blog/nvidia-nemotron-3-5-lightning-delivers-fast-accurate-specialized-task-execution-for-long-running-agents/', 'https://artificialanalysis.ai/models/nemotron-3-5-lightning', 'https://openrouter.ai/blog/insights/nemotron-3-5-lightning/'],
+    },
+  },
+  'Nemotron 3.5 Content Safety': {
+    details: {
+      provider: 'NVIDIA',
+      released: '2026 (V1.1/V1.2; exact date unconfirmed)',
+      context: 'Up to 128K',
+      params: '4B (LoRA fine-tune on Gemma-3-4B-it, merged back into base)',
+      availability: 'FREE — OpenRouter (nvidia/nemotron-3.5-content-safety:free); also NVIDIA NIM + NGC catalog',
+      strengths: 'Multimodal (text+image) guardrail SLM; Aegis 2.0 taxonomy (13 core + 10 fine-grained categories), 12 languages, optional THINK reasoning traces.',
+      weaknesses: 'Not a coding model at all — kept as a labeled row so the name doesn\'t get re-added as a mystery model.',
+      personality: null,
+      bestfor: 'Safety classification, not code generation.',
+      benchmarks: 'Vendor card V1.2: VLGuard 0.89, Aegis 2.0 0.85 accuracy / 0.86 harmful F1, Wildguard 0.92, XSTest 0.95.',
+      compare: null,
+      sources: ['https://huggingface.co/blog/nvidia/nemotron-3-5-content-safety', 'https://docs.api.nvidia.com/nim/re/reference/nvidia-nemotron-3-5-content-safety', 'https://openrouter.ai/nvidia/nemotron-3.5-content-safety:free'],
+    },
+  },
+  'Nemotron 3 Nano Omni': {
+    details: {
+      provider: 'NVIDIA',
+      released: '2026-04-28; NVIDIA Nemotron Open Model License (commercial use)',
+      context: '256K (up to 300K supported; 16,384 reasoning budget)',
+      params: '30B-A3B hybrid MoE (~31B total / ~3B active); 23 Mamba-2 + 23 MoE layers (128 experts, 6 active); C-RADIOv4-H vision, Parakeet-TDT audio',
+      availability: 'Open weights BF16/FP8/NVFP4; HF, OpenRouter, build.nvidia.com, vLLM/SGLang/TensorRT-LLM/Ollama/llama.cpp',
+      strengths: 'Unifies text, image, video (up to 2 min), audio, and documents; reasoning on by default; base 25T tokens, adapters ~127B tokens, 2.3M+ RL rollouts.',
+      weaknesses: 'Benchmark claims are vendor-only (no numeric scores captured).',
+      personality: null,
+      bestfor: 'Perception/context sub-agent in multimodal pipelines.',
+      benchmarks: 'Vendor: tops MMlongbench-Doc, OCRBenchV2, WorldSense, DailyOmni, VoiceBench, MediaPerf; ~9x throughput vs comparable open omni models.',
+      compare: null,
+      sources: ['https://blogs.nvidia.com/blog/nemotron-3-nano-omni-multimodal-ai-agents/', 'https://developer.nvidia.com/blog/nvidia-nemotron-3-nano-omni-powers-multimodal-agent-reasoning-in-a-single-efficient-open-model'],
+    },
+  },
+  'BigPickle': {
+    details: {
+      provider: 'OpenCode team (anomalyco) — a free "stealth" alias on the OpenCode Zen gateway, not a named vendor model; backend rotates (community traced GLM 4.6 → DeepSeek V4 Flash → possibly "Ox Alpha")',
+      released: 'No model card — documented in community issues (Sept 2026)',
+      context: '~200K listed in Zen UI; maintainer stated 128K max output; users measured ~1M at times',
+      params: null,
+      availability: 'FREE in OpenCode Zen (Sept 2026) — requires a real OpenCode session (direct API → 403 FreeTierError); prompts may be used to improve the model during the free period',
+      strengths: 'Fast free workhorse: 10k+ line codebases, code review, clean tool calls, ~189 tok/s (community verdict). Independent SWE Atlas run resolved 50.8% of tasks — topping every Mini-SWE-Agent entry.',
+      weaknesses: 'Frontend/UI is the weakest area; weak on hard multi-dimensional bugfixing; backend rotates without notice; context degrades ~50–70k tokens (community verdict). GitHub issue #50202 (2026-09) logged corruption, repetition loops and language drift from rotation.',
+      personality: null,
+      bestfor: 'Small-to-medium backend tasks, code review, exploration — a free fallback to a paid model (community verdict).',
+      benchmarks: 'Independent (SWE Atlas Codebase QnA): 50.8% (63/124 tasks) — tops Mini-SWE-Agent entries; 674M in / 4.3M out tokens at $0 (third-party)',
+      compare: null,
+      sources: ['https://github.com/anomalyco/opencode/issues/4276', 'https://github.com/anomalyco/opencode/issues/50202', 'https://times.hntrends.net/story/49315563'],
+    },
+    verdicts: [
+      { cat: 'Code (general)', tone: 'green', text: 'Good', notes: 'Handles 10k+ line codebases, APIs, refactoring, boilerplate. Strong on C#, Blazor, PowerShell. Produces redundant code; must double-check output.' },
+      { cat: 'Debug', tone: 'amber', text: 'Mixed', notes: 'Good at code review and finding issues (AWS/IAM debugging praised). Weak on hard, multi-dimensional bugfixing — "the sort of thing you\'d want Opus for."' },
+      { cat: 'Plan', tone: 'amber', text: 'Mixed', notes: 'Solid on well-defined single-domain tasks. Struggles with cross-domain/monorepo planning. Can deviate from a plan.md at depth.' },
+      { cat: 'Agentic Use', tone: 'amber', text: 'Mixed', notes: 'Good at managing sub-agents, identifying target code, following instructions. Falls apart on mid-sized projects without MCPs/subagents. Context degrades ~50–70k tokens despite 200k window.' },
+      { cat: 'Tool Use', tone: 'green', text: 'Good', notes: 'One dev.to test: only model that paused to search a protocol spec before coding. Tool calls handled cleanly (84.3% of context in one session). But can get stuck in loops on easy tool calls.' },
+      { cat: 'Frontend / UI', tone: 'red', text: 'Weak', notes: 'Consistently the weakest area. "Plain text pages, no colors." "Bare minimum frontend." Messes up Jinja+CSS, HTML minifiers.' },
+      { cat: 'Speed', tone: 'green', text: 'Good', notes: '~189 tok/s, "insane response speed." Some report slowness or hangs during peak load.' },
+      { cat: 'Reliability', tone: 'red', text: 'Poor', notes: '#1 complaint. "Model lottery" — backend rotates without notice. Random Chinese output, outages, quality swings day-to-day.' },
+      { cat: 'Reasoning / Analysis', tone: 'green', text: 'Surprisingly Good', notes: '"Forensic analyst" behavior. Strong code reviews, structured reports, analytical investigation beyond just coding.' },
+      { cat: 'Cost', tone: 'green', text: 'Free', notes: 'The main selling point. "Outperforms Claude Sonnet on ROI." $20/month of paid tokens lasts all month when using it as a fallback.' },
+    ],
+    bottomLine: "It's a strong free workhorse for small-to-medium backend tasks, code review, and exploration — but unreliable for production-critical work, frontend, or complex multi-domain planning, and the rotating backend means your experience may differ from someone else's by a week.",
+  },
+};
+
+function verdictBadge(v) {
+  const emoji = v.tone === 'amber' ? '🟡' : v.tone === 'red' ? '🔴' : '🟢';
+  const cls = v.tone === 'amber' ? 'ref-badge-amber' : v.tone === 'red' ? 'ref-badge-red' : 'ref-badge-green';
+  return `<span class="ref-badge ${cls}">${emoji} ${esc(v.text)}</span>`;
+}
+
+function srcLink(u) {
+  const label = String(u).replace(/^https?:\/\//, '').replace(/\/$/, '');
+  return `<a class="ref-src-link" href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`;
+}
+
+function cell(v) {
+  return v ? `<span class="ref-cell">${esc(v)}</span>` : PLACEHOLDER;
+}
+
+function buildCodeModelPage(key) {
+  const r = CODE_MODELS_ROWS.find((x) => x.model === key);
+  if (!r) return buildCodeModelsSection();
+  const page = CODE_MODEL_PAGES[key] || {};
+  const d = page.details || {};
+  // Row data is the fallback where the detail sheet has no entry; '—' = unknown.
+  const val = (v) => (v && v !== '—' ? v : null);
+  const field = (label, v) => `<tr><td class="ref-spec-key">${esc(label)}</td><td>${cell(v)}</td></tr>`;
+  const specRows = [
+    field('Provider', val(d.provider) ?? val(r.provider)),
+    field('Released', val(d.released)),
+    field('Context', val(d.context) ?? val(r.context)),
+    field('Parameters', val(d.params)),
+    field('Availability', val(d.availability) ?? val(r.availability)),
+    field('Key Strengths', val(d.strengths) ?? val(r.strengths)),
+    field('Watch-outs', val(d.weaknesses)),
+    field('Personality', val(d.personality)),
+    field('Best For', val(d.bestfor) ?? val(r.bestfor)),
+    field('Reported Benchmarks', val(d.benchmarks) ?? val(r.benchmarks)),
+    field('Compare', val(d.compare)),
+  ].join('');
+  const sources = (d.sources && d.sources.length)
+    ? `<span class="ref-cell">${d.sources.map(srcLink).join(' · ')}</span>`
+    : PLACEHOLDER;
+  // Verdict skeleton: whatever is filled renders as badges, the rest stays
+  // <placeholder> — a partial fill never hides a category.
+  const filled = {};
+  (page.verdicts || []).forEach((v) => { filled[v.cat] = v; });
+  const verdictRows = VERDICT_CATEGORIES.map((cat) => {
+    const v = filled[cat];
+    return `<tr>
+      <td class="ref-verdict-cat">${esc(cat)}</td>
+      <td class="ref-verdict-cell">${v && v.text ? verdictBadge(v) : PLACEHOLDER}</td>
+      <td class="ref-cell">${v && v.notes ? esc(v.notes) : PLACEHOLDER}</td>
+    </tr>`;
+  }).join('');
+  const chips = [
+    `<button type="button" class="ref-model-chip" data-model-chip="__overview__" data-help-title="Back to the overview comparison">← Overview</button>`,
+    ...CODE_MODELS_ROWS.map((m) => `<button type="button" class="ref-model-chip${m.model === key ? ' active' : ''}" data-model-chip="${esc(m.model)}" data-help-title="Open ${esc(m.model)} page">${esc(m.model)}</button>`),
+  ].join('');
+  const prov = val(d.provider) ?? val(r.provider);
+  const ctx = val(d.context) ?? val(r.context);
+  return `
+    <div class="ref-model-page">
+      <div class="ref-model-strip">${chips}</div>
+      <div class="ref-card">
+        <div class="ref-card-head">
+          <div class="ref-card-head-icon">${SVG_UPRIGHT}</div>
+          <h2>${esc(r.model)}<span class="ref-sub">${prov ? esc(prov) : ''}${ctx ? ` · context ${esc(ctx)}` : ''}</span></h2>
+        </div>
+        <div class="ref-card-body">
+          <table class="ref-table ref-spec-table"><tbody>${specRows}<tr><td class="ref-spec-key">Sources</td><td>${sources}</td></tr></tbody></table>
+        </div>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-head">
+          <div class="ref-card-head-icon">${SVG_EYE}</div>
+          <h2>Community Verdict<span class="ref-sub">per-category, community-sourced — <span class="ref-placeholder">&lt;placeholder&gt;</span> cells are yours to fill</span></h2>
+        </div>
+        <div class="ref-card-body">
+          <table class="ref-table ref-verdict-table">
+            <thead><tr><th>Category</th><th>Verdict</th><th>Notes</th></tr></thead>
+            <tbody>${verdictRows}</tbody>
+          </table>
+          <div class="ref-callout">
+            ${SVG_INFO}
+            <p><strong>Bottom line from the community:</strong> ${page.bottomLine ? esc(page.bottomLine) : PLACEHOLDER}</p>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function openCodeModel(key) {
+  codeModelOpen = key;
+  renderReferencesForm();
+}
+
+function bindCodeModelNav() {
+  // Overview table: delegated so sort/column-toggle repaints survive.
+  const table = elements.actionPanel.querySelector('table[data-mtable="code"]');
+  if (table && !table.dataset.openBound) {
+    table.dataset.openBound = '1';
+    table.addEventListener('click', (e) => {
+      const link = e.target.closest('[data-open-model]');
+      if (link) openCodeModel(link.getAttribute('data-open-model'));
+    });
+  }
+  // Model page: strip chips — Overview resets, model chips open their page.
+  elements.actionPanel.querySelectorAll('[data-model-chip]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const key = chip.getAttribute('data-model-chip');
+      openCodeModel(key === '__overview__' ? null : key);
+    });
+  });
+}
+
+/* ═══════════════════════════════════════════════
+   APIs / Free Tiers — model-inference gateways
+   with a working free tier. Columns: Provider |
+   Why it makes the list | Free Tier | Notes.
+   Each row opens a detail page with verified
+   facts + <placeholder> for gaps. Data from the
+   user's Oct-2026 free-tier survey.
+   ═══════════════════════════════════════════════ */
+let apiSort = { key: 'provider', dir: 1 };
+
+const APIS_ROWS = [
+  { provider: 'Google AI Studio (Gemini)', company: 'Google', why: 'Permanent free tier, no card. Gemini 3.5/3.6 Flash + Gemma 4. Generous RPD on Flash models; Pro tiers are paid.', free: 'Y', notes: 'Generous RPD on Flash; Pro paid' },
+  { provider: 'Groq', company: 'Groq', why: 'Fastest inference around. Free developer tier (~30 rpm) for GPT-OSS, Llama, Qwen, plus Whisper STT. No card.', free: 'Y', notes: '~30 rpm free tier' },
+  { provider: 'Cerebras', company: 'Cerebras', why: '~1,000,000 tokens/day free on record-breaking hardware. GPT-OSS 120B and GLM.', free: 'Y', notes: '1M tokens/day free' },
+  { provider: 'OpenRouter', company: 'OpenRouter', why: 'A pool of :free models. 50 requests/day free, or 1,000/day once you\'ve ever bought $10 of credits. No card to start.', free: 'Y', notes: '50 req/day (1,000 after $10 spent)' },
+  { provider: 'NVIDIA NIM', company: 'NVIDIA', why: 'Recurring free tier at build.nvidia.com (~40 rpm), no card. DeepSeek, Llama, Nemotron, Gemma and MiniMax.', free: 'Y', notes: '~40 rpm, recurring' },
+  { provider: 'Cloudflare Workers AI', company: 'Cloudflare', why: '10,000 free Neurons/day, no card. Llama, Qwen, Mistral, GLM and image models.', free: 'Y', notes: '10,000 Neurons/day' },
+  { provider: 'Mistral', company: 'Mistral AI', why: 'Free \'Experiment\' tier covering Large, Medium, Small, Codestral and Devstral. No card.', free: 'Y', notes: 'Experiment tier (dev/preview)' },
+  { provider: 'Cohere', company: 'Cohere', why: 'Free trial key: ~1,000 calls/month across Command A/R, Aya, rerank and embed. No card (dev/eval only).', free: 'Y', notes: '~1,000 calls/month, dev/eval only' },
+  { provider: 'Z.ai / Zhipu (GLM)', company: 'Z.ai / Zhipu AI', why: 'Free GLM Flash models on an international endpoint (no Chinese phone). GLM-4.5/4.6/4.7 Flash.', free: 'Y', notes: 'No Chinese phone required' },
+  { provider: 'Reka', company: 'Reka', why: 'One of the few with a true recurring monthly credit — $10/month, auto-refreshed.', free: 'Y', notes: '$10/month recurring credit' },
+];
+
+const APIS_COLS = [
+  { key: 'provider', label: 'Provider' },
+  { key: 'why', label: 'Why it makes the list' },
+  { key: 'free', label: 'Free Tier', cls: 'ref-col-center' },
+  { key: 'notes', label: 'Notes' },
+];
+
+function apiSortValue(r, key) {
+  const v = r[key] || '';
+  return v === '—' ? '' : v;
+}
+
+function apiTableCfg() {
+  return {
+    rows: APIS_ROWS,
+    sort: apiSort,
+    valueFn: apiSortValue,
+    tieFn: null,
+    rowFn: apiRow,
+    tableType: 'apis',
+  };
+}
+
+function buildApisSection() {
+  return `
+    <div class="ref-card">
+      <div class="ref-card-head">
+        <div class="ref-card-head-icon">${SVG_MONEY}</div>
+        <h2>APIs / Free Tiers<span class="ref-sub">Model-inference gateways with a working free tier — all community-verified (Oct 2026) · click a provider name for its page</span></h2>
+      </div>
+      <div class="ref-card-body ref-table-scroll">
+        <table class="ref-table ref-models-table" data-mtable="apis">
+          <thead><tr>
+            ${sortHeaders(APIS_COLS, apiSort, 'apis')}
+          </tr></thead>
+          <tbody>
+            ${sortRows(APIS_ROWS, apiSort, apiSortValue, apiTableCfg().tieFn).map(apiRow).join('')}
+          </tbody>
+        </table>
+        <div class="ref-legend">
+          <span class="ref-status"><span class="ref-badge ref-badge-green">${SVG_CHECK} Y</span> All carry a free tier</span>
+          <span class="ref-status"><span class="ref-badge ref-badge-gray">${SVG_INFO}</span> Rate limits vary — see each provider page</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function apiRow(r) {
+  return `<tr>
+    <td><button type="button" class="ref-model-link" data-open-api="${esc(r.provider)}" data-help-title="Open ${esc(r.provider)} page">${esc(r.provider)}</button></td>
+    <td><span class="ref-cell">${esc(r.why)}</span></td>
+    <td class="ref-col-center"><span class="ref-cell">${esc(r.free)}</span></td>
+    <td><span class="ref-cell">${esc(r.notes)}</span></td>
+  </tr>`;
+}
+
+const APIS_PAGES = {
+  'Google AI Studio (Gemini)': {
+    details: {
+      provider: 'Google',
+      free_tier: 'Y',
+      no_card: 'Yes',
+      rate_limit: 'Per-project quotas: 15 RPM / 1M TPM / 1,500 RPD on Flash models (varies by project/region)',
+      model_coverage: 'Gemini 3.5 Flash, Gemini 3.6 Flash, Gemma 4',
+      notes: 'Permanent free tier, no card. Data may be used for tuning. Pro tiers are paid.',
+      sources: ['https://aistudio.google.com/', 'https://ai.google.dev/pricing'],
+    },
+  },
+  'Groq': {
+    details: {
+      provider: 'Groq',
+      free_tier: 'Y',
+      no_card: 'Yes',
+      rate_limit: '~30 rpm',
+      model_coverage: 'GPT-OSS, Llama, Qwen, Whisper STT',
+      notes: 'Fastest inference around — low-latency token streaming.',
+      sources: ['https://console.groq.com/', 'https://groq.com/'],
+    },
+  },
+  'Cerebras': {
+    details: {
+      provider: 'Cerebras',
+      free_tier: 'Y',
+      no_card: 'Card required for new keys (free trial: $5 credits / 30 days; legacy free tier was ~1M tokens/day)',
+      rate_limit: '~1,000,000 tokens/day (legacy/promotional) · $5 trial credits on activation',
+      model_coverage: 'GPT-OSS 120B, GLM',
+      notes: 'Runs on Cerebras wafer-scale engine — record-breaking hardware speed.',
+      sources: ['https://www.cerebras.ai/', 'https://inference.cerebras.ai/'],
+    },
+  },
+  'OpenRouter': {
+    details: {
+      provider: 'OpenRouter',
+      free_tier: 'Y',
+      no_card: 'Yes (to start)',
+      rate_limit: '50 requests/day free; 1,000/day after you\'ve ever bought $10 of credits',
+      model_coverage: 'Rotating pool of :free models (selection rotates by popularity and cost)',
+      notes: 'No card needed to start; the 1,000/day threshold is one-time (sticks after first $10 spend).',
+      sources: ['https://openrouter.ai/', 'https://openrouter.ai/docs'],
+    },
+  },
+  'NVIDIA NIM': {
+    details: {
+      provider: 'NVIDIA',
+      free_tier: 'Y',
+      no_card: 'Yes',
+      rate_limit: '~40 rpm',
+      model_coverage: 'DeepSeek, Llama, Nemotron, Gemma, MiniMax',
+      notes: 'Recurring free tier at build.nvidia.com — does not expire; trial terms log usage.',
+      sources: ['https://build.nvidia.com/', 'https://developer.nvidia.com/nim'],
+    },
+  },
+  'Cloudflare Workers AI': {
+    details: {
+      provider: 'Cloudflare',
+      free_tier: 'Y',
+      no_card: 'Yes',
+      rate_limit: '10,000 Neurons/day',
+      model_coverage: 'Llama, Qwen, Mistral, GLM, image models',
+      notes: '"Neurons" are Cloudflare\'s token-based billing unit; 10,000 is the daily free allotment.',
+      sources: ['https://developers.cloudflare.com/workers-ai/', 'https://workers.cloudflare.com/'],
+    },
+  },
+  'Mistral': {
+    details: {
+      provider: 'Mistral AI',
+      free_tier: 'Y',
+      no_card: 'Yes (SMS verification only)',
+      rate_limit: '~1 RPS (req/s), ~500k TPM (dev/eval workspace caps)',
+      model_coverage: 'Large, Medium, Small, Codestral, Devstral',
+      notes: 'Free \'Experiment\' tier — dev/preview access, no card required. 1B tokens/mo ceiling.',
+      sources: ['https://mistral.ai/', 'https://docs.mistral.ai/api/'],
+    },
+  },
+  'Cohere': {
+    details: {
+      provider: 'Cohere',
+      free_tier: 'Y',
+      no_card: 'Yes (dev/eval only)',
+      rate_limit: '~1,000 calls/month across all endpoints',
+      model_coverage: 'Command A/R, Aya, rerank, embed',
+      notes: 'Free trial key — dev/evaluation only, not for production.',
+      sources: ['https://cohere.com/', 'https://docs.cohere.com/'],
+    },
+  },
+  'Z.ai / Zhipu (GLM)': {
+    details: {
+      provider: 'Z.ai / Zhipu AI',
+      free_tier: 'Y',
+      no_card: 'Yes (no card for Flash models on international Z.ai endpoint)',
+      rate_limit: 'Concurrency-based: 1 concurrent request for free Flash models',
+      model_coverage: 'GLM-4.5 Flash, GLM-4.6 Flash, GLM-4.7 Flash, GLM-4.6V Flash',
+      notes: 'Free GLM Flash models on an international endpoint — no Chinese phone required.',
+      sources: ['https://api.z.ai/', 'https://z.ai/en/'],
+    },
+  },
+  'Reka': {
+    details: {
+      provider: 'Reka',
+      free_tier: 'Y',
+      no_card: 'Card/verification requested on signup for API key generation',
+      rate_limit: '$10/month, auto-refreshed (true recurring monthly credit)',
+      model_coverage: 'Reka Core, Reka Flash, Reka Spark',
+      notes: 'One of the few providers that auto-refreshes a monthly free credit without requiring a new sign-up or spend.',
+      sources: ['https://reka.ai/', 'https://docs.reka.ai/'],
+    },
+  },
+};
+
+function buildApiPage(key) {
+  const r = APIS_ROWS.find((x) => x.provider === key);
+  if (!r) return buildApisSection();
+  const page = APIS_PAGES[key] || {};
+  const d = page.details || {};
+  const val = (v) => (v && v !== '—' ? v : null);
+  const field = (label, v) => `<tr><td class="ref-spec-key">${esc(label)}</td><td>${cell(v)}</td></tr>`;
+  const specRows = [
+    field('Provider', val(d.provider) ?? val(r.company)),
+    field('Free Tier', val(d.free_tier) ?? val(r.free)),
+    field('Card Required?', val(d.no_card)),
+    field('Free Rate Limit', val(d.rate_limit)),
+    field('Models Accessible', val(d.model_coverage)),
+    field('Notes', val(d.notes)),
+  ].join('');
+  const sources = (d.sources && d.sources.length)
+    ? `<span class="ref-cell">${d.sources.map(srcLink).join(' · ')}</span>`
+    : PLACEHOLDER;
+  const chips = [
+    `<button type="button" class="ref-model-chip" data-api-chip="__overview__" data-help-title="Back to the overview comparison">← Overview</button>`,
+    ...APIS_ROWS.map((m) => `<button type="button" class="ref-model-chip${m.provider === key ? ' active' : ''}" data-api-chip="${esc(m.provider)}" data-help-title="Open ${esc(m.provider)} page">${esc(m.provider)}</button>`),
+  ].join('');
+  const prov = val(d.provider) ?? val(r.company);
+  return `
+    <div class="ref-model-page">
+      <div class="ref-model-strip">${chips}</div>
+      <div class="ref-card">
+        <div class="ref-card-head">
+          <div class="ref-card-head-icon">${SVG_MONEY}</div>
+          <h2>${esc(r.provider)}<span class="ref-sub">${prov ? esc(prov) : ''}</span></h2>
+        </div>
+        <div class="ref-card-body">
+          <table class="ref-table ref-spec-table"><tbody>${specRows}<tr><td class="ref-spec-key">Sources</td><td>${sources}</td></tr></tbody></table>
+        </div>
+      </div>
+      <div class="ref-card">
+        <div class="ref-card-head">
+          <div class="ref-card-head-icon">${SVG_INFO}</div>
+          <h2>Quick Notes<span class="ref-sub">community tip</span></h2>
+        </div>
+        <div class="ref-card-body">
+          <p class="ref-note">Free-tier policies rotate fast — re-check the gateway live list before pinning one as "the free tier." All ten providers above had a working free tier in the Oct 2026 gateway snapshot.</p>
+        </div>
+      </div>
+    </div>`;
+}
+
+function openApiPage(key) {
+  apiPageOpen = key;
+  renderReferencesForm();
+}
+
+function bindApisNav() {
+  const table = elements.actionPanel.querySelector('table[data-mtable="apis"]');
+  if (table && !table.dataset.openBound) {
+    table.dataset.openBound = '1';
+    table.addEventListener('click', (e) => {
+      const link = e.target.closest('[data-open-api]');
+      if (link) openApiPage(link.getAttribute('data-open-api'));
+    });
+  }
+  elements.actionPanel.querySelectorAll('[data-api-chip]').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const key = chip.getAttribute('data-api-chip');
+      openApiPage(key === '__overview__' ? null : key);
+    });
+  });
 }
 
 /* ═══════════════════════════════════════════════
