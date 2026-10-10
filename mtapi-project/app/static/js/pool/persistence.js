@@ -56,6 +56,11 @@ const DESK_TAB_DEFAULTS = {
     mode: 'separate', compareMode: 'separate', overlayOpacity: 50, abPosition: 50,
   },
   imageEdit: { engine: 'ffmpeg', outputFormat: 'png', stack: [] },
+  airapper: {
+    title: '', description: '', lyrics: '', tags: '[]',
+    tempo: '95', swing: '0', key: '', meter: '4/4',
+    model: 'acestep-v15-sft', duration: '20', seed: '42', backend: 'grok',
+  },
 };
 
 function isApplyingFormState() {

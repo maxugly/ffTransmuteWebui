@@ -57,11 +57,12 @@ import { renderMediaCatalogForm } from '/js/tabs/mediacatalog.js';
 import { renderCdpForm } from '/js/tabs/cdp.js';
 import { renderDeepDiveForm } from '/js/tabs/deepdive.js';
 import { renderMusicForm } from '/js/tabs/music.js';
+import { renderAirapperForm } from '/js/tabs/airapper.js?v=1';
 import { renderEraseForm } from '/js/tabs/erase.js';
 import { renderStableFluidsForm } from '/js/tabs/stablefluids.js';
 import { renderSettingsForm, applyUiTweaks, readStoredScrollbarWidth } from '/js/tabs/settings.js?v=5';
 import { renderJobsForm, stopJobsPoll } from '/js/tabs/jobs.js';
-import { renderReferencesForm } from '/js/tabs/references.js?v=3';
+import { renderReferencesForm } from '/js/tabs/references.js?v=7';
 import { renderImageEditForm, collectImageEditBody } from '/js/tabs/imageedit.js';
 import { refreshInputPreview, bindInputPreviewListeners } from '/js/ui/input-preview.js';
 import { makeClearable, bindClearables } from '/js/ui/clearable.js';
@@ -519,9 +520,11 @@ const TAB_ACCEPTS = {
   erase:       'any',
   demucs:      'any',
   music:        'any',
+  airapper:     'none',
   stablefluids:'none',
   refs:        'none',
   'refs-music': 'none',
+  'refs-apis': 'none',
 };
 
 /** Tabs that show the global frame-range row (video pipeline / mosh / convert). */
@@ -1086,13 +1089,14 @@ function switchTab(tab) {
   if (tab === 'cdp') title = 'CDP Sound Tools';
   if (tab === 'deepdive') title = 'Deep Dive';
   if (tab === 'music') title = 'Music · ACE-Step text-to-music';
+  if (tab === 'airapper') title = 'AI Rapper · write bars, direct the session, make it hot';
   if (tab === 'erase') title = 'Erase · Clean';
   if (tab === 'settings') title = 'Settings';
   if (tab === 'stablefluids') title = 'Stable Fluids · Sim';
   if (tab === 'ytdlp') title = 'yt-dlp Downloader · Web Ingest';
   if (tab === 'comments') title = 'Comments · Reddit-Style Thread Viewer';
   // References tab: no big header (sidebar already shows active item)
-  if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-music') title = '';
+  if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-music') title = '';
   // Library tabs: drop the big header title (sidebar already shows active item)
   if (tab === 'pool' || tab === 'sequence' || tab === 'images') title = '';
   if (elements.tabTitle) elements.tabTitle.textContent = title;
@@ -1111,7 +1115,8 @@ function switchTab(tab) {
     || tab === 'deepdive'
     || tab === 'imgcompare'
     || tab === 'stablefluids'
-    || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-music'
+    || tab === 'airapper'
+    || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-music'
   );
   if (elements.btnRun) {
     elements.btnRun.style.display = hideRun ? 'none' : '';
@@ -1171,7 +1176,8 @@ function switchTab(tab) {
     || tab === 'cdp'
     || tab === 'deepdive'
     || tab === 'imgcompare'
-    || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-music'
+    || tab === 'airapper'
+    || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-music'
   );
   document.body.classList.toggle('no-global-inputs', noGlobalInputs);
   document.body.classList.toggle('sf-sim-tab-active', tab === 'stablefluids');
@@ -1180,10 +1186,12 @@ function switchTab(tab) {
   document.body.classList.toggle('dart-tab-active', tab === 'dart');
   // Media Catalog: bare workspace too — no preview panel, no input preview strip.
   document.body.classList.toggle('mediacatalog-tab-active', tab === 'mediacatalog');
+  // AI Rapper: bare workspace — the tab renders its own chat sidebar + tiles.
+  document.body.classList.toggle('airapper-tab-active', tab === 'airapper');
   document.body.classList.toggle('cdp-tab-active', tab === 'cdp');
   document.body.classList.toggle('deepdive-tab-active', tab === 'deepdive');
   // References: bare workspace (sidebar + reference card only)
-  document.body.classList.toggle('references-tab-active', tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-music');
+  document.body.classList.toggle('references-tab-active', tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-music');
 
   // Render Form for the Tab
   renderTabForm(tab);
@@ -1354,13 +1362,15 @@ function renderTabForm(tab) {
     renderDeepDiveForm();
   } else if (tab === 'music') {
     renderMusicForm();
+  } else if (tab === 'airapper') {
+    renderAirapperForm();
   } else if (tab === 'erase') {
     renderEraseForm();
   } else if (tab === 'stablefluids') {
     renderStableFluidsForm();
   } else if (tab === 'settings') {
     renderSettingsForm();
-  } else if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-music') {
+  } else if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-music') {
     renderReferencesForm();
   }
 

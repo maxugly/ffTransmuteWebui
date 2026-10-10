@@ -635,6 +635,20 @@
     "category": "Operation",
     "status": "Draft / Spec ready",
     "summary": "DeepFill v1/v2 (Gated Convolutions) and Context Encoders inpainting model backends for the Erase tab alongside LaMa. Native FP16 on Intel iGPU, reusing canvas mask and iopaint HD strategies."
+  },
+  {
+    "file": "theming-tab-spec.md",
+    "path": "docs/theming-tab-spec.md",
+    "category": "Spec - UI / Theming",
+    "status": "Draft / Spec ready",
+    "summary": "Dynamic theming tab with generative seed color extrapolation (4 seed colors -> full UI shade palette, line/border contrast, WCAG AA/AAA text contrast), preset system (save/load/export/import/reset), and DeepSeek AI theme installation from link via ~/.secrets."
+  },
+  {
+    "file": "airapper-spec.md",
+    "path": "docs/airapper-spec.md",
+    "category": "Spec - Audio / Writing",
+    "status": "Shipped — implemented this stretch",
+    "summary": "AI Rapper desk tab: write bars in a tile workspace, direct the session with an agent sidebar (agent_chat), set tempo/key/swing/meter that ride the ACE-Step SFT metas, and render with 'Make Hot Fire' (music_generate -> WAV joins the media pool). Tiles carry stable ids so the existing desk form-state snapshot persists them for free — no new state endpoint. Saved songs are a separate orthogonal library (app/airapper_store.py + /api/airapper/tracks), never written into *.ffproject.json. Per-tile In/Out flags gate what the agent may read and write; PERLP_V1 is the lyric phonetic-lock directive."
   }
 ]
 

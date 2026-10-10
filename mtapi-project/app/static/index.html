@@ -18,13 +18,14 @@
   <link rel="stylesheet" href="/css/notes.css">
   <link rel="stylesheet" href="/css/settings.css?v=2">
   <link rel="stylesheet" href="/css/stablefluids.css">
-  <link rel="stylesheet" href="/css/references.css?v=3">
+  <link rel="stylesheet" href="/css/references.css?v=4">
   <link rel="stylesheet" href="/css/dart.css?v=1">
   <link rel="stylesheet" href="/css/ytdlp.css?v=1">
   <link rel="stylesheet" href="/css/mediacatalog.css?v=1">
   <link rel="stylesheet" href="/css/comments.css?v=1">
   <link rel="stylesheet" href="/css/cdp.css?v=1">
   <link rel="stylesheet" href="/css/deepdive.css?v=1">
+  <link rel="stylesheet" href="/css/airapper.css?v=1">
 </head>
 <body>
 
@@ -129,6 +130,14 @@
               <circle cx="18" cy="16" r="3"/>
             </svg>
             Music
+          </div>
+ <div class="nav-item" data-tab="airapper" data-help-title="AI Rapper" data-help-text="Switch to the AI Rapper tab — write bars, direct the session with an agent, set tempo and key, and generate the track.">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v1a7 7 0 0 1-14 0v-1"/>
+              <line x1="12" y1="18" x2="12" y2="22"/>
+            </svg>
+            AI Rapper
           </div>
  <div class="nav-item" data-tab="agent" data-help-title="Agent" data-help-text="Switch to the Agent tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -450,6 +459,14 @@
             </svg>
             Coding Models
           </div>
+ <div class="nav-item" data-tab="refs-apis" data-help-title="APIs / Free Tiers" data-help-text="Switch to the APIs / Free Tiers tab.">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="8" width="18" height="12" rx="2"/>
+              <path d="M8 8V4a4 4 0 0 1 8 0v4"/>
+              <path d="M12 8v12"/>
+            </svg>
+            APIs / Free Tiers
+          </div>
  <div class="nav-item" data-tab="refs-music" data-help-title="Music Prompts" data-help-text="Switch to the Music Prompts tab.">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M9 18V5l12-2v13"/>
@@ -664,7 +681,7 @@
             <h4 id="mediaName">output.mp4</h4>
             <p id="mediaPath">/absolute/path/to/output.mp4</p>
           </div>
- <span class="media-ar-badge" id="mediaArBadge" data-help-title="Source aspect ratio"></span><span class="media-vfr-badge" id="mediaVfrBadge" data-help-title="Variable Frame Rate detected" title="Convert to CFR" onclick="import('/js/pool/auto-vfrcfr.js').then(m => m.batchNormalizePool())"></span>
+ <span class="media-ar-badge" id="mediaArBadge" data-help-title="Source aspect ratio"></span><span class="media-vfr-badge" id="mediaVfrBadge" data-help-title="Variable Frame Rate detected" data-help-text="Variable frame rate media — click to convert the whole pool to constant frame rate." onclick="import('/js/pool/auto-vfrcfr.js').then(m => m.batchNormalizePool())"></span>
  <button class="btn btn-icon-only" data-help-title="Open in local file browser (not Web)" id="btnOpenFolder">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>

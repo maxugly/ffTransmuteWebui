@@ -1,0 +1,486 @@
+/* AI Rapper tab (spec: docs/airapper-spec.md §2).
+ *
+ * Bare-workspace layout: the tab owns the full content width — the global
+ * preview panel, input-preview strip and global inputs are hidden via the
+ * hideRun / noGlobalInputs lists in app.js.
+ *
+ * The saved-song list is a CSS multi-column flow on purpose (§8):
+ *   columns: 4 220px  — balances by COLUMN HEIGHT, not by text length, so the
+ *   cards keep a fixed min-height and equal-length titles never reshuffle.
+ */
+
+/* Bare workspace (mirrors the mediacatalog / dart pattern): the preview panel,
+ * input-preview strip and global inputs step aside so the tiles own the width. */
+
+body.airapper-tab-active .global-inputs-panel,
+body.airapper-tab-active header .header-actions,
+body.airapper-tab-active header .global-quick-btns {
+  display: none !important;
+}
+
+body.airapper-tab-active .app-content {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+
+body.airapper-tab-active .app-content .preview-panel {
+  display: none !important;
+}
+
+body.airapper-tab-active .action-panel {
+  flex: 1 1 100%;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 0;
+}
+
+body.airapper-tab-active .tool-input-preview {
+  display: none !important;
+}
+
+.ar-workspace {
+  display: flex;
+  gap: 4px;
+  padding: 8px;
+  align-items: flex-start;
+  min-height: 100%;
+}
+
+/* ── sidebar ───────────────────────────────────────────────────────────────── */
+
+.ar-side {
+  flex: 0 0 300px;
+  width: 300px;
+  display: flex;
+  gap: 4px;
+  transition: flex-basis 0.15s ease, width 0.15s ease;
+}
+
+.ar-workspace.is-sidebar-collapsed .ar-side {
+  flex-basis: 40px;
+  width: 40px;
+}
+
+.ar-side-toggle {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  height: 28px;
+}
+
+.ar-side-toggle-glyph {
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.ar-side-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: 8px;
+}
+
+.ar-workspace:not(.is-sidebar-collapsed) .ar-side-body {
+  display: flex;
+}
+
+.ar-side-head {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.ar-backend {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ar-chat-log {
+  height: 380px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  background: var(--input-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-sm);
+}
+
+.ar-chat-empty,
+.ar-track-empty {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.ar-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 92%;
+}
+
+.ar-msg-you {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.ar-msg-who {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.ar-msg-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ar-msg-you .ar-msg-body {
+  background: var(--primary-glow);
+}
+
+.ar-chat-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ar-chat-compose textarea {
+  width: 100%;
+  resize: vertical;
+  font-size: 0.8rem;
+}
+
+.ar-send {
+  align-self: stretch;
+}
+
+/* ── main column ──────────────────────────────────────────────────────────── */
+
+.ar-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ar-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 4px;
+  align-items: start;
+}
+
+.ar-tile {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.ar-tile-lyrics {
+  grid-column: 1 / -1;
+}
+
+.ar-tile-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.ar-tile.is-collapsed .ar-tile-head {
+  border-bottom: none;
+}
+
+.ar-tile.is-collapsed .ar-tile-body {
+  display: none;
+}
+
+.ar-tile-name {
+  font-size: 0.74rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.ar-flags {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.ar-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ar-flag input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.ar-flag-in input:checked {
+  accent-color: var(--primary);
+}
+
+.ar-flag-out input:checked {
+  accent-color: var(--accent);
+}
+
+.ar-tile-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+}
+
+.ar-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.ar-tile-body input[type="text"],
+.ar-tile-body textarea,
+.ar-tile-body select {
+  width: 100%;
+}
+
+#arLyrics {
+  min-height: 220px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* ── music theory ──────────────────────────────────────────────────────────── */
+
+.ar-knobs {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.ar-selects {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ar-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 120px;
+  flex: 1 1 120px;
+}
+
+.ar-selects .ar-field,
+.ar-fire-row .ar-field {
+  min-width: 0;
+}
+
+/* ── tags ─────────────────────────────────────────────────────────────────── */
+
+.ar-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ar-chip {
+  font-family: inherit;
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 5px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.ar-chip:hover {
+  background: var(--input-bg-hover);
+  color: var(--text-main);
+}
+
+.ar-chip.is-on {
+  background: var(--accent-glow);
+  border-color: var(--accent);
+  color: var(--text-main);
+}
+
+/* ── produce row ───────────────────────────────────────────────────────────── */
+
+.ar-fire-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.ar-fire {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: 7px 14px;
+  font-weight: 600;
+}
+
+/* ── saved songs (§8: balanced columns, never sorted by title length) ──────── */
+
+.ar-tracks {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: 8px;
+}
+
+.ar-tracks-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.ar-tracks-head h3 {
+  margin: 0;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.ar-tracks-count {
+  flex: 1 1 auto;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.ar-track-list {
+  columns: 4 220px;
+  column-gap: 4px;
+  column-fill: balance;
+}
+
+.ar-track {
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  page-break-inside: avoid;
+  position: relative;
+  min-height: 84px;
+  margin-bottom: 4px;
+  padding: 7px 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--panel-border);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.ar-track:hover {
+  background: var(--input-bg-hover);
+  border-color: var(--primary);
+}
+
+.ar-track.is-current {
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary-glow);
+}
+
+.ar-track-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 18px;
+}
+
+.ar-track-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.ar-track-tags {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+
+.ar-track-tag {
+  font-size: 0.62rem;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: var(--accent-glow);
+  color: var(--text-muted);
+}
+
+.ar-track-del {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.72rem;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+}
+
+.ar-track-del:hover {
+  color: var(--error);
+  background: var(--error-glow);
+}
+
+.ar-track-status {
+  margin-top: 6px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  min-height: 1em;
+}
+
+.ar-track-status.is-error {
+  color: var(--error);
+}

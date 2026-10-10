@@ -125,3 +125,5 @@ If you want to adjust any of these, simply describe the changes you want, or edi
 | music | muSteps | 8 | 8 | 60 | 1 | 0 |
 | music | muGuidance | 3.0 | 1.0 | 15.0 | 0.5 | 1 |
 | music | muShift | 3.0 | 0.5 | 8.0 | 0.1 | 1 |
+| airapper | arTempo | 95 | 40 | 200 | 1 | 0 |
+| airapper | arSwing | 0 | 0 | 100 | 1 | 0 |

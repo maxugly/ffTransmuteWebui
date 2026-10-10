@@ -310,6 +310,9 @@ comments.register(app)
 from .routes import cdp
 cdp.register(app)
 
+from .routes import airapper
+airapper.register(app)
+
 def _make_endpoint(spec):
     async def endpoint(
         params: spec.params_model,  # type: ignore[name-defined]
