@@ -607,6 +607,37 @@ body.panel-resizing {
   filter: drop-shadow(0 0 4px var(--primary-glow));
 }
 
+.nav-filter-wrap {
+  padding: 6px 8px;
+  border-top: 1px solid var(--panel-border);
+  background: rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.nav-filter-input {
+  width: 100%;
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm, 4px);
+  background: var(--bg-inset, #11141c);
+  border: 1px solid var(--panel-border, rgba(255, 255, 255, 0.1));
+  color: var(--text-main, #eee);
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.nav-filter-input:focus {
+  border-color: var(--primary, #3b82f6);
+  box-shadow: 0 0 0 1px var(--primary, #3b82f6);
+}
+
+body.sidebar-collapsed .nav-filter-wrap {
+  display: none !important;
+}
+
 .status-indicator {
   padding: 8px;
   border-top: 1px solid var(--panel-border);
@@ -710,6 +741,121 @@ header {
   color: var(--primary);
 }
 
+.header-github-wrap {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  z-index: 25;
+}
+
+.gh-tab-link,
+.gh-tab-dropdown-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.gh-tab-link svg,
+.gh-tab-dropdown-btn svg {
+  display: block;
+}
+
+.gh-tab-dropdown-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.gh-dropdown-arrow {
+  font-size: 0.65rem;
+  line-height: 1;
+  opacity: 0.7;
+  transition: transform 0.15s ease;
+}
+
+.gh-tab-dropdown-wrap.is-open .gh-dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.gh-repo-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 280px;
+  max-width: 380px;
+  background: var(--bg-card, #121824);
+  border: 1px solid var(--panel-border, #2d3748);
+  border-radius: var(--radius-md, 6px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+  padding: 6px 0;
+  display: none;
+  flex-direction: column;
+  z-index: 100;
+}
+
+.gh-tab-dropdown-wrap.is-open .gh-repo-popover {
+  display: flex;
+}
+
+.gh-popover-header {
+  padding: 4px 12px 6px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim, #718096);
+  border-bottom: 1px solid var(--panel-border, #1f2937);
+  margin-bottom: 2px;
+}
+
+.gh-popover-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 12px;
+  color: var(--text-main, #e2e8f0);
+  text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.gh-popover-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--primary, #38bdf8);
+}
+
+.gh-popover-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--text-dim, #8b949e);
+}
+
+.gh-popover-item:hover .gh-popover-icon {
+  color: var(--primary, #38bdf8);
+}
+
+.gh-popover-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.gh-popover-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text-main, #f1f5f9);
+}
+
+.gh-popover-desc {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--text-muted, #94a3b8);
+  white-space: normal;
+}
+
 .header-actions {
   display: flex;
   gap: 8px;
@@ -784,3 +930,44 @@ body.no-global-inputs .global-inputs-panel {
   #help-strip { height: 22px; flex-basis: 22px; }
   #help-strip .help-text { display: none; }
 }
+
+/* ── Prompts tab bare workspace ─────────────────────────────────────────── */
+body.prompts-tab-active .global-inputs-panel,
+body.prompts-tab-active header .header-actions,
+body.prompts-tab-active header .global-quick-btns {
+  display: none !important;
+}
+
+body.prompts-tab-active .app-content {
+  display: flex;
+  flex-direction: row;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+
+body.prompts-tab-active .app-content .preview-panel {
+  display: none !important;
+}
+
+body.prompts-tab-active .action-panel {
+  flex: 1 1 100%;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 16px;
+}
+
+body.prompts-tab-active .tool-input-preview {
+  display: none !important;
+}
+
+/* Shared hot-model toggle survives tabs that hide the operation header. */
+#btnModelHot { position: fixed; top: 7px; right: 8px; z-index: 30; font: inherit; font-size: .72rem; padding: 3px 7px; min-height: 25px; border: 1px solid var(--panel-border); border-radius: 4px; background: var(--input-bg); color: var(--text-main); cursor: pointer; }
+#btnModelHot[aria-pressed="true"] { color: #fbbf24; border-color: #b7791f; }
+main > header { padding-right: 165px; }
+.status-indicator { flex-shrink: 0; align-items: flex-start; }
+#statusText { white-space: pre-line; overflow-wrap: anywhere; min-width: 0; line-height: 1.4; }
+.status-indicator .status-dot { margin-top: 4px; flex-shrink: 0; }

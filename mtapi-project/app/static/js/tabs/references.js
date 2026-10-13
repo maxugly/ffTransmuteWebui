@@ -1,3 +1,4 @@
+import { bindReferenceTableScroll } from '/js/ui/reference-table-scroll.js';
 /**
  * References tab — two sub-tabs sharing one bare workspace:
  *   YT Footage (license/disclosure/monetize/watermarks/strategy cards)
@@ -8,6 +9,8 @@
 import { state, elements, switchTab } from '/app.js?v=2';
 import { escapeHtml } from '/js/utils.js';
 import { MUSIC_PROMPT_EXAMPLES } from '/js/ref-music-prompts.js';
+import { renderTtsReferences, renderVoiceModReferences, renderListeningReferences, renderAudioReferences } from '/js/tabs/audio-references.js';
+import { KEY_SIGNATURES_DATA } from '/js/ref-key-signatures.js';
 
 const SVG_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
 const SVG_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
@@ -25,6 +28,10 @@ function renderReferencesForm() {
     : state.activeTab === 'refs-images' ? 'imgmodels'
     : state.activeTab === 'refs-code' ? 'code'
     : state.activeTab === 'refs-apis' ? 'apis'
+    : state.activeTab === 'refs-keys' ? 'keys'
+    : (state.activeTab === 'refs-tts' || state.activeTab === 'refs-audio') ? 'tts'
+    : state.activeTab === 'refs-voicemod' ? 'voicemod'
+    : state.activeTab === 'refs-listening' ? 'listening'
     : state.activeTab === 'refs-music' ? 'music' : 'yt';
   const wide = sub !== 'yt';
   const html = `
@@ -35,9 +42,13 @@ function renderReferencesForm() {
         <button class="ref-subtab${sub === 'imgmodels' ? ' active' : ''}" data-ref-tab="refs-images">Image Models</button>
         <button class="ref-subtab${sub === 'code' ? ' active' : ''}" data-ref-tab="refs-code">Coding Models</button>
         <button class="ref-subtab${sub === 'apis' ? ' active' : ''}" data-ref-tab="refs-apis">APIs / Free Tiers</button>
+        <button class="ref-subtab${sub === 'keys' ? ' active' : ''}" data-ref-tab="refs-keys">Key Signatures</button>
+        <button class="ref-subtab${sub === 'tts' ? ' active' : ''}" data-ref-tab="refs-tts" data-help-title="TTS" data-help-text="Compare text-to-speech models, parameters, voices, speed, hardware and licensing.">TTS</button>
+        <button class="ref-subtab${sub === 'voicemod' ? ' active' : ''}" data-ref-tab="refs-voicemod" data-help-title="Voice Mod" data-help-text="Compare RVC, singing voice conversion (SVC), voice changers and vocal transformation models.">Voice Mod</button>
+        <button class="ref-subtab${sub === 'listening' ? ' active' : ''}" data-ref-tab="refs-listening" data-help-title="Listening Models" data-help-text="Wake words, speech transcription, speaker diarization, sound and music descriptions, MIDI and sonic analysis.">Listening Models</button>
         <button class="ref-subtab${sub === 'music' ? ' active' : ''}" data-ref-tab="refs-music">Music Prompts</button>
       </div>
-      ${sub === 'models' ? buildModelsSection() : sub === 'imgmodels' ? buildImageModelsSection() : sub === 'code' ? (codeModelOpen ? buildCodeModelPage(codeModelOpen) : buildCodeModelsSection()) : sub === 'apis' ? (apiPageOpen ? buildApiPage(apiPageOpen) : buildApisSection()) : sub === 'music' ? buildMusicSection() : buildYtSections()}
+      ${sub === 'listening' ? '<div id="listeningReferences"></div>' : sub === 'tts' ? '<div id="ttsReferences"></div>' : sub === 'voicemod' ? '<div id="voiceModReferences"></div>' : sub === 'models' ? buildModelsSection() : sub === 'imgmodels' ? buildImageModelsSection() : sub === 'code' ? (codeModelOpen ? buildCodeModelPage(codeModelOpen) : buildCodeModelsSection()) : sub === 'apis' ? (apiPageOpen ? buildApiPage(apiPageOpen) : buildApisSection()) : sub === 'keys' ? buildKeySignaturesSection() : sub === 'music' ? buildMusicSection() : buildYtSections()}
     </div>
   `;
   elements.actionPanel.innerHTML = html;
@@ -45,7 +56,10 @@ function renderReferencesForm() {
   elements.actionPanel.querySelectorAll('#refSubtabs .ref-subtab').forEach((btn) => {
     btn.addEventListener('click', () => {
       const target = btn.getAttribute('data-ref-tab');
-      if (target === state.activeTab) {
+      if (target === state.activeTab || (target === 'refs-tts' && state.activeTab === 'refs-audio')) {
+        if (target === 'refs-listening') renderListeningReferences(elements.actionPanel.querySelector('#listeningReferences'), true);
+        if (target === 'refs-tts' || target === 'refs-audio') renderTtsReferences(elements.actionPanel.querySelector('#ttsReferences'), true);
+        if (target === 'refs-voicemod') renderVoiceModReferences(elements.actionPanel.querySelector('#voiceModReferences'), true);
         // Re-clicking the active Coding Models segment exits an open model page.
         if (target === 'refs-code' && codeModelOpen) {
           codeModelOpen = null;
@@ -61,10 +75,15 @@ function renderReferencesForm() {
       if (target) switchTab(target);
     });
   });
+  if (sub === 'listening') renderListeningReferences(elements.actionPanel.querySelector('#listeningReferences'));
+  if (sub === 'tts') renderTtsReferences(elements.actionPanel.querySelector('#ttsReferences'));
+  if (sub === 'voicemod') renderVoiceModReferences(elements.actionPanel.querySelector('#voiceModReferences'));
   bindSortableTables();
   bindMusicBank();
   bindCodeModelNav();
   bindApisNav();
+  bindKeySignatures();
+  elements.actionPanel.querySelectorAll('.ref-table-scroll').forEach(scroller => bindReferenceTableScroll(scroller));
 }
 
 function buildYtSections() {
@@ -2047,6 +2066,127 @@ function bindMusicBank() {
       switchTab('music');
     });
   });
+}
+
+/* ═══════════════════════════════════════════════
+   Key Signatures & Melodic Chords Reference Section
+   ═══════════════════════════════════════════════ */
+function buildKeySignaturesSection() {
+  const { keys, chords, advanced } = KEY_SIGNATURES_DATA;
+
+  const keysRows = keys.map((k) => `
+    <tr>
+      <td><span class="ref-badge-tag">${escapeHtml(k.camelotMaj)}</span> <strong>${escapeHtml(k.major)}</strong></td>
+      <td><span class="ref-badge-tag">${escapeHtml(k.camelotMin)}</span> <strong>${escapeHtml(k.minor)}</strong></td>
+      <td><span class="ref-badge-tech">${escapeHtml(k.acc)}</span></td>
+      <td><code>${escapeHtml(k.notes)}</code></td>
+    </tr>
+  `).join('');
+
+  const chordsRows = chords.map((c) => `
+    <tr>
+      <td><strong>${escapeHtml(c.name)}</strong></td>
+      <td><span class="ref-badge-tech">${escapeHtml(c.formula)}</span></td>
+      <td><code>${JSON.stringify(c.semitones)}</code></td>
+      <td><code>${escapeHtml(c.c_notes)}</code></td>
+      <td>${escapeHtml(c.desc)}</td>
+    </tr>
+  `).join('');
+
+  const advRows = advanced.map((a) => `
+    <tr>
+      <td><strong>${escapeHtml(a.name)}</strong></td>
+      <td><span class="ref-badge-tech">${escapeHtml(a.formula)}</span></td>
+      <td><code>${JSON.stringify(a.semitones)}</code></td>
+      <td><code>${escapeHtml(a.c_notes)}</code></td>
+      <td>${escapeHtml(a.desc)}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="ref-sections">
+      <div class="ref-card">
+        <div class="ref-card-head">
+          <div class="ref-card-head-icon">${SVG_EYE}</div>
+          <h4>FL Studio Melodic Chords Reference (Piano Roll Stamps)</h4>
+        </div>
+        <div class="ref-card-body">
+          <p>Extracted directly from FL Studio 2026 stamp presets (<code>Melodic - chords</code>). Formula intervals are relative to root 0 (shown in Key of C with Middle C5 = MIDI 60).</p>
+          <div class="ref-table-scroll">
+            <table class="ref-table">
+              <thead>
+                <tr>
+                  <th>Chord Preset</th>
+                  <th>Degree Formula</th>
+                  <th>Semitones</th>
+                  <th>Notes (Key of C)</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${chordsRows}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-card">
+        <div class="ref-card-head">
+          <div class="ref-card-head-icon">${SVG_LAYERS}</div>
+          <h4>Circle of Fifths & 24 Key Signatures</h4>
+        </div>
+        <div class="ref-card-body">
+          <p>Diatonic key signatures with accidentals, relative minor pairings, scale notes, and Camelot Wheel harmonic mixing codes.</p>
+          <div class="ref-table-scroll">
+            <table class="ref-table">
+              <thead>
+                <tr>
+                  <th>Major Key</th>
+                  <th>Relative Minor</th>
+                  <th>Accidentals</th>
+                  <th>Diatonic Scale Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${keysRows}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="ref-card">
+        <div class="ref-card-head">
+          <div class="ref-card-head-icon">${SVG_SHIELD}</div>
+          <h4>Advanced & Extended Chords (Melodic - chords/Advanced)</h4>
+        </div>
+        <div class="ref-card-body">
+          <p>Key jazz, dominant, and extended chord stamps from FL Studio's 67-preset Advanced directory.</p>
+          <div class="ref-table-scroll">
+            <table class="ref-table">
+              <thead>
+                <tr>
+                  <th>Preset Name</th>
+                  <th>Formula</th>
+                  <th>Semitones</th>
+                  <th>Notes (Key of C)</th>
+                  <th>Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${advRows}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function bindKeySignatures() {
+  // Key signatures table interactions or copy bindings if needed
 }
 
 export { renderReferencesForm };

@@ -40,6 +40,10 @@ async def run_registered_op(
         total=0,
         token=token,
     )
+    from . import model_hot
+    model_hot.begin()
+    if hasattr(params, "keep_model_warm"):
+        params = params.model_copy(update={"keep_model_warm": model_hot.enabled()})
     result: OperationResult | None = None
     try:
         result = await spec.handler(params)
@@ -82,6 +86,7 @@ async def run_registered_op(
             )
     finally:
         job_control.unregister(token)
+        await model_hot.finish()
 
     if result is None:
         result = OperationResult(ok=False, operation=spec.id, error="no result")

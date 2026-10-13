@@ -1,0 +1,24 @@
+# Voice Mod: Voice Conversion, SVC & Vocal Transformation Research
+
+RVC itself is audio-to-audio (voice conversion), not TTS. It needs a front-end (Tortoise, XTTS, Edge-TTS, etc.) to generate speech from text. The most popular singing stack in the community is GPT-SoVITS (end-to-end) or Tortoise + RVC (two-step, higher quality ceiling).
+
+### Singing-Specific Models (more performant than RVC)
+RVC is the baseline for singing voice conversion (SVC), but several newer approaches outperform it:
+
+• So-VITS-SVC 4.x: SVC (VITS-based) | Higher quality ceiling, slower training | The 'gold standard' SVC before RVC's speed advantage
+• DDSP-SVC (rectified-flow): SVC (differentiable DSP) | Lower hardware, near-RVC training speed; quality ≥ So-VITS-SVC with enhancer | Best for low-spec machines
+• GPT-SoVITS: End-to-end TTS + SVC | Few-shot (5 min) per voice; handles speech and singing | Most popular all-in-one for singing in 2025–2026
+• UniSinger (2026): Unified song gen + SVC with accompaniment | Outperforms So-VITS-SVC on content preservation & speaker similarity | Research-stage
+• Everyone-Can-Sing (2025): Zero-shot SVS + SVC from speech reference | Zero-shot singing from a speech sample (no singing data needed)
+• SPA-SVC (2024): Self-supervised pitch-augmented SVC | Beats DDSP-SVC-Diff on MOS, especially at extreme high pitches
+• SaMoye (2024): Zero-shot SVC with feature disentanglement | Outperforms So-VITS-SVC and GPT-SoVITS on objective metrics (PESQ, STOI, NISQA)
+• ACE-Step: Full song generation (vocals + instrumentals) | Apache 2.0, up to ~4 min, fast on consumer GPUs
+• YuE: Full song generation (closest open to Suno) | Needs 24GB+ GPU
+• Suno v4: Full song generation (Cloud API)
+
+### Real-Time Voice Changers & DAWs
+• Echo Live: Low-latency real-time voice changer using optimized RVC-based nets
+• Voicemod: Proprietary real-time voice changer and soundboard for Discord/streaming
+• w-okada Voice Changer: Multi-architecture real-time VC supporting RVC, Seed-VC, MMVC
+• Backer (iZotope Nectar 4): Commercial real-time SVC plugin for DAWs (based on P-RAVE)
+• RAVE / P-RAVE: Real-time neural audio synthesis & pitch-conditioned timbre transfer

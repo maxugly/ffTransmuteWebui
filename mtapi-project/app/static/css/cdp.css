@@ -57,13 +57,20 @@
   cursor: wait;
 }
 .cdp-gh-link {
-  font-size: 0.72rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-dim, #8b949e);
   text-decoration: none;
   border: 1px solid var(--border, #30363d);
-  padding: 1px 6px;
+  padding: 3px 6px;
+  height: 22px;
+  box-sizing: border-box;
   border-radius: 4px;
   white-space: nowrap;
+}
+.cdp-gh-link svg {
+  display: block;
 }
 .cdp-gh-link:hover {
   color: var(--text, #c9d1d9);

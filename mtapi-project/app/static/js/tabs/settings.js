@@ -77,6 +77,7 @@ function settingsSnapshot() {
     muteVideos: state.settings.muteVideos !== false,
     globalFramePeek: state.settings.globalFramePeek !== false,
     framePeekSize: normalizeSize(state.settings.framePeekSize, 'M'),
+    keepModelsHot: !!state.settings.keepModelsHot,
     warmModels: { ...(state.settings.warmModels || {}) },
     ownedDirs: Array.isArray(state.settings.ownedDirs) ? state.settings.ownedDirs.filter(s => typeof s === 'string' && s) : [],
     catalogAutoIndex: state.settings.catalogAutoIndex !== false,
@@ -113,6 +114,7 @@ async function saveSettings(patch = {}) {
         mute_videos: payload.muteVideos,
         global_frame_peek: payload.globalFramePeek,
         frame_peek_size: payload.framePeekSize,
+        keep_models_hot: payload.keepModelsHot,
         warm_models: payload.warmModels,
         owned_dirs: payload.ownedDirs,
         catalog_auto_index: payload.catalogAutoIndex,
@@ -152,7 +154,7 @@ export function renderSettingsForm() {
   const peekSize = normalizeSize(state.settings.framePeekSize, 'M');
   state.settings.framePeekSize = peekSize;
   const peekSizeIndex = Math.max(0, FRAME_SIZES.indexOf(peekSize));
-  const warm = state.settings.warmModels || {};
+
   const ownedDirs = Array.isArray(state.settings.ownedDirs) ? state.settings.ownedDirs : [];
   elements.actionPanel.innerHTML = `
     <div class="settings-workspace" id="settingsWorkspace">
@@ -265,11 +267,9 @@ export function renderSettingsForm() {
           <h4 class="settings-card-name" id="settingsWarmTitle">Keep models warm</h4>
         </div>
         <div class="settings-warm-row">
-          ${switchHtml('settingsWarmDeepdream', 'DeepDream', warm.deepdream)}
-          ${switchHtml('settingsWarmStyle', 'Style Transfer', warm.styletransfer)}
-          ${switchHtml('settingsWarmFastsam', 'FastSAM', warm.fastsam)}
+          ${switchHtml('settingsKeepModelsHot', 'Keep models hot', state.settings.keepModelsHot)}
         </div>
-        <p class="settings-card-desc">Keeps the selected worker/model warm when supported. Default is off<br>to avoid VRAM pressure.</p>
+        <p class="settings-card-desc">Shared with the top-right toggle. Retains supported TTS, image and stem models between runs. Off releases them after active jobs finish; external one-shot engines remain separate.</p>
       </section>
       <section class="settings-card settings-ui" aria-labelledby="settingsUiTitle">
         <div class="settings-card-head">

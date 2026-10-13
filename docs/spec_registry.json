@@ -11,14 +11,14 @@
     "path": "docs/audio-analysis-spec.md",
     "category": "Core Architecture",
     "status": "Superseded by media-catalog-spec.md",
-    "summary": "Advanced audio analysis pipeline extracting Transients, BPM, Key, and generating MIDI using Spotify Basic Pitch, Aubio, Essentia, and Madmom. Engine stack and MIDI/transients design absorbed into media-catalog-spec.md §3/§7/§8; op id audio-analyze retired."
+    "summary": "Advanced audio analysis pipeline extracting Transients, BPM, Key, and generating MIDI using Spotify Basic Pitch, Aubio, Essentia, and Madmom. Engine stack and MIDI/transients design absorbed into media-catalog-spec.md \u00a73/\u00a77/\u00a78; op id audio-analyze retired."
   },
   {
     "file": "cdp-integration-spec.md",
     "path": "docs/cdp-integration-spec.md",
     "category": "Spec - Audio",
     "status": "Spec - reviewed + spike-proven (GO); needs user yes on execution path [A1] before Phase 1",
-    "summary": "Composers Desktop Project as a menu-driven WebUI capability via cdp-wasm: scaling menu architecture, schema-driven params, chain execution reusing the audio_pipeline decode pattern, phased rollout. Reviewed 2026-10-07 (8.128): cdp-wasm 0.7.0 pinned (232 effects / 110 programs / 16 generators / 215 bundled, zero deps), §10.3 de-risk spike executed — browser Worker vendoring proven with Playwright (8/8 checks, 0 console errors, junk/cdp-spike/), determinism contract corrected to RIFF data-chunk compare (PEAK/LIST carry libsndfile timestamps)."
+    "summary": "Composers Desktop Project as a menu-driven WebUI capability via cdp-wasm: scaling menu architecture, schema-driven params, chain execution reusing the audio_pipeline decode pattern, phased rollout. Reviewed 2026-10-07 (8.128): cdp-wasm 0.7.0 pinned (232 effects / 110 programs / 16 generators / 215 bundled, zero deps), \u00a710.3 de-risk spike executed \u2014 browser Worker vendoring proven with Playwright (8/8 checks, 0 console errors, junk/cdp-spike/), determinism contract corrected to RIFF data-chunk compare (PEAK/LIST carry libsndfile timestamps)."
   },
   {
     "file": "audio-quarry-spec.md",
@@ -39,7 +39,7 @@
     "path": "docs/backlog/analyzetag-spec.md",
     "category": "Backlog - Operation",
     "status": "Superseded by media-catalog-spec.md",
-    "summary": "**Author:** m (Max) via Sprinter. File-or-directory key/BPM scan absorbed into media-catalog-spec.md §7/§10/§13; downloadable report replaced by .json sidecar."
+    "summary": "**Author:** m (Max) via Sprinter. File-or-directory key/BPM scan absorbed into media-catalog-spec.md \u00a77/\u00a710/\u00a713; downloadable report replaced by .json sidecar."
   },
   {
     "file": "ascii-spec.md",
@@ -62,7 +62,7 @@
     "status": "Unknown",
     "summary": "N/A"
   },
-{
+  {
     "file": "fast-check-gate-spec.md",
     "path": "docs/fast-check-gate-spec.md",
     "category": "Spec - Infrastructure",
@@ -248,8 +248,8 @@
     "file": "deepdream-v3-spec.md",
     "path": "docs/deepdream-v3-spec.md",
     "category": "Operation",
-    "status": "Implemented (dynamic weighted ascent + Turbo); engine-isolation contract in §5",
-    "summary": "OpenVINO V3 exports five runtime-weighted InceptionV3 taps with internal ImageNet normalization and absolute-mean gradient normalization; Turbo uses a separate forward-only saliency graph. Runtime, setup/status, UI, and filter-platform video path are wired. §5 fixes the V1/V2/V3 isolation contract: per-engine ENGINE_ID in every message, separate artifact roots, video-only scoping for layer_cycle and the *_to ramps, turbo ignored (not fatal) off V3, per-engine status/setup verdicts, knobs that repaint from restored values."
+    "status": "Implemented (dynamic weighted ascent + Turbo); engine-isolation contract in \u00a75",
+    "summary": "OpenVINO V3 exports five runtime-weighted InceptionV3 taps with internal ImageNet normalization and absolute-mean gradient normalization; Turbo uses a separate forward-only saliency graph. Runtime, setup/status, UI, and filter-platform video path are wired. \u00a75 fixes the V1/V2/V3 isolation contract: per-engine ENGINE_ID in every message, separate artifact roots, video-only scoping for layer_cycle and the *_to ramps, turbo ignored (not fatal) off V3, per-engine status/setup verdicts, knobs that repaint from restored values."
   },
   {
     "file": "dynamic-mixing-spec.md",
@@ -368,7 +368,7 @@
     "path": "docs/random-word-generator-spec.md",
     "category": "Utility / Generator",
     "status": "Spec Drafted (Not Implemented)",
-    "summary": "No-LLM, seedable random word/category generator: noun, verb, adjective, adverb (WordNet baked at build) plus culturally-notable proper nouns (person, famous_person, by-occupation, country, city) from Wikidata via SPARQL — notability = has a Wikipedia article. Static per-category list files loaded at startup with exact line-count pool sizes. Evolves into a template-filling MadLib machine."
+    "summary": "No-LLM, seedable random word/category generator: noun, verb, adjective, adverb (WordNet baked at build) plus culturally-notable proper nouns (person, famous_person, by-occupation, country, city) from Wikidata via SPARQL \u2014 notability = has a Wikipedia article. Static per-category list files loaded at startup with exact line-count pool sizes. Evolves into a template-filling MadLib machine."
   },
   {
     "file": "resolve-transcode-spec.md",
@@ -480,7 +480,7 @@
     "path": "docs/pool-deadcode-cleanup-spec.md",
     "category": "Core Architecture / WebUI",
     "status": "Implemented 000.000.6.10; released 000.000.7.000",
-    "summary": "Delete 6.2–6.5 recycle/viewport-lazy leftovers only. Sacred: wall-thumbs, virtual-grid chrome, first/last H, pHash, L/M/H, First+last wall setting. rg proof before every delete."
+    "summary": "Delete 6.2\u20136.5 recycle/viewport-lazy leftovers only. Sacred: wall-thumbs, virtual-grid chrome, first/last H, pHash, L/M/H, First+last wall setting. rg proof before every delete."
   },
   {
     "file": "coder-pool-deadcode-cleanup-prompt.md",
@@ -535,14 +535,14 @@
     "file": "fastsam-sam-multimodel-spec.md",
     "path": "docs/fastsam-sam-multimodel-spec.md",
     "category": "Operation",
-    "status": "Partial 000.000.7.002 — Phase 1 shipped (FastSAM-s + FastSAM-x); Phase 2 SAM ViT-L/H deferred (ultralytics SAM export crashes); released 000.000.8.000 Partial",
+    "status": "Partial 000.000.7.002 \u2014 Phase 1 shipped (FastSAM-s + FastSAM-x); Phase 2 SAM ViT-L/H deferred (ultralytics SAM export crashes); released 000.000.8.000 Partial",
     "summary": "Extend FastSAM tab with model selector (FastSAM-s/x, SAM ViT-L/H). Phase 1 = s+x same FastSAM class. Phase 2 = ultralytics SAM or stop. Reuse device field; default still GPU + FastSAM-s."
   },
   {
     "file": "coder-docs-slim-prompt.md",
     "path": "docs/coder-docs-slim-prompt.md",
     "category": "Meta / Prompt",
-    "status": "Assignment — pass around; Pass 1 done 7.002",
+    "status": "Assignment \u2014 pass around; Pass 1 done 7.002",
     "summary": "End-state: short AGENTS + STATUS as only default context. Archive competing TODO/ideas. Later passes need human OK."
   },
   {
@@ -584,14 +584,14 @@
     "file": "intel_gpu_5d_bug_workaround.md",
     "path": "docs/intel_gpu_5d_bug_workaround.md",
     "category": "Operation",
-    "status": "Reference — source theory (Add/Sub 5D fusion → Squeeze/Unsqueeze surgery); bisected on OV 2026.3.1 and NOT the LaMA-GPU cause here (first divergence is the spectral MatMul itself; fix is the f32 inference hint — see erase-tab-spec.md)",
+    "status": "Reference \u2014 source theory (Add/Sub 5D fusion \u2192 Squeeze/Unsqueeze surgery); bisected on OV 2026.3.1 and NOT the LaMA-GPU cause here (first divergence is the spectral MatMul itself; fix is the f32 inference hint \u2014 see erase-tab-spec.md)",
     "summary": "Intel-GPU 5D-tensor OpenVINO workaround: wrap buggy Add/Sub in Squeeze/Unsqueeze to force 4D execution. Copied verbatim from external source."
   },
   {
     "file": "qr-illusion-art-spec.md",
     "path": "docs/qr-illusion-art-spec.md",
     "category": "Operation",
-    "status": "Implemented 000.000.7.009 — QR + Illusion v1; released 000.000.8.000",
+    "status": "Implemented 000.000.7.009 \u2014 QR + Illusion v1; released 000.000.8.000",
     "summary": "QR mode shipped (generate QR from text + optional one IP-Adapter still). Illusion mode (user pattern + appearance still, no QR Data) implemented v1. Dual-conditioning is PyTorch ControlNet+IP-Adapter (XPU/CUDA/CPU); OpenVINO iGPU is QR-without-IP only. Vulkan SD out of scope."
   },
   {
@@ -647,8 +647,49 @@
     "file": "airapper-spec.md",
     "path": "docs/airapper-spec.md",
     "category": "Spec - Audio / Writing",
-    "status": "Shipped — implemented this stretch",
-    "summary": "AI Rapper desk tab: write bars in a tile workspace, direct the session with an agent sidebar (agent_chat), set tempo/key/swing/meter that ride the ACE-Step SFT metas, and render with 'Make Hot Fire' (music_generate -> WAV joins the media pool). Tiles carry stable ids so the existing desk form-state snapshot persists them for free — no new state endpoint. Saved songs are a separate orthogonal library (app/airapper_store.py + /api/airapper/tracks), never written into *.ffproject.json. Per-tile In/Out flags gate what the agent may read and write; PERLP_V1 is the lyric phonetic-lock directive."
+    "status": "Shipped \u2014 implemented this stretch",
+    "summary": "AI Rapper desk tab: write bars in a tile workspace, direct the session with an agent sidebar (agent_chat), set tempo/key/swing/meter that ride the ACE-Step SFT metas, and render with 'Make Hot Fire' (music_generate -> WAV joins the media pool). Tiles carry stable ids so the existing desk form-state snapshot persists them for free \u2014 no new state endpoint. Saved songs are a separate orthogonal library (app/airapper_store.py + /api/airapper/tracks), never written into *.ffproject.json. Per-tile In/Out flags gate what the agent may read and write; PERLP_V1 is the lyric phonetic-lock directive."
+  },
+  {
+    "file": "flstudio-tab-spec.md",
+    "path": "docs/flstudio-tab-spec.md",
+    "category": "Spec - Audio / DAW Automation",
+    "status": "Draft / Spec ready",
+    "summary": "FL Studio prompt automation tab: parses natural language prompts to draw key scales, descending/ascending arpeggios, and diatonic chord progressions into FL Studio; inserts/assigns requested instrument plugins (FLEX, Sytrus, FL Keys, 3x Osc, etc.); triggers playback in the active FL Studio instance under Wine; acoustically verifies audio output via PipeWire tap; renders to FLAC, OGG, or WAV; saves named .flp project files directly to the user projects folder and catalogs the audio artifact into the Transmute pool."
+  },
+  {
+    "file": "audio-model-reference-spec.md",
+    "path": "docs/audio-model-reference-spec.md",
+    "category": "Reference - Audio",
+    "status": "Implemented",
+    "summary": "52 audio models/services/pipelines; complete comparison table and zoom-scaled wrapping detail cards, server notes with revision protection, and explicit model/file tags."
+  },
+  {
+    "file": "listening-model-reference-spec.md",
+    "path": "docs/listening-model-reference-spec.md",
+    "category": "Reference - Audio",
+    "status": "Implemented",
+    "summary": "47 listening models/tools/services; source-backed 14-field supertable, 20 task filters, glossary, scalable wrapping cards, isolated saved notes and file tags."
+  },
+  {
+    "file": "reference-table-display-spec.md",
+    "path": "docs/reference-table-display-spec.md",
+    "category": "Reference - UI",
+    "status": "Implemented",
+    "summary": "Full-height model reference tables with a sticky synchronized horizontal scrollbar and optional stable repeat/numeric/state/warning cell shading."
+  },
+  {
+    "file": "tts-tab-spec.md",
+    "path": "docs/tts-tab-spec.md",
+    "category": "Spec - Audio",
+    "status": "Implemented",
+    "summary": "Local Neural TTS with validated Piper/Kokoro downloads, independent save/playback, and reusable codec-aware FFmpeg export dialog."
+  },
+  {
+    "file": "model-hot-status-spec.md",
+    "path": "docs/model-hot-status-spec.md",
+    "category": "Spec - Runtime",
+    "status": "Implemented",
+    "summary": "Shared resident-model toggle, isolated hot TTS worker, native cache lifecycle, global activity/elapsed status and learned per-profile TTS ETA; external one-shot engines explicitly listed."
   }
 ]
-

@@ -517,3 +517,14 @@ body.mediacatalog-tab-active .tool-input-preview {
   border-color: #2b6cb055;
   color: #9ec3ef;
 }
+
+/* Supplemental research comparison; the audio scan controls stay intact. */
+.mc-reference-library { margin: 12px 0; padding: 12px; border: 1px solid var(--border-color, #444); border-radius: 6px; }
+.mc-reference-library > summary { cursor: pointer; font-weight: 600; }
+.mc-ref-controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.mc-ref-controls input { flex: 1; min-width: 180px; }
+.mc-ref-card { margin: 14px 0; padding: 12px; background: var(--panel-bg, #202124); border: 1px solid var(--border-color, #444); border-radius: 6px; }
+.mc-ref-table { width: 100%; table-layout: fixed; border-collapse: collapse; margin: 10px 0; }
+.mc-ref-table th, .mc-ref-table td { text-align: left; vertical-align: top; padding: 6px; border-bottom: 1px solid #444; overflow-wrap: anywhere; white-space: pre-wrap; }
+.mc-ref-table th { width: 28%; }
+.mc-ref-card textarea { box-sizing: border-box; width: 100%; font-family: monospace; margin: 8px 0; }

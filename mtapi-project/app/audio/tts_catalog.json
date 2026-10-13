@@ -1,0 +1,1147 @@
+{
+  "piper": [
+    {
+      "voice": "en_GB-alan",
+      "label": "Alan \u00b7 GB",
+      "quality": "low",
+      "revision": "en_GB-alan-low-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/alan/low/en_GB-alan-low.onnx",
+          "size": 63104526,
+          "sha256": "a1f60584620a2bed203de823d08f5abb336fb15f3d6f33f8c341e3e2cabf5dde"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/alan/low/en_GB-alan-low.onnx.json",
+          "size": 4170,
+          "git_sha1": "5646c5b51dbcd1709fe5826e1c97ed1f710a287b"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/alan/low/MODEL_CARD",
+          "size": 309,
+          "git_sha1": "44ebf1a5833f34a4976476b65f7ff27797f5eff9"
+        }
+      ]
+    },
+    {
+      "voice": "en_GB-alan",
+      "label": "Alan \u00b7 GB",
+      "quality": "medium",
+      "revision": "en_GB-alan-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/alan/medium/en_GB-alan-medium.onnx",
+          "size": 63201294,
+          "sha256": "0a309668932205e762801f1efc2736cd4b0120329622adf62be09e56339d3330"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/alan/medium/en_GB-alan-medium.onnx.json",
+          "size": 4888,
+          "git_sha1": "31f864659bfb7678af373cf4e58a7a0866ff52af"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/alan/medium/MODEL_CARD",
+          "size": 320,
+          "git_sha1": "095e2701e47cf8c3e5a44c01122ffbcd42405b84"
+        }
+      ]
+    },
+    {
+      "voice": "en_GB-alba",
+      "label": "Alba \u00b7 GB",
+      "quality": "medium",
+      "revision": "en_GB-alba-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/alba/medium/en_GB-alba-medium.onnx",
+          "size": 63201294,
+          "sha256": "401369c4a81d09fdd86c32c5c864440811dbdcc66466cde2d64f7133a66ad03b"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/alba/medium/en_GB-alba-medium.onnx.json",
+          "size": 4888,
+          "git_sha1": "c0969252c640fd7c2765baa62936a1106ca856d7"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/alba/medium/MODEL_CARD",
+          "size": 324,
+          "git_sha1": "61e578c81ce2f7d59fb6c8840d8290ae29efb45c"
+        }
+      ]
+    },
+    {
+      "voice": "en_GB-cori",
+      "label": "Cori \u00b7 GB",
+      "quality": "high",
+      "revision": "en_GB-cori-high-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/cori/high/en_GB-cori-high.onnx",
+          "size": 114219352,
+          "sha256": "470b4dd634c98f8a4850d7626ffc3dfc90774628eeef6605a6dd8f88f30a5903"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/cori/high/en_GB-cori-high.onnx.json",
+          "size": 4963,
+          "git_sha1": "ec08ff84191b2e7fe7dd91928b6068bca12ff81b"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/cori/high/MODEL_CARD",
+          "size": 468,
+          "git_sha1": "d115efb76a7bf218a9d8c62a55cb75b8fb2a5a9e"
+        }
+      ]
+    },
+    {
+      "voice": "en_GB-cori",
+      "label": "Cori \u00b7 GB",
+      "quality": "medium",
+      "revision": "en_GB-cori-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/cori/medium/en_GB-cori-medium.onnx",
+          "size": 63531379,
+          "sha256": "1899f98e5fb8310154f3c2973f4b8a929ba7245e722b3d3a85680b833d95f10d"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/cori/medium/en_GB-cori-medium.onnx.json",
+          "size": 4966,
+          "git_sha1": "dba82adcb901f9cb8084dedd976a51ea5524f89a"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/cori/medium/MODEL_CARD",
+          "size": 474,
+          "git_sha1": "e8db5ebbd9884c65262694f9a3c475617eb4c122"
+        }
+      ]
+    },
+    {
+      "voice": "en_GB-jenny_dioco",
+      "label": "Jenny Dioco \u00b7 GB",
+      "quality": "medium",
+      "revision": "en_GB-jenny_dioco-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/jenny_dioco/medium/en_GB-jenny_dioco-medium.onnx",
+          "size": 63201294,
+          "sha256": "469c630d209e139dd392a66bf4abde4ab86390a0269c1e47b4e5d7ce81526b01"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/jenny_dioco/medium/en_GB-jenny_dioco-medium.onnx.json",
+          "size": 4895,
+          "git_sha1": "88281754998487c1999a0cce36cbb5a7bab801ab"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/jenny_dioco/medium/MODEL_CARD",
+          "size": 298,
+          "git_sha1": "cbce04cd9197c5889ff62edcd56b2b87c7684163"
+        }
+      ]
+    },
+    {
+      "voice": "en_GB-northern_english_male",
+      "label": "Northern English Male \u00b7 GB",
+      "quality": "medium",
+      "revision": "en_GB-northern_english_male-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/northern_english_male/medium/en_GB-northern_english_male-medium.onnx",
+          "size": 63201294,
+          "sha256": "57a219ae8e638873db7d18893304be5069c42868f392bb95c3ff17f0690d0689"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/northern_english_male/medium/en_GB-northern_english_male-medium.onnx.json",
+          "size": 4847,
+          "git_sha1": "1e94f02fd642271570a935c813186aaa95b2ad13"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/northern_english_male/medium/MODEL_CARD",
+          "size": 305,
+          "git_sha1": "492a27e88841f2201eebba52d83c521a521bf1fa"
+        }
+      ]
+    },
+    {
+      "voice": "en_GB-southern_english_female",
+      "label": "Southern English Female \u00b7 GB",
+      "quality": "low",
+      "revision": "en_GB-southern_english_female-low-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/southern_english_female/low/en_GB-southern_english_female-low.onnx",
+          "size": 63104526,
+          "sha256": "f2f37aed1b3a093476f719d1379ba0c0b1b1cf6f1ef99288e2ebf502971a07c3"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/southern_english_female/low/en_GB-southern_english_female-low.onnx.json",
+          "size": 4189,
+          "git_sha1": "ec7778537f49ecb05a2da4b6ef9bb55ce64b13c8"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_GB/southern_english_female/low/MODEL_CARD",
+          "size": 296,
+          "git_sha1": "ab8a038fc5b744a548f7150edeb35b1c1a35d6a3"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-amy",
+      "label": "Amy \u00b7 US",
+      "quality": "low",
+      "revision": "en_US-amy-low-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/amy/low/en_US-amy-low.onnx",
+          "size": 63104526,
+          "sha256": "a5a91abb7de0f104358a25aded480ddacf1ff0762886325886ec406a2e86aab3"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/amy/low/en_US-amy-low.onnx.json",
+          "size": 4164,
+          "git_sha1": "b29c9edc9581867147e252191c71e296394c85f8"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/amy/low/MODEL_CARD",
+          "size": 273,
+          "git_sha1": "29114de3514fe3c8648a8db2695a546e9d083a36"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-amy",
+      "label": "Amy \u00b7 US",
+      "quality": "medium",
+      "revision": "en_US-amy-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/amy/medium/en_US-amy-medium.onnx",
+          "size": 63201294,
+          "sha256": "b3a6e47b57b8c7fbe6a0ce2518161a50f59a9cdd8a50835c02cb02bdd6206c18"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/amy/medium/en_US-amy-medium.onnx.json",
+          "size": 4882,
+          "git_sha1": "5a1e0a2d94d3719de29a4771aa0e6c116552445f"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/amy/medium/MODEL_CARD",
+          "size": 284,
+          "git_sha1": "0636a3c7829288a1705f7914471c3bb70afe8596"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-bryce",
+      "label": "Bryce \u00b7 US",
+      "quality": "medium",
+      "revision": "en_US-bryce-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/bryce/medium/en_US-bryce-medium.onnx",
+          "size": 63531379,
+          "sha256": "dc9caa6c313199ffb5ac698b6e542fa6cba388aeaf2731e25262e33b9810aef1"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/bryce/medium/en_US-bryce-medium.onnx.json",
+          "size": 4966,
+          "git_sha1": "2cbf22d4c9358974a8fba10bf6698194b8f0716b"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/bryce/medium/MODEL_CARD",
+          "size": 405,
+          "git_sha1": "cb4671de4558564b26945e3f2a09a82e1b67303e"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-danny",
+      "label": "Danny \u00b7 US",
+      "quality": "low",
+      "revision": "en_US-danny-low-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/danny/low/en_US-danny-low.onnx",
+          "size": 63104526,
+          "sha256": "56a9ae9499e961514f060aac2866cb323a21e5989592fc4f208e56fdc323ab64"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/danny/low/en_US-danny-low.onnx.json",
+          "size": 4166,
+          "git_sha1": "4fcf79ce8a39bb27c2c30066b85f1631efcceb2a"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/danny/low/MODEL_CARD",
+          "size": 275,
+          "git_sha1": "4ddbd802e442ea98d52839ed98b7d15086e85c4f"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-hfc_female",
+      "label": "Hfc Female \u00b7 US",
+      "quality": "medium",
+      "revision": "en_US-hfc_female-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx",
+          "size": 63201294,
+          "sha256": "914c473788fc1fa8b63ace1cdcdb44588f4ae523d3ab37df1536616835a140b7"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/hfc_female/medium/en_US-hfc_female-medium.onnx.json",
+          "size": 5033,
+          "git_sha1": "049160c4dc214899bd6c7dd0ff90d015d3b41cfc"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/hfc_female/medium/MODEL_CARD",
+          "size": 354,
+          "git_sha1": "3bd18d2ad3e90ab18d516c6f5dabed3d402c0c3e"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-hfc_male",
+      "label": "Hfc Male \u00b7 US",
+      "quality": "medium",
+      "revision": "en_US-hfc_male-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/hfc_male/medium/en_US-hfc_male-medium.onnx",
+          "size": 63201294,
+          "sha256": "d11e403a02bdf5a670c877b3dc56e0e1c8cece6fb30289586314dffdc0a78cb0"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/hfc_male/medium/en_US-hfc_male-medium.onnx.json",
+          "size": 5033,
+          "git_sha1": "cfca70ab72bfd9b7afa09887020a8bb00c1377aa"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/hfc_male/medium/MODEL_CARD",
+          "size": 352,
+          "git_sha1": "9fe8f9d8d6749e1fbc130a776e0ffb318c77f2be"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-joe",
+      "label": "Joe \u00b7 US",
+      "quality": "medium",
+      "revision": "en_US-joe-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/joe/medium/en_US-joe-medium.onnx",
+          "size": 63201294,
+          "sha256": "58afce0321b8d9c46d7cdf9c16500cc55a793b4220212dba6b70fb788b3baf06"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/joe/medium/en_US-joe-medium.onnx.json",
+          "size": 4794,
+          "git_sha1": "b4ab600fbd71cee986a8e7714bd88996f33be945"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/joe/medium/MODEL_CARD",
+          "size": 281,
+          "git_sha1": "f001792ffaccdde85ed0e21079d5636c67136bf0"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-john",
+      "label": "John \u00b7 US",
+      "quality": "medium",
+      "revision": "en_US-john-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/john/medium/en_US-john-medium.onnx",
+          "size": 63531379,
+          "sha256": "789c6c875726e627ddee93d51d8727859abe9c091c3d141591f4b83c2072e988"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/john/medium/en_US-john-medium.onnx.json",
+          "size": 4965,
+          "git_sha1": "dc2a9b58e311033bb24d6cee2d8ec5be2e8c3c9d"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/john/medium/MODEL_CARD",
+          "size": 498,
+          "git_sha1": "6f590d35c731e8f5a6c4fe20a39c9abb0609e666"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-kathleen",
+      "label": "Kathleen \u00b7 US",
+      "quality": "low",
+      "revision": "en_US-kathleen-low-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/kathleen/low/en_US-kathleen-low.onnx",
+          "size": 63104526,
+          "sha256": "87adf17f5326bc0782282147a8b9788406236245f0f9b0e68dacb651bc1de8b6"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/kathleen/low/en_US-kathleen-low.onnx.json",
+          "size": 4169,
+          "git_sha1": "95db36461a4f0479b68b06eb20a3f86e383a14db"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/kathleen/low/MODEL_CARD",
+          "size": 281,
+          "git_sha1": "1f053c05000834c4ecb927179af0dd99574734d8"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-kristin",
+      "label": "Kristin \u00b7 US",
+      "quality": "medium",
+      "revision": "en_US-kristin-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/kristin/medium/en_US-kristin-medium.onnx",
+          "size": 63531379,
+          "sha256": "5849957f929cbf720c258f8458692d6103fff2f0e3d3b19c8259474bb06a18d4"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/kristin/medium/en_US-kristin-medium.onnx.json",
+          "size": 4968,
+          "git_sha1": "e94be84ab0dc3532b4b2b48cbb1f5d4a8746bedd"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/kristin/medium/MODEL_CARD",
+          "size": 479,
+          "git_sha1": "40000a8e64cf5deb284a999cda92af78cdae783a"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-kusal",
+      "label": "Kusal \u00b7 US",
+      "quality": "medium",
+      "revision": "en_US-kusal-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/kusal/medium/en_US-kusal-medium.onnx",
+          "size": 63201294,
+          "sha256": "438ae25bb305b2a7f6d632327d6102df25011f793e8222fa9db876e7321df8f3"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/kusal/medium/en_US-kusal-medium.onnx.json",
+          "size": 4884,
+          "git_sha1": "68eff4cb75e728b75ada72c3d1b8e54ba5cf0b3f"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/kusal/medium/MODEL_CARD",
+          "size": 279,
+          "git_sha1": "1425aeee8b85c7a90516e84004fa6d4903e6ea99"
+        }
+      ]
+    },
+    {
+      "voice": "lessac",
+      "label": "Lessac \u00b7 US",
+      "quality": "high",
+      "revision": "en_US-lessac-high-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/lessac/high/en_US-lessac-high.onnx",
+          "size": 113895201,
+          "sha256": "4cabf7c3a638017137f34a1516522032d4fe3f38228a843cc9b764ddcbcd9e09"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/lessac/high/en_US-lessac-high.onnx.json",
+          "size": 4883,
+          "git_sha1": "9a525d5a00bddbd71db1dc8d97c543fb20b5dc7e"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/lessac/high/MODEL_CARD",
+          "size": 347,
+          "git_sha1": "019c2ac5e9b50aebad2a512c715e1ebbc80b7777"
+        }
+      ]
+    },
+    {
+      "voice": "lessac",
+      "label": "Lessac \u00b7 US",
+      "quality": "low",
+      "revision": "en_US-lessac-low-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/lessac/low/en_US-lessac-low.onnx",
+          "size": 63201294,
+          "sha256": "f7d01dde371555732c4c314111ac79672b1a5ce2fc19266ab42178fd8df7f375"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/lessac/low/en_US-lessac-low.onnx.json",
+          "size": 4882,
+          "git_sha1": "74579f6dc2d27a63130153a32e0c1224f5ccf24e"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/lessac/low/MODEL_CARD",
+          "size": 345,
+          "git_sha1": "cd2267b26d4931212cb63e41e933ac5512e2c236"
+        }
+      ]
+    },
+    {
+      "voice": "lessac",
+      "label": "Lessac \u00b7 US",
+      "quality": "medium",
+      "revision": "en_US-lessac-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/lessac/medium/en_US-lessac-medium.onnx",
+          "size": 63201294,
+          "sha256": "5efe09e69902187827af646e1a6e9d269dee769f9877d17b16b1b46eeaaf019f"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/lessac/medium/en_US-lessac-medium.onnx.json",
+          "size": 4885,
+          "git_sha1": "c67cea2c9a7a6501d89f7b2cdff411bc49e54a28"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/lessac/medium/MODEL_CARD",
+          "size": 351,
+          "git_sha1": "c0b9a3d60eb5b2e852aedb2a806031f85d02d40b"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-ljspeech",
+      "label": "Ljspeech \u00b7 US",
+      "quality": "high",
+      "revision": "en_US-ljspeech-high-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/ljspeech/high/en_US-ljspeech-high.onnx",
+          "size": 114199011,
+          "sha256": "5d4f08ba6a2a48c44592eed3ce56bf85e9de3dd4e20df90541ae68a8310c029a"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/ljspeech/high/en_US-ljspeech-high.onnx.json",
+          "size": 4970,
+          "git_sha1": "e4c9cbdf41a9c5fadd5eb7633513435342184918"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/ljspeech/high/MODEL_CARD",
+          "size": 513,
+          "git_sha1": "ddd2c7524cadf38f78a9b268ad957079e9815383"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-ljspeech",
+      "label": "Ljspeech \u00b7 US",
+      "quality": "medium",
+      "revision": "en_US-ljspeech-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/ljspeech/medium/en_US-ljspeech-medium.onnx",
+          "size": 63531379,
+          "sha256": "6f52a751e2349abe7a76735eb09dc1875298c77ea2342ffd2fef79ff81b87f22"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/ljspeech/medium/en_US-ljspeech-medium.onnx.json",
+          "size": 4972,
+          "git_sha1": "73ecdec4f6ab17a437936652dfe3a925bb19e098"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/ljspeech/medium/MODEL_CARD",
+          "size": 517,
+          "git_sha1": "324d7470296a501e3c6396310f9b218fdbd7ed1e"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-mike",
+      "label": "Mike \u00b7 US",
+      "quality": "medium",
+      "revision": "en_US-mike-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/mike/medium/en_US-mike-medium.onnx",
+          "size": 63221984,
+          "sha256": "3157e69e2c580cab297483f4b301ee975a4590c17d35a9757e33347d0e90fae2"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/mike/medium/en_US-mike-medium.onnx.json",
+          "size": 5439,
+          "git_sha1": "d5ff4f2a587e499988ef2fc82c5eb6ad2abb0641"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/mike/medium/MODEL_CARD",
+          "size": 282,
+          "git_sha1": "a238e562db8ff7970fc91d0d6350f6e06891bbd2"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-norman",
+      "label": "Norman \u00b7 US",
+      "quality": "medium",
+      "revision": "en_US-norman-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/norman/medium/en_US-norman-medium.onnx",
+          "size": 63531379,
+          "sha256": "b9739443232a80a59c7d18810dd856899bf16a7964725f5ab81ea49b1351cb71"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/norman/medium/en_US-norman-medium.onnx.json",
+          "size": 4968,
+          "git_sha1": "64985a9c6620d5522c500dd42224be7998f83f39"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/norman/medium/MODEL_CARD",
+          "size": 528,
+          "git_sha1": "0c932c8a92562aab6bb0373eb502babc6275d290"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-reza_ibrahim",
+      "label": "Reza Ibrahim \u00b7 US",
+      "quality": "medium",
+      "revision": "en_US-reza_ibrahim-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/reza_ibrahim/medium/en_US-reza_ibrahim-medium.onnx",
+          "size": 63511038,
+          "sha256": "99f0c31464a2120831ca87d079e10a9a2b3e426cc1ee662d80ff9042df15cd3c"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/reza_ibrahim/medium/en_US-reza_ibrahim-medium.onnx.json",
+          "size": 4976,
+          "git_sha1": "911bf9f10b062222cc27d11b314c8fc2a5f51932"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/reza_ibrahim/medium/MODEL_CARD",
+          "size": 635,
+          "git_sha1": "473931a65a77f3d94a8fdc98f0f35f3668f32a06"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-ryan",
+      "label": "Ryan \u00b7 US",
+      "quality": "high",
+      "revision": "en_US-ryan-high-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/ryan/high/en_US-ryan-high.onnx",
+          "size": 120786792,
+          "sha256": "b3990d7606e183ec8dbfba70a4607074f162de1a0c412e0180d1ff60bb154eca"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/ryan/high/en_US-ryan-high.onnx.json",
+          "size": 4166,
+          "git_sha1": "d50091e9aeb2e7b02517749d953ade2be28dcdb1"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/ryan/high/MODEL_CARD",
+          "size": 265,
+          "git_sha1": "e422ec797dc70302105e02385f98a05310ee5a1d"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-ryan",
+      "label": "Ryan \u00b7 US",
+      "quality": "low",
+      "revision": "en_US-ryan-low-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/ryan/low/en_US-ryan-low.onnx",
+          "size": 63104526,
+          "sha256": "8d21a085cc4c0010f1f3e91d5008c8691277ccfa744eb0d747becd33a3444baf"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/ryan/low/en_US-ryan-low.onnx.json",
+          "size": 4165,
+          "git_sha1": "ec6ce9d5658ad0c591727d5508f7dfbfdbd884e3"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/ryan/low/MODEL_CARD",
+          "size": 263,
+          "git_sha1": "9a355774ffba2b44882a7d7ede041ecbde4c6340"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-ryan",
+      "label": "Ryan \u00b7 US",
+      "quality": "medium",
+      "revision": "en_US-ryan-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/ryan/medium/en_US-ryan-medium.onnx",
+          "size": 63201294,
+          "sha256": "abf4c274862564ed647ba0d2c47f8ee7c9b717d27bdad9219100eb310db4047a"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/ryan/medium/en_US-ryan-medium.onnx.json",
+          "size": 4883,
+          "git_sha1": "90e07066093f756cf2e0d7b973cbf176b586dddf"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/ryan/medium/MODEL_CARD",
+          "size": 306,
+          "git_sha1": "b331c598d3a2067c2c1bbb2126096d61d6ee8b0b"
+        }
+      ]
+    },
+    {
+      "voice": "en_US-sam",
+      "label": "Sam \u00b7 US",
+      "quality": "medium",
+      "revision": "en_US-sam-medium-c10ece1aade4-piper1.8.0",
+      "files": [
+        {
+          "name": "voice.onnx",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/sam/medium/en_US-sam-medium.onnx",
+          "size": 62950044,
+          "sha256": "56417b3b4afe8ec6bb4cabf06e17d67261fdd5bf334592abcfc80052fba11163"
+        },
+        {
+          "name": "voice.onnx.json",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/sam/medium/en_US-sam-medium.onnx.json",
+          "size": 5040,
+          "git_sha1": "d83d2768992fa26e447b86fd0ea187e95a9e4c7c"
+        },
+        {
+          "name": "MODEL_CARD",
+          "url": "https://huggingface.co/rhasspy/piper-voices/resolve/c10ece1aade47bb51c153c893d14e5bf8e5b7117/en/en_US/sam/medium/MODEL_CARD",
+          "size": 354,
+          "git_sha1": "fc17e5d64bd11ad93dd552703bef19a51aca7ba8"
+        }
+      ]
+    }
+  ],
+  "modern": [
+    {
+      "id": "supertonic-3",
+      "label": "Supertonic 3",
+      "engine": "supertonic",
+      "package": "supertonic",
+      "runtime": "1.3.1",
+      "revision": "supertonic3-3cadd1ee6394-runtime1.3.1",
+      "license": "Model OpenRAIL-M; runtime MIT",
+      "source": "https://huggingface.co/Supertone/supertonic-3",
+      "voice": "F1",
+      "files": [
+        {
+          "name": "LICENSE",
+          "url": "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/LICENSE",
+          "size": 15007,
+          "git_sha1": "1e2cbe6cef94c8cdf3ed1fcebc0f5317ca7ad5a1"
+        },
+        {
+          "name": "config.json",
+          "url": "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/config.json",
+          "size": 174,
+          "git_sha1": "19c2e8b0aa701c1017ca22a22cd519354854e4b1"
+        },
+        {
+          "name": "onnx/duration_predictor.onnx",
+          "url": "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/onnx/duration_predictor.onnx",
+          "size": 3700147,
+          "sha256": "c3eb91414d5ff8a7a239b7fe9e34e7e2bf8a8140d8375ffb14718b1c639325db"
+        },
+        {
+          "name": "onnx/text_encoder.onnx",
+          "url": "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/onnx/text_encoder.onnx",
+          "size": 36416150,
+          "sha256": "c7befd5ea8c3119769e8a6c1486c4edc6a3bc8365c67621c881bbb774b9902ff"
+        },
+        {
+          "name": "onnx/tts.json",
+          "url": "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/onnx/tts.json",
+          "size": 8253,
+          "git_sha1": "28575b0793c92607a0f0a292550df9bd17709a79"
+        },
+        {
+          "name": "onnx/unicode_indexer.json",
+          "url": "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/onnx/unicode_indexer.json",
+          "size": 277676,
+          "git_sha1": "3aaf4d33024aff0be455633c24b3636b3a810150"
+        },
+        {
+          "name": "onnx/vector_estimator.onnx",
+          "url": "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/onnx/vector_estimator.onnx",
+          "size": 256534781,
+          "sha256": "883ac868ea0275ef0e991524dc64f16b3c0376efd7c320af6b53f5b780d7c61c"
+        },
+        {
+          "name": "onnx/vocoder.onnx",
+          "url": "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/onnx/vocoder.onnx",
+          "size": 101424195,
+          "sha256": "085de76dd8e8d5836d6ca66826601f615939218f90e519f70ee8a36ed2a4c4ba"
+        },
+        {
+          "name": "voice_styles/F1.json",
+          "url": "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/voice_styles/F1.json",
+          "size": 292046,
+          "git_sha1": "421365f307ed1535d8da16845031d0e9fa3e60c5"
+        },
+        {
+          "name": "voice_styles/F2.json",
+          "url": "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/voice_styles/F2.json",
+          "size": 292423,
+          "git_sha1": "b09a3a433df8a4856d1d7d64736a56ddf37a4ea3"
+        },
+        {
+          "name": "voice_styles/F3.json",
+          "url": "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/voice_styles/F3.json",
+          "size": 290794,
+          "git_sha1": "a366f94c77c4b440404071f1a52bed3ccf83a5ff"
+        },
+        {
+          "name": "voice_styles/F4.json",
+          "url": "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/voice_styles/F4.json",
+          "size": 291808,
+          "git_sha1": "39c78a52795320c6101b7eaf984c0e2352fbdc18"
+        },
+        {
+          "name": "voice_styles/F5.json",
+          "url": "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/voice_styles/F5.json",
+          "size": 291479,
+          "git_sha1": "06983f8816ad00a8eeb7efd37a33d457587e16f8"
+        },
+        {
+          "name": "voice_styles/M1.json",
+          "url": "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/voice_styles/M1.json",
+          "size": 291748,
+          "git_sha1": "bddfff85a7c4c140c11620bd7005d86681dccdac"
+        },
+        {
+          "name": "voice_styles/M2.json",
+          "url": "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/voice_styles/M2.json",
+          "size": 292055,
+          "git_sha1": "602ff6c4d6d48cdb71c37461f7c175d71fe8b34b"
+        },
+        {
+          "name": "voice_styles/M3.json",
+          "url": "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/voice_styles/M3.json",
+          "size": 290198,
+          "git_sha1": "000b60436b77619b933fdc33628ad737595e6794"
+        },
+        {
+          "name": "voice_styles/M4.json",
+          "url": "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/voice_styles/M4.json",
+          "size": 291522,
+          "git_sha1": "aae253ae81185fa06a6469c3f1cdff04ed121ddf"
+        },
+        {
+          "name": "voice_styles/M5.json",
+          "url": "https://huggingface.co/Supertone/supertonic-3/resolve/3cadd1ee6394adea1bd021217a0e650ede09a323/voice_styles/M5.json",
+          "size": 291469,
+          "git_sha1": "0536b252698830f8536c077edcb94e1ce4768ab6"
+        }
+      ],
+      "voices": [
+        {
+          "id": "F1",
+          "label": "F1 \u00b7 female"
+        },
+        {
+          "id": "F2",
+          "label": "F2 \u00b7 female"
+        },
+        {
+          "id": "F3",
+          "label": "F3 \u00b7 female"
+        },
+        {
+          "id": "F4",
+          "label": "F4 \u00b7 female"
+        },
+        {
+          "id": "F5",
+          "label": "F5 \u00b7 female"
+        },
+        {
+          "id": "M1",
+          "label": "M1 \u00b7 male"
+        },
+        {
+          "id": "M2",
+          "label": "M2 \u00b7 male"
+        },
+        {
+          "id": "M3",
+          "label": "M3 \u00b7 male"
+        },
+        {
+          "id": "M4",
+          "label": "M4 \u00b7 male"
+        },
+        {
+          "id": "M5",
+          "label": "M5 \u00b7 male"
+        }
+      ],
+      "qualities": [
+        {
+          "id": "low",
+          "label": "Fast \u00b7 5 steps",
+          "steps": 5
+        },
+        {
+          "id": "medium",
+          "label": "Balanced \u00b7 8 steps",
+          "steps": 8
+        },
+        {
+          "id": "high",
+          "label": "High \u00b7 12 steps",
+          "steps": 12
+        }
+      ]
+    },
+    {
+      "id": "kitten",
+      "label": "KittenTTS 0.8",
+      "engine": "kitten",
+      "package": "kittentts",
+      "runtime": "0.8.1",
+      "install_url": "https://github.com/KittenML/KittenTTS/releases/download/0.8.1/kittentts-0.8.1-py3-none-any.whl",
+      "revision": "kitten-mini-c02725660cea-runtime0.8.1",
+      "license": "Apache-2.0",
+      "source": "https://github.com/KittenML/KittenTTS",
+      "voice": "Bella",
+      "files": [
+        {
+          "name": "config.json",
+          "url": "https://huggingface.co/KittenML/kitten-tts-mini-0.8/resolve/c02725660cea441db4c383af69f1f26f5cd00947/config.json",
+          "size": 470,
+          "git_sha1": "1c247a4445ee41f5639d79a9fc3e198971d7ee06"
+        },
+        {
+          "name": "kitten_tts_mini_v0_8.onnx",
+          "url": "https://huggingface.co/KittenML/kitten-tts-mini-0.8/resolve/c02725660cea441db4c383af69f1f26f5cd00947/kitten_tts_mini_v0_8.onnx",
+          "size": 78268016,
+          "sha256": "0f5bbae4fc4800c98dbc544a87ecfa79510de2fb8222db30d12e5bfe9177df91"
+        },
+        {
+          "name": "voices.npz",
+          "url": "https://huggingface.co/KittenML/kitten-tts-mini-0.8/resolve/c02725660cea441db4c383af69f1f26f5cd00947/voices.npz",
+          "size": 3278902,
+          "sha256": "40ad2638952b77b7b2f30127e2608e169fc69dd256b53bd8aaa3409a33193c42"
+        }
+      ],
+      "voices": [
+        {
+          "id": "Bella",
+          "label": "Bella"
+        },
+        {
+          "id": "Jasper",
+          "label": "Jasper"
+        },
+        {
+          "id": "Luna",
+          "label": "Luna"
+        },
+        {
+          "id": "Bruno",
+          "label": "Bruno"
+        },
+        {
+          "id": "Rosie",
+          "label": "Rosie"
+        },
+        {
+          "id": "Hugo",
+          "label": "Hugo"
+        },
+        {
+          "id": "Kiki",
+          "label": "Kiki"
+        },
+        {
+          "id": "Leo",
+          "label": "Leo"
+        }
+      ],
+      "qualities": [
+        {
+          "id": "nano",
+          "label": "Nano \u00b7 15M \u00b7 smallest compute"
+        },
+        {
+          "id": "micro",
+          "label": "Micro \u00b7 40M \u00b7 balanced"
+        },
+        {
+          "id": "mini",
+          "label": "Mini \u00b7 80M \u00b7 largest model"
+        }
+      ],
+      "default_quality": "mini",
+      "variants": [
+        {
+          "quality": "mini",
+          "revision": "kitten-mini-c02725660cea-runtime0.8.1",
+          "files": [
+            {
+              "name": "config.json",
+              "url": "https://huggingface.co/KittenML/kitten-tts-mini-0.8/resolve/c02725660cea441db4c383af69f1f26f5cd00947/config.json",
+              "size": 470,
+              "git_sha1": "1c247a4445ee41f5639d79a9fc3e198971d7ee06"
+            },
+            {
+              "name": "kitten_tts_mini_v0_8.onnx",
+              "url": "https://huggingface.co/KittenML/kitten-tts-mini-0.8/resolve/c02725660cea441db4c383af69f1f26f5cd00947/kitten_tts_mini_v0_8.onnx",
+              "size": 78268016,
+              "sha256": "0f5bbae4fc4800c98dbc544a87ecfa79510de2fb8222db30d12e5bfe9177df91"
+            },
+            {
+              "name": "voices.npz",
+              "url": "https://huggingface.co/KittenML/kitten-tts-mini-0.8/resolve/c02725660cea441db4c383af69f1f26f5cd00947/voices.npz",
+              "size": 3278902,
+              "sha256": "40ad2638952b77b7b2f30127e2608e169fc69dd256b53bd8aaa3409a33193c42"
+            }
+          ]
+        },
+        {
+          "quality": "micro",
+          "revision": "kitten-micro-1ccf72b2c204-runtime0.8.1",
+          "files": [
+            {
+              "name": "config.json",
+              "url": "https://huggingface.co/KittenML/kitten-tts-micro-0.8/resolve/1ccf72b2c2048fd17efac7de2fab32d10e225084/config.json",
+              "size": 473,
+              "git_sha1": "5b8d5b86851cba8fea7c4ab695a5a10f9fe79dc8"
+            },
+            {
+              "name": "kitten_tts_micro_v0_8.onnx",
+              "url": "https://huggingface.co/KittenML/kitten-tts-micro-0.8/resolve/1ccf72b2c2048fd17efac7de2fab32d10e225084/kitten_tts_micro_v0_8.onnx",
+              "size": 41384970,
+              "sha256": "95481626fee1ba70ce683e69c534fc7cb38433c46ce42d3abbeafb4b9f1a4123"
+            },
+            {
+              "name": "voices.npz",
+              "url": "https://huggingface.co/KittenML/kitten-tts-micro-0.8/resolve/1ccf72b2c2048fd17efac7de2fab32d10e225084/voices.npz",
+              "size": 3278902,
+              "sha256": "112710c1be8ad0e967c190fb0fd95cbe5848ec4791b93209f20b28b7da20dac1"
+            }
+          ]
+        },
+        {
+          "quality": "nano",
+          "revision": "kitten-nano-7a1db645b1f3-runtime0.8.1",
+          "files": [
+            {
+              "name": "config.json",
+              "url": "https://huggingface.co/KittenML/kitten-tts-nano-0.8/resolve/7a1db645b1f3ab9420761d87428e042b9cec3f26/config.json",
+              "size": 688,
+              "git_sha1": "8c355969ab588312955926793828b5f5ca273fe1"
+            },
+            {
+              "name": "kitten_tts_nano_v0_8.onnx",
+              "url": "https://huggingface.co/KittenML/kitten-tts-nano-0.8/resolve/7a1db645b1f3ab9420761d87428e042b9cec3f26/kitten_tts_nano_v0_8.onnx",
+              "size": 56767095,
+              "sha256": "320564d2615f235de972ca27a7f39551c94185cfa24ca85b07a29084135f1e5e"
+            },
+            {
+              "name": "voices.npz",
+              "url": "https://huggingface.co/KittenML/kitten-tts-nano-0.8/resolve/7a1db645b1f3ab9420761d87428e042b9cec3f26/voices.npz",
+              "size": 3278902,
+              "sha256": "8aa7cee235abb0739cb51e6559685f65a4dacd95568833d05699b1633f519b3f"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

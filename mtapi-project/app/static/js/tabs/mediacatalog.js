@@ -11,6 +11,7 @@
  */
 import { state, elements, switchTab, logConsole } from '/app.js?v=2';
 import { runOpWithCancel } from '/js/job-control.js';
+import { catalogReferencesHtml, mountCatalogReferences, openCatalogReferences } from '/js/tabs/catalog-references.js';
 import { escapeHtml, shortKey } from '/js/utils.js';
 
 const KEY_OPTIONS = [
@@ -142,7 +143,7 @@ const MC_COLS = [
   { key: 'tag', label: 'Tag', width: '104px', sortable: true, order: 'tag_key' },
   { key: 'rel', label: 'Rel', width: '84px', sortable: true, order: 'key' },
   { key: 'src', label: 'Src', width: '88px', sortable: true, order: 'source' },
-  { key: 'act', label: 'Act', width: '86px', sortable: false },
+  { key: 'act', label: 'Act', width: '124px', sortable: false },
   // Trailing spacer: takes whatever space is left over — columns use only
   // what they need, no more, no less. Never toggled, never sorted.
   { key: 'gap', label: '', width: 'minmax(0, 1fr)', sortable: false, spacer: true },
@@ -279,6 +280,7 @@ function cellAct(row) {
     + `<button type="button" class="btn btn-sm" data-mc-provenance="${_esc(row.path)}" data-help-title="Provenance" data-help-text="Open the three-bit provenance editor for this file.">✦</button>`
     + `<button type="button" class="btn btn-sm" data-mc-send="${_esc(row.path)}" data-help-title="Send to Media In" data-help-text="Send this file to the global Media In box as the input.">→I</button>`
     + `<button type="button" class="btn btn-sm" data-mc-dive="${_esc(row.path)}" data-help-title="Deep Dive" data-help-text="Open this track in the Deep Dive tab: Demucs stems, Essentia analysis, Basic Pitch MIDI, optional CDP chain.">🔬</button>`
+    + (row.type === 'audio' ? `<button type="button" class="btn btn-sm" data-mc-reference="${_esc(row.path)}" data-help-title="Compare external research">Ref</button>` : '')
     + `</div>`;
 }
 
@@ -756,9 +758,11 @@ export function renderMediaCatalogForm() {
         </div>
         <div class="mc-scroll" id="mcScroll"></div>
         <div id="mcAudioHolder"></div>
+        ${catalogReferencesHtml}
       </div>
     </div>`;
 
+  mountCatalogReferences();
   bindFacets();
   _el('btnMcPickDir')?.addEventListener('click', () => pickDirectory().catch(() => {}));
   _el('btnMcScan')?.addEventListener('click', () => runScan(false));
@@ -769,6 +773,8 @@ export function renderMediaCatalogForm() {
     // Every action attribute carries the full path, so read it from the
     // clicked control — never from the row (that is the directory in some
     // layouts and would put a folder into the Media In box).
+    const reference = e.target.closest('[data-mc-reference]');
+    if (reference) { openCatalogReferences(reference.dataset.mcReference); return; }
     const play = e.target.closest('[data-mc-play]');
     if (play?.dataset.mcPlay) { togglePlay(play.dataset.mcPlay); return; }
     const send = e.target.closest('[data-mc-send]');

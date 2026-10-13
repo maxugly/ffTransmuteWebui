@@ -45,6 +45,8 @@ def ensure_openvino_model(model_id: str = "FastSAM-s", device: str = "GPU") -> s
 
 def get_runtime_model(model_path: str, *, keep_warm: bool = False, model_id: str = "FastSAM-s"):
     from ultralytics import FastSAM
+    from .. import model_hot
+    keep_warm = keep_warm or model_hot.enabled()
     cache_key = f"{model_id}:{model_path}"
     if keep_warm and cache_key in _runtime_model_cache:
         return _runtime_model_cache[cache_key]

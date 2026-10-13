@@ -1,0 +1,69 @@
+# TTS Models & Speech Synthesis Research Reference
+
+## High-Performance & Commercial-Safe Models
+Qwen3-TTS: 1.7B parameters, Apache 2.0, 10 languages, supports voice cloning and natural language direction.
+Kokoro (v1.0): 82M parameters, Apache 2.0, English-only, extremely fast, runs on CPU.
+Chatterbox: 350M parameters, MIT license, 23+ languages, supports zero-shot voice cloning.
+Step Audio EditX: Apache 2.0, high-ranking on leaderboards, supports iterative token-space editing.
+VoxCPM2: 2B parameters, Apache 2.0, 30 languages, native 48kHz output, runs on CPU via llama.cpp.
+Orpheus: 150M–3B parameters, Apache 2.0, English, supports emotion tags and real-time streaming.
+Dia (v2): 1.6B parameters, Apache 2.0, English, designed for multi-speaker dialogue and nonverbal cues.
+CosyVoice2: 0.5B parameters, Apache 2.0, 9+ languages, ultra-low latency streaming (~150ms).
+Zonos v0.1: Apache 2.0, 5 languages, high commercial safety.
+Maya1: 3B parameters, Apache 2.0, English, built for expressive voice design with emotional tags.
+NVIDIA Magpie TTS Multilingual: NVIDIA Open Model License, 12 languages, fixed speakers by design.
+GLM-TTS: MIT weights, Chinese/English, high accuracy.
+MetaVoice v1: Apache 2.0, English.
+OpenVoice v2: MIT license, focused on voice conversion.
+
+## Research, Non-Commercial, or Specialized Licenses
+Fish Audio S2 Pro: 4.4B parameters, Research License (non-commercial), 80+ languages, high fidelity.
+Voxtral TTS: 4B parameters, CC BY-NC 4.0, 9 languages, wins in controlled voice cloning benchmarks.
+Breeze TTS 2: Research/non-commercial license, highest Elo rating on leaderboards, beats commercial models in quality.
+Higgs Audio V3: Research/non-commercial, 102 languages, zero-shot cloning.
+XTTS v2: CPML (non-commercial), 17 languages, mature zero-shot cloning tool.
+F5-TTS: Weights CC-BY-NC, fast flow-matching for research-grade cloning.
+Hume TADA: Open-source, zero hallucinations, supports long-form audio (up to 700s).
+Sesame CSM: Conversational-grade TTS with natural turn-taking and audio watermarking.
+OmniVoice: CC BY-NC, 600+ languages, zero-shot cloning.
+OpenAudio S1-mini: CC-BY-NC-SA-4.0, 13 languages, multilingual research/demo.
+VibeVoice: MIT (research use only/withdrawn), LLM-guided dialogue.
+
+## Legacy, Lightweight, or Niche Models
+Piper: Tiny (~15M parameters), MIT/GPL-3.0, 30–47 languages, CPU-only, ideal for Raspberry Pi/edge.
+Bark: ~1B parameters, MIT, generates speech, music, and sound effects; creative/expressive.
+MeloTTS: Lightweight, real-time, multilingual, strong CPU performance.
+Mozilla TTS: Flexible framework, 18 languages, good for custom pipelines.
+Coqui TTS: Broad toolkit, 7 languages, pre-trained voices.
+Mimic 3: Fast, privacy-friendly, offline/embedded support.
+ChatTTS: Optimized for conversational use cases and dialogue prosody.
+StyleTTS 2: MIT + conditions, expressive style control.
+eSpeak: Linux/Windows, 10+ languages, simple, medium quality.
+MaryTTS: MacOS, 8 languages, high quality.
+Vosk: Offline, embedded, low-power, 20+ languages.
+Moonshine: On-device, English-focused, low-latency.
+Tacotron / Tacotron2: Foundational autoregressive models.
+WaveNet / WaveGlow: Generative audio models.
+FastPitch / MixerTTS / RadTTS: NVIDIA NeMo pipeline components.
+HiFiGAN / UnivNet: Vocoders often paired with TTS models.
+VITS: Combines VAE and GAN for high-quality speech synthesis.
+GlowTTS / GradTTS: Flow-based generation models.
+Tortoise TTS: High quality but slow inference; known for cloning.
+Parler TTS Mini: Smaller variant of Parler models.
+Metavoice: 1.2B parameters, focused on voice agent consistency.
+Supertonic: Small model (~120m params), efficient.
+Gepard: Streaming-capable model.
+Chatterbox-Nano: Tiny variant of Chatterbox.
+Qwen3-TTS-0.6b: Smaller variant of Qwen3-TTS.
+IndexTTS-2: Precise duration control, ideal for video dubbing.
+Cartesia Sonic: Low-latency streaming (~90ms), purpose-built for agents.
+LMNT: Low-latency (150–200ms), high concurrency support.
+Fish Audio: API-integrated open-source options.
+ElevenLabs Alternatives: Various models like Bark+RVC combinations used to rival commercial APIs.
+
+## Key Considerations for Selection
+Licensing: For commercial use, prioritize Apache 2.0 or MIT licensed models like Kokoro, Chatterbox, Qwen3-TTS, and CosyVoice2. Avoid CC BY-NC or Research licenses (e.g., Fish Audio, Breeze TTS 2) for products.
+Hardware: Kokoro and Piper run on CPU. Chatterbox and CosyVoice2 fit on consumer GPUs (4–6GB VRAM). Voxtral and Fish Audio require 12–16GB+ VRAM.
+Language: Fish Audio and OmniVoice support 80–600+ languages. Kokoro and Dia are English-only. Chatterbox supports 23+ languages. 
+Voice Cloning: XTTS v2, Fish Audio, and Chatterbox support zero-shot cloning. Kokoro and Piper do not.
+Latency: Voxtral (~90ms) and CosyVoice2 (~150ms) are optimized for real-time streaming. Bark and Tortoise are slower.

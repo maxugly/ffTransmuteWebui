@@ -1,3 +1,4 @@
+import { renderTtsForm } from '/js/tabs/tts.js';
 // State
 import { isVideoPath, basename, formatDurationExact, escapeHtml } from '/js/utils.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
@@ -55,19 +56,23 @@ import { renderWatermarkForm } from '/js/tabs/watermark.js';
 import { renderDemucsForm } from '/js/tabs/demucs.js';
 import { renderMediaCatalogForm } from '/js/tabs/mediacatalog.js';
 import { renderCdpForm } from '/js/tabs/cdp.js';
+import { renderTrackersForm } from '/js/tabs/trackers.js?v=1';
 import { renderDeepDiveForm } from '/js/tabs/deepdive.js';
 import { renderMusicForm } from '/js/tabs/music.js';
 import { renderAirapperForm } from '/js/tabs/airapper.js?v=1';
+import { renderDecbarsForm } from '/js/tabs/decbars.js?v=1';
 import { renderEraseForm } from '/js/tabs/erase.js';
 import { renderStableFluidsForm } from '/js/tabs/stablefluids.js';
 import { renderSettingsForm, applyUiTweaks, readStoredScrollbarWidth } from '/js/tabs/settings.js?v=5';
 import { renderJobsForm, stopJobsPoll } from '/js/tabs/jobs.js';
 import { renderReferencesForm } from '/js/tabs/references.js?v=7';
+import { renderPromptsForm } from '/js/tabs/prompts.js';
 import { renderImageEditForm, collectImageEditBody } from '/js/tabs/imageedit.js';
 import { refreshInputPreview, bindInputPreviewListeners } from '/js/ui/input-preview.js';
 import { makeClearable, bindClearables } from '/js/ui/clearable.js';
-import { setupNavSectionCollapse, ensureNavSectionForTab } from '/js/ui/nav-sections.js';
+import { setupNavSectionCollapse, ensureNavSectionForTab, setupNavFilter } from '/js/ui/nav-sections.js';
 import { saveTabScroll, restoreTabScroll, initTabScroll } from '/js/ui/tab-scroll.js';
+import { updateTabGithubHeader } from '/js/ui/tab-github-repos.js';
 import {
   isCachedTab, ensureTabRoot,
   detachCachedRoots, reattachCachedRoots, clearUncachedNodes,
@@ -297,6 +302,7 @@ let state = {
     muteVideos: true,
     globalFramePeek: true,
     framePeekSize: 'M',
+    keepModelsHot: false,
     warmModels: { deepdream: false, styletransfer: false, fastsam: false },
   },
   formState: {},
@@ -327,6 +333,7 @@ const SETTINGS_DEFAULTS = {
   muteVideos: true,
   globalFramePeek: true,
   framePeekSize: 'M',
+  keepModelsHot: false,
   warmModels: { deepdream: false, styletransfer: false, fastsam: false },
   ownedDirs: [],
   catalogAutoIndex: true,
@@ -351,6 +358,7 @@ function mapServerSettings(data) {
   if (data.mute_videos != null) mapped.muteVideos = !!data.mute_videos;
   if (data.global_frame_peek != null) mapped.globalFramePeek = !!data.global_frame_peek;
   if (data.frame_peek_size) mapped.framePeekSize = data.frame_peek_size;
+  if (data.keep_models_hot != null) mapped.keepModelsHot = !!data.keep_models_hot;
   if (data.warm_models && typeof data.warm_models === 'object') {
     mapped.warmModels = { ...SETTINGS_DEFAULTS.warmModels, ...data.warm_models };
   }
@@ -383,6 +391,7 @@ async function applySettingsPrecedence() {
     ...SETTINGS_DEFAULTS,
     ...server,
     ...local,
+    keepModelsHot: !!server.keepModelsHot,
     warmModels: {
       ...SETTINGS_DEFAULTS.warmModels,
       ...(server.warmModels || {}),
@@ -511,6 +520,7 @@ const TAB_ACCEPTS = {
   notes:       'none',
   dart:        'none',
   cdp:         'any',
+  trackers:    'none',
   deepdive:    'any',
   ytdlp:       'none',
   comments:    'none',
@@ -520,11 +530,19 @@ const TAB_ACCEPTS = {
   erase:       'any',
   demucs:      'any',
   music:        'any',
+  decbars:      'any',
+  tts:          'none',
   airapper:     'none',
   stablefluids:'none',
   refs:        'none',
+  prompts:     'none',
   'refs-music': 'none',
+  'refs-audio': 'none',
+  'refs-tts': 'none',
+  'refs-voicemod': 'none',
+  'refs-listening': 'none',
   'refs-apis': 'none',
+  'refs-keys': 'none',
 };
 
 /** Tabs that show the global frame-range row (video pipeline / mosh / convert). */
@@ -665,6 +683,16 @@ function _syncTabInputFromGlobal() {
     }
   }
 
+  if (tab === 'decbars') {
+    const el = document.getElementById('decBeatPath');
+    if (el) {
+      const b = (bestInput('decBeatPath') || '').trim();
+      if (b && (!el.value.trim() || el.value.trim() !== b)) {
+        el.value = b;
+      }
+    }
+  }
+
   // Update global overlay
   const overlay = document.getElementById('globalProbeOverlay');
   if (overlay) {
@@ -750,6 +778,9 @@ function allInputPaths(fieldId) {
   }
   if (!lines.length && (accepts === 'image' || accepts === 'any') && gi.image.trim()) {
     lines = splitLines(gi.image);
+  }
+  if (!lines.length && (accepts === 'audio' || accepts === 'any') && gi.audio && gi.audio.trim()) {
+    lines = splitLines(gi.audio);
   }
   if (!lines.length && gi.pathIn && gi.pathIn.trim()) {
     lines = splitLines(gi.pathIn);
@@ -972,6 +1003,7 @@ function setupEventListeners() {
   }
   loadSavedCollapseState();
   setupNavSectionCollapse();
+  setupNavFilter();
 }
 
 // API Calls
@@ -1012,6 +1044,7 @@ async function fetchOperations() {
 
 // Tab Switching
 function switchTab(tab) {
+  if (tab === 'refs-audio') tab = 'refs-tts';
   // Same-tab remount must not wipe a stable pool wall. Init calls switchTab
   // after restore; a prior click can already have built #poolGrid.
   if (tab === state.activeTab && elements.actionPanel) {
@@ -1057,7 +1090,7 @@ function switchTab(tab) {
   if (tab === 'deepdream') title = 'Google DeepDream';
   if (tab === 'facemorph') title = 'Face Morph';
   if (tab === 'withoutbg') title = 'withoutBG · Remove Background';
-  if (tab === 'fastsam') title = 'FastSAM · Asset Extraction';
+  if (tab === 'fastsam') title = 'Vision · Asset Extraction';
   if (tab === 'styletransfer') title = 'Style Transfer · CPU/GPU';
   if (tab === 'rife') title = 'RIFE · AI Frame Interpolation';
   if (tab === 'img2img') title = 'Img2Img · OpenVINO GPU';
@@ -1087,16 +1120,20 @@ function switchTab(tab) {
   if (tab === 'demucs') title = 'Stems · Demucs separation';
   if (tab === 'mediacatalog') title = 'Media Catalog';
   if (tab === 'cdp') title = 'CDP Sound Tools';
+  if (tab === 'trackers') title = 'Trackers · qBittorrent tracker updater';
   if (tab === 'deepdive') title = 'Deep Dive';
+  if (tab === 'tts') title = 'TTS · Text to speech';
   if (tab === 'music') title = 'Music · ACE-Step text-to-music';
   if (tab === 'airapper') title = 'AI Rapper · write bars, direct the session, make it hot';
+  if (tab === 'decbars') title = 'DECbars · Robotic Rap Step Sequencer';
   if (tab === 'erase') title = 'Erase · Clean';
   if (tab === 'settings') title = 'Settings';
   if (tab === 'stablefluids') title = 'Stable Fluids · Sim';
   if (tab === 'ytdlp') title = 'yt-dlp Downloader · Web Ingest';
+  if (tab === 'prompts') title = 'Prompt Library';
   if (tab === 'comments') title = 'Comments · Reddit-Style Thread Viewer';
   // References tab: no big header (sidebar already shows active item)
-  if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-music') title = '';
+  if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-keys' || tab === 'refs-music' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening') title = '';
   // Library tabs: drop the big header title (sidebar already shows active item)
   if (tab === 'pool' || tab === 'sequence' || tab === 'images') title = '';
   if (elements.tabTitle) elements.tabTitle.textContent = title;
@@ -1107,16 +1144,20 @@ function switchTab(tab) {
     || tab === 'quick' || tab === 'watcher' || tab === 'notes' || tab === 'settings'
     || tab === 'agent' || tab === 'jobs'
     || tab === 'skills'
+    || tab === 'prompts'
     || tab === 'dart'
     || tab === 'ytdlp'
     || tab === 'comments'
     || tab === 'mediacatalog'
     || tab === 'cdp'
+    || tab === 'trackers'
     || tab === 'deepdive'
     || tab === 'imgcompare'
     || tab === 'stablefluids'
+    || tab === 'tts'
     || tab === 'airapper'
-    || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-music'
+    || tab === 'decbars'
+    || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-keys' || tab === 'refs-music' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening'
   );
   if (elements.btnRun) {
     elements.btnRun.style.display = hideRun ? 'none' : '';
@@ -1174,10 +1215,13 @@ function switchTab(tab) {
     || tab === 'comments'
     || tab === 'mediacatalog'
     || tab === 'cdp'
+    || tab === 'trackers'
     || tab === 'deepdive'
     || tab === 'imgcompare'
+    || tab === 'tts'
     || tab === 'airapper'
-    || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-music'
+    || tab === 'prompts'
+    || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-keys' || tab === 'refs-music' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening'
   );
   document.body.classList.toggle('no-global-inputs', noGlobalInputs);
   document.body.classList.toggle('sf-sim-tab-active', tab === 'stablefluids');
@@ -1188,13 +1232,19 @@ function switchTab(tab) {
   document.body.classList.toggle('mediacatalog-tab-active', tab === 'mediacatalog');
   // AI Rapper: bare workspace — the tab renders its own chat sidebar + tiles.
   document.body.classList.toggle('airapper-tab-active', tab === 'airapper');
+  document.body.classList.toggle('decbars-tab-active', tab === 'decbars');
   document.body.classList.toggle('cdp-tab-active', tab === 'cdp');
+  document.body.classList.toggle('trackers-tab-active', tab === 'trackers');
   document.body.classList.toggle('deepdive-tab-active', tab === 'deepdive');
+  // Prompts Library: bare workspace (preview panel, input button bar, input preview hidden)
+  document.body.classList.toggle('prompts-tab-active', tab === 'prompts');
   // References: bare workspace (sidebar + reference card only)
-  document.body.classList.toggle('references-tab-active', tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-music');
+  document.body.classList.toggle('tts-tab-active', tab === 'tts');
+  document.body.classList.toggle('references-tab-active', tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-keys' || tab === 'refs-music' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening');
 
   // Render Form for the Tab
   renderTabForm(tab);
+  try { updateTabGithubHeader(tab); } catch (_) { /* ignore */ }
   updateStatusIndicators();
   // Show/hide global frame row per tab
   var framesRow = document.getElementById('giFramesRow');
@@ -1358,19 +1408,27 @@ function renderTabForm(tab) {
     renderMediaCatalogForm();
   } else if (tab === 'cdp') {
     renderCdpForm();
+  } else if (tab === 'trackers') {
+    renderTrackersForm();
   } else if (tab === 'deepdive') {
     renderDeepDiveForm();
+  } else if (tab === 'tts') {
+    renderTtsForm();
   } else if (tab === 'music') {
     renderMusicForm();
   } else if (tab === 'airapper') {
     renderAirapperForm();
+  } else if (tab === 'decbars') {
+    renderDecbarsForm();
   } else if (tab === 'erase') {
     renderEraseForm();
   } else if (tab === 'stablefluids') {
     renderStableFluidsForm();
   } else if (tab === 'settings') {
     renderSettingsForm();
-  } else if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-music') {
+  } else if (tab === 'prompts') {
+    renderPromptsForm();
+  } else if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-keys' || tab === 'refs-music' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening') {
     renderReferencesForm();
   }
 

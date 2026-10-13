@@ -1,1 +1,30 @@
-(empty)
+# junk / scratch drawer
+junk/
+mtapi-project/junk/*
+!mtapi-project/junk/.gitkeep
+
+# local / IDE / MCP
+.cate/
+.playwright-mcp/
+
+# model weights and exports
+*.pt
+*.bin
+*.onnx
+*.bak
+FastSAM*
+
+# vendored third-party runtime bundles
+mtapi-project/app/static/vendor/
+
+# python caches & venvs
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# runtime output / data stores
+mtapi-project/data/trackers/
+mtapi-project/data/*.sqlite3*
+mtapi-project/data/watcher.json
+mtapi-project/outbox/

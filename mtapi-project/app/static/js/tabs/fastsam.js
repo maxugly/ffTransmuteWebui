@@ -5,7 +5,7 @@ import { withFrameRange } from '/js/utils.js';
 export function renderFastSAMForm() {
   const html = `
     <div class="panel-title-desc dense">
-      <h3>FastSAM (OV) · asset extraction</h3>
+      <h3>Vision · asset extraction</h3>
       <p class="dream-hint">Uses OpenVINO optimized FastSAM model to extract subjects (FP16 on Iris Xe). Outputs transparent PNG or video.</p>
     </div>
     <div class="knob-row settings-inline-warm">

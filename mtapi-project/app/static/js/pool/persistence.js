@@ -177,7 +177,7 @@ function captureFormStateInScope(scopeEl, tab) {
 function captureCurrentFormState() {
   const tab = state.activeTab;
   if (!tab || !elements.actionPanel) return;
-  if (tab === 'settings') return;
+  if (tab === 'tts' || tab === 'settings' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening') return;
   // Permanent tab roots are captured per-tab by captureAllMountedFormState;
   // the legacy path only owns direct (uncached) panel children.
   const controls = {};
@@ -217,7 +217,8 @@ function captureAllMountedFormState() {
  * delegated resave / watcher POSTs (duplicate snapshot side effects).
  */
 function applySavedFormState(tab) {
-  if (tab === 'settings') return;
+  // Audio reference editors persist per model, not as a single tab snapshot.
+  if (tab === 'tts' || tab === 'settings' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening') return;
   const controls = state.formState?.[tab];
   if (!controls || !elements.actionPanel) return;
   // Resolve inside the tab's own root when mounted (attached or held):

@@ -9,6 +9,31 @@ from ..media import cache as media_cache
 
 def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY) -> None:
     from .. import job_queue
+    from .. import model_hot
+
+    @app.get("/api/models/hot", tags=["meta"])
+    async def model_hot_status():
+        return model_hot.status()
+
+    @app.post("/api/models/hot", tags=["meta"])
+    async def model_hot_config(body: dict):
+        try:
+            return await model_hot.configure(body.get("enabled"))
+        except Exception as error:
+            return {"ok": False, "error": str(error)}
+
+    @app.get("/api/activity", tags=["meta"])
+    async def activity():
+        import time
+        from ..audio import tts
+        summary = job_control.list_live_and_recent(recent_cap=1)
+        for job in summary['live']:
+            job['elapsed_s'] = max(0, time.time()-job['started_at'])
+            speech = tts.job_status(job['token']) if job['token'] in tts.TASKS else None
+            if speech:
+                job.update({k: speech[k] for k in ('model_label', 'word_count', 'estimated_s', 'message') if k in speech})
+        return {'ok': True, **summary}
+
     @app.get("/api/watcher", tags=["meta"])
     async def watcher_status():
         return {"ok": True, **folder_watcher.get_status()}

@@ -28,7 +28,7 @@ from ..audio_pipeline.metadata import (
     relative_key,
     short_key,
 )
-from ..database import audio_db
+from ..database import audio_db, reference_metadata
 from ..media import performance as media_perf
 from .pool import IMAGE_EXTENSIONS
 
@@ -504,6 +504,62 @@ async def catalog_undo(request: Request) -> JSONResponse:
     except sqlite3.Error as exc:
         return _fail(f"undo failed: {exc}")
     return JSONResponse({"ok": True, **res})
+
+
+@router.get("/references")
+async def catalog_references(request: Request) -> JSONResponse:
+    try:
+        params = request.query_params
+        result = reference_metadata.comparison(params.get("path"), params.get("q", ""),
+                                               max(0, int(params.get("offset", 0))))
+        if result["media"]:
+            media = result["media"]
+            result["media"] = _row_payload(media)
+            detected_key = media.get("key_detected")
+            if detected_key is None and media.get("key_source") == "detected":
+                detected_key = media.get("key_name")
+            detected_tempo = media.get("tempo_detected")
+            if detected_tempo is None and media.get("tempo_source") == "detected":
+                detected_tempo = media.get("tempo")
+            result["detected"] = {"key": detected_key, "bpm": detected_tempo,
+                                  "camelot": key_to_camelot(detected_key)}
+        return JSONResponse({"ok": True, **result})
+    except Exception as exc:
+        return _fail(str(exc))
+
+
+@router.post("/references/import")
+async def catalog_reference_import(request: Request) -> JSONResponse:
+    try:
+        body = await request.json()
+        path = body.get("path")
+        if not isinstance(path, str) or not path.strip():
+            return _fail("absolute catalog path is required")
+        return JSONResponse({"ok": True, **reference_metadata.import_catalog(path)})
+    except Exception as exc:
+        return _fail(str(exc))
+
+
+@router.post("/references/update")
+async def catalog_reference_update(request: Request) -> JSONResponse:
+    try:
+        body = await request.json()
+        reference_metadata.update_entry(int(body["id"]), body["metadata"])
+        return JSONResponse({"ok": True})
+    except Exception as exc:
+        return _fail(str(exc))
+
+
+@router.post("/references/link")
+async def catalog_reference_link(request: Request) -> JSONResponse:
+    try:
+        body = await request.json()
+        if not isinstance(body.get("included"), bool):
+            return _fail("included must be a boolean")
+        reference_metadata.set_link(body["path"], int(body["id"]), body["included"])
+        return JSONResponse({"ok": True})
+    except Exception as exc:
+        return _fail(str(exc))
 
 
 def register(app: Any) -> None:

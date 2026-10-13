@@ -84,9 +84,79 @@ function ensureNavSectionForTab(tab) {
   }
 }
 
+function filterNavTabs(query) {
+  const q = (query || '').trim().toLowerCase();
+  const sections = document.querySelectorAll('.nav-section');
+
+  if (!q) {
+    // Restore saved collapse state and make all items visible
+    sections.forEach(function (sec) {
+      sec.style.display = '';
+      sec.querySelectorAll('.nav-item').forEach(function (item) {
+        item.style.display = '';
+      });
+    });
+    loadNavSectionState();
+    return;
+  }
+
+  sections.forEach(function (sec) {
+    const headerLabel = (sec.querySelector('.nav-header-label')?.textContent || '').toLowerCase();
+    const items = sec.querySelectorAll('.nav-item');
+    let matchedCount = 0;
+
+    items.forEach(function (item) {
+      const itemText = (item.textContent || '').toLowerCase();
+      const tabKey = (item.getAttribute('data-tab') || '').toLowerCase();
+      const match = itemText.includes(q) || tabKey.includes(q) || headerLabel.includes(q);
+      item.style.display = match ? '' : 'none';
+      if (match) matchedCount++;
+    });
+
+    if (matchedCount > 0) {
+      sec.style.display = '';
+      // Expand section when filtering so matches are visible
+      sec.classList.remove('collapsed');
+      const h = sec.querySelector('.nav-header');
+      if (h) h.setAttribute('aria-expanded', 'true');
+    } else {
+      sec.style.display = 'none';
+    }
+  });
+}
+
+let _navFilterBound = false;
+
+function setupNavFilter() {
+  if (_navFilterBound) return;
+  _navFilterBound = true;
+
+  const input = document.getElementById('navFilterInput');
+  if (!input) return;
+
+  input.addEventListener('input', function (e) {
+    filterNavTabs(e.target.value);
+  });
+
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      input.value = '';
+      filterNavTabs('');
+      input.blur();
+    } else if (e.key === 'Enter') {
+      const firstVisible = document.querySelector('.nav-item:not([style*="display: none"])');
+      if (firstVisible) {
+        firstVisible.click();
+      }
+    }
+  });
+}
+
 export {
   saveNavSectionState,
   loadNavSectionState,
   setupNavSectionCollapse,
   ensureNavSectionForTab,
+  setupNavFilter,
+  filterNavTabs,
 };

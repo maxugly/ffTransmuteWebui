@@ -910,3 +910,39 @@ body.references-tab-active .tool-input-preview {
 .ref-src-link:hover {
   text-decoration: underline;
 }
+
+/* Floating titles and bottom rail share the whole workspace scroll owner. */
+body.references-tab-active .ref-workspace { overflow: visible; }
+.ref-workspace-wide .ref-card:has(.ref-table-scroll) { flex: 0 0 auto; }
+.ref-card:has(.ref-table-scroll) { overflow: visible; }
+.ref-workspace-wide .ref-card-body.ref-table-scroll,
+.ref-music-bank .ref-table-scroll { max-height: none; overflow-y: hidden; }
+.ref-table thead th { padding: 2px 4px; line-height: 1.15; margin: 0; }
+.ref-floating-head { position: sticky; top: 0; height: 0; z-index: 8; min-width: 0; }
+.ref-floating-head-viewport { display: none; position: absolute; top: 0; width: 100%; overflow: hidden; background: var(--input-bg); }
+.ref-floating-head.is-pinned .ref-floating-head-viewport { display: block; }
+.ref-floating-head table { margin: 0; }
+.ref-floating-head th { background: var(--input-bg) !important; box-sizing: border-box; }
+.ref-bottom-scroll { position: sticky; bottom: 0; flex: 0 0 auto; z-index: 9; width: 100%; height: 18px; min-height: 18px; overflow-x: scroll; overflow-y: hidden; background: var(--input-bg); border: 1px solid var(--panel-border); box-sizing: border-box; }
+.ref-bottom-scroll > div { height: 1px; }
+.ref-bottom-scroll[hidden] { display: none; }
+.ref-models-table .ref-col-head { flex-direction: row; align-items: center; gap: 3px; }
+.ref-models-table .ref-col-top { gap: 1px; min-height: 0; }
+.ref-models-table thead th .ref-col-label,
+.ref-models-table thead th:not(.ref-col-collapsed) .ref-col-label {
+  writing-mode: horizontal-tb; transform: none; max-height: none; max-width: none;
+  white-space: normal; letter-spacing: .02em; line-height: 1.15;
+}
+.ref-models-table th.ref-col-collapsed .ref-col-head { flex-direction: column; gap: 1px; }
+.ref-models-table th.ref-col-collapsed .ref-col-label { width: 18px; white-space: nowrap; }
+/* Tight two-line names across model/provider reference charts. */
+.ref-models-table thead th:first-child:not(.ref-col-collapsed),
+.ref-models-table tbody td:first-child:not(.ref-col-collapsed-cell),
+.ref-models-table[data-mtable="image"] thead th:nth-child(2):not(.ref-col-collapsed),
+.ref-models-table[data-mtable="image"] tbody td:nth-child(2):not(.ref-col-collapsed-cell) { width: 140px; min-width: 140px; max-width: 140px; padding: 1px 3px; }
+.ref-models-table tbody td:first-child > *,
+.ref-models-table[data-mtable="image"] tbody td:nth-child(2) > * { margin: 0; padding: 0; line-height: 1.15; max-width: 134px; white-space: normal; overflow-wrap: anywhere; -webkit-line-clamp: 2; line-clamp: 2; }
+/* API rows are single-line height; retain enough width to avoid growing them. */
+.ref-models-table[data-mtable="apis"] thead th:first-child:not(.ref-col-collapsed),
+.ref-models-table[data-mtable="apis"] tbody td:first-child:not(.ref-col-collapsed-cell) { width: 160px; min-width: 160px; max-width: 160px; }
+.ref-models-table[data-mtable="apis"] tbody td:first-child > * { max-width: 154px; }

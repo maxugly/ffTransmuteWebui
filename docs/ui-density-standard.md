@@ -50,6 +50,16 @@ Keep every control on a filter/option row at the same height band.
 4. No horizontal scroll: containers get `min-width: 0; max-width: 100%`;
    verify `scrollWidth === clientWidth` (see 8.109).
 
+### Workspace area and scrolling
+
+Use the entire available workspace in the visible app frame. Do not add an
+arbitrary `vh`, percentage, fixed-height, or max-height cap to a reference table,
+card collection, or tab content area that leaves usable space below it. Compact
+cards hug their content; the surrounding workspace still uses all available
+space. Let the workspace own vertical scrolling. Wide tables may contain
+horizontal scrolling, but must not create an extra capped vertical scroll pane.
+Verify the actual scroll owner and available frame height in the browser.
+
 ## 5. Long values
 
 - Path displays: ellipsis (`overflow: hidden; text-overflow: ellipsis;

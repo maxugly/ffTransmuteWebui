@@ -1,5 +1,55 @@
 > **Archive — not law. STATUS.md is where we are now.**
 
+### 000.000.8.150 — TTS and Voice Mod Dedicated Reference Tabs
+- Separation & Expansion of Audio Reference Libraries:
+  - Replaced the single Audio Models tab with two distinct, dedicated libraries: **TTS** (`refs-tts`) and **Voice Mod** (`refs-voicemod`).
+  - Extracted all RVC models, singing voice conversion (SVC), voice changers, and vocal transformation models into the new "Voice Mod" library (23 models).
+  - Expanded the TTS library to 64 models, adding supplied High-Performance & Commercial-Safe models (Qwen3-TTS, Kokoro v1.0, Chatterbox, Step Audio EditX, VoxCPM2, Orpheus, Dia v2, CosyVoice2, Zonos v0.1, Maya1, NVIDIA Magpie TTS, GLM-TTS, MetaVoice v1, OpenVoice v2), Research/Non-Commercial models (Fish Audio S2 Pro, Voxtral TTS, Breeze TTS 2, Higgs Audio V3, XTTS v2, F5-TTS, Hume TADA, Sesame CSM, OmniVoice, OpenAudio S1-mini, VibeVoice), and Legacy/Lightweight/Niche models (Piper, Bark, MeloTTS, Mozilla TTS, Coqui TTS, Mimic 3, ChatTTS, StyleTTS 2, eSpeak, MaryTTS, Vosk, Moonshine, Tacotron, WaveNet, FastPitch, HiFiGAN, VITS, Tortoise TTS, Parler TTS Mini, IndexTTS-2, Cartesia Sonic, LMNT).
+  - Incorporated Key Considerations for Selection in reference notes and documentation covering licensing, hardware tiers, language support, zero-shot cloning, and streaming latency.
+- Data Bundles & Server REST Routes:
+  - Built `docs/reference/tts-models/` and `docs/reference/voicemod-models/` with JSON supertables, CSV spreadsheets, Markdown tables, standalone HTML tables, and research source notes.
+  - Added REST routes in `mtapi-project/app/routes/audio_references.py` for `/api/tts-references` and `/api/voicemod-references`, keeping `/api/audio-references` alias.
+  - Implemented transactional model note persistence with optimistic revision conflict protection, local draft recovery, and idempotent file associations.
+- UI & Ergonomics:
+  - Updated left sidebar navigation and top References subtab strip with "TTS" and "Voice Mod".
+  - Standardized bare workspace with no global preview or input strip clutter, 70–160% proportional zoom slider, searchable comparison tables, model detail subtabs, HelpStrip attributes, and zero native tooltips.
+- Verification & Proof:
+  - `./check-gate.sh` passes 5/5 green (100 JS ESM modules clean).
+  - `pytest tests/test_audio_references.py` passes 15/15 unit tests.
+  - Playwright real browser proof (`mtapi-project/junk/tts-voicemod-prove.mjs`) on live server (:24590) verified sidebar navigation, 64 TTS rows, search filters, Kokoro details, note persistence, 23 Voice Mod rows, RVC v2 details, file tagging/untagging, and 0 console/page errors. Proof screenshots in `mtapi-project/junk/`.
+
+### 000.000.8.145 — GitHub Icons & Multi-Repo Popovers Per Tab
+- GitHub Repositories Catalog & UI Component:
+  - Created centralized repository mapping in `mtapi-project/app/static/js/ui/tab-github-repos.js` defining `TAB_GITHUB_REPOS` across all tabs using external tools / upstream repositories.
+  - Tabs with a single upstream tool (e.g. Demucs, withoutBG, DeepDream, StableFluids, ACE-Step music) render a direct `a.gh-tab-link` with official GitHub SVG logo button (`width="14" height="14"`) opening in `target="_blank" rel="noopener noreferrer"`.
+  - Tabs with multiple upstream tools (e.g. yt-dlp + Seal, CDP8 + cdp-wasm, FastSAM + Ultralytics, Erase IOPaint + LaMa, RIFE + ncnn-vulkan, Deep Dive, Media Catalog, Style Transfer, Upscale, Transmute) render `button.gh-tab-dropdown-btn` with dropdown arrow (▾).
+  - Multi-repo popover (`.gh-repo-popover`) cleanly lists all upstream repositories with their name and description, styled in dark theme layout.
+  - Ergonomics: closes automatically on click outside or when pressing `Escape`.
+  - Full HelpStrip integration on hover (`data-help-title`, `data-help-text`), zero native `title=""` tooltips.
+- Global Header Integration & Routing:
+  - Added `#headerGithubWrap` container to `<header>` in `index.html`.
+  - Styled in `layout.css` with clean button chrome and high z-index popover positioning.
+  - Wired into `switchTab(tab)` in `app.js` to update header links dynamically on tab switches (or hide when a tab does not use an external repo, e.g. Settings, Notes).
+- Verification & Proof:
+  - `./check-gate.sh` passed 5/5 green (97 ESM modules clean).
+  - Playwright browser test (`mtapi-project/junk/github_icons_prove.mjs`) tested against live server on port 24590: verified single repo link on Demucs, dropdown button and popover items on yt-dlp, CDP, and Erase, verified Escape dismiss, verified hidden state on Settings, and verified 0 console errors. Screenshot saved to `mtapi-project/junk/github_icons_proof.png`.
+
+### 000.000.8.144 — Prompt Library Bare Workspace, Markdown Formatting & Clickable Hyperlinks
+- Bare-Workspace Layout:
+  - Added `prompts` to `HIDE_TABS` set in `mtapi-project/app/static/js/ui/input-preview.js`, suppressing the bottom input preview strip.
+  - Added `prompts` to `noGlobalInputs` in `mtapi-project/app/static/app.js` and toggled `body.prompts-tab-active`.
+  - Added bare-workspace styling in `mtapi-project/app/static/css/layout.css`: hiding `.global-inputs-panel`, `header .header-actions`, `header .global-quick-btns`, `.app-content .preview-panel`, and `.tool-input-preview`, expanding `.action-panel` to full workspace width (100%).
+- Markdown Rendering Engine & Clickable Hyperlinks:
+  - Implemented vanilla zero-dependency markdown-to-HTML parser `renderMarkdownPrompt` in `mtapi-project/app/static/js/tabs/prompts.js`.
+  - Supports headings (`#` through `####`), fenced code blocks (` ```...``` `), inline code (` `...` `), bold (`**...**`), italic (`*...*` and `_..._`), and bulleted lists (`-` and `*`).
+  - Auto-links both markdown links (`[label](url)`) and bare URLs (`https://...` / `http://...`) into secure, styled clickable hyperlinks opening in `target="_blank" rel="noopener noreferrer"`.
+- System Category & Prompt Library Seeding:
+  - Added `System` to default category taxonomy (`DEFAULT_CATEGORIES`), category filter button strip, and `#newPromptCategory` dropdown.
+  - Automatically seeds and categorizes system entries (`Universal Recoherence` and `Clean Photoreal`) under the `System` category tag.
+- Verification & Proof:
+  - `./check-gate.sh` passes 5/5 green (96 ESM modules clean).
+  - Playwright automated browser test (`mtapi-project/junk/prompts_markdown_prove.py`) verified bare workspace DOM visibility (all preview/button panels hidden), System category filter, markdown rendering, clickable links, test prompt submission, and zero console errors. Screenshot saved to `mtapi-project/junk/prompts_bare_workspace_proof.png`.
+
 ### 000.000.8.115 — Sequence & Media Pool View Resizable Split Fix
 - Root Cause & Layout Fix:
   - Fixed issue where media output preview was frozen and did not resize when dragging the divider in Sequence view: `.app-content.pool-workspace` in `pool.css` had `grid-template-columns: minmax(0, 1.65fr) minmax(0, 0.7fr) !important;`. The `!important` rule completely blocked inline styles from `setupPanelResize()`'s `content.style.gridTemplateColumns`, leaving the columns static at 70/30 while the divider line moved.
@@ -1217,3 +1267,130 @@ Verification:
 - Playwright proof `junk/refs-apis-prove.mjs`: 15/15 checks pass, 0 console errors (overview table, sorting, chip strip, cross-tab state retention, zero placeholders).
 - Layout audit `junk/refs-apis-layout-audit.mjs`: 10/10 checks pass (0px horizontal overflow at 1560px and 800px, chip strip scrolling, unclipped spec cells).
 - Docs updated: `docs/llm_mod_ref_apis.md` records all verified details and links.
+
+## [000.000.8.142] - 2026-10-10
+### Added
+- Universal Prompt Library tab (`prompts`) under AI Generation: save, categorize (`Audio`, `Image`, `Video`, `Lyrics`, `General`), tag, search, copy to clipboard, delete, and 1-click dispatch to AI generation tabs (`music`, `airapper`, `txt2img`, `rife`).
+- Single audio format policy: default to 24-bit lossless FLAC.
+- Automatic creation and saving of `.flp` project files (`~/Documents/Image-Line/FL Studio/Projects/<slug>/<slug>.flp`) alongside renders.
+- $F^\sharp$ Minor showcase composition using high-quality Salamander Grand Piano multi-velocity concert grand library.
+### Verified
+- Gate 5/5 (96 modules clean).
+- Playwright verification test (`junk/prompts_tab_prove.py`) asserting navigation, category filtering, saving prompt, and 1-click dispatch to target tab.
+
+## [000.000.8.143] - 2026-10-10
+### Added
+- Navigation sidebar search filter (`#navFilterInput`): located at the bottom of the navigation drawer right above the system status indicator. Supports real-time filtering of 50+ tabs, section header matching, automatic section expansion on search match, `Escape` to clear/blur, and `Enter` to navigate to the first matching tab.
+- Replaced "GitHub" text in CDP Sound Tools tab header with crisp SVG GitHub icon button linking to `ComposersDesktop/CDP8`.
+### Verified
+- Gate 5/5 (96 modules clean).
+- Playwright browser test (`junk/nav_filter_prove.py`) verifying interactive filtering, empty state restoration, Esc clear, and tab matching.
+- Playwright browser test (`junk/cdp_gh_icon_prove.py`) verifying CDP topbar GitHub icon and link.
+
+## 2026-10-10 — External discography research alongside audio analysis
+
+Added independent research evidence, explicit media links/exclusions, and revision
+history to the existing Media Catalog database. Imported all 148 supplied ICP/
+Dark Lotus JSON records after SQLite backup; all 73 scanned rows verified unchanged.
+JSON/CSV imports are additive and idempotent. Full source objects, alternate keys,
+multiple releases, original measurements, unknown modes, and producer asterisks
+remain intact. Existing audio scanning and tagged/detected source policy are unchanged.
+WebUI adds a research library and per-audio Ref comparison with key, BPM, half/double
+tempo, Camelot, duration, credits, confidence/status, notes and individual source
+links. Research edits require no audio analysis; conservative tag matching labels
+recording uncertainty and manual links/exclusions survive scans. 100 targeted tests
+pass, gate 5/5, real Playwright import/compare/link/edit/search/pagination/error proof
+passes with zero page errors. Installed and declared httpx2 test transport to resolve
+Starlette's deprecation. See docs/catalog-reference-metadata.md.
+
+
+## 2026-10-10 — Audio Models reference library (000.000.8.148)
+
+References → Audio Models adds the merged 52-entry, 12-column audio comparison, searchable table/cards and per-model detail subtabs. Compact em-based cards and text scale together (70–160%) in aligned wrapping rows. Notes save on the server with revision checks and browser draft recovery; explicit many-to-many file tags support download and association-only removal. Five original/merged reference artifacts are bundled. Uses an independent SQLite store; general form replay excludes model editors. Gate green, 10 API tests passed, and Playwright real-control proof passed at 480/800/1280/1920px with zero card overflow and zero console/page errors. See docs/audio-model-reference-spec.md; proof assets in mtapi-project/junk/audio-references-*.
+
+
+## 000.000.8.149 — 2026-10-10 — Listening Models reference
+
+Added References → Listening Models: 47 source-backed model/tool/service entries, 14 fields, 20 task filters and a task glossary spanning wake words, VAD, ASR, diarization, speaker recognition, audio/music captions, MIDI, pitch, MIR, stems, enhancement, fingerprints and codecs. Model pages provide compact wrapping zoom-scaled cards, primary documentation links, separate server notes and local drafts, explicit file tags and four bundled research downloads. Shared renderer/router factories preserve the 52-entry Audio Models library while isolating storage and asynchronous state. Fixed malformed References segment markup caught in the first browser run. Gate 5/5; 15 API tests; 11 real Playwright checks, all task filters, notes/tags/downloads/reload, library isolation, 70–160% proportional zoom, 480–1920px wrapping and zero page/console errors. Live WebUI restarted idle on :24590. As-built: docs/listening-model-reference-spec.md.
+
+
+## 000.000.8.151 — 2026-10-11 — Full reference workspace height
+
+Removed max-height:65vh from shared reference-table CSS. TTS, Voice Mod and Listening Models tables use natural content height with the full action-panel workspace owning vertical scrolling; horizontal table overflow remains contained. No existing documentation required the former cap. Added explicit full-frame and no-arbitrary-height-cap guidance to docs/ui-density-standard.md and updated the reference as-built docs. Gate 5/5; nine Playwright viewport/tab checks confirm max-height:none, no inner table vertical scrolling, exactly one full-frame vertical scroll owner, zero horizontal workspace overflow and zero console/page errors. Proof: mtapi-project/junk/reference-full-height-proof.json.
+
+
+## 000.000.8.152 — 2026-10-11 — Reference horizontal scroll and cell shading
+
+TTS, Voice Mod and Listening Models now share a sticky native horizontal scroll strip synchronized with the full-height table. Pinned model cells are opaque. Added Shade cells preference, legend and HelpStrip explanations: repeated-text tints, comparable numeric unit/range normalization and low-to-high spectrum, green yes/red no/blue partial/yellow conditional states, neutral missing data, and red warning precedence. Full-catalog statistics keep colors stable under filtering. No source or backend data changes. Gate 5/5; semantic Node checks pass; 13 real browser checks cover all three catalogs, stable filter colors, native keyboard scrolling, sticky strip, uncapped vertical geometry, toggle reload, 480–1920px containment and zero console/page errors. As-built: docs/reference-table-display-spec.md.
+
+Final verification for the reference display change: the additional real 70–160% zoom check brings the browser proof to 14 passing checks; scroll-strip width tracks table width and the table remains vertically uncapped.
+
+## 2026-10-11 — 000.000.8.153
+
+Reference tables: sticky bottom horizontal strip, synchronized compact floating column titles, live sorting/toggles through floating headers, shared treatment across reference tabs, natural Music table height. Gate 5/5; real browser proof and responsive frame checks pass.
+
+## 2026-10-11 — 000.000.8.154
+
+Neural TTS: pinned verified Piper Lessac/Kokoro downloads validated through actual + controls; CPU synthesis, independent save/speaker, temporary previews and non-overwriting output. Shared five-format FFmpeg export and centered codec-aware dialog ready for other audio tabs. Gate 5/5, 13 backend tests, real speech/playback/popup/reattachment/responsive browser checks passed with zero page errors.
+
+## 2026-10-11 — 000.000.8.155
+
+Compact model-name columns across all seven model/provider reference tables. Backer wraps into name/subtitle lines without increasing row height; minimal padding and borderless audio name links. Gate green; before/after browser geometry and screenshot inspection passed, including real detail click.
+
+## 2026-10-11 — 000.000.8.158
+
+TTS playback once per generation, stable audio on completed-job restores, immediate Speaker-off pause. Installed voice selector with per-model preferences and validated worker routing: 28 Kokoro English voices, nine DECtalk voices, one Piper voice. Gate green; 19 focused TTS/DECbars tests; browser verifies distinct voice waveforms and no replay across three tab restores, zero errors.
+
+## 2026-10-11 — 000.000.8.159
+
+TTS input edits invalidate the old audio source, with an explicit Generate & Play replacement action. Snapshot actual controls before awaits, reject blank current text, lock synthesis inputs, and prevent delayed deletion from clearing newer playback. Browser reproduced old-player behavior and proves fresh currentSrc/bytes after text/voice/format changes, explicit playback, and no-repeat/voice regression checks; gate green, screenshot inspected.
+
+
+## 2026-10-11 — TTS voices, model profiles and modern ONNX engines
+
+Expanded Piper to 23 English single-speaker voices / 31 published checkpoints;
+added per-voice synthesis quality selection and exact-profile downloads. Added
+Supertonic 3 (ten voices, 5/8/12 steps) and KittenTTS 0.8 (eight voices,
+Nano/Micro/Mini), pinned upstream commits, runtime versions and artifact hashes.
+Preserved Lessac-medium compatibility and stale-preview/once-only playback
+fixes. Browser button downloads and synthesis tested across all three Lessac
+levels, Amy/Ryan/Alan, all three Kitten profiles and Supertonic steps/voices.
+Dropdown arrow padding repaired after visual inspection. See tts-tab-spec.md.
+
+Final verification: gate 5/5, 24 TTS/DECbars tests; real browser quality
+persistence and all three Supertonic step profiles; no-repeat and fresh-result
+regressions pass with zero page/console errors; screenshots inspected.
+
+
+## 2026-10-12 — Model-specific TTS synthesis controls
+
+Added capability-driven native controls for all five installed TTS engines,
+compact wrapping advanced settings, model-scoped persistence/Reset, strict API
+and worker validation, live control snapshots, and edit invalidation. Real
+synthesis checks removed unsupported Kokoro continuous mode and six ineffective
+DECtalk fields; device-volume is excluded from WAV workflow. Speed shortens
+speech for every engine; gain, phonemes, languages, cleanup and voice shaping
+verified. Gate 5/5; 37 TTS/DECbars unit tests. See tts-tab-spec.md.
+
+Final browser checks: exact installed capabilities, no unsupported controls,
+fixed quality rows hidden, old preferences safely filtered, zero page/console
+errors, desktop/narrow screenshots inspected. Existing voice/no-repeat and
+fresh-audio browser regressions pass.
+
+## 2026-10-12 — 000.000.8.162
+
+TTS generation no longer locks editing controls or clears current playback. Snapshot submitted settings, retain the next draft, replace playback only on a completed clip, and make Speaker affect future autoplay. Real browser proof covers continuous playback, editable fields, immutable requests, preserved drafts, Pause and tab restoration; zero browser errors; screenshot inspected.
+
+## 2026-10-12 — 000.000.8.163
+
+TTS input/playback cards plus responsive right-hand current-clip card. Completed results include model, script and effective export settings; UI displays immutable clip metadata alongside all synthesis controls and filename. Draft edits preserve metadata/playback; discard clears both. Gate green, 33 TTS tests, real browser DECtalk stereo/24-bit FLAC metadata/edit/restoration/layout proof; screenshots inspected.
+
+## 2026-10-12 — 000.000.8.164
+
+TTS speaks highlighted input text through both Generate actions, with full-script fallback for no selection. Full draft remains saved; clip metadata uses the actual submitted passage. Gate green; real keyboard selection and real DECtalk generation prove selected text, fallback and draft/tab persistence. Screenshot inspected; zero browser errors.
+
+## 2026-10-12 — 000.000.8.165
+
+Shared top-right hot-model toggle and persisted policy; isolated resident TTS worker with one-checkpoint replacement; native model cache release deferred until idle. Bottom-left global activity/elapsed/phase display and bounded learned per-profile load/word-count TTS ETA. Explicit one-shot engine limits. Gate green, targeted native/TTS/settings tests pass, same-PID/one-load Piper UI proof and deferred-off/reload/selection checks pass; screenshot inspected.
+
+Additional verification: real Kokoro, Supertonic and Kitten voice changes reuse the same worker PID and single model load; resident worker exits after turning the shared toggle off.

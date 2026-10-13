@@ -13,3 +13,6 @@ window.addEventListener('DOMContentLoaded', () => {
 // Help strip: delegated hover-help bar at the bottom of <main>.
 // Fails silently if the #help-strip element is absent.
 HelpStrip.init();
+
+import { initModelHot } from '/js/ui/model-hot.js';
+initModelHot();

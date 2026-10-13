@@ -1,0 +1,4 @@
+# Starlette TestClient transport (httpx support is deprecated).
+httpx2>=2.13.1
+pytest
+playwright

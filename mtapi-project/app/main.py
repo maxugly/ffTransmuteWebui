@@ -79,6 +79,8 @@ async def _startup_body() -> None:
 
 
 async def _shutdown_body() -> None:
+    from . import model_hot
+    await model_hot.release()
     from .media.catalog import get_catalog
     try:
         await get_catalog().shutdown()
@@ -295,6 +297,9 @@ demucs.register(app)
 from .routes import music
 music.register(app)
 
+from .routes import tts
+tts.register(app)
+
 from .routes import lineage
 lineage.register(app)
 
@@ -310,8 +315,16 @@ comments.register(app)
 from .routes import cdp
 cdp.register(app)
 
+from .routes import trackers
+trackers.register(app)
+from .routes import audio_references
+audio_references.register(app)
+
 from .routes import airapper
 airapper.register(app)
+
+from .routes import decbars
+decbars.register(app)
 
 def _make_endpoint(spec):
     async def endpoint(
