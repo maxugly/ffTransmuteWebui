@@ -164,7 +164,9 @@ def get_compiled(model_dir: Path | str, device: str = "GPU") -> tuple[Any, str]:
         try:
             cfg = ({ov.properties.hint.inference_precision: ov.Type.f32}
                    if dev == "GPU" else {})
-            compiled = core.compile_model(str(ir), dev, cfg)
+            from app import model_hot
+            with model_hot.loading('erase', 'LaMa · '+dev, [ir, ir.with_suffix('.bin')]):
+                compiled = core.compile_model(str(ir), dev, cfg)
         except Exception as e:  # noqa: BLE001 — fallback is the contract
             last_err = e
             continue

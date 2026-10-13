@@ -1,3 +1,6 @@
+import asyncio
+import threading
+from functools import wraps
 import cv2
 import numpy as np
 from pathlib import Path
@@ -8,6 +11,17 @@ from app.job_control import report_progress, check_cancelled
 _openvino_model_cache: dict[str, str] = {}
 _runtime_model_cache: dict[str, object] = {}
 
+_runtime_lock = threading.RLock()
+
+
+def _serialized(fn):
+    @wraps(fn)
+    def run(*args, **kwargs):
+        with _runtime_lock:
+            return fn(*args, **kwargs)
+    return run
+
+
 MODEL_REGISTRY = {
     "FastSAM-s": "FastSAM-s.pt",
     "FastSAM-x": "FastSAM-x.pt",
@@ -17,6 +31,7 @@ def _resolve_model_id(model_id: str) -> str:
     return MODEL_REGISTRY.get(model_id, model_id)
 
 
+@_serialized
 def ensure_openvino_model(model_id: str = "FastSAM-s", device: str = "GPU") -> str:
     from ultralytics import FastSAM
 
@@ -29,12 +44,19 @@ def ensure_openvino_model(model_id: str = "FastSAM-s", device: str = "GPU") -> s
         del _openvino_model_cache[cache_key]
 
     print(f"[fastsam] exporting {filename} for device={device}")
-    model = FastSAM(filename)
-
+    from app import model_hot
+    model_key = model_hot.start_loading('fastsam', model_id, [filename])
     try:
-        model.export(format="openvino", half=True, dynamic=True)
-    except Exception as e:
-        print(f"OpenVINO export note: {e}")
+        model = FastSAM(filename)
+        model_hot.loaded(model_key)
+
+        try:
+            model.export(format="openvino", half=True, dynamic=True)
+        except Exception as e:
+            print(f"OpenVINO export note: {e}")
+
+    finally:
+        model_hot.forget(model_key)
 
     result = f"{filename.replace('.pt', '')}_openvino_model"
     if not Path(result).is_dir():
@@ -43,10 +65,11 @@ def ensure_openvino_model(model_id: str = "FastSAM-s", device: str = "GPU") -> s
     return result
 
 
+@_serialized
 def get_runtime_model(model_path: str, *, keep_warm: bool = False, model_id: str = "FastSAM-s"):
     from ultralytics import FastSAM
     from .. import model_hot
-    keep_warm = keep_warm or model_hot.enabled()
+    keep_warm = keep_warm or model_hot.enabled('fastsam')
     cache_key = f"{model_id}:{model_path}"
     if keep_warm and cache_key in _runtime_model_cache:
         return _runtime_model_cache[cache_key]
@@ -54,6 +77,17 @@ def get_runtime_model(model_path: str, *, keep_warm: bool = False, model_id: str
     if keep_warm:
         _runtime_model_cache[cache_key] = model
     return model
+
+
+@_serialized
+def predict_runtime(model, image, *, model_id, model_path, **kwargs):
+    # Ultralytics creates/compiles its OpenVINO predictor on the first predict call.
+    from app import model_hot
+    predictor = getattr(model, 'predictor', None)
+    if predictor is None or getattr(predictor, 'model', True) is None:
+        with model_hot.loading('fastsam', model_id, [model_path]):
+            return model(image, **kwargs)
+    return model(image, **kwargs)
 
 
 def get_target_mask(results_obj, img_shape, mode: str, target_x: float, target_y: float):
@@ -108,8 +142,8 @@ async def make_fastsam_directory(
     keep_model_warm: bool = False,
     **kwargs,
 ):
-    ov_model_path = ensure_openvino_model(model_id=model_id, device=device)
-    model = get_runtime_model(ov_model_path, keep_warm=keep_model_warm, model_id=model_id)
+    ov_model_path = await asyncio.to_thread(ensure_openvino_model, model_id=model_id, device=device)
+    model = await asyncio.to_thread(get_runtime_model, ov_model_path, keep_warm=keep_model_warm, model_id=model_id)
     print(f"[fastsam] using {model_id} on {device}")
 
     async def fastsam_directory(src_dir: Path, dst_dir: Path) -> dict:
@@ -127,7 +161,7 @@ async def make_fastsam_directory(
             if ov_device and not ov_device.lower().startswith("intel:") and ov_device.upper() != "CPU":
                 ov_device = f"intel:{ov_device.lower()}"
 
-            results = model(img, device=ov_device, conf=conf, iou=iou)
+            results = await asyncio.to_thread(predict_runtime, model, img, model_id=model_id, model_path=ov_model_path, device=ov_device, conf=conf, iou=iou)
 
             if results and len(results) > 0 and results[0].masks is not None:
                 actual_mode = mode if mode == "target" else "target"

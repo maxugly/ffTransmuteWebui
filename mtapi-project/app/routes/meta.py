@@ -12,13 +12,17 @@ def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY
     from .. import model_hot
 
     @app.get("/api/models/hot", tags=["meta"])
-    async def model_hot_status():
-        return model_hot.status()
+    async def model_hot_status(tab: str = "", model: str = "", engine: str = "", voice: str = "", quality: str = "", auxiliary: str = "", lora: str = ""):
+        try:
+            import asyncio
+            return await asyncio.to_thread(model_hot.status, tab, model=model, engine=engine, voice=voice, quality=quality, auxiliary=auxiliary, lora=lora)
+        except Exception as error:
+            return {"ok": False, "error": str(error)}
 
     @app.post("/api/models/hot", tags=["meta"])
     async def model_hot_config(body: dict):
         try:
-            return await model_hot.configure(body.get("enabled"))
+            return await model_hot.configure(body.get("tool"), body.get("enabled"))
         except Exception as error:
             return {"ok": False, "error": str(error)}
 

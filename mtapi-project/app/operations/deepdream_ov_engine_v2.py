@@ -137,16 +137,18 @@ def _get_compiled(
             )
             continue
         try:
-            model = ov.Core().read_model(str(ir))
-            cfg = {}
-            if dev == "GPU":
-                # V2 OPTIMIZATION: Selective FP16 Execution
-                # 365 and 512 suffer from the driver bug, force them to FP32.
-                # 186 and 261 are unaffected, allow them to default to FP16 for XMX acceleration.
-                if shape[0] >= 365:
-                    cfg[ov.properties.hint.inference_precision] = ov.Type.f32
+            from app import model_hot
+            with model_hot.loading('deepdream', 'InceptionV3 · '+key, [ir, ir.with_suffix('.bin')]):
+                model = ov.Core().read_model(str(ir))
+                cfg = {}
+                if dev == "GPU":
+                    # V2 OPTIMIZATION: Selective FP16 Execution
+                    # 365 and 512 suffer from the driver bug, force them to FP32.
+                    # 186 and 261 are unaffected, allow them to default to FP16 for XMX acceleration.
+                    if shape[0] >= 365:
+                        cfg[ov.properties.hint.inference_precision] = ov.Type.f32
             
-            compiled = ov.Core().compile_model(model, dev, cfg)
+                compiled = ov.Core().compile_model(model, dev, cfg)
         except Exception as e:
             last_err = e
             continue

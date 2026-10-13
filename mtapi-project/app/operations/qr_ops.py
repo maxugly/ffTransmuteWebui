@@ -288,6 +288,10 @@ async def qr_art_run(p: QrArtParams) -> OperationResult:
             env=env,
         )
 
+        from app import model_hot
+        from app.model_inventory import hf_snapshot
+        model_key = model_hot.start_loading('qr_art', p.model_id, hf_snapshot(p.model_id))
+
         stdout_chunks: list[bytes] = []
         stderr_b = b""
 
@@ -314,6 +318,8 @@ async def qr_art_run(p: QrArtParams) -> OperationResult:
                     buf = buf[sep + 1:]
                     stdout_chunks.append(line + b"\n")
                     text = line.decode(errors="replace").strip()
+                    if text == "MODEL_LOADED":
+                        model_hot.loaded(model_key)
                     if text.startswith("PROGRESS ") or text.startswith("DONE "):
                         job_control.report_progress(
                             f"qr_art 1/1",
@@ -346,6 +352,9 @@ async def qr_art_run(p: QrArtParams) -> OperationResult:
             await proc.wait()
             pump.cancel()
             raise
+
+        finally:
+            model_hot.forget(model_key)
 
         stdout_b = b"".join(stdout_chunks)
         if proc.returncode != 0:
@@ -495,6 +504,10 @@ async def _qr_art_run_with_device(
         env=env,
     )
 
+    from app import model_hot
+    from app.model_inventory import hf_snapshot
+    model_key = model_hot.start_loading('qr_art', p.model_id, hf_snapshot(p.model_id))
+
     stdout_chunks: list[bytes] = []
     stderr_b = b""
 
@@ -520,6 +533,8 @@ async def _qr_art_run_with_device(
                 line = buf[:sep]
                 buf = buf[sep + 1:]
                 stdout_chunks.append(line + b"\n")
+                if line.strip() == b"MODEL_LOADED":
+                    model_hot.loaded(model_key)
         if buf:
             stdout_chunks.append(buf)
 
@@ -539,6 +554,9 @@ async def _qr_art_run_with_device(
         return OperationResult(
             ok=False, operation="qr_art", error="Cancelled during CPU fallback", stdout="\n".join(logs)
         )
+
+    finally:
+        model_hot.forget(model_key)
 
     stdout_b = b"".join(stdout_chunks)
     if proc.returncode != 0:

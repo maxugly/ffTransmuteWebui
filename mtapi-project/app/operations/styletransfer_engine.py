@@ -49,7 +49,9 @@ def _get_model():
 
     with _model_lock:
         if _model is None:
-            _model = hub.load(HUB_HANDLE)
+            from app import model_hot
+            with model_hot.loading('styletransfer', 'Magenta arbitrary image stylization', ()):
+                _model = hub.load(HUB_HANDLE)
         return _model
 
 

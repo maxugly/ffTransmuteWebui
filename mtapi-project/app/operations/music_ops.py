@@ -10,6 +10,10 @@ Device is strict: HETERO or CPU only. GPU-only is not offered (measured broken).
 """
 from __future__ import annotations
 
+import json
+import time
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -77,7 +81,47 @@ def _out_wav_path(prompt: str, seed: int, output_dir: str | None,
     return unique_output_path(candidate)
 
 
+MUSIC_DIAGNOSTICS_DIR = Path(__file__).resolve().parents[2] / "junk/music-diagnostics"
+
+
 async def music_generate(p: MusicGenerateParams) -> OperationResult:
+    """Persist each attempt before launching; retain full output and outcome."""
+    MUSIC_DIAGNOSTICS_DIR.mkdir(parents=True, exist_ok=True)
+    attempt = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S") + "-" + uuid.uuid4().hex[:12]
+    record_path = MUSIC_DIAGNOSTICS_DIR / f"{attempt}.json"
+    output_path = MUSIC_DIAGNOSTICS_DIR / f"{attempt}.log"
+    record = {"attempt_id": attempt, "started_at": datetime.now(timezone.utc).isoformat(),
+              "status": "running", "parameters": p.model_dump(),
+              "source_dir": str(ove.SOURCE_DIR), "python": ove.RUNNER_PYTHON,
+              "runner_log": str(output_path), "job_token": job_control.current_token()}
+    def save():
+        temporary = record_path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(record, ensure_ascii=False, indent=2) + "\n")
+        temporary.replace(record_path)
+    save()
+    started = time.monotonic()
+    result = None
+    try:
+        result = await _music_generate(p, record, output_path)
+        record.update(status="dry_run" if result.dry_run else "succeeded" if result.ok else "failed",
+                      ok=result.ok, error=result.error, output_path=result.output_path)
+        if not output_path.exists():
+            output_path.write_text(result.stdout or "")
+        result.stdout = (result.stdout or "") + f"\nDiagnostic record: {record_path}"
+        if result.error:
+            result.error += f"\nDiagnostic record: {record_path}"
+        return result
+    except BaseException as exc:
+        record.update(status="interrupted" if isinstance(exc, (KeyboardInterrupt, SystemExit)) else "error",
+                      error=f"{type(exc).__name__}: {exc}")
+        raise
+    finally:
+        record.update(finished_at=datetime.now(timezone.utc).isoformat(),
+                      elapsed_sec=round(time.monotonic() - started, 3))
+        save()
+
+
+async def _music_generate(p: MusicGenerateParams, record: dict, diagnostic_log: Path) -> OperationResult:
     op = "music_generate"
     token = job_control.current_token()
     spec = ove.MUSIC_MODELS.get(p.model)
@@ -119,6 +163,12 @@ async def music_generate(p: MusicGenerateParams) -> OperationResult:
                             repeat=p.repeat, shift=p.shift, apg=p.apg)
     except ValueError as e:
         return OperationResult(ok=False, operation=op, error=str(e))
+    record["runner"] = runner
+    record["runner_environment"] = {k: v for k, v in env.items() if k.startswith("T2M_")}
+    # Save resolved settings before inference; never record unrelated env/secrets.
+    record_path = diagnostic_log.with_suffix(".json")
+    record_path.write_text(json.dumps(record, ensure_ascii=False, indent=2) + "\n")
+    env["MUSIC_DIAGNOSTIC_LOG"] = str(diagnostic_log)
     total_steps = p.steps if p.steps > 0 else 8
     if p.dry_run:
         cmd = " ".join(["python", runner,
@@ -141,6 +191,7 @@ async def music_generate(p: MusicGenerateParams) -> OperationResult:
                                                  runner=runner)
     except job_control.JobCancelled as e:
         return OperationResult(ok=False, operation=op, error=str(e))
+    record["return_code"] = rc
     if rc != 0 or wav is None or not wav.is_file():
         tail = "\n".join(text.splitlines()[-15:])
         return OperationResult(ok=False, operation=op,

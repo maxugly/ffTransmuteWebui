@@ -302,7 +302,6 @@ let state = {
     muteVideos: true,
     globalFramePeek: true,
     framePeekSize: 'M',
-    keepModelsHot: false,
     warmModels: { deepdream: false, styletransfer: false, fastsam: false },
   },
   formState: {},
@@ -333,7 +332,6 @@ const SETTINGS_DEFAULTS = {
   muteVideos: true,
   globalFramePeek: true,
   framePeekSize: 'M',
-  keepModelsHot: false,
   warmModels: { deepdream: false, styletransfer: false, fastsam: false },
   ownedDirs: [],
   catalogAutoIndex: true,
@@ -358,7 +356,6 @@ function mapServerSettings(data) {
   if (data.mute_videos != null) mapped.muteVideos = !!data.mute_videos;
   if (data.global_frame_peek != null) mapped.globalFramePeek = !!data.global_frame_peek;
   if (data.frame_peek_size) mapped.framePeekSize = data.frame_peek_size;
-  if (data.keep_models_hot != null) mapped.keepModelsHot = !!data.keep_models_hot;
   if (data.warm_models && typeof data.warm_models === 'object') {
     mapped.warmModels = { ...SETTINGS_DEFAULTS.warmModels, ...data.warm_models };
   }
@@ -391,11 +388,9 @@ async function applySettingsPrecedence() {
     ...SETTINGS_DEFAULTS,
     ...server,
     ...local,
-    keepModelsHot: !!server.keepModelsHot,
     warmModels: {
       ...SETTINGS_DEFAULTS.warmModels,
       ...(server.warmModels || {}),
-      ...(local.warmModels || {}),
     },
     ownedDirs: Array.isArray(local.ownedDirs) ? local.ownedDirs : (Array.isArray(server.ownedDirs) ? server.ownedDirs : SETTINGS_DEFAULTS.ownedDirs),
   };

@@ -125,6 +125,7 @@ def serve(directory):
             except Exception as error:
                 traceback.print_exc()
                 result = {'ok': False, 'error': str(error)}
+            result.update(pid=os.getpid(), loads=_loads, model_loaded=_model is not None)
             response = path.with_name(path.name.replace('.request.json', '.response.json'))
             staging = response.with_suffix('.tmp')
             staging.write_text(json.dumps(result))

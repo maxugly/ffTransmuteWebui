@@ -1,6 +1,6 @@
 # Project status — agent & human source of truth
 
-> **Updated:** 2026-10-12
+> **Updated:** 2026-10-13
   \
 > **VERSION:** root `VERSION` file (do not copy the digits here)  \
 > **Branch:** `wip`  
@@ -12,9 +12,9 @@
 
 ## Shipped this stretch / Next assignment
 
-**Shipped this stretch:** Fixed DECbars workspace framing and global inputs support. DECbars accepts global inputs (`Media In` audio/video) with auto-population of `Beat Path` and live sync, Browse and Globals buttons. Removed fixed 480px canvas container height and artificial scroll frames: `.decbars-workspace`, `.action-panel`, `.action-panel-form`, `.decbars-sequencer-wrap`, and `.decbars-timeline-canvas-container` now expand to occupy 100% of available viewport horizontal and vertical space without inner letterboxing. Fast check gate 5/5 passed. Playwright automated browser verification on live server (:24590) confirmed global input acceptance, beat path auto-population, and full viewport sizing (>1000px width, >670px height) with screenshot proof in `junk/decbars_full_space_proof.png`.
+**Shipped this stretch:** Added persistent ACE-Step attempt diagnostics in `mtapi-project/junk/music-diagnostics/`: submitted parameters, T2M environment, runner/interpreter, full streamed output, return code, timing, outcome and output path. Successes, failures, cancellations and dry runs retain records; errors identify the JSON record. Gate 5/5, Music tests 32 passed, Playwright real Music Run click verified dry-run persistence on isolated server. Existing WebUI server needs restart to load this change. Replaced global Models hot with independent per-tool Keep loaded controls and a read-only global residency indicator: orange empty, red loaded elsewhere, green loaded for this tab, yellow loading (gray when offline). Direct and composite model tabs have a status strip showing loaded model names and selected weight size on disk. Retention is supported for TTS, DeepDream (including V2/V3), Style Transfer, Vision/FastSAM, Stems, Erase and local WithoutBG. One-shot engines show status/size and explicitly unavailable retention. Navigation has no model lifecycle side effects. Gate 5/5 and targeted suite 183 passed; final lifecycle subset 14 passed. Playwright real clicks with a real Piper worker verified all four colors, independent preferences, PID retention across tabs, scoped release, reload persistence and no navigation-triggered model POSTs. Proof script/screenshots in `mtapi-project/junk/model-tabs-prove.mjs` and `model-tab-*.png`. As built: `docs/model-hot-status-spec.md`.
 
-**Next assignment:** Resident adapters for external one-shot Music, Txt2Img, Img2Img and other CLI engines remain separate work; the shared toggle explicitly lists these limits. Additional TTS engines and shared Stems/Music export integration when requested.
+**Next assignment:** Compare ACE-Step successful/failed diagnostic records to locate the intermittent OpenVINO Add shape mismatch. Resident adapters for external one-shot Music, Txt2Img, Img2Img and other CLI engines remain separate work; their own status strips show that retention is unavailable. Additional TTS engines and shared Stems/Music export integration when requested.
 
 | Area | Notes | Spec / code |
 |------|--------|-------------|

@@ -164,6 +164,10 @@ async def txt2img_run(p: Txt2ImgParams) -> OperationResult:
         env=env,
     )
 
+    from app import model_hot
+    from app.model_inventory import hf_snapshot
+    model_key = model_hot.start_loading('txt2img', p.model_id, hf_snapshot(p.model_id))
+
     stdout_chunks: list[bytes] = []
 
     async def _pump() -> None:
@@ -174,6 +178,8 @@ async def txt2img_run(p: Txt2ImgParams) -> OperationResult:
                 break
             stdout_chunks.append(line)
             text = line.decode(errors="replace").strip()
+            if text == "MODEL_LOADED":
+                model_hot.loaded(model_key)
             if text.startswith("PROGRESS "):
                 try:
                     part = text.split()[1]
@@ -211,6 +217,9 @@ async def txt2img_run(p: Txt2ImgParams) -> OperationResult:
             proc.kill()
             await proc.wait()
         return OperationResult(ok=False, operation=op, error=str(e))
+
+    finally:
+        model_hot.forget(model_key)
 
     stdout_b = b"".join(stdout_chunks)
     if proc.returncode != 0:

@@ -77,7 +77,6 @@ function settingsSnapshot() {
     muteVideos: state.settings.muteVideos !== false,
     globalFramePeek: state.settings.globalFramePeek !== false,
     framePeekSize: normalizeSize(state.settings.framePeekSize, 'M'),
-    keepModelsHot: !!state.settings.keepModelsHot,
     warmModels: { ...(state.settings.warmModels || {}) },
     ownedDirs: Array.isArray(state.settings.ownedDirs) ? state.settings.ownedDirs.filter(s => typeof s === 'string' && s) : [],
     catalogAutoIndex: state.settings.catalogAutoIndex !== false,
@@ -114,7 +113,6 @@ async function saveSettings(patch = {}) {
         mute_videos: payload.muteVideos,
         global_frame_peek: payload.globalFramePeek,
         frame_peek_size: payload.framePeekSize,
-        keep_models_hot: payload.keepModelsHot,
         warm_models: payload.warmModels,
         owned_dirs: payload.ownedDirs,
         catalog_auto_index: payload.catalogAutoIndex,
@@ -260,16 +258,6 @@ export function renderSettingsForm() {
           </div>
         </div>
         <p class="settings-card-desc">Covers Run results: Single-Clip Ops, Cut, Datamosh, Speed / RIFE, Convert, and batch items.<br>Videos go to the Video pool (+ optional Sequence, deduped, video-only). Stills go to the Image pool.<br>Stitch Sequence and Quick Transmute always add — they are explicit pool builders.<br>Dry runs and failures never add.</p>
-      </section>
-      <section class="settings-card settings-warm" aria-labelledby="settingsWarmTitle">
-        <div class="settings-card-head">
-          <span class="settings-card-kicker">Neural FX</span>
-          <h4 class="settings-card-name" id="settingsWarmTitle">Keep models warm</h4>
-        </div>
-        <div class="settings-warm-row">
-          ${switchHtml('settingsKeepModelsHot', 'Keep models hot', state.settings.keepModelsHot)}
-        </div>
-        <p class="settings-card-desc">Shared with the top-right toggle. Retains supported TTS, image and stem models between runs. Off releases them after active jobs finish; external one-shot engines remain separate.</p>
       </section>
       <section class="settings-card settings-ui" aria-labelledby="settingsUiTitle">
         <div class="settings-card-head">

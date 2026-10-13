@@ -627,7 +627,7 @@
 
   <!-- Main View -->
   <main>
-    <button id="btnModelHot" type="button" aria-pressed="false" data-help-title="Keep models hot" data-help-text="Keep supported neural models resident between runs. Off releases them once active jobs finish.">♨ Models hot: Off</button>
+    <div id="modelGlobalStatus" class="model-global-status" role="status" data-state="empty" data-help-title="Model residency across all tools" data-help-text="Orange: nothing loaded. Red: loaded in another tab. Green: loaded for this tab. Yellow: a model is loading. Tab navigation never loads or releases models."><span class="model-state-dot" aria-hidden="true"></span><span id="modelGlobalText">Models · checking…</span></div>
     <header>
       <div class="global-quick-btns">
  <button class="btn btn-quick" id="btnQuickI" data-help-title="Pick media input(s)">I</button>

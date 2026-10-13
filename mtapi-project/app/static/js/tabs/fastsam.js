@@ -9,8 +9,6 @@ export function renderFastSAMForm() {
       <p class="dream-hint">Uses OpenVINO optimized FastSAM model to extract subjects (FP16 on Iris Xe). Outputs transparent PNG or video.</p>
     </div>
     <div class="knob-row settings-inline-warm">
-      <div class="knob-bank">${knobUnitHtml({ id: 'fastsamWarm', label: 'Keep warm', value: state.settings?.warmModels?.fastsam ? '1' : '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Keep warm — Off / On', helpText: 'Keeps the OpenVINO FastSAM model resident between runs. On = faster repeat runs, holds VRAM.' })}</div>
-      <p class="knob-row-legend">Keep the FastSAM model resident between runs (uses VRAM).</p>
     </div>
 
     <div class="form-row">
@@ -106,14 +104,6 @@ export function renderFastSAMForm() {
   });
 
   setupBinaryKnob({
-    knobId: 'fastsamWarmKnob', indicatorId: 'fastsamWarmKnobInd', hiddenId: 'fastsamWarm',
-    leftValue: '0', rightValue: '1', initial: state.settings?.warmModels?.fastsam ? '1' : '0',
-  });
-  document.getElementById('fastsamWarm')?.addEventListener('change', (e) => {
-    state.settings.warmModels.fastsam = e.target.value === '1';
-    try { localStorage.setItem('mtapi.settings', JSON.stringify(state.settings)); } catch (_) {}
-  });
-  setupBinaryKnob({
     knobId: 'fastsamDryRunKnob', indicatorId: 'fastsamDryRunKnobInd', hiddenId: 'fastsamDryRun',
     leftValue: '0', rightValue: '1', initial: '0',
   });
@@ -205,7 +195,7 @@ export function collectFastSAMBody() {
     iou: parseFloat((document.getElementById('fastsamIou') || {}).value || '0.9'),
     device: (document.getElementById('fastsamDevice') || {}).value || 'GPU',
     dry_run: ((document.getElementById('fastsamDryRun') || {}).value === '1'),
-    keep_model_warm: ((document.getElementById('fastsamWarm') || {}).value === '1'),
+    keep_model_warm: !!state.settings.warmModels?.fastsam,
   };
   return withFrameRange(p);
 }

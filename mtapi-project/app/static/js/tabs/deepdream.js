@@ -101,8 +101,6 @@ function renderDeepDreamForm() {
       <span class="form-row-hint">One-time IR install + CPU smoke + GPU probe.</span>
     </div>
     <div class="knob-row settings-inline-warm">
-      <div class="knob-bank">${knobUnitHtml({ id: 'dreamWarm', label: 'Keep warm', value: state.settings?.warmModels?.deepdream ? '1' : '0', binary: true, leftCap: 'Off', rightCap: 'On', helpTitle: 'Keep warm — Off / On', helpText: 'Keeps the DeepDream model resident between runs. On = faster repeat runs, holds VRAM.' })}</div>
-      <p class="knob-row-legend">Keep the DeepDream model resident between runs (uses VRAM).</p>
     </div>
 
     <div class="knob-row dream-turbo-only">
@@ -662,10 +660,6 @@ function renderDeepDreamForm() {
   // Binary knobs
   // Media: store image|video; Detect: 0=force 1=auto
   setupBinaryKnob({
-    knobId: 'dreamWarmKnob', indicatorId: 'dreamWarmKnobInd', hiddenId: 'dreamWarm',
-    leftValue: '0', rightValue: '1', initial: state.settings?.warmModels?.deepdream ? '1' : '0',
-  });
-  setupBinaryKnob({
     knobId: 'dreamTurboKnob', indicatorId: 'dreamTurboKnobInd', hiddenId: 'dreamTurbo',
     leftValue: '0', rightValue: '1', initial: '0',
   });
@@ -673,10 +667,6 @@ function renderDeepDreamForm() {
     knobId: 'dreamTurboStrengthKnob', indicatorId: 'dreamTurboStrengthKnobInd',
     valueId: 'dreamTurboStrengthVal', hiddenId: 'dreamTurboStrength',
     min: 0, max: 1, step: 0.05, decimals: 2,
-  });
-  document.getElementById('dreamWarm')?.addEventListener('change', (e) => {
-    state.settings.warmModels.deepdream = e.target.value === '1';
-    try { localStorage.setItem('mtapi.settings', JSON.stringify(state.settings)); } catch (_) {}
   });
   setupBinaryKnob({
     knobId: 'dreamMediaKnob', indicatorId: 'dreamMediaKnobInd', hiddenId: 'dreamMedia',
@@ -1016,7 +1006,7 @@ function collectDeepDreamBody() {
     translate_x: parseFloat(document.getElementById('dreamTx')?.value || '5'),
     translate_y: parseFloat(document.getElementById('dreamTy')?.value || '5'),
     dry_run: document.getElementById('dreamDryRun')?.value === '1',
-    keep_model_warm: document.getElementById('dreamWarm')?.value === '1',
+    keep_model_warm: !!state.settings.warmModels?.deepdream,
     evolve_enabled: document.getElementById('dreamEvolve')?.value === '1',
     evolve_fps: parseFloat(document.getElementById('dreamEvolveFps')?.value || '12'),
     evolve_metric: document.getElementById('dreamEvolveMetric')?.value || 'phash',

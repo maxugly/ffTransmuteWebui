@@ -164,6 +164,8 @@ def _run_ov_img2img_mode(*, output_path, qr_image_path, prompt, negative,
         print(f"ERROR: failed to load pipeline: {e}", file=sys.stderr)
         return 4
 
+    print("MODEL_LOADED", flush=True)
+
     if seed is None:
         seed = random.randint(0, 2**31 - 1)
     else:
@@ -294,6 +296,7 @@ def _run_ip_adapter_mode(
         return 5
 
     pipe = pipe.to(torch_device)
+    print("MODEL_LOADED", flush=True)
 
     if seed is None:
         seed = random.randint(0, 2**31 - 1)

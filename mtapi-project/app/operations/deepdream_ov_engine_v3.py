@@ -252,11 +252,13 @@ def _get_compiled(
             )
             continue
         try:
-            model = ov.Core().read_model(str(ir))
-            config = {}
-            if settled == "GPU":
-                config[ov.properties.hint.inference_precision] = ov.Type.f32
-            compiled = ov.Core().compile_model(model, settled, config)
+            from app import model_hot
+            with model_hot.loading('deepdream', 'InceptionV3 · '+key, [ir, ir.with_suffix('.bin')]):
+                model = ov.Core().read_model(str(ir))
+                config = {}
+                if settled == "GPU":
+                    config[ov.properties.hint.inference_precision] = ov.Type.f32
+                compiled = ov.Core().compile_model(model, settled, config)
         except Exception as exc:
             last_error = exc
             continue

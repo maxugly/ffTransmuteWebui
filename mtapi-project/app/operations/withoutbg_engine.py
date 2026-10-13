@@ -43,7 +43,9 @@ def _get_model(backend: Backend, api_key: str | None = None):
     with _model_lock:
         if backend == "local":
             if _local_model is None:
-                _local_model = WithoutBG.open_weights()
+                from app import model_hot
+                with model_hot.loading('withoutbg', 'WithoutBG open weights', ()):
+                    _local_model = WithoutBG.open_weights()
             return _local_model
 
         key = (api_key or os.environ.get("WITHOUTBG_API_KEY") or "").strip()

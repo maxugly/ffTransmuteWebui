@@ -249,8 +249,13 @@ def morph_image_list(
                 continue
 
             try:
-                size, img_a_crop, img_b_crop, pts_a, pts_b, corresp = \
-                    generate_face_correspondences(img_a, img_b)
+                from app import model_hot
+                model_key = model_hot.start_loading('facemorph', 'dlib face landmarks', [predictor_path(root)])
+                try:
+                    size, img_a_crop, img_b_crop, pts_a, pts_b, corresp = \
+                        generate_face_correspondences(img_a, img_b)
+                finally:
+                    model_hot.forget(model_key)
                 if not pts_a or not pts_b or corresp is None:
                     raise NoFaceFound("empty landmark lists")
             except NoFaceFound as e:

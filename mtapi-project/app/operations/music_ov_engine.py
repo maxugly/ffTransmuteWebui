@@ -362,28 +362,41 @@ async def run_generation(env: dict[str, str], token: str | None,
         cwd=str(SOURCE_DIR),
         env=env,
     )
-    lines: list[str] = []
-    step_re = re.compile(r"step (\d+)/(\d+)")
-    assert proc.stdout is not None
-    while True:
-        raw = await proc.stdout.readline()
-        if not raw:
-            break
-        line = raw.decode("utf-8", "replace").rstrip()
-        lines.append(line)
-        m = step_re.search(line)
-        if m and token:
-            done = int(m.group(1))
-            job_control.report_progress(
-                f"diffusion step {done}/{total_steps}", phase="diffuse",
-                current=done, total=total_steps, unit="steps", token=token)
-        if token and job_control.is_cancelled(token):
-            try:
-                proc.terminate()
-            except ProcessLookupError:
-                pass
-            raise job_control.JobCancelled(f"music_generate cancelled at: {line}")
-    rc = await proc.wait()
+    from app import model_hot
+    model_key = model_hot.start_loading('music', env.get('T2M_CKPT', 'ACE-Step'), [SOURCE_DIR/env['T2M_DIT_DIR']/env['T2M_DIT'], (SOURCE_DIR/env['T2M_DIT_DIR']/env['T2M_DIT']).with_suffix('.bin'), *[SOURCE_DIR/p for p in SHARED_MANIFEST]])
+    try:
+        lines: list[str] = []
+        step_re = re.compile(r"step (\d+)/(\d+)")
+        assert proc.stdout is not None
+        while True:
+            raw = await proc.stdout.readline()
+            if not raw:
+                break
+            line = raw.decode("utf-8", "replace").rstrip()
+            lines.append(line)
+            if env.get("MUSIC_DIAGNOSTIC_LOG"):
+                with Path(env["MUSIC_DIAGNOSTIC_LOG"]).open("a", encoding="utf-8") as diagnostic:
+                    diagnostic.write(line + "\n")
+            if "diffusion (" in line.lower() or "step " in line.lower():
+                model_hot.loaded(model_key)
+            m = step_re.search(line)
+            if m and token:
+                done = int(m.group(1))
+                job_control.report_progress(
+                    f"diffusion step {done}/{total_steps}", phase="diffuse",
+                    current=done, total=total_steps, unit="steps", token=token)
+            if token and job_control.is_cancelled(token):
+                try:
+                    proc.terminate()
+                except ProcessLookupError:
+                    pass
+                raise job_control.JobCancelled(f"music_generate cancelled at: {line}")
+        rc = await proc.wait()
+    finally:
+        if proc.returncode is None:
+            proc.terminate()
+            await proc.wait()
+        model_hot.forget(model_key)
     text = "\n".join(lines)
     wav: Path | None = None
     for line in lines:

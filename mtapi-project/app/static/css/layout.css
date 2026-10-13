@@ -964,10 +964,20 @@ body.prompts-tab-active .tool-input-preview {
   display: none !important;
 }
 
-/* Shared hot-model toggle survives tabs that hide the operation header. */
-#btnModelHot { position: fixed; top: 7px; right: 8px; z-index: 30; font: inherit; font-size: .72rem; padding: 3px 7px; min-height: 25px; border: 1px solid var(--panel-border); border-radius: 4px; background: var(--input-bg); color: var(--text-main); cursor: pointer; }
-#btnModelHot[aria-pressed="true"] { color: #fbbf24; border-color: #b7791f; }
-main > header { padding-right: 165px; }
+/* The global state is read-only; retention controls belong to each model tab. */
+.model-global-status { position: fixed; top: 7px; right: 8px; z-index: 30; display: flex; gap: 6px; align-items: center; font-size: .72rem; padding: 4px 8px; border: 1px solid var(--panel-border); border-radius: 4px; background: var(--input-bg); color: var(--text-main); max-width: min(340px, 45vw); }
+.model-global-status span:last-child { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.model-state-dot { display: inline-block; width: 9px; height: 9px; flex: 0 0 9px; border-radius: 50%; background: #f97316; }
+[data-state="elsewhere"] > .model-state-dot { background: #ef4444; }
+[data-state="loaded"] > .model-state-dot { background: #22c55e; }
+[data-state="loading"] > .model-state-dot { background: #facc15; }
+[data-state="unknown"] > .model-state-dot { background: #94a3b8; }
+.model-tab-status { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 12px; padding: 8px 10px; margin-bottom: 10px; border: 1px solid var(--panel-border); border-radius: 4px; background: var(--input-bg); font-size: .78rem; flex-shrink: 0; }
+.model-tab-status[hidden] { display: none; }
+.model-tab-status .model-local-state { display: inline-flex; gap: 6px; align-items: center; }
+.model-tab-status label { display: inline-flex; gap: 6px; align-items: center; margin-left: auto; cursor: pointer; }
+.model-tab-status .model-detail { width: 100%; overflow-wrap: anywhere; opacity: .8; }
+main > header { padding-right: 225px; }
 .status-indicator { flex-shrink: 0; align-items: flex-start; }
 #statusText { white-space: pre-line; overflow-wrap: anywhere; min-width: 0; line-height: 1.4; }
 .status-indicator .status-dot { margin-top: 4px; flex-shrink: 0; }

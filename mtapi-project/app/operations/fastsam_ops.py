@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Literal
 from pydantic import BaseModel, Field
@@ -82,11 +83,11 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
     # ── Image path: direct inference ─────────────────────────────────────
     if is_image:
         import cv2
-        from app.filters.fastsam import ensure_openvino_model, get_runtime_model, get_target_mask
+        from app.filters.fastsam import ensure_openvino_model, get_runtime_model, get_target_mask, predict_runtime
         from ultralytics import FastSAM
 
-        ov_model_path = ensure_openvino_model(model_id=p.model_id, device=p.device)
-        model = get_runtime_model(ov_model_path, keep_warm=p.keep_model_warm, model_id=p.model_id)
+        ov_model_path = await asyncio.to_thread(ensure_openvino_model, model_id=p.model_id, device=p.device)
+        model = await asyncio.to_thread(get_runtime_model, ov_model_path, keep_warm=p.keep_model_warm, model_id=p.model_id)
         print(f"[fastsam] using {p.model_id} on {p.device}")
 
         ov_device = p.device
@@ -100,7 +101,7 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
                 error=f"Failed to read image: {input_path}",
             )
 
-        results = model(img, device=ov_device, conf=p.conf, iou=p.iou)
+        results = await asyncio.to_thread(predict_runtime, model, img, model_id=p.model_id, model_path=ov_model_path, device=ov_device, conf=p.conf, iou=p.iou)
 
         if results and len(results) > 0 and results[0].masks is not None:
             mask_result = get_target_mask(results[0], img.shape, p.mode, p.target_x, p.target_y)

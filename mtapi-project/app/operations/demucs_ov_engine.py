@@ -250,12 +250,14 @@ def load_ensemble(
     base = cache_base or _cache_base()
     compiled: list[Any] = []
     settled = device
-    for xml_name in _model_irs(model):
-        member_cache = base / model / Path(xml_name).stem
-        cm, settled = _compile_one(
-            d / xml_name, device, member_cache, allow_fallback=allow_fallback
-        )
-        compiled.append(cm)
+    from app import model_hot
+    with model_hot.loading('demucs', model, [d / f for f in _model_irs(model)] + [(d/f).with_suffix('.bin') for f in _model_irs(model)]):
+        for xml_name in _model_irs(model):
+            member_cache = base / model / Path(xml_name).stem
+            cm, settled = _compile_one(
+                d / xml_name, device, member_cache, allow_fallback=allow_fallback
+            )
+            compiled.append(cm)
     with _lock:
         _compiled[key] = (compiled, settled, d)
     return compiled, settled, d

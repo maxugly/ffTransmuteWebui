@@ -134,9 +134,13 @@ async def run_rife_directory(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+        from app import model_hot
+        model_key = model_hot.start_loading('rife', model, [Path(argv[0]).resolve().parent/model])
         try:
             # Cancel-friendly wait: poll instead of blocking communicate()
             while proc.returncode is None:
+                if any(dst.glob("*.png")):
+                    model_hot.loaded(model_key)
                 job_control.check_cancelled()
                 await asyncio.sleep(0.5)
             _out_b, err_b = await proc.communicate()
@@ -147,6 +151,7 @@ async def run_rife_directory(
                 job_control.stop_dir_watch(token)
             raise
         finally:
+            model_hot.forget(model_key)
             if token:
                 job_control.stop_dir_watch(token)
 

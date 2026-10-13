@@ -167,6 +167,10 @@ async def run_img2img_directory(
         env=env,
     )
 
+    from app import model_hot
+    from app.model_inventory import hf_snapshot
+    model_key = model_hot.start_loading('img2img', model_id, hf_snapshot(model_id))
+
     stdout_chunks: list[bytes] = []
     stderr_b = b""
 
@@ -178,6 +182,8 @@ async def run_img2img_directory(
                 break
             stdout_chunks.append(line)
             text = line.decode(errors="replace").strip()
+            if text == "MODEL_LOADED":
+                model_hot.loaded(model_key)
             if text.startswith("PROGRESS "):
                 try:
                     part = text.split()[1]
@@ -215,6 +221,9 @@ async def run_img2img_directory(
         await proc.wait()
         pump.cancel()
         raise
+
+    finally:
+        model_hot.forget(model_key)
 
     stdout_b = b"".join(stdout_chunks)
     if proc.returncode != 0:

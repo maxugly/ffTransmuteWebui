@@ -28,7 +28,6 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "mute_videos": True,
     "global_frame_peek": True,
     "frame_peek_size": "M",
-    "keep_models_hot": False,
     "warm_models": {"deepdream": False, "styletransfer": False, "fastsam": False},
     "owned_dirs": [],
     "catalog_auto_index": True,
@@ -91,10 +90,9 @@ def _normalize_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
         "frame_peek_size": normalize_thumb_size(
             raw.get("frame_peek_size", DEFAULT_SETTINGS["frame_peek_size"]), "M"
         ),
-        "keep_models_hot": bool(raw.get("keep_models_hot", False)),
         "warm_models": {
             name: bool(warm.get(name, False))
-            for name in ("deepdream", "styletransfer", "fastsam")
+            for name in ("deepdream", "styletransfer", "fastsam", "tts", "demucs", "erase", "withoutbg")
         },
         "owned_dirs": owned_dirs,
         "catalog_auto_index": bool(raw.get("catalog_auto_index", True)),

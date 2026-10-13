@@ -110,8 +110,10 @@ def _get_compiled(
         if hit is not None:
             return hit, dev
         try:
-            model = ov.Core().read_model(ir_path)
-            compiled = ov.Core().compile_model(model, dev)
+            from app import model_hot
+            with model_hot.loading('styletransfer', Path(ir_path).stem, [ir_path, Path(ir_path).with_suffix('.bin')]):
+                model = ov.Core().read_model(ir_path)
+                compiled = ov.Core().compile_model(model, dev)
         except Exception as e:  # noqa: BLE001 — strict raise below, fallback only if asked
             last_err = e
             continue

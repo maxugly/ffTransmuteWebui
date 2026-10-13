@@ -128,6 +128,8 @@ def main() -> int:
         print(f"ERROR: failed to load pipeline: {e}", file=sys.stderr)
         return 4
 
+    print("MODEL_LOADED", flush=True)
+
     n = len(pairs)
     for i, pair in enumerate(pairs):
         src = Path(pair["in"])

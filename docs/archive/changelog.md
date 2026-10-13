@@ -1394,3 +1394,10 @@ TTS speaks highlighted input text through both Generate actions, with full-scrip
 Shared top-right hot-model toggle and persisted policy; isolated resident TTS worker with one-checkpoint replacement; native model cache release deferred until idle. Bottom-left global activity/elapsed/phase display and bounded learned per-profile load/word-count TTS ETA. Explicit one-shot engine limits. Gate green, targeted native/TTS/settings tests pass, same-PID/one-load Piper UI proof and deferred-off/reload/selection checks pass; screenshot inspected.
 
 Additional verification: real Kokoro, Supertonic and Kitten voice changes reuse the same worker PID and single model load; resident worker exits after turning the shared toggle off.
+
+## 2026-10-13 — 8.168 — Per-tool model retention and residency
+
+Replaced the global Models hot policy with independent persisted tool preferences and a read-only global indicator (orange empty, red elsewhere, green current tab, yellow loading, gray unavailable). Each model tool shows selected artifact size on disk and real loading/residency information. Native coverage includes DeepDream V2/V3 and WithoutBG; worker signals cover TTS, SD/QR and ACE-Step, with transient state removed at exit/failure. One-shot retention remains explicitly unavailable. Tab navigation has no loading/release side effects; scoped release preserves other retained models. Gate 5/5; targeted suite 183 passed plus final lifecycle subset 14 passed. Playwright real-click proof uses Piper and validates all four states, independent toggles, retained PID, release isolation and persistence. See docs/model-hot-status-spec.md and mtapi-project/junk/model-tabs-prove.mjs.
+
+
+2026-10-13: Persistent ACE-Step attempt diagnostics (parameters, runner environment, streamed logs, outcomes and timings). Gate 5/5; 32 Music tests; Playwright real Run dry-run proof.

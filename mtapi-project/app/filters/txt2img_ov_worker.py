@@ -98,6 +98,8 @@ def main() -> int:
         print(f"ERROR: failed to load pipeline: {e}", file=sys.stderr)
         return 4
 
+    print("MODEL_LOADED", flush=True)
+
     if seed is None:
         seed = random.randint(0, 2**31 - 1)
     else:

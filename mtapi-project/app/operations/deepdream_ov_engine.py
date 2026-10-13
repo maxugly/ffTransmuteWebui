@@ -165,10 +165,12 @@ def _get_compiled(
             )
             continue
         try:
-            model = ov.Core().read_model(str(ir))
-            cfg = ({ov.properties.hint.inference_precision: ov.Type.f32}
-                   if dev == "GPU" else {})
-            compiled = ov.Core().compile_model(model, dev, cfg)
+            from app import model_hot
+            with model_hot.loading('deepdream', 'InceptionV3 · '+key, [ir, ir.with_suffix('.bin')]):
+                model = ov.Core().read_model(str(ir))
+                cfg = ({ov.properties.hint.inference_precision: ov.Type.f32}
+                       if dev == "GPU" else {})
+                compiled = ov.Core().compile_model(model, dev, cfg)
         except Exception as e:  # noqa: BLE001 — strict raise below, fallback only if asked
             last_err = e
             continue

@@ -313,3 +313,40 @@ def test_cover_needs_src_audio(monkeypatch, tmp_path):
                             output_dir=str(tmp_path))
     r = _run(mops.music_generate(p))
     assert r.ok is False and "src_audio" in r.error
+
+
+def test_generation_diagnostics_keep_settings_and_failure(monkeypatch, tmp_path):
+    import json
+    monkeypatch.setattr(mops, 'MUSIC_DIAGNOSTICS_DIR', tmp_path / 'diagnostics')
+    monkeypatch.setattr(ove, 'manifest_for', lambda model: ['scripts/generate_t2m.py'])
+    async def failed(env, token, **kwargs):
+        assert env['T2M_PROMPT'] == 'diagnostic caption'
+        return 1, 'null uncond (1, 265, 2048)\nArgument shapes are inconsistent.', None
+    monkeypatch.setattr(ove, 'run_generation', failed)
+    result = _run(mops.music_generate(MusicGenerateParams(
+        prompt='diagnostic caption', lyrics='test lyrics', steps=20, seed=123)))
+    record = json.loads(next((tmp_path / 'diagnostics').glob('*.json')).read_text())
+    assert record['status'] == 'failed'
+    assert record['parameters']['lyrics'] == 'test lyrics'
+    assert record['runner_environment']['T2M_STEPS'] == '20'
+    assert record['runner_environment']['T2M_SEED'] == '123'
+    assert 'PATH' not in record['runner_environment']
+    assert '265' in Path(record['runner_log']).read_text()
+    assert 'Diagnostic record:' in result.error
+    assert record['finished_at'] and record['elapsed_sec'] >= 0
+
+
+def test_generation_diagnostics_keep_success(monkeypatch, tmp_path):
+    import json
+    monkeypatch.setattr(mops, 'MUSIC_DIAGNOSTICS_DIR', tmp_path / 'diagnostics')
+    monkeypatch.setattr(ove, 'manifest_for', lambda model: ['scripts/generate_t2m.py'])
+    wav = tmp_path / 'success.wav'
+    wav.write_bytes(b'test')
+    async def succeeded(env, token, **kwargs):
+        return 0, 'step 20/20\nSaved ' + str(wav), wav
+    monkeypatch.setattr(ove, 'run_generation', succeeded)
+    result = _run(mops.music_generate(MusicGenerateParams(steps=20)))
+    record = json.loads(next((tmp_path / 'diagnostics').glob('*.json')).read_text())
+    assert result.ok and record['status'] == 'succeeded'
+    assert record['output_path'] == str(wav)
+    assert 'step 20/20' in Path(record['runner_log']).read_text()

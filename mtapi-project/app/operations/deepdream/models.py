@@ -157,14 +157,16 @@ def _load_base_model(keras, model_name: str):
     if model_name in _base_model_cache:
         return _base_model_cache[model_name]
     from keras.applications import inception_v3, vgg16, resnet50
-    if model_name == "inception_v3":
-        model = inception_v3.InceptionV3(weights="imagenet", include_top=False)
-    elif model_name == "vgg16":
-        model = vgg16.VGG16(weights="imagenet", include_top=False)
-    elif model_name == "resnet50":
-        model = resnet50.ResNet50(weights="imagenet", include_top=False)
-    else:
-        raise ValueError(f"Unknown model: {model_name}")
+    from app import model_hot
+    with model_hot.loading('deepdream', model_name, list((Path.home()/'.keras/models').glob(model_name+'*notop.h5'))):
+        if model_name == "inception_v3":
+            model = inception_v3.InceptionV3(weights="imagenet", include_top=False)
+        elif model_name == "vgg16":
+            model = vgg16.VGG16(weights="imagenet", include_top=False)
+        elif model_name == "resnet50":
+            model = resnet50.ResNet50(weights="imagenet", include_top=False)
+        else:
+            raise ValueError(f"Unknown model: {model_name}")
     _base_model_cache[model_name] = model
     return model
 

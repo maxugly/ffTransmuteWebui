@@ -317,12 +317,16 @@ async def generate(token, payload):
         TASKS[token].update(model_label=model.get('label', recipe['label']), word_count=words,
             estimated_s=tts_timing.estimate(bucket, words, reused))
         progress(token, 'Generating speech · model hot' if reused else 'Loading model / generating speech', 0, 2)
-        resident_run = model_hot.enabled() and recipe['engine'] != 'dectalk'
-        if resident_run:
-            metrics = await model_hot.synthesize(recipe['engine'], model_path(recipe), voice, quality, controls, text_path, source)
-            code, error = 0, ''
-        else:
-            code, worker_stdout, error = await shell.run_command([sys.executable, str(ROOT/'tools'/'tts_worker.py'), '--engine', recipe['engine'], '--model-dir', str(model_path(recipe)), '--voice', voice, '--quality', quality, '--controls', json.dumps(controls), '--text-file', str(text_path), '--output', str(source), '--phase-file', str(text_path.with_suffix('.phase'))])
+        resident_run = model_hot.enabled('tts') and recipe['engine'] != 'dectalk'
+        TASKS[token].update(model_running=recipe['engine'] != 'dectalk', model_paths=[str(model_path(recipe)/f['name']) for f in recipe['files']])
+        try:
+            if resident_run:
+                metrics = await model_hot.synthesize(recipe['engine'], model_path(recipe), voice, quality, controls, text_path, source)
+                code, error = 0, ''
+            else:
+                code, worker_stdout, error = await shell.run_command([sys.executable, str(ROOT/'tools'/'tts_worker.py'), '--engine', recipe['engine'], '--model-dir', str(model_path(recipe)), '--voice', voice, '--quality', quality, '--controls', json.dumps(controls), '--text-file', str(text_path), '--output', str(source), '--phase-file', str(text_path.with_suffix('.phase'))])
+        finally:
+            TASKS[token]['model_running'] = False
         if code:
             raise RuntimeError(error[-2000:])
         if not resident_run:
@@ -357,7 +361,7 @@ async def generate(token, payload):
 async def run(token, kind, payload):
     global ACTIVE
     from .. import model_hot
-    model_hot.begin()
+    await model_hot.begin('tts', token)
     try:
         result = await (download(token, payload) if kind=='install' else generate(token, payload))
         if kind == 'install':
@@ -370,4 +374,4 @@ async def run(token, kind, payload):
     finally:
         job_control.unregister(token)
         ACTIVE = None
-        await model_hot.finish()
+        await model_hot.finish('tts', token)
