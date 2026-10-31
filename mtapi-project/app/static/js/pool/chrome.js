@@ -1,8 +1,8 @@
 // Pool chrome — tile zoom, info menu, context menu, file browser, format helpers
-import { state, elements, ensureTileInfo, switchTab, checkHealth, showPreview } from '/app.js?v=2';
+import { state, elements, ensureTileInfo, switchTab, checkHealth, showPreview } from '/app.js?v=4';
 import { POOL_ZOOM, TILE_INFO_FIELDS } from '/js/pool/constants.js';
 import { escapeHtml } from '/js/utils.js';
-import { buildPoolMetaHtml, scheduleSavePoolState } from '/js/pool/persistence.js?v=2';
+import { buildPoolMetaHtml, scheduleSavePoolState } from '/js/pool/persistence.js?v=3';
 import { savePoolFramePng } from '/js/pool/items.js';
 import { addPathToSequence } from '/js/pool/sequence.js';
 import { quickTransmuteLabel, runQuickTransmute } from '/js/tabs/quick.js';
@@ -283,7 +283,7 @@ function showPoolContextMenu(x, y, path) {
           if (act === 'prov_clear') await prov.clearProvenance(path);
           else if (act === 'prov_undo') await prov.undoLastProvenance(path);
           else await prov.setProvenance(path, { [bit]: !sm[bit] });
-          try { await import('/js/pool/grid.js').then((m) => m.renderPoolGrid?.()); } catch (_) { /* ignore */ }
+          try { await import('/js/pool/grid.js?v=1').then((m) => m.renderPoolGrid?.()); } catch (_) { /* ignore */ }
           break;
         }
         default:

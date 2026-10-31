@@ -1,5 +1,130 @@
 > **Archive — not law. STATUS.md is where we are now.**
 
+### 000.000.8.192 — YOLOE-26n-seg Open-Vocabulary Segmentation
+- User request: Core pipeline tool `YOLOE-26n-seg` open-vocabulary detect + mask with text prompts for game assets.
+- Architecture & Weight Management (`app/filters/fastsam.py`):
+  - Model weights stored in `mtapi-project/junk/models/yoloe/` (`yoloe-26n-seg.pt` and `mobileclip2_b.ts`, 255 MB total) adhering to Invariant 8.
+  - Configured `SETTINGS['weights_dir']` so ultralytics downloads and loads text encoder assets within `junk/models/yoloe/`.
+  - Added `is_yoloe()` detector and dynamic class configuration via `model.set_classes(...)`.
+  - Target mode: selects the detected object closest to or containing the `(target_x, target_y)` prompt point.
+  - Everything mode: detects all instances matching the text prompt, crops tight transparent PNG cutouts, and names each file after its detected class (e.g. `bus_002.png`, `person_000.png`) in `<stem>_assets/`.
+  - Video support: integrated with `make_fastsam_directory` frame loop for multi-frame segmentation and ProRes export.
+- Backend Operation Contract (`app/operations/fastsam_ops.py`):
+  - Updated `FastSAMParams` with `model_id="yoloe-26n-seg"` and `text_prompt` string field.
+  - Passes `text_prompt` to `predict_runtime` and `make_fastsam_directory`.
+  - In Everything mode on single images, exports individual transparent PNGs with detected class names.
+- WebUI & Upstream Catalog (`js/tabs/fastsam.js`, `js/ui/tab-github-repos.js`):
+  - Vision tab renders `#fastsamModel` with `YOLOE-26n-seg (Open-Vocab text prompt)`.
+  - Added `#fastsamTextPrompt` input with HelpStrip attributes for comma-separated class queries ("bus, person" or "character, weapon, tree").
+  - Centralized GitHub header dropdown updated to include `YOLOE (Ultralytics / Real-Time Seeing Anything)`.
+- Verification:
+  - `./check-gate.sh` 5/5 pass (112 ESM modules clean).
+  - 7/7 pytest unit/integration tests pass in `tests/test_fastsam_efficientsam.py`.
+  - Playwright E2E browser test (`junk/vision_yoloe_prove.mjs`) ran against live `:24590` verifying tab navigation, model selection, prompt typing, GitHub dropdown, live execution producing individual transparent cutouts (`bus_002.png`, `person_000.png`, etc.), 0 console errors, and proof screenshot `junk/vision_yoloe_proof.png`.
+
+### 000.000.8.191 — Depth Anything V2-S INT8 Depth Map
+- User request: "next one is Depth Anything V2-S → depth map (INT8, ~1s)".
+- OpenVINO Quantized Weights & Engine (`app/filters/depthmap.py`):
+  - Model weights stored under `mtapi-project/junk/models/depth-anything-v2/` (`depth_anything_v2_s_int8.xml` and `.bin`, 25.5 MB) adhering to Invariant 8.
+  - Automated download from Hugging Face (`onnx-community/depth-anything-v2-small` OpenVINO INT8 quantized model).
+  - Implemented `DepthEstimatorPredictor` using OpenVINO Core compiled model with `_runtime_model_cache` and thread serialization.
+  - Dynamic spatial scaling ensuring height and width are multiples of 14 (default 518px), ImageNet normalization, min-max uint8 depth mapping (0=far, 255=near), optional invert toggle, and colormap formatting (Grayscale BGR, Inferno, Magma, Plasma, Viridis).
+  - Directory frame sequence stage `make_depthmap_directory()` integrated for video processing with `report_progress`.
+- Backend Operation Contract (`app/operations/depthmap_ops.py`):
+  - Registered `POST /ops/depthmap` operation with `DepthmapParams` contract.
+  - Dispatches single images directly or video jobs through `run_staged_job` (dump → `depthmap` directory stage → encode), adhering to Invariants 1, 9, and 10.
+- WebUI & Tab Navigation (`app/static/index.html`, `app/static/app.js`, `app/static/js/tabs/depthmap.js`, `app/static/js/job-control.js`):
+  - Added `Depth Map` navigation entry under the AI section (`data-tab="depthmap"`).
+  - Form interface provides input/output paths with Browse buttons, Colormap selector, Device selector (CPU/GPU/AUTO), Resolution selector (518/392/644), binary knobs for Invert and Dry Run, and full HelpStrip attributes (zero native `title` tags).
+  - Wired into `app.js` routing, state capture, `TAB_ACCEPTS.depthmap = 'any'`, `warmModels.depthmap`, and `job-control.js` job execution.
+- Upstream Repositories Dropdown (`app/static/js/ui/tab-github-repos.js`):
+  - Added GitHub dropdown popover entries for `depthmap` tab referencing `Depth-Anything-V2 (ByteDance)`, `Depth-Anything-V2-Small (onnx-community)`, and `OpenVINO Notebooks`.
+- Verification:
+  - `./check-gate.sh` 5/5 pass (112 ESM modules clean).
+  - 3/3 pytest unit tests pass (`tests/test_depthmap.py`).
+  - Playwright E2E browser test (`junk/depthmap_prove.mjs`) ran against live `:24590` verifying tab navigation, action panel title, input defaults, colormap options, GitHub dropdown, live execution via `#btnRun` creating `dogs_depth_0001.jpg`, 0 console errors, and proof screenshot `junk/depthmap_proof.png`.
+
+### 000.000.8.190 — OpenVINO EfficientSAM in Vision Tab
+- User request: "are we using this version of opensam https://docs.openvino.ai/2024/notebooks/efficient-sam-with-output.html ? If not, please keep what we have as an option but wire this in as the default choice".
+- Architecture & Evaluation:
+  - Previously, the Vision tab used `FastSAM` (`FastSAM-s`, `FastSAM-x` via Ultralytics).
+  - Evaluated the linked OpenVINO notebook, which deploys Meta FAIR's `EfficientSAM` (`efficient-sam-vitt` / `efficient-sam-vits` by `yformer/EfficientSAM`) converted to OpenVINO Intermediate Representation (IR).
+- OpenVINO Model & Weights (`app/filters/fastsam.py`):
+  - Model weights stored under `mtapi-project/junk/models/efficient-sam/` adhering to Invariant 8.
+  - Implemented automatic download of `efficient_sam_vitt.onnx` and OpenVINO conversion via `ov.convert_model` and `ov.save_model(compress_to_fp16=True)`, producing FP16 `.xml` + `.bin` models (~20 MB).
+  - Dynamic resolution inference: handles any image aspect and resolution directly without fixed letterbox distortion.
+- Predictor & Inference Engine (`app/filters/fastsam.py`):
+  - Added `EfficientSAMPredictor` with GPU (`GPU` / `intel:gpu`) execution on Intel Iris Xe with automatic CPU fallback.
+  - Standardized `EfficientSAMResult` wrapping `mask` and `everything_masks`.
+  - Target mode: uses normalized `target_x` / `target_y` as positive prompt point coordinates; sorts 3 candidate output masks by predicted IoU.
+  - Everything mode: samples a grid of candidate points across the image, filters by confidence, and deduplicates using IoU thresholding.
+  - Full compatibility with `model_hot.py` residency tracking, lazy loading assertions, and thread serialization.
+- Backend Operation Contract (`app/operations/fastsam_ops.py`):
+  - Updated `FastSAMParams` with `model_id` defaulting to `"efficient-sam-vitt"`, with `"FastSAM-s"` and `"FastSAM-x"` remaining available as selectable options.
+  - Image path: direct memory inference via `predict_runtime`.
+  - Video path: dump → `make_fastsam_directory` frame loop → encode via ProRes `yuva444p10le`.
+- WebUI & Upstream Catalog (`app/static/js/tabs/fastsam.js`, `app/static/js/ui/tab-github-repos.js`):
+  - Vision tab `#fastsamModel` dropdown now defaults to `EfficientSAM-ti (OpenVINO default)`.
+  - FastSAM models (`FastSAM-s`, `FastSAM-x`) remain fully accessible in the dropdown.
+  - Tab GitHub dropdown updated to feature `EfficientSAM (Meta FAIR)` and `openvino_notebooks`.
+- Verification:
+  - `./check-gate.sh` 5/5 pass (111 ESM modules clean).
+  - 18 unit/integration pytest tests pass (`test_fastsam_efficientsam.py`, `test_model_hot.py`).
+  - Playwright real browser verification (`junk/vision_tab_prove.mjs`) on live port `:24590` testing tab navigation, default model selection, option switching, GitHub popover links, zero console errors, screenshot `junk/vision_tab_proof.png`.
+
+
+### 000.000.8.189 — Sequence Timeline Export (EDL & FCPXML) + DaVinci Media Mode
+- User request: Add EDL and FCPXML timeline export to the Sequence composer web UI for conform in DaVinci Resolve with clips in the exact UI order, plus an option to tie export to DaVinci-compatible files only, generating them if not existing.
+- CMX 3600 EDL Generator (`app/timeline_export.py`):
+  - Pure function `generate_edl(clips, fps=30.0, title="Untitled", source_paths=None)` taking `list[(filename, duration_seconds)] -> str`.
+  - Format: `TITLE: <title>`, `FCM: NON DROP FRAME`, sequential 3-digit event numbers (`001`, `002`, `003`), 8-character reel name, `V` video track, `C` cut transitions, and exact 4-timecode spacing (`src_in`, `src_out`, `rec_in`, `rec_out`).
+  - Timecode math: cumulative record in/out starting at standard `01:00:00:00`.
+  - Comment lines: `* FROM CLIP NAME: <filename>` and `* SOURCE FILE: <abs_path>` to ensure DaVinci Resolve auto-relishes media files cleanly.
+- FCPXML 1.10 Generator (`app/timeline_export.py`):
+  - Pure function `generate_fcpxml(clips, fps=30.0, title="Untitled", source_paths=None)` taking `list[(filename, duration_seconds)] -> str`.
+  - XML structure: `<fcpxml version="1.10.0">`, `<assets>` with `<asset id="..." name="..." duration="..." tc="..." src="..." />`, `<sequence duration="..." tc="01:00:00:00" name="...">`, `<spine>` with `<clip ref="..." offset="..." duration="..." start="..." />`.
+- DaVinci Media Mode & Operation (`app/operations/timeline_export_ops.py`):
+  - `POST /ops/sequence_timeline_export` registered with `TimelineExportParams`.
+  - DaVinci intermediate pipeline: checks if source media is `.mov` with DNxHR / ProRes video and PCM audio (`probe_copy_info`). Reuses existing intermediate or registered variant (`media.get_variants`). Missing files are transcoded file-to-file (`transcode_with_preset` / `conform_clip` with time-stretch if `target_duration` is set) and registered in variant store (`media.register_variant(kind="dnxhr")`).
+  - Follows Invariant 1 (direct transcode, never dump PNGs), Invariant 9 (`job_control.report_progress`), Invariant 10 (failures return HTTP 200 + `{"ok": false}`).
+- UI & Persistence (`app/static/js/pool/sequence-export.js`, `grid.js`, `sequence-composer.js`, `persistence.js`, `app/media/pool.py`, `pool.css`):
+  - Sequence composer controls: `#poolExportFps`, `#poolExportResolveOnly`, `#poolExportResolvePreset` (DNxHR HQ/SQ/LB, ProRes HQ/Proxy), `#btnExportEdl`, `#btnExportFcpxml`, and hint `#seqExportHint` ("Import via File → Import Timeline in DaVinci Resolve.").
+  - Range-aware: respects active Sequence render range window (`sliceRange(renderRange, sequence)`).
+  - Strict HelpStrip compliance: every input and button has `data-help-title`; zero native `title` attributes.
+  - State persistence in session autosave and named project files (`export_fps`, `export_resolve_only`, `export_resolve_preset`).
+- Verification:
+  - `./check-gate.sh` 5/5 green (111 ESM modules clean).
+  - `pytest mtapi-project/tests/test_timeline_export.py` 8/8 passed.
+  - Playwright proof (`mtapi-project/junk/prove_timeline_export.mjs`) passed on isolated port `:24591` — real UI button clicks, real file downloads to disk, EDL and FCPXML structural verification, DaVinci `.mov` file generation and zero console errors. Screenshot saved to `mtapi-project/junk/timeline_export_proof.png`.
+
+### 000.000.8.188 — Sequence render range (clip N → M)
+- User request: "add to the sequence an option to render from a clip number to another number, so i can do like clip 34 to clip 56 if i want without making a whole new project".
+- New `Clips [from] – [to]` control in the Sequence composer (`#seqRangeFrom`, `#seqRangeTo`), 1-based and inclusive; blank bound = unset (the whole sequence renders). The hint line (`#seqRangeHint`) reads `All 60 clips` → `Clips 34–56 of 60 · 23 clips`, or names the error (`From clip 9 is past the last clip (6)`, `From clip 56 is after To clip 34`). Chips outside the window get `.is-out-of-range` (dimmed, still visible); the Stitch button names the window (`Stitch 34–56`, conform `(copy)`/`(re-encode)` suffixes preserved) and is disabled when the window holds fewer than two clips.
+- Scope: the range applies to the **render** (Stitch) only — the sequence, the project file, Instant RIFE and Erase▸Run keep covering every clip, so a sub-range render never needs a second project. `stitchPoolSequence()` slices the clip list (paths, per-clip durations, variant paths) before it builds the `/ops/join` body.
+- New modules: `js/pool/sequence-range.js` (pure range math, zero imports → node-unit-testable) and `js/pool/sequence-range-ui.js` (inputs, hint, chip dimming, button state). Validation rules: `To` past the last clip is clamped to the last clip (hint says so), `From` past the last clip is an error, non-integer or `< 1` bounds are errors, `From > To` is an error.
+- Persistence: `render_range` in the pool payload (`{from, to}`, `null` = unset) — session autosave and named project. The backend pool document is a strict known-keys normalizer, so `app/media/pool.py` gained `_normalize_render_range` (bad bounds fall back to unset instead of poisoning the saved document).
+- Verification: `./check-gate.sh` 5/5; `node mtapi-project/tests/test_sequence_range.mjs` (pure math, incl. the 34→56 window); 11 new pytest (`tests/test_sequence_render_range.py`, payload round trip); Playwright (`mtapi-project/junk/prove_sequence_range.mjs`) 18/18 on an isolated `:24591` — real typing, real Stitch click, output probed on disk: a 2–5 window of 1 s…6 s clips renders a **14 s** file, not the 21 s sequence, while the project keeps all six clips. Screenshots `junk/seqrange-proof-range.png`, `junk/seqrange-proof-rendered.png`.
+
+### 000.000.8.172 — OpenVINO Local LLM Server & Cline Controller Tab + Stray Process Reclamation (`openvino`)
+- Stray Process Detection & Port Reclamation (`cage.py`, `supervisor.py`, `routes/openvino_llm.py`, `openvino.js`):
+  - Added pure-Python `/proc/net/tcp` + `/proc/<pid>/fd` + `/proc/<pid>/cmdline` inspection (`detect_stray_processes` and `kill_stray_processes`) that identifies any stray `vinoapi` (`uvicorn server:app`), unmanaged `app.openvino_llm.worker`, orphaned `ovms`, or port-holding process on the configured port (e.g. `:2431`).
+  - `POST /admin/start` (`▶ Start Server` / `▶ Kill Stray & Start`) now automatically terminates (`SIGTERM` → `SIGKILL`) stray processes holding the port and waits for the socket to clear before launching the caged worker.
+  - Added `POST /admin/kill-stray` route and `🧹 Kill Stray (PID ...)` / `🧹 Sweep Strays` UI button plus `STRAY ON :2431 (PID ...)` badge and banner so stray processes can also be swept on demand while keeping the server Down.
+- 2-Level State Machine & Supervisor (`mtapi-project/app/openvino_llm/`):
+  - Level 1 (**Server Up / Down**): Spawns and supervises the standalone OpenAI-compatible `uvicorn` worker (`app.openvino_llm.worker:app`) without a persistent `systemd` `.service` unit file. Starts in `Model Cold` state (~47 MB RSS) by default so `/v1/models` is immediately reachable by Cline.
+  - Level 2 (**Model Hot / Cold**): Loads and unloads `openvino_genai.LLMPipeline` inside the running worker via `/admin/load` and `/admin/unload` with `malloc_trim(0)` and `gc.collect()`, enforcing the single-hot-model invariant (`<= 1` model resident on 15 GB shared RAM) and preflight `MemAvailable` checks.
+- Abstracted Launch Cage (`cage.py`):
+  - `SystemdScopeLauncher` wraps the worker in a transient `systemd-run --user --scope -p MemoryMax=9G -p MemoryHigh=8G -p MemorySwapMax=0` cgroup scope and applies `OOMScoreAdjust=1000` via `/proc/<pid>/oom_score_adj` and `/proc/self/oom_score_adj`.
+  - `CgroupPrlimitLauncher` provides a non-systemd fallback for Void Linux / `runit` hosts using `prlimit`, `/proc/<pid>/oom_score_adj`, and direct `/sys/fs/cgroup` v2 limits.
+- Cline Unblock & OpenVINO Hardware Methods (`worker.py`, `config.py`):
+  - Exposes all Cline-limiting settings as editable UI controls persisted to `~/.config/mtapi/openvino_llm/settings.json` and `config.env`: `Host`, `Port` (default `2431`), live-computed `Base URL` and `Model Source URL`, `API Key`, interactive `Models` chip list (type ID + `Enter`), `Timeout (ms)` (default `300000` instead of `30000`), `contextWindow` (`40960`), `maxTokens` (`4096`), `capabilities` (`streaming`, `tools`, `reasoning`, `vision`, `prompt_cache`), Qwen3 `enable_thinking`, `Memory Cage` limits, `Model Path`, `Cache Dir`, `Device`, and `KV Cache Precision` (`u4`).
+  - Preserves `/home/m/snc/cod/vinoapi` methods: `SchedulerConfig()` dynamic KV allocation, `CACHE_DIR` + `GPU_PLUGIN_CACHE_DIR` pre-compiled blob reuse, self-RSS watchdog (`11500` MB), lenient Cline multi-turn/array/tool message normalization (preventing mid-run 422s), and `: prefill-keepalive` SSE heartbeats during 60–90s iGPU prefills.
+  - Declared `openvino-genai` and `openvino-tokenizers` in `mtapi-project/requirements.txt` and installed into `mtapi-project/.venv`.
+- Verification:
+  - `./check-gate.sh` 5/5 green (108 ESM modules clean).
+  - `pytest tests/test_openvino_llm.py tests/test_agent_invariants.py` 23/23 passed.
+  - Playwright proof (`mtapi-project/junk/openvino-tab-prove.mjs`) 33/33 passed on live server (`:24590` and caged worker `:2432`), zero console/page errors, screenshot saved to `mtapi-project/junk/openvino_tab_proof.png`.
+
 ### 000.000.8.150 — TTS and Voice Mod Dedicated Reference Tabs
 - Separation & Expansion of Audio Reference Libraries:
   - Replaced the single Audio Models tab with two distinct, dedicated libraries: **TTS** (`refs-tts`) and **Voice Mod** (`refs-voicemod`).
@@ -1401,3 +1526,61 @@ Replaced the global Models hot policy with independent persisted tool preference
 
 
 2026-10-13: Persistent ACE-Step attempt diagnostics (parameters, runner environment, streamed logs, outcomes and timings). Gate 5/5; 32 Music tests; Playwright real Run dry-run proof.
+
+## 2026-10-23 — 000.000.8.173 — OpenVINO Playground model chooser
+
+Added native model selection to the OpenVINO residency panel and chip-to-picker interaction. Reads the installed Playground catalog (21 OpenVINO entries) and model_config.json paths with bundled fallback. Uses genuine per-model weight directories and capability/context metadata, preserves edits, and saves through existing lifecycle safeguards. Added catalog-only background downloads in shared Playground storage with job progress and error states; prevents applying missing weights. Vision entries remain visible but disabled pending a VLM pipeline. Cache keys updated; narrow-layout chooser verified. Gate 5/5, 30 targeted tests, 20 isolated Playwright assertions (fixture weights, no GPU loads; Hugging Face downloads substituted in tests).
+
+Production follow-through: 11/11 additional real browser checks on :24590 (31 browser assertions total), actual installed Playground catalog and existing 8B weights recognized, native keyboard selection verified, original saved model retained. Live app restarted. Rewarming Qwen3-8B was refused by unchanged preflight (7,453 MB available < 8,192 MB minimum); server remains Up / Model Cold. Proof: `mtapi-project/junk/openvino-model-picker-live-proof.png`.
+
+## 2026-10-23 — 000.000.8.174 — Actual Playground OVMS serving; fix TinyLlama memory admission
+
+Replaced default prototype GenAI serving with a managed installed Playground OVMS child behind the existing cold facade. Copied launcher/environment, four REST workers, model-specific tool-parser fallback, qwen3 reasoning parser and selected device/KV/cache settings. Exposed installed dynamic KV/cache/batching defaults. Default admission policy no longer applies a model-independent 8,192 MB free-RAM threshold; fixed minimum remains a custom override. Retained process caging, enforced child termination before model replacement, excluded managed children from stray/orphan detection, and forwarded native tools/vision/text-block/SSE payloads. Native engine enables all Playground catalog choices. Fixed inverted Send Test process check and native error handling. Verified genuine TinyLlama GPU generation below the old threshold (5,908 MB first, 7,110 MB final), unload/process exit/reload/SSE and same-cgroup membership. Gate 5/5, 44 targeted tests, 23 production Playwright checks. User's TinyLlama remains HOT. Vision/larger/NPU models not individually executed. See openvino-tab-spec §13 and junk/openvino-playground-native-prove.log/png.
+
+## 2026-10-23 — 000.000.8.175 — Cline combined prompt/output context budget
+
+Native OVMS facade now caps requested completion tokens to the exact remaining window after an explicit context rejection, with one bounded retry and no prompt/tool/image truncation. Handles both prompt-plus-output and prompt-alone native overflow messages; full prompts receive actionable context_length_exceeded errors in JSON/SSE, with clean SSE completion. Other failures are not retried. Verified exact Cline case (1,556 input + 1,024 requested → 492 output budget) and real UI boundary generation (2,020 + 28 = 2,048). Gate 5/5, 53 targeted tests, 10 production Playwright checks, zero browser errors. Live server reloaded, TinyLlama retained HOT. See openvino-tab-spec §14 and junk/openvino-context-budget-prove.log/png.
+
+
+## 2026-10-23 — 000.000.8.176 — OpenVINO model settings and presets
+
+Added model/engine/device applicability descriptors; read-only capabilities and hidden unsupported controls; Automatic sampling plus top-k/repetition penalty; Playground factory profiles (deduplicated without prompts/tools); exact repository/variant/engine named presets with explicit overwrite/delete; staged review and Apply. Runtime tuning now belongs to each model/engine, preserving existing settings on migration. Generation-only Apply retains warm weights; runtime changes reload one model, and inactive drafts remain unapplied. Client generation settings win; connection/path/memory safeguards stay global. Clarified advertised context versus CPU/GPU allocation limits. Gate 5/5; 70 targeted tests; 21 real Playwright checks and native sampling smoke test, zero browser errors. TinyLlama left HOT with original tuning; test presets deleted. Proof in mtapi-project/junk/openvino-profile-*; spec §15.
+
+
+## 2026-10-23 — 000.000.8.177 — OpenVINO retention and GPU recovery
+
+Fixed dropped OpenVINO Keep loaded preference and connected it to model lifecycle, including deferred release after active work. Added single-request admission, native total deadlines and disconnect cleanup, preserving retention on normal SSE DONE. Added request activity/elapsed/reply-update display, clearer Update status / Model info controls, inline diagnostics and Stop & release GPU that also stops the API. Gate 5/5; 93 targeted tests; 21 real Playwright checks, including a real Qwen3-8B OK reply, persistence across reload, retention on/off, automatic post-reply unload, overlapping-request refusal, disconnect cleanup and active emergency stop. User confirmed the original GPU activity was their Cline request. Qwen selection/tuning preserved; API stopped and model unloaded at handoff. Proof in mtapi-project/junk/openvino-recovery-*.
+
+
+## 2026-10-23 — 000.000.8.178 — Evidence-based OpenVINO activity
+
+Replaced misleading competing status lights with one sticky phase/outcome display and collapsed diagnostics. Loaded weights are not a verified reply; reasoning requires actual reasoning output; silent waits and stale telemetry are explicitly unknown. Last request failures persist after automatic unload. Quick tests stream text live and reject reasoning-only/empty responses and missing DONE markers. Added structural input-size/phase logs, quiet successful polling, Load Model auto-start and preserved model/retention settings. Gate 5/5; 98 targeted tests; 16 browser checks with real Qwen OK stream and synthetic silent/reasoning/failure/truncated cases. The user's long-delay runtime problem remains undiagnosed and is the next assignment; short successful tests do not prove it fixed. API stopped, model unloaded at handoff. Proof in mtapi-project/junk/openvino-activity-*.
+
+### 2026-10-23 · 000.000.8.179
+OpenVINO help explains control effects and tradeoffs; added missing preset, retention, sampling and test descriptions. Corrected inaccurate loading/cache/memory/heartbeat promises. Gate 5/5; 11 actual browser checks without restarting the user’s model.
+
+### 2026-10-23 · 000.000.8.180
+Proved Qwen3 4B Instruct and 8B Heretic HF OpenVINO INT4 exports on GPU: streamed/JSON replies, arithmetic, Python and structured tool calls; real UI switching, Apply, Load, Send Test. Added template-based thinking support for custom exports. Gate 5/5, 99 targeted tests and final 18 profile checks. Kept 9G hard cap, raised soft threshold 8G→9G after measured load throttling. Restored API port 2431; retained both custom entries and original tuning. See docs/openvino-custom-models.md and junk/hf-model-proof.
+
+### 2026-10-23 · 000.000.8.181
+Compact OpenVINO status/action row, header grouping and presets; preserve live failures/waiting explanations, remove redundant idle text and internal preset path. Lower panels unchanged. Gate 5/5; 9 browser checks at desktop/narrow widths, no page errors. No runtime restart.
+
+### 2026-10-23 · 000.000.8.182
+Removed all OpenVINO collapsible sections; show memory/process telemetry directly without its heading and permanently expand server/runtime/console content. Gate 5/5; 10 actual browser checks, no page errors or narrow overflow. No runtime restart.
+
+### 2026-10-23 · 000.000.8.183
+Ready-to-type sidebar filter on fresh load/refresh and after tab switches; select the previous query for replacement, preserve early startup input, respect hidden filter/modal focus and normal form typing. Gate 5/5; 8 real browser checks, no page errors. No runtime restart.
+
+### 2026-10-23 · 000.000.8.184
+Resident model Copy button, guarded by loaded state and independent of staged selection. Verified Cline model discovery source configured and endpoint returns four models. Gate 5/5; 5 actual clipboard/browser checks. No runtime or Cline configuration change.
+
+### 2026-10-24 · 000.000.8.185
+One native OpenVINO model dropdown: removed duplicate chip editor and manual ID input/Add controls plus dead handlers. Existing catalog/custom entries and staged Apply retained. Gate 5/5; 7 browser checks including real native keyboard selection. No runtime restart.
+
+### 2026-10-24 · 000.000.8.186
+HF OpenVINO discovery merged into the existing picker with daily/manual refresh, offline cache, fit estimates/experimental filter, credential reuse, pinned validated downloads and cancellation/resume. Completed-answer verification is revision/device/settings sensitive; installed versions and existing custom presets are retained. Undownloaded drafts never enter client discovery merely from browsing. Model-changing Apply leaves the model cold for explicit Load. Gate 5/5; 121 targeted tests; actual browser refresh/download cancellation/resume/isolation and two GPU streamed-answer cases (Qwen3 0.6B Heretic/abliterated INT4 and OpenVINO Qwen3 1.7B INT4). Original 8B Heretic selection/tuning restored. See docs/openvino-custom-models.md and junk/hf-discovery-proof.
+
+
+## 2026-10-24 · 000.000.8.187
+
+Added browser-free vinoapi foreground dashboard and model/status/stop controller on PATH. Reuses saved settings and caged API worker; Ctrl+C releases model, no auto-restart, refuses foreign port takeover. Seven focused tests and gate green; live cold startup/status/list/stop verified with WebUI remaining off. See docs/vinoapi-cli.md.

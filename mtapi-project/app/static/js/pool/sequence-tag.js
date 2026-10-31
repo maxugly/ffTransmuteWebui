@@ -4,10 +4,10 @@
 // counter groups by entry.path (original source), like sequencePositions().
 // The tag never touches token background or duration colors — it renders only
 // as the #-sized tag block + the picker's own fill.
-import { state, logConsole } from '/app.js?v=2';
+import { state, logConsole } from '/app.js?v=4';
 import { escapeHtml } from '/js/utils.js';
-import { scheduleSavePoolState } from '/js/pool/persistence.js?v=2';
-import { renderSequenceBox } from '/js/pool/sequence-composer.js?v=2';
+import { scheduleSavePoolState } from '/js/pool/persistence.js?v=3';
+import { renderSequenceBox } from '/js/pool/sequence-composer.js?v=3';
 import { updateSeqClipSettings } from '/js/pool/sequence-transport.js?v=2';
 
 // Fixed 32-color grid (4 rows x 8). No color wheel by design (spec).

@@ -53,6 +53,33 @@
 
 ---
 
+## 🧱 Placeholder Tiles — fill in later
+
+> Flag: `[TODO: fill]` = needs content. Remove flag when tile is done.
+
+| Tile | Doc / Area | Status |
+|------|------------|--------|
+| [TODO: fill] STATUS / Roadmap | `STATUS.md` | placeholder |
+| [TODO: fill] Filter Platform | `filter-platform-spec.md` | placeholder |
+| [TODO: fill] Pools + Cut | `video-image-pools-spec.md` | placeholder |
+| [TODO: fill] Convert / Transcode | `resolve-transcode-spec.md`, `file-to-file-transcode-spec.md` | placeholder |
+| [TODO: fill] DeepDream (spec + evolve) | `deepdream-spec.md`, `deepdream-evolve-video-spec.md` | placeholder |
+| [TODO: fill] Style Transfer | `styletransfer-spec.md` | placeholder |
+| [TODO: fill] RIFE pipeline | `rife-spec.md`, `rife-recoherence-spec.md` | placeholder |
+| [TODO: fill] Sequence ops | `sequence-*-spec.md` (many) | placeholder |
+| [TODO: fill] Agent / Vision | `agent-vision-tab-spec.md` | placeholder |
+| [TODO: fill] Prompt Library | `prompt-library-spec.md` | placeholder |
+| [TODO: fill] Image Sort + RIFE chain | `image-sort-rife-spec.md`, `img2img-openvino-spec.md` | placeholder |
+| [TODO: fill] Settings Cards | `settings-card-layout-spec.md` | placeholder |
+| [TODO: fill] Pool Wall Preview | `pool-wall-preview-spec.md` | placeholder |
+| [TODO: fill] Architecture | `architecture.md` | placeholder |
+| [TODO: fill] UX / Persistence | `ui-state-map.md`, `persistence-inventory.md` | placeholder |
+| [TODO: fill] Job Queue | `job-queue-spec.md` | placeholder |
+| [TODO: fill] Backlog drafts | `backlog/` (~28 specs) | placeholder |
+| [TODO: fill] Archive / Changelog | `archive/changelog.md`, `VERSIONING.md` | placeholder |
+
+---
+
 ## Implemented ops (check STATUS)
 
 transmute, convert, pipeline, datamosh, deepdream (+ **evolve**), facemorph, withoutbg, style (+ **evolve**), rife, **rife_recohere**, speed, ramp, zoompan, image sort, img2img, txt2img, agent, **prompt library (UI)**, upscale, cut, job queue, **qr_art**.

@@ -1,13 +1,13 @@
 // Extracted from pool/sequence.js — see sequence.js barrel. Vanilla ES6, no framework.
-import { state, elements, logConsole, setPreviewAspect, clearPreviewAspect } from '/app.js?v=2';
+import { state, elements, logConsole, setPreviewAspect, clearPreviewAspect } from '/app.js?v=4';
 import { selectPoolItem } from '/js/pool/items.js';
 import { basename, formatDurationExact } from '/js/utils.js';
-import { scheduleSavePoolState, savePoolStateNow, isApplyingFormState } from '/js/pool/persistence.js?v=2';
+import { scheduleSavePoolState, savePoolStateNow, isApplyingFormState } from '/js/pool/persistence.js?v=3';
 import { registerListKeys } from '/js/ui/list-keys.js';
 import { findPoolItem, updateSeqTotalTime } from '/js/pool/sequence-model.js';
 import { updateSelectionHighlights, displayFocusPath, updatePoolFocusFrame } from '/js/pool/sequence-select.js?v=2';
 import { _maybeAutoRifeEntry } from '/js/pool/sequence-rife.js';
-import { renderSequenceBox } from '/js/pool/sequence-composer.js?v=2';
+import { renderSequenceBox } from '/js/pool/sequence-composer.js?v=3';
 import { normTagColor, sequenceUseCounts } from '/js/pool/sequence-tag.js';
 
 function updateSeqTransportUI() {

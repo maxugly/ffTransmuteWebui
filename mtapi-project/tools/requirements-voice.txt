@@ -1,0 +1,21 @@
+# Audio venv for the Voice Extract tab (tools/voiceextract_worker.py).
+#
+# Keep torch below 2.6: pyannote 3.x and SpeechBrain load their checkpoints
+# with torch.load(), and 2.6 made weights_only=True the default, which refuses
+# them. The server venv stays on modern torch; this one is pinned on purpose.
+#
+#   uv venv voice-venv --python 3.11
+#   uv pip install --python voice-venv/bin/python \
+#     --extra-index-url https://download.pytorch.org/whl/cpu \
+#     -r mtapi-project/tools/requirements-voice.txt
+#
+# The web app finds the interpreter at ./voice-venv, ../voice-venv, or whatever
+# MTAPI_VOICE_PYTHON points at.
+
+torch==2.5.1
+torchaudio==2.5.1
+pyannote.audio==3.3.2
+speechbrain==1.0.2
+huggingface_hub<1.0
+matplotlib
+soundfile

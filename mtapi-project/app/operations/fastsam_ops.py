@@ -24,13 +24,14 @@ class FastSAMParams(BaseModel):
     iou: float = Field(0.9, description="Intersection over union threshold")
     device: Literal["GPU", "CPU", "AUTO"] = Field("GPU", description="OpenVINO execution device")
     mode: Literal["everything", "target"] = Field("target", description="Extraction mode")
-    model_id: Literal["FastSAM-s", "FastSAM-x"] = Field("FastSAM-s", description="Segmentation backend")
+    model_id: Literal["yoloe-26n-seg", "efficient-sam-vitt", "efficient-sam-vits", "FastSAM-s", "FastSAM-x"] = Field("efficient-sam-vitt", description="Segmentation backend")
+    text_prompt: str = Field("", description="Comma-separated text prompts for open-vocabulary segmentation (YOLOE)")
     target_x: float = Field(0.5, description="Target X coordinate (0.0 - 1.0)")
     target_y: float = Field(0.5, description="Target Y coordinate (0.0 - 1.0)")
     start_frame: int = start_frame_field()
     end_frame: int = end_frame_field()
     dry_run: bool = False
-    keep_model_warm: bool = Field(False, description="Keep the FastSAM model resident between runs")
+    keep_model_warm: bool = Field(False, description="Keep the model resident between runs")
 
 
 async def fastsam_op(p: FastSAMParams) -> OperationResult:
@@ -71,7 +72,8 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
             + (f"  direct image inference\n" if is_image else
                f"  ffmpeg -i {input_path} → frames_in/frame_%06d.png\n")
             + f"# fastsam stage\n"
-            + f"  model={p.model_id} conf={p.conf} iou={p.iou} device={p.device} mode={p.mode}\n"
+            + f"  model={p.model_id} conf={p.conf} iou={p.iou} device={p.device} mode={p.mode}"
+            + (f" prompt={p.text_prompt}\n" if p.text_prompt else "\n")
             + (f"\n# output\n  {out}" if is_image else
                f"\n# encode\n  ffmpeg -framerate <fps> -i frames_out/frame_%06d.png {out}")
         )
@@ -82,12 +84,10 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
 
     # ── Image path: direct inference ─────────────────────────────────────
     if is_image:
-        import cv2
         from app.filters.fastsam import ensure_openvino_model, get_runtime_model, get_target_mask, predict_runtime
-        from ultralytics import FastSAM
 
         ov_model_path = await asyncio.to_thread(ensure_openvino_model, model_id=p.model_id, device=p.device)
-        model = await asyncio.to_thread(get_runtime_model, ov_model_path, keep_warm=p.keep_model_warm, model_id=p.model_id)
+        model = await asyncio.to_thread(get_runtime_model, ov_model_path, keep_warm=p.keep_model_warm, model_id=p.model_id, device=p.device)
         print(f"[fastsam] using {p.model_id} on {p.device}")
 
         ov_device = p.device
@@ -101,9 +101,14 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
                 error=f"Failed to read image: {input_path}",
             )
 
-        results = await asyncio.to_thread(predict_runtime, model, img, model_id=p.model_id, model_path=ov_model_path, device=ov_device, conf=p.conf, iou=p.iou)
+        results = await asyncio.to_thread(
+            predict_runtime, model, img,
+            model_id=p.model_id, model_path=ov_model_path, device=ov_device,
+            conf=p.conf, iou=p.iou, target_x=p.target_x, target_y=p.target_y, mode=p.mode,
+            text_prompt=p.text_prompt,
+        )
 
-        if results and len(results) > 0 and results[0].masks is not None:
+        if results and len(results) > 0 and getattr(results[0], "masks", None) is not None:
             mask_result = get_target_mask(results[0], img.shape, p.mode, p.target_x, p.target_y)
             
             if p.mode == "everything" and isinstance(mask_result, list):
@@ -121,7 +126,13 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
                         x1, x2 = np.min(x_idx), np.max(x_idx)
                         cropped = transparent_img[y1:y2+1, x1:x2+1]
                         
-                        asset_name = f"asset_{i:03d}.png"
+                        label = "asset"
+                        if hasattr(results[0], 'boxes') and results[0].boxes is not None and i < len(results[0].boxes.cls):
+                            cls_id = int(results[0].boxes.cls[i])
+                            if hasattr(model, 'names') and cls_id in model.names:
+                                label = str(model.names[cls_id]).replace(" ", "_")
+                        
+                        asset_name = f"{label}_{i:03d}.png"
                         asset_path = out_dir / asset_name
                         cv2.imwrite(str(asset_path), cropped)
                 
@@ -159,7 +170,7 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
     stage_fn = await make_fastsam_directory(
         conf=p.conf, iou=p.iou, device=p.device,
         mode=p.mode, target_x=p.target_x, target_y=p.target_y,
-        model_id=p.model_id, keep_model_warm=p.keep_model_warm,
+        model_id=p.model_id, text_prompt=p.text_prompt, keep_model_warm=p.keep_model_warm,
     )
 
     return await run_staged_job(
@@ -177,9 +188,9 @@ async def fastsam_op(p: FastSAMParams) -> OperationResult:
 
 register(OperationSpec(
     id="fastsam",
-    summary="FastSAM object extraction via OpenVINO",
-    description="Extracts main subjects from video or images using Fast Segment Anything Model (Intel Iris Xe FP16 optimized). Output is transparent.",
+    summary="Vision / SAM object extraction via OpenVINO",
+    description="Extracts main subjects from video or images using EfficientSAM (OpenVINO default) or FastSAM. Output is transparent.",
     params_model=FastSAMParams,
     handler=fastsam_op,
-    tags=["fastsam", "openvino", "matting", "video", "image", "filter"],
+    tags=["fastsam", "vision", "sam", "efficientsam", "openvino", "matting", "video", "image", "filter"],
 ))

@@ -119,6 +119,10 @@ def _default_pool_state() -> dict[str, Any]:
         "tile_info": None,
         "seq_token_w": 2,
         "seq_token_h": 2,
+        "render_range": {"from": None, "to": None},
+        "export_fps": 30.0,
+        "export_resolve_only": False,
+        "export_resolve_preset": "dnxhr_hq",
         "layout": None,
         "desk": None,
         # Open named project pointer (session only — file written only on explicit Save)
@@ -572,6 +576,29 @@ def _clamp_token(value: Any, default: int = 2) -> int:
     return max(0, min(5, n))
 
 
+def _normalize_render_range(raw: Any) -> dict[str, int | None]:
+    """Render range over the Sequence (1-based, inclusive).
+
+    ``null`` bound = unset (the whole sequence renders). A bound that is not
+    a positive whole number is dropped to unset — the frontend re-validates
+    the window against the live clip count on every render.
+    """
+    out: dict[str, int | None] = {"from": None, "to": None}
+    if not isinstance(raw, dict):
+        return out
+    for key in ("from", "to"):
+        val = raw.get(key)
+        if val is None or val == "":
+            continue
+        try:
+            n = int(str(val).strip())
+        except (TypeError, ValueError):
+            continue
+        if n >= 1:
+            out[key] = n
+    return out
+
+
 def _normalize_pool_payload(
     payload: dict[str, Any],
     *,
@@ -630,6 +657,14 @@ def _normalize_pool_payload(
         "tile_info": tile_info,
         "seq_token_w": _clamp_token(payload.get("seq_token_w") or payload.get("seqTokenW"), 2),
         "seq_token_h": _clamp_token(payload.get("seq_token_h") or payload.get("seqTokenH"), 2),
+        "render_range": _normalize_render_range(payload.get("render_range")),
+        "export_fps": (_opt_float(payload.get("export_fps") if payload.get("export_fps") is not None else payload.get("exportFps")) or 30.0),
+        "export_resolve_only": bool(payload.get("export_resolve_only") if "export_resolve_only" in payload else payload.get("exportResolveOnly")),
+        "export_resolve_preset": (
+            str(payload.get("export_resolve_preset") or payload.get("exportResolvePreset"))
+            if (payload.get("export_resolve_preset") or payload.get("exportResolvePreset")) in ("dnxhr_hq", "dnxhr_sq", "dnxhr_lb", "prores_hq", "prores_proxy")
+            else "dnxhr_hq"
+        ),
         "layout": layout,
         "desk": _hydrate_desk(payload.get("desk"), drop_settings=drop_settings),
         "project_path": payload.get("project_path") or None,

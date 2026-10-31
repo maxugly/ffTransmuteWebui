@@ -101,6 +101,35 @@ Outputs auto-sequence (`file.png`, `file_0001.png`, …) so repeated runs do not
 
 ---
 
+## 🧱 Placeholder Tiles — fill in later
+
+> Flag: `[TODO: fill]` = needs content. Remove flag when filled.
+
+| Tile | Topic / Doc | Status |
+|------|-------------|--------|
+| [TODO: fill] Filter Platform | `docs/filter-platform-spec.md` — dump → stages → encode | placeholder |
+| [TODO: fill] Video / Image Pools | `docs/video-image-pools-spec.md` + Cut handoff | placeholder |
+| [TODO: fill] Convert / Export | `docs/file-to-file-transcode-spec.md`, `docs/resolve-transcode-spec.md` | placeholder |
+| [TODO: fill] DeepDream + Evolve | `docs/deepdream-spec.md`, `docs/deepdream-evolve-video-spec.md` | placeholder |
+| [TODO: fill] Face Morph | `docs/facemorph-spec.md` (dlib + YuNet) | placeholder |
+| [TODO: fill] withoutBG | `docs/withoutbg-spec.md` | placeholder |
+| [TODO: fill] Style Transfer | `docs/styletransfer-spec.md`, `docs/style-css-map.md` | placeholder |
+| [TODO: fill] RIFE + Recoherence | `docs/rife-spec.md`, `docs/rife-recoherence-spec.md` | placeholder |
+| [TODO: fill] Sequence / Timeline | `docs/sequence-*-spec.md`, `docs/sequence-images-spec.md` | placeholder |
+| [TODO: fill] Image Sort + Chain | `docs/image-sort-rife-spec.md` | placeholder |
+| [TODO: fill] Img2img / Txt2img OpenVINO | `docs/img2img-openvino-spec.md`, `docs/openvino-tab-spec.md` | placeholder |
+| [TODO: fill] Agent + Vision Tab | `docs/agent-vision-tab-spec.md` | placeholder |
+| [TODO: fill] Pool Wall Preview | `docs/pool-wall-preview-spec.md` | placeholder |
+| [TODO: fill] Settings Cards | `docs/settings-card-layout-spec.md` | placeholder |
+| [TODO: fill] Performance / Catalog UX | `docs/performance-*-spec.md`, `docs/performance-catalog-ux-spec.md` | placeholder |
+| [TODO: fill] Job Queue | `docs/job-queue-spec.md` | placeholder |
+| [TODO: fill] Prompt Library | `docs/prompt-library-spec.md` | placeholder |
+| [TODO: fill] Folder Watcher / DNxHR | `mtapi-project/README.md` (watcher section) | placeholder |
+| [TODO: fill] Archive / Changelog | `docs/archive/changelog.md`, `docs/STATUS.md` | placeholder |
+| [TODO: fill] Backlog Ops | `docs/backlog/` (~28 draft specs) | placeholder |
+
+---
+
 ## 📜 Subdirectory Documentation
 
 Detailed documentation and agent guidance are available in each directory:

@@ -11,7 +11,7 @@
  * Favorites/recents/pipeline autosave live in localStorage (server mirror is
  * the settings route's business, not this tab's).
  */
-import { state, elements, logConsole } from '/app.js?v=2';
+import { state, elements, logConsole } from '/app.js?v=4';
 import { escapeHtml } from '/js/utils.js';
 import {
   CDP_VENDOR_URL, CDP_MAN_URL, buildCatalog, argvPreview, parseManUsage,

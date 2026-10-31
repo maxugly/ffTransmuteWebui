@@ -41,3 +41,4 @@ from . import digicam as _digicam  # noqa: E402, F401
 from . import cfr as _cfr  # noqa: E402, F401
 from . import rife_pts as _rife_pts  # noqa: E402, F401
 from . import erase as _erase  # noqa: E402, F401
+from . import depthmap as _depthmap  # noqa: E402, F401

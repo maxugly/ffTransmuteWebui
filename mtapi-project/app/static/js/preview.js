@@ -1,5 +1,5 @@
 // Preview panel + console output + AR fitting
-import { state, elements } from '/app.js?v=2';
+import { state, elements } from '/app.js?v=4';
 import { findPoolItem } from '/js/pool/sequence.js';
 import { bindPoolDragResize } from '/js/pool/layout.js';
 

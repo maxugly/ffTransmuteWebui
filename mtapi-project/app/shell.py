@@ -36,12 +36,22 @@ def ensure_video_output_path(output_path: str | None) -> str | None:
     return p + ".mp4"
 
 
-async def run_command(argv: list[str], cwd: str | None = None) -> tuple[int, str, str]:
+async def run_command(
+    argv: list[str],
+    cwd: str | None = None,
+    env: dict[str, str] | None = None,
+    *,
+    on_spawn=None,
+    capture_output: bool = True,
+) -> tuple[int, str, str]:
     """Run argv, wait for it, return (exit_code, stdout, stderr) as text.
 
     stderr is streamed to the 'mtapi' logger in real-time so the server
     terminal shows ffmpeg progress, errors, and warnings as they happen —
     not just a silent wait followed by a result at the end.
+
+    env replaces the child environment when given, so a worker can be handed a
+    token without putting it on the command line where `ps` would show it.
     """
     import logging
     _log = logging.getLogger("mtapi")
@@ -51,7 +61,10 @@ async def run_command(argv: list[str], cwd: str | None = None) -> tuple[int, str
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
         cwd=cwd,
+        env=env,
     )
+    if on_spawn is not None:
+        on_spawn(proc)
 
     async def _read_stderr() -> str:
         """Read stderr in chunks, splitting on \n for real-time log output.
@@ -75,16 +88,23 @@ async def run_command(argv: list[str], cwd: str | None = None) -> tuple[int, str
                 stripped = line.strip("\r")
                 if stripped.strip():
                     _log.info("[%s] %s", argv[0] if argv else "?", stripped)
-                collected.append(stripped)
+                if capture_output:
+                    collected.append(stripped)
         if buffer:
             remaining = buffer.decode(errors="replace").strip("\r\n\0")
             if remaining.strip():
                 _log.info("[%s] %s", argv[0] if argv else "?", remaining)
-            collected.append(remaining)
+            if capture_output:
+                collected.append(remaining)
         return "\n".join(collected)
 
     stderr_task = asyncio.create_task(_read_stderr())
-    stdout_b = await proc.stdout.read()  # type: ignore[union-attr]
+    if capture_output:
+        stdout_b = await proc.stdout.read()  # type: ignore[union-attr]
+    else:
+        stdout_b = b""
+        while chunk := await proc.stdout.read(4096):  # type: ignore[union-attr]
+            _log.info("[%s] %s", argv[0], chunk.decode(errors="replace").strip())
     stderr_text = await stderr_task
     await proc.wait()
 

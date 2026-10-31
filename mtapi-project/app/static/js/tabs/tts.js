@@ -1,4 +1,4 @@
-import { elements } from '/app.js?v=2';
+import { elements } from '/app.js?v=4';
 import { escapeHtml as esc } from '/js/utils.js';
 import { openAudioExportDialog } from '/js/ui/audio-export.js';
 

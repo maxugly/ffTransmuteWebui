@@ -92,7 +92,7 @@ def _normalize_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
         ),
         "warm_models": {
             name: bool(warm.get(name, False))
-            for name in ("deepdream", "styletransfer", "fastsam", "tts", "demucs", "erase", "withoutbg")
+            for name in ("deepdream", "styletransfer", "fastsam", "tts", "demucs", "erase", "withoutbg", "openvino")
         },
         "owned_dirs": owned_dirs,
         "catalog_auto_index": bool(raw.get("catalog_auto_index", True)),

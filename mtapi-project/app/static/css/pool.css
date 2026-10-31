@@ -884,6 +884,17 @@
   cursor: grabbing;
 }
 
+/* Render range (clip N → M): chips outside the window stay visible but dim,
+   so the user can see what the render will skip. */
+.seq-token.is-out-of-range {
+  opacity: 0.3;
+  filter: grayscale(0.85);
+}
+
+.seq-token.is-out-of-range:hover {
+  opacity: 0.75;
+}
+
 /* Time-stretch: duration text is the beat-sync cue (color set inline) */
 .seq-token.time-stretched.selected {
   box-shadow: 0 0 0 1px rgba(251, 146, 60, 0.55);
@@ -1439,6 +1450,47 @@
   font-size: 0.75rem;
 }
 
+/* Render range (clip N → M) — its own row above the sequence options */
+.seq-range-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.seq-range-label {
+  gap: 6px;
+  font-weight: 600;
+  color: var(--text-primary, #e5e7eb);
+}
+
+.seq-range-input {
+  width: 68px;
+  padding: 4px 6px;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.seq-range-dash {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.seq-range-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seq-range-hint.is-error {
+  color: #f87171;
+}
+
 /* Checkbox items inside the sequence option flows: keep box + text glued
    as one unit so rows wrap only between controls, never inside a control. */
 .pool-sequence-opts .checkbox-label,
@@ -1473,6 +1525,56 @@
 .pool-stitch-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+/* Sequence Timeline Export (EDL & FCPXML) */
+.seq-export-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  flex: 1 1 100%;
+  min-width: 0;
+  padding-top: 4px;
+  border-top: 1px dashed var(--border-color, #2a2a2a);
+}
+
+.seq-export-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary, #e5e7eb);
+  white-space: nowrap;
+}
+
+.seq-export-btn {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm, 4px);
+  background: var(--bg-surface-2, #262626);
+  border: 1px solid var(--border-color, #3a3a3a);
+  color: var(--text-main, #f3f4f6);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.seq-export-btn:hover:not(:disabled) {
+  background: var(--bg-hover, #333333);
+  border-color: var(--accent, #3b82f6);
+}
+
+.seq-export-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.seq-export-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted, #9ca3af);
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Stationary selection frame */

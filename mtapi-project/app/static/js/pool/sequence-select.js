@@ -1,8 +1,8 @@
 // Extracted from pool/sequence.js — see sequence.js barrel. Vanilla ES6, no framework.
-import { state, sequencePositions } from '/app.js?v=2';
+import { state, sequencePositions } from '/app.js?v=4';
 import { selectPoolItem } from '/js/pool/items.js';
 import { basename, escapeHtml, formatDurationExact } from '/js/utils.js';
-import { poolThumbUrl, itemShowsThumb, shortHash } from '/js/pool/persistence.js?v=2';
+import { poolThumbUrl, itemShowsThumb, shortHash } from '/js/pool/persistence.js?v=3';
 import { isPoolGridScrolling, lastPoolPointer } from '/js/pool/layout.js';
 import { findPoolItem } from '/js/pool/sequence-model.js';
 

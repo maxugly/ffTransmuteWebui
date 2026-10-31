@@ -6,7 +6,7 @@ import { bindReferenceTableScroll } from '/js/ui/reference-table-scroll.js';
  * Left nav (.nav-item data-tab="refs" / "refs-models") and the top
  * segmented bar stay in sync via switchTab.
  */
-import { state, elements, switchTab } from '/app.js?v=2';
+import { state, elements, switchTab } from '/app.js?v=4';
 import { escapeHtml } from '/js/utils.js';
 import { MUSIC_PROMPT_EXAMPLES } from '/js/ref-music-prompts.js';
 import { renderTtsReferences, renderVoiceModReferences, renderListeningReferences, renderAudioReferences } from '/js/tabs/audio-references.js';
@@ -32,6 +32,7 @@ function renderReferencesForm() {
     : (state.activeTab === 'refs-tts' || state.activeTab === 'refs-audio') ? 'tts'
     : state.activeTab === 'refs-voicemod' ? 'voicemod'
     : state.activeTab === 'refs-listening' ? 'listening'
+    : state.activeTab === 'refs-speech' ? 'speech'
     : state.activeTab === 'refs-music' ? 'music' : 'yt';
   const wide = sub !== 'yt';
   const html = `
@@ -46,9 +47,10 @@ function renderReferencesForm() {
         <button class="ref-subtab${sub === 'tts' ? ' active' : ''}" data-ref-tab="refs-tts" data-help-title="TTS" data-help-text="Compare text-to-speech models, parameters, voices, speed, hardware and licensing.">TTS</button>
         <button class="ref-subtab${sub === 'voicemod' ? ' active' : ''}" data-ref-tab="refs-voicemod" data-help-title="Voice Mod" data-help-text="Compare RVC, singing voice conversion (SVC), voice changers and vocal transformation models.">Voice Mod</button>
         <button class="ref-subtab${sub === 'listening' ? ' active' : ''}" data-ref-tab="refs-listening" data-help-title="Listening Models" data-help-text="Wake words, speech transcription, speaker diarization, sound and music descriptions, MIDI and sonic analysis.">Listening Models</button>
+        <button class="ref-subtab${sub === 'speech' ? ' active' : ''}" data-ref-tab="refs-speech" data-help-title="Human Speech" data-help-text="Frequency-band and mouth-shape reference for lip-sync, formant reading and simple Godot viseme logic.">Human Speech</button>
         <button class="ref-subtab${sub === 'music' ? ' active' : ''}" data-ref-tab="refs-music">Music Prompts</button>
       </div>
-      ${sub === 'listening' ? '<div id="listeningReferences"></div>' : sub === 'tts' ? '<div id="ttsReferences"></div>' : sub === 'voicemod' ? '<div id="voiceModReferences"></div>' : sub === 'models' ? buildModelsSection() : sub === 'imgmodels' ? buildImageModelsSection() : sub === 'code' ? (codeModelOpen ? buildCodeModelPage(codeModelOpen) : buildCodeModelsSection()) : sub === 'apis' ? (apiPageOpen ? buildApiPage(apiPageOpen) : buildApisSection()) : sub === 'keys' ? buildKeySignaturesSection() : sub === 'music' ? buildMusicSection() : buildYtSections()}
+      ${sub === 'listening' ? '<div id="listeningReferences"></div>' : sub === 'tts' ? '<div id="ttsReferences"></div>' : sub === 'voicemod' ? '<div id="voiceModReferences"></div>' : sub === 'models' ? buildModelsSection() : sub === 'imgmodels' ? buildImageModelsSection() : sub === 'code' ? (codeModelOpen ? buildCodeModelPage(codeModelOpen) : buildCodeModelsSection()) : sub === 'apis' ? (apiPageOpen ? buildApiPage(apiPageOpen) : buildApisSection()) : sub === 'keys' ? buildKeySignaturesSection() : sub === 'speech' ? buildHumanSpeechSection() : sub === 'music' ? buildMusicSection() : buildYtSections()}
     </div>
   `;
   elements.actionPanel.innerHTML = html;
@@ -1946,6 +1948,151 @@ const MU_STRUCTURE = [
   ['[build-up] / [drop] / [breakdown]', 'rise / peak release / strip back (electronic arcs)'],
   ['Language', '[en] [zh] [ja]… at section start, never mid-line'],
 ];
+
+/* ═══════════════════════════════════════════════
+   Human Speech — formant bands, mouth shapes, viseme logic
+   ═══════════════════════════════════════════════ */
+const SPEECH_BANDS = [
+  { band: 'Low', hz: '80–250', detects: 'Fundamental pitch, chest resonance, voicing', clue: 'O, OO, U — humming, low notes', tone: 'low' },
+  { band: 'Low-Mid', hz: '250–700', detects: 'F1 first formant, jaw openness', clue: 'A, AH, O — open mouth vowels', tone: 'lowmid' },
+  { band: 'Mid', hz: '700–2000', detects: 'F2 second formant, tongue front/back', clue: 'EH, OH, E — mid vowels', tone: 'mid' },
+  { band: 'High', hz: '2000–4000', detects: 'Presence, brightness, consonant edge', clue: 'E, EE, AY — smile vowels, S, T', tone: 'high' },
+  { band: 'Very High', hz: '4000–6000', detects: 'Sibilance, air, hiss', clue: 'EE, S, F, TH — tight / sharp sounds', tone: 'vhigh' },
+];
+
+const SPEECH_SHAPES = [
+  { n: 1, shape: 'Closed Rest', hint: 'Neutral / silence', bands: [], note: 'All bands ∼0 — silence' },
+  { n: 2, shape: 'M pressed', hint: 'Bilabial / M, B, P', bands: [['Low', 'med'], ['Low-Mid', 'med'], ['Mid', 'low'], ['High', 'none'], ['Very High', 'none']], note: 'M, B, P closure' },
+  { n: 3, shape: 'Low O big round', hint: 'Rounded / O, OO', bands: [['Low', 'med'], ['Low-Mid', 'HIGH'], ['Mid', 'HIGH'], ['High', 'low'], ['Very High', 'none']] },
+  { n: 4, shape: 'A wide open', hint: 'Open / AH, A', bands: [['Low', 'med'], ['Low-Mid', 'HIGH'], ['Mid', 'HIGH'], ['High', 'HIGH'], ['Very High', 'low']], note: 'loud A' },
+  { n: 5, shape: 'Mid EH oval', hint: 'Open-mid / EH, E', bands: [['Low', 'low'], ['Low-Mid', 'HIGH'], ['Mid', 'HIGH'], ['High', 'HIGH'], ['Very High', 'none']] },
+  { n: 6, shape: 'E small smile', hint: 'Spread / E, AY', bands: [['Low', 'med'], ['Low-Mid', 'low'], ['Mid', 'low'], ['High', 'HIGH'], ['Very High', 'HIGH']], note: 'E, AY' },
+  { n: 7, shape: 'EE narrow tight', hint: 'Close front / EE, I', bands: [['Low', 'none'], ['Low-Mid', 'none'], ['Mid', 'low'], ['High', 'HIGH'], ['Very High', 'HIGH']], note: 'EE, I' },
+  { n: 8, shape: 'Wide Shout max open', hint: 'Wide / AA, loud', bands: [['Low', 'HIGH'], ['Low-Mid', 'HIGH'], ['Mid', 'HIGH'], ['High', 'HIGH'], ['Very High', 'HIGH']], note: 'yelling, belting' },
+];
+
+const SPEECH_LOGIC = `if total_energy < threshold -> Closed
+if low + low-mid > 60% total -> O/A family (mouths 3-4)
+if mid + high > 60% total -> E/EE family (mouths 6-7)
+if high + vhigh > 50% total AND low < 10% -> EE tight
+if all bands > 40% each -> Wide Shout`;
+
+function speechLevelClass(level) {
+  return level === 'HIGH' ? 'high' : level === 'none' ? 'none' : level === 'med' ? 'med' : 'low';
+}
+
+function buildHumanSpeechSection() {
+  const bandRows = SPEECH_BANDS.map((b) => `
+    <tr>
+      <td><span class="ref-speech-band ref-speech-band-${b.tone}">${escapeHtml(b.band)}</span></td>
+      <td class="ref-speech-hz">${escapeHtml(b.hz)} Hz</td>
+      <td>${escapeHtml(b.detects)}</td>
+      <td>${escapeHtml(b.clue)}</td>
+    </tr>`).join('');
+
+  const shapeRows = SPEECH_SHAPES.map((s) => {
+    const signature = s.bands.length
+      ? s.bands.map(([band, level]) => `
+          <span class="ref-speech-sig">
+            <span class="ref-speech-sig-band">${escapeHtml(band)}</span>
+            <span class="ref-speech-lv ref-speech-lv-${speechLevelClass(level)}">${escapeHtml(level)}</span>
+          </span>`).join('')
+      : '<span class="ref-speech-sig ref-speech-sig-closed"><span class="ref-speech-sig-band">All bands</span><span class="ref-speech-lv ref-speech-lv-none">∼0</span></span>';
+    return `<tr>
+      <td class="ref-speech-shape">
+        <span class="ref-speech-shape-n">${s.n}</span>
+        <span><strong>${escapeHtml(s.shape)}</strong><br><span class="ref-muted">${escapeHtml(s.hint)}</span></span>
+      </td>
+      <td>
+        <div class="ref-speech-signature">${signature}</div>
+        ${s.note ? `<div class="ref-speech-shape-note">${escapeHtml(s.note)}</div>` : ''}
+      </td>
+    </tr>`;
+  }).join('');
+
+  return `
+    <div class="ref-speech-grid">
+      <div class="ref-card ref-speech-visual">
+        <div class="ref-card-head">
+          <div class="ref-card-head-icon">${SVG_EYE}</div>
+          <h4>Audio Frequency Bands vs Mouth Shapes <span class="ref-sub">Lip-sync reference</span></h4>
+        </div>
+        <div class="ref-card-body">
+          <img class="ref-speech-image" src="/img/human-speech-bands.png" alt="Audio frequency bands versus mouth shapes: relative energy levels for Low, Low-Mid, Mid, High and Very High bands across nine common mouth shapes." loading="lazy">
+          <p class="ref-muted ref-speech-caption">Relative energy levels for 5 frequency bands across 9 common mouth shapes · Animator technical reference for lip-sync. Values are relative/typical; adjust to match voice, accent and style.</p>
+        </div>
+      </div>
+
+      <div class="ref-card">
+        <div class="ref-card-head">
+          <div class="ref-card-head-icon">${SVG_INFO}</div>
+          <h4>1. What each band is listening for</h4>
+        </div>
+        <div class="ref-card-body">
+          <table class="ref-table ref-speech-table">
+            <thead>
+              <tr><th>Band</th><th>Hz Range</th><th>What it detects</th><th>Vowel / Sound clue</th></tr>
+            </thead>
+            <tbody>${bandRows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="ref-card ref-speech-table2">
+        <div class="ref-card-head">
+          <div class="ref-card-head-icon">${SVG_LAYERS}</div>
+          <h4>2. Mouth shape → band signature <span class="ref-sub">copy this to your agent</span></h4>
+        </div>
+        <div class="ref-card-body">
+          <table class="ref-table ref-speech-table ref-speech-shape-table">
+            <thead>
+              <tr><th>Shape</th><th>When to trigger — band energy pattern</th></tr>
+            </thead>
+            <tbody>${shapeRows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="ref-card">
+        <div class="ref-card-head">
+          <div class="ref-card-head-icon">${SVG_CHECK}</div>
+          <h4>Logic for Godot</h4>
+        </div>
+        <div class="ref-card-body">
+          <pre class="ref-speech-code"><code>${escapeHtml(SPEECH_LOGIC)}</code></pre>
+          <p class="ref-muted ref-speech-caption">Percentages are shares of total band energy. Smooth the values over a few frames before switching shapes.</p>
+        </div>
+      </div>
+
+      <div class="ref-card">
+        <div class="ref-card-head">
+          <div class="ref-card-head-icon">${SVG_SHIELD}</div>
+          <h4>Reading it without AI phonemes</h4>
+        </div>
+        <div class="ref-card-body">
+          <p>This gives you 7–9 mouth-shape nuance without AI phoneme detection — you are reading <strong>vowel formants</strong>, not just volume or pitch.</p>
+          <div class="ref-speech-legend">
+            <span><span class="ref-speech-lv ref-speech-lv-high">HIGH</span> dominant band</span>
+            <span><span class="ref-speech-lv ref-speech-lv-med">med</span> present</span>
+            <span><span class="ref-speech-lv ref-speech-lv-low">low</span> weak</span>
+            <span><span class="ref-speech-lv ref-speech-lv-none">none</span> absent</span>
+          </div>
+          <p class="ref-muted">Low &amp; Low-Mid dominate for vowels like A/O and closures like M/B. High &amp; Very High dominate for sibilants and E/EE sounds.</p>
+        </div>
+      </div>
+
+      <div class="ref-card">
+        <div class="ref-card-head">
+          <div class="ref-card-head-icon">${SVG_WARN}</div>
+          <h4>Tuning notes</h4>
+        </div>
+        <div class="ref-card-body">
+          <p>Treat the thresholds as starting points, not physics. A close-mic voice, a phone speaker or a strong accent shifts the balance.</p>
+          <p class="ref-muted">Keep one hysteresis band around each threshold so a shape does not flicker on a single frame. If a band dominates unexpectedly, check the recording's high-pass filter and mic proximity first.</p>
+        </div>
+      </div>
+    </div>`;
+}
 
 function buildMusicSection() {
   const dims = MU_DIMENSIONS.map(([k, v]) =>

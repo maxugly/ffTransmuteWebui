@@ -1,4 +1,4 @@
-import { state, elements, bestInput } from '/app.js?v=2';
+import { state, elements, bestInput } from '/app.js?v=4';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
 import { withFrameRange } from '/js/utils.js';
 
@@ -6,7 +6,7 @@ export function renderFastSAMForm() {
   const html = `
     <div class="panel-title-desc dense">
       <h3>Vision · asset extraction</h3>
-      <p class="dream-hint">Uses OpenVINO optimized FastSAM model to extract subjects (FP16 on Iris Xe). Outputs transparent PNG or video.</p>
+      <p class="dream-hint">Uses OpenVINO optimized EfficientSAM / FastSAM to extract subjects (FP16 on Iris Xe). Outputs transparent PNG or video.</p>
     </div>
     <div class="knob-row settings-inline-warm">
     </div>
@@ -46,11 +46,21 @@ export function renderFastSAMForm() {
 
     <div class="form-row">
       <label for="fastsamModel">Model</label>
-      <select id="fastsamModel" data-help-title="Model — FastSAM-s / FastSAM-x" data-help-text="FastSAM-s is the fast default. FastSAM-x is slower and more accurate, uses more RAM. First run downloads + exports the weights.">
-        <option value="FastSAM-s" selected>FastSAM-s (default)</option>
+      <select id="fastsamModel" data-help-title="Model — EfficientSAM (OV) / YOLOE / FastSAM" data-help-text="EfficientSAM-ti is the fast, accurate OpenVINO default. YOLOE-26n-seg provides real-time open-vocabulary text/visual prompt detection. FastSAM uses YOLO architecture.">
+        <option value="efficient-sam-vitt" selected>EfficientSAM-ti (OpenVINO default)</option>
+        <option value="yoloe-26n-seg">YOLOE-26n-seg (Open-Vocab text prompt)</option>
+        <option value="FastSAM-s">FastSAM-s</option>
         <option value="FastSAM-x">FastSAM-x (slow, accurate)</option>
       </select>
-      <p class="form-row-hint">Heavier models use more RAM and run slower. First run downloads + exports the model.</p>
+      <p class="form-row-hint">EfficientSAM (point prompt), YOLOE (open-vocabulary text prompt), or FastSAM.</p>
+    </div>
+
+    <div class="form-row" id="fastsamTextPromptRow">
+      <label for="fastsamTextPrompt">Text Prompt</label>
+      <div class="input-row">
+        <input type="text" id="fastsamTextPrompt" placeholder="e.g. character, weapon, tree (comma-separated for YOLOE)" data-help-title="Text Prompt — open-vocabulary classes" data-help-text="Comma-separated class names or descriptions for YOLOE open-vocabulary segmentation. If blank, detects common categories.">
+      </div>
+      <p class="form-row-hint">For YOLOE: comma-separated queries like 'character, weapon, tree'. Empty = general objects.</p>
     </div>
 
     <div class="form-row">
@@ -188,7 +198,8 @@ export function collectFastSAMBody() {
     input_path: (document.getElementById('fastsamInput') || {}).value || bestInput(''),
     output_dir: (document.getElementById('fastsamOutput') || {}).value || '',
     mode: (document.getElementById('fastsamMode') || {}).value || 'target',
-    model_id: (document.getElementById('fastsamModel') || {}).value || 'FastSAM-s',
+    model_id: (document.getElementById('fastsamModel') || {}).value || 'efficient-sam-vitt',
+    text_prompt: (document.getElementById('fastsamTextPrompt') || {}).value || '',
     target_x: parseFloat((document.getElementById('fastsamTargetX') || {}).value || '0.5'),
     target_y: parseFloat((document.getElementById('fastsamTargetY') || {}).value || '0.5'),
     conf: parseFloat((document.getElementById('fastsamConf') || {}).value || '0.4'),

@@ -1,0 +1,227 @@
+{
+  "host": "127.0.0.1",
+  "port": 2431,
+  "api_key": "openvino-local",
+  "enforce_api_key": false,
+  "timeout_ms": 300000,
+  "active_model_id": "OpenVINO/Qwen3-1.7B-int4-ov",
+  "models": [
+    {
+      "id": "Qwen3-8B-int4-ov",
+      "model_path": "/home/m/.local/share/ai-playground/resources/models/LLM/openvino/OpenVINO---Qwen3-8B-int4-ov",
+      "context_window": 40960,
+      "max_tokens": 8192,
+      "max_tokens_default": 2048,
+      "enable_thinking_default": false,
+      "temperature_default": 1.2,
+      "top_p_default": 0.95,
+      "top_k_default": null,
+      "repetition_penalty_default": 2.000001,
+      "runtime_profiles": {
+        "playground": {
+          "device": "GPU",
+          "kv_cache_precision": "u4",
+          "ovms_cache_size_gb": 0,
+          "ovms_max_num_seqs": 256,
+          "ovms_max_num_batched_tokens": 0,
+          "ovms_enable_prefix_caching": true,
+          "ovms_dynamic_split_fuse": true
+        }
+      },
+      "tool_parser": "hermes3",
+      "capabilities": {
+        "streaming": true,
+        "tools": true,
+        "reasoning": true,
+        "vision": false,
+        "prompt_cache": true
+      }
+    },
+    {
+      "id": "TinyLlama-1.1B-Chat-v1.0-int4-ov",
+      "model_path": "/home/m/.local/share/ai-playground/resources/models/LLM/openvino/OpenVINO---TinyLlama-1.1B-Chat-v1.0-int4-ov",
+      "context_window": 2048,
+      "max_tokens": 2048,
+      "max_tokens_default": 1024,
+      "enable_thinking_default": false,
+      "temperature_default": 0.7,
+      "top_p_default": 0.95,
+      "top_k_default": null,
+      "repetition_penalty_default": null,
+      "runtime_profiles": {
+        "playground": {
+          "device": "GPU",
+          "kv_cache_precision": "u4",
+          "ovms_cache_size_gb": 0,
+          "ovms_max_num_seqs": 256,
+          "ovms_max_num_batched_tokens": 0,
+          "ovms_enable_prefix_caching": true,
+          "ovms_dynamic_split_fuse": true
+        }
+      },
+      "tool_parser": "hermes3",
+      "capabilities": {
+        "streaming": true,
+        "tools": false,
+        "reasoning": false,
+        "vision": false,
+        "prompt_cache": true
+      }
+    },
+    {
+      "id": "qwen3-8b-heretic-OpenVINO-INT4-NPU",
+      "model_path": "/home/m/snc/cod/ffTransmuteWebui-wip/mtapi-project/junk/hf-model-proof/machine-made-Fibre---qwen3-8b-heretic-OpenVINO-INT4-NPU",
+      "context_window": 8192,
+      "max_tokens": 512,
+      "max_tokens_default": 128,
+      "enable_thinking_default": false,
+      "temperature_default": 0.2,
+      "top_p_default": null,
+      "top_k_default": null,
+      "repetition_penalty_default": null,
+      "runtime_profiles": {
+        "playground": {
+          "device": "GPU",
+          "kv_cache_precision": "u4",
+          "ovms_cache_size_gb": 0,
+          "ovms_max_num_seqs": 256,
+          "ovms_max_num_batched_tokens": 0,
+          "ovms_enable_prefix_caching": true,
+          "ovms_dynamic_split_fuse": true
+        }
+      },
+      "tool_parser": "hermes3",
+      "capabilities": {
+        "streaming": true,
+        "tools": true,
+        "reasoning": true,
+        "vision": false,
+        "prompt_cache": true
+      }
+    },
+    {
+      "id": "Qwen3-4B-Instruct-2507-heretic-OpenVINO-INT4-NPU",
+      "model_path": "/home/m/snc/cod/ffTransmuteWebui-wip/mtapi-project/junk/hf-model-proof/machine-made-Fibre---Qwen3-4B-Instruct-2507-heretic-OpenVINO-INT4-NPU",
+      "context_window": 8192,
+      "max_tokens": 512,
+      "max_tokens_default": 128,
+      "enable_thinking_default": false,
+      "temperature_default": 0.2,
+      "top_p_default": null,
+      "top_k_default": null,
+      "repetition_penalty_default": null,
+      "runtime_profiles": {
+        "playground": {
+          "device": "GPU",
+          "kv_cache_precision": "u4",
+          "ovms_cache_size_gb": 0,
+          "ovms_max_num_seqs": 256,
+          "ovms_max_num_batched_tokens": 0,
+          "ovms_enable_prefix_caching": true,
+          "ovms_dynamic_split_fuse": true
+        }
+      },
+      "tool_parser": "hermes3",
+      "capabilities": {
+        "streaming": true,
+        "tools": true,
+        "reasoning": false,
+        "vision": false,
+        "prompt_cache": true
+      }
+    },
+    {
+      "id": "durgasai299792458/Qwen3-0.6B-heretic-abliterated-int4",
+      "model_path": "/home/m/snc/cod/ffTransmuteWebui-wip/mtapi-project/junk/hf-openvino-models/durgasai299792458---Qwen3-0.6B-heretic-abliterated-int4",
+      "context_window": 8192,
+      "max_tokens": 512,
+      "max_tokens_default": 128,
+      "enable_thinking_default": false,
+      "temperature_default": 0.7,
+      "top_p_default": null,
+      "top_k_default": null,
+      "repetition_penalty_default": null,
+      "runtime_profiles": {
+        "playground": {
+          "device": "GPU",
+          "kv_cache_precision": "u4",
+          "ovms_cache_size_gb": 0,
+          "ovms_max_num_seqs": 256,
+          "ovms_max_num_batched_tokens": 0,
+          "ovms_enable_prefix_caching": false,
+          "ovms_dynamic_split_fuse": false
+        }
+      },
+      "tool_parser": "hermes3",
+      "capabilities": {
+        "streaming": true,
+        "tools": true,
+        "reasoning": true,
+        "vision": false,
+        "prompt_cache": true
+      }
+    },
+    {
+      "id": "OpenVINO/Qwen3-1.7B-int4-ov",
+      "model_path": "/home/m/snc/cod/ffTransmuteWebui-wip/mtapi-project/junk/hf-openvino-models/OpenVINO---Qwen3-1.7B-int4-ov",
+      "context_window": 8192,
+      "max_tokens": 512,
+      "max_tokens_default": 128,
+      "enable_thinking_default": false,
+      "temperature_default": 0.7,
+      "top_p_default": null,
+      "top_k_default": null,
+      "repetition_penalty_default": null,
+      "runtime_profiles": {
+        "playground": {
+          "device": "GPU",
+          "kv_cache_precision": "u4",
+          "ovms_cache_size_gb": 0,
+          "ovms_max_num_seqs": 256,
+          "ovms_max_num_batched_tokens": 0,
+          "ovms_enable_prefix_caching": true,
+          "ovms_dynamic_split_fuse": true
+        }
+      },
+      "tool_parser": "hermes3",
+      "capabilities": {
+        "streaming": true,
+        "tools": true,
+        "reasoning": true,
+        "vision": false,
+        "prompt_cache": true
+      }
+    }
+  ],
+  "runtime": {
+    "model_path": "/home/m/snc/cod/ffTransmuteWebui-wip/mtapi-project/junk/hf-openvino-models/OpenVINO---Qwen3-1.7B-int4-ov",
+    "cache_dir": "/home/m/.cache/vinoapi/ov_cache",
+    "device": "GPU",
+    "kv_cache_precision": "u4",
+    "preflight_min_mb": 8192,
+    "auto_load_on_start": false,
+    "auto_load_on_request": true,
+    "enable_sse_keepalive": true,
+    "sse_keepalive_interval_s": 5.0,
+    "runtime_overlay_path": "/home/m/.local/share/ai-playground/resources/OpenVINO/ovms",
+    "engine": "playground",
+    "preflight_policy": "playground",
+    "ovms_rest_workers": 4,
+    "ovms_cache_size_gb": 0,
+    "ovms_max_num_seqs": 256,
+    "ovms_max_num_batched_tokens": 0,
+    "ovms_enable_prefix_caching": true,
+    "ovms_dynamic_split_fuse": true,
+    "ovms_reasoning_parser": "qwen3"
+  },
+  "cage": {
+    "backend": "auto",
+    "memory_max": "9G",
+    "memory_high": "9G",
+    "memory_swap_max": "0",
+    "oom_score_adjust": 1000,
+    "rss_cap_mb": 11500,
+    "watchdog_floor_enabled": false,
+    "watchdog_min_mb": 192
+  }
+}

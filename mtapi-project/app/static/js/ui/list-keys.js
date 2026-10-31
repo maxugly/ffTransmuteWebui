@@ -7,7 +7,7 @@
  *
  * Tabs register handlers via registerListKeys(tabId, api).
  */
-import { state } from '/app.js?v=2';
+import { state } from '/app.js?v=4';
 
 /** @type {Record<string, ListKeyApi>} */
 const handlers = {};

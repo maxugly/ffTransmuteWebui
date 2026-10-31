@@ -1,5 +1,5 @@
 // Reddit-Style Comments Viewer Tab Module
-import { logConsole } from '/app.js?v=2';
+import { logConsole } from '/app.js?v=4';
 import { escapeHtml } from '/js/utils.js';
 
 let _activeData = null; // { title, video_id, channel, total_count, threads: [] }

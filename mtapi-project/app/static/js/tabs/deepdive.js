@@ -11,7 +11,7 @@
  * complete. Results play inline (stems) and the dive report is a sibling
  * `<track>.deepdive.json`.
  */
-import { state, elements, switchTab, logConsole } from '/app.js?v=2';
+import { state, elements, switchTab, logConsole } from '/app.js?v=4';
 import { runOpWithCancel } from '/js/job-control.js';
 import { escapeHtml } from '/js/utils.js';
 

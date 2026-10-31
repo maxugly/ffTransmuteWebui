@@ -125,6 +125,13 @@ function filterNavTabs(query) {
   });
 }
 
+function focusNavFilter() {
+  const input = document.getElementById('navFilterInput');
+  if (!input || !input.getClientRects().length || document.querySelector('dialog[open], [aria-modal="true"]')) return;
+  input.focus({ preventScroll: true });
+  input.select();
+}
+
 let _navFilterBound = false;
 
 function setupNavFilter() {
@@ -133,6 +140,9 @@ function setupNavFilter() {
 
   const input = document.getElementById('navFilterInput');
   if (!input) return;
+
+  // Native autofocus can receive text before module initialization finishes.
+  filterNavTabs(input.value);
 
   input.addEventListener('input', function (e) {
     filterNavTabs(e.target.value);
@@ -158,5 +168,6 @@ export {
   setupNavSectionCollapse,
   ensureNavSectionForTab,
   setupNavFilter,
+  focusNavFilter,
   filterNavTabs,
 };

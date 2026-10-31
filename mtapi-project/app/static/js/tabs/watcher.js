@@ -1,7 +1,7 @@
-import { state, elements } from '/app.js?v=2';
+import { state, elements } from '/app.js?v=4';
 import { escapeHtml } from '/js/utils.js';
 import { setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
-import { isApplyingFormState } from '/js/pool/persistence.js?v=2';
+import { isApplyingFormState } from '/js/pool/persistence.js?v=3';
 
 // In-flight user toggles, immune to poll re-sync until their POST lands.
 // (A poll that predates the POST must not snap the knob back — that race

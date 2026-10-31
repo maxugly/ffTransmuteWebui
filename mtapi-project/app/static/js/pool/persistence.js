@@ -3,15 +3,16 @@ import {
   logConsole,
   renderPoolForm, renderPoolGrid, defaultTileInfo,
   checkHealth, switchTab, formatBytes, addPathsToPool,
-} from '/app.js?v=2';
+} from '/app.js?v=4';
 import { seqStop, _maybeAutoRifeAll, recoverSequenceVariants, setInstantHydrationGate, disarmInstantRife } from '/js/pool/sequence.js';
 import { ensurePoolLayout } from '/js/pool/layout.js';
-import { ensureTileInfo } from '/app.js?v=2';
+import { ensureTileInfo } from '/app.js?v=4';
 import { basename, escapeHtml, formatDurationExact } from '/js/utils.js';
 import { displayOpResult, runOpWithCancel, isMainJobBusy } from '/js/job-control.js';
 import { POOL_ZOOM, POOL_LAYOUT_DEFAULTS } from '/js/pool/constants.js';
 import { provenanceBadgesHtml } from '/js/pool/provenance.js';
 import { getTabRoot, mountedTabRoots, isCachedTab } from '/js/pool/tab-roots.js';
+import { resolveRange, sliceRange } from '/js/pool/sequence-range.js';
 
 let _poolSeqId = 1;
 
@@ -177,7 +178,7 @@ function captureFormStateInScope(scopeEl, tab) {
 function captureCurrentFormState() {
   const tab = state.activeTab;
   if (!tab || !elements.actionPanel) return;
-  if (tab === 'tts' || tab === 'settings' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening') return;
+  if (tab === 'tts' || tab === 'settings' || tab === 'openvino' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening' || tab === 'refs-speech') return;
   // Permanent tab roots are captured per-tab by captureAllMountedFormState;
   // the legacy path only owns direct (uncached) panel children.
   const controls = {};
@@ -218,7 +219,7 @@ function captureAllMountedFormState() {
  */
 function applySavedFormState(tab) {
   // Audio reference editors persist per model, not as a single tab snapshot.
-  if (tab === 'tts' || tab === 'settings' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening') return;
+  if (tab === 'tts' || tab === 'settings' || tab === 'openvino' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening' || tab === 'refs-speech') return;
   const controls = state.formState?.[tab];
   if (!controls || !elements.actionPanel) return;
   // Resolve inside the tab's own root when mounted (attached or held):
@@ -430,6 +431,16 @@ function buildPoolStatePayload() {
     tile_info: ensureTileInfo(),
     seq_token_w: state.pool.seqTokenW ?? 2,
     seq_token_h: state.pool.seqTokenH ?? 2,
+    // Render range (clip N → M) — scopes the Sequence render only.
+    render_range: {
+      from: (state.pool.renderRange && state.pool.renderRange.from != null)
+        ? String(state.pool.renderRange.from) : null,
+      to: (state.pool.renderRange && state.pool.renderRange.to != null)
+        ? String(state.pool.renderRange.to) : null,
+    },
+    export_fps: Number(state.pool.exportFps) || 30,
+    export_resolve_only: !!state.pool.exportResolveOnly,
+    export_resolve_preset: state.pool.exportResolvePreset || 'dnxhr_hq',
     layout: ensurePoolLayout(),
     lineages: (state.pool.lineages && typeof state.pool.lineages === 'object')
       ? state.pool.lineages : {},
@@ -568,6 +579,18 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
   state.pool.selectedVariantPaths = data.selected_variant_paths || {};
   state.pool.lineages = (data.lineages && typeof data.lineages === 'object')
     ? data.lineages : {};
+  // Render range (clip N → M). Raw bounds, null = unset; validated against the
+  // loaded sequence length by resolveRange() at render time.
+  const _rr = (data.render_range && typeof data.render_range === 'object') ? data.render_range : {};
+  const _rrFrom = _rr.from ?? null;
+  const _rrTo = _rr.to ?? null;
+  state.pool.renderRange = {
+    from: _rrFrom === null || _rrFrom === undefined ? null : String(_rrFrom),
+    to: _rrTo === null || _rrTo === undefined ? null : String(_rrTo),
+  };
+  state.pool.exportFps = Number(data.export_fps ?? data.exportFps) || 30;
+  state.pool.exportResolveOnly = !!(data.export_resolve_only ?? data.exportResolveOnly);
+  state.pool.exportResolvePreset = data.export_resolve_preset ?? data.exportResolvePreset ?? 'dnxhr_hq';
 
   // Image Pool (v2; missing images → [])
   if (!state.imagePool) {
@@ -646,7 +669,7 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
   // Restore can finish after the pool wall already mounted (empty). Refresh
   // cards without remounting the form.
   if (state.activeTab === 'pool' && document.getElementById('poolGrid')) {
-    import('/js/pool/grid.js?v=2').then((m) => m.renderPoolGrid()).catch(() => {});
+    import('/js/pool/grid.js?v=3').then((m) => m.renderPoolGrid()).catch(() => {});
   } else if (state.activeTab === 'images' && document.getElementById('imgPoolGrid')) {
     import('/js/pool/image-pool.js').then((m) => m.renderImagePoolGrid()).catch(() => {});
   }
@@ -654,7 +677,7 @@ function applyPoolData(data, { asProject = false, projectPath = null, projectNam
   // placeholder before restore lands. Re-render from persisted records only
   // (skipInstantKick: restore never arms Instant — spec §8.2/§8.3).
   if (document.getElementById('poolSequenceBox') && (state.pool.sequence || []).length) {
-    import('/js/pool/sequence-composer.js?v=2').then((m) => {
+    import('/js/pool/sequence-composer.js?v=3').then((m) => {
       try { m.renderSequenceBox({ skipInstantKick: true }); } catch (_) { /* ignore */ }
     }).catch(() => {});
   }
@@ -693,6 +716,9 @@ async function projectNew() {
   state.pool.conformPreset = 'h264_avc_hq';
   state.pool.conformTargetFps = null;
   state.pool.autoConformAfterRife = true;
+  state.pool.exportFps = 30;
+  state.pool.exportResolveOnly = false;
+  state.pool.exportResolvePreset = 'dnxhr_hq';
   if (state.imagePool) {
     state.imagePool.items = [];
     state.imagePool.selectedPath = null;
@@ -981,7 +1007,11 @@ function refreshPoolToolbarCounts() {
       : `${state.pool.items.length} in video pool`;
   }
   const stitchBtn = document.getElementById('btnPoolStitch');
-  if (stitchBtn) stitchBtn.disabled = state.pool.sequence.length < 2;
+  if (stitchBtn) {
+    // The button follows the render range: a window with <2 clips cannot stitch.
+    const _rr = resolveRange(state.pool.renderRange, (state.pool.sequence || []).length);
+    stitchBtn.disabled = (_rr.error ? 0 : _rr.count) < 2;
+  }
   const empty = state.pool.sequence.length === 0;
   const seqClear = document.getElementById('btnSeqClear');
   if (seqClear) seqClear.disabled = empty;
@@ -1005,7 +1035,17 @@ function ensureVideoOutputPath(path) {
 }
 
 async function stitchPoolSequence() {
-  const paths = state.pool.sequence.map(s => s.path);
+  // Render range (clip N → M): the Stitch consumes only the clips inside the
+  // window. The sequence and the project keep every clip — a sub-range render
+  // never needs a second project file.
+  const _range = resolveRange(state.pool.renderRange, (state.pool.sequence || []).length);
+  if (_range.error) {
+    logConsole(`[STITCH]: ${_range.error}`, 'error');
+    if (elements.statusText) elements.statusText.textContent = _range.error;
+    return;
+  }
+  const seqEntries = sliceRange(state.pool.renderRange, state.pool.sequence || []).entries;
+  const paths = seqEntries.map(s => s.path);
   if (paths.length < 2) {
     logConsole('[STITCH]: Need at least 2 clips in the sequence to stitch.', 'error');
     if (elements.statusText) elements.statusText.textContent = 'Need ≥2 clips';
@@ -1034,7 +1074,7 @@ async function stitchPoolSequence() {
       logConsole('[STITCH]: Custom AR needs W:H (e.g. 5:4) or WxH (e.g. 1080x1920).', 'error');
       if (elements.statusText) elements.statusText.textContent = 'Bad custom AR';
       const _btnErr = document.getElementById('btnPoolStitch');
-      if (_btnErr) { _btnErr.disabled = state.pool.sequence.length < 2; _btnErr.innerHTML = _btnErr.dataset.label || 'Stitch Sequence'; }
+      if (_btnErr) { _btnErr.disabled = paths.length < 2; _btnErr.innerHTML = _btnErr.dataset.label || 'Stitch Sequence'; }
       return;
     }
   }
@@ -1048,8 +1088,8 @@ async function stitchPoolSequence() {
     state.pool.outputPath = output_path;
   }
 
-  // Per-clip target durations (null = native)
-  const durations = state.pool.sequence.map(s =>
+  // Per-clip target durations (null = native) — range-scoped list.
+  const durations = seqEntries.map(s =>
     (s.targetDuration != null && s.targetDuration > 0) ? s.targetDuration : null
   );
   const anyTimed = durations.some(d => d != null);
@@ -1059,12 +1099,12 @@ async function stitchPoolSequence() {
     logConsole('[STITCH]: blocked — a job is already running. Use Stop first, or wait.', 'error');
     if (elements.statusText) elements.statusText.textContent = 'Busy — stop current job first';
     const _btnBusy = document.getElementById('btnPoolStitch');
-    if (_btnBusy) { _btnBusy.disabled = state.pool.sequence.length < 2; _btnBusy.innerHTML = _btnBusy.dataset.label || 'Stitch Sequence'; }
+    if (_btnBusy) { _btnBusy.disabled = paths.length < 2; _btnBusy.innerHTML = _btnBusy.dataset.label || 'Stitch Sequence'; }
     return;
   }
 
   // Show recover step if it has work — was hidden behind the 60s stall
-  const _needsRecover = (state.pool.sequence || []).some(s => s.variantPath && s.variantPath !== s.path);
+  const _needsRecover = seqEntries.some(s => s.variantPath && s.variantPath !== s.path);
   if (_needsRecover) logConsole(`[STITCH]: checking ${_clickN} variant links…`);
   const _tRec = Date.now();
   try { await recoverSequenceVariants(); } catch (_) { /* targeted recover only */ }
@@ -1074,7 +1114,7 @@ async function stitchPoolSequence() {
     || !!state.pool.conformEnabled;
   const body = {
     input_paths: paths.map((p, i) => {
-      const entry = state.pool.sequence[i];
+      const entry = seqEntries[i];
       if (entry && entry.variantPath && entry.variantPath !== entry.path) return entry.variantPath;
       const globalVariant = (state.pool.selectedVariantPaths || {})[p];
       if (globalVariant) return globalVariant;
@@ -1108,7 +1148,7 @@ async function stitchPoolSequence() {
     logConsole('[STITCH]: blocked — a job is already running. Use Stop first, or wait.', 'error');
     if (elements.statusText) elements.statusText.textContent = 'Busy — stop current job first';
     const _btnRace = document.getElementById('btnPoolStitch');
-    if (_btnRace) { _btnRace.disabled = state.pool.sequence.length < 2; _btnRace.innerHTML = _btnRace.dataset.label || 'Stitch Sequence'; }
+    if (_btnRace) { _btnRace.disabled = paths.length < 2; _btnRace.innerHTML = _btnRace.dataset.label || 'Stitch Sequence'; }
     return;
   }
 
@@ -1120,8 +1160,10 @@ async function stitchPoolSequence() {
     btn.innerHTML = 'Stitching…';
   }
 
+  if (_range.active && !_range.error) {
+    logConsole(`[STITCH]: render range — clips ${_range.from}–${_range.to} of ${_range.total} (${paths.length} clips)`);
+  }
   logConsole(`[STITCH]: POST /ops/join (main job + Stop)\n${JSON.stringify(body, null, 2)}`);
-
   try {
     // Same busy Run/Stop path as Instant RIFE and tab Run
     const data = await runOpWithCancel('join', body, {
@@ -1178,7 +1220,7 @@ async function stitchPoolSequence() {
     logConsole(`[STITCH FAILED]: ${err.message}`, 'error');
   } finally {
     if (btn) {
-      btn.disabled = state.pool.sequence.length < 2;
+      btn.disabled = (_range.error ? 0 : _range.count) < 2;
       btn.innerHTML = btn.dataset.label || 'Stitch Sequence';
     }
     await checkHealth();

@@ -10,7 +10,7 @@ import {
   projectNew, projectOpen, projectSave, savePoolStateNow,
   scheduleSavePoolState, stitchPoolSequence, refreshPoolToolbarCounts,
   projectLabel, shortHash, buildPoolMetaHtml, isApplyingFormState,
-} from '/js/pool/persistence.js?v=2';
+} from '/js/pool/persistence.js?v=3';
 import {
   findPoolItem, displayFocusPath, setPoolHover, clearPoolHover,
   setPoolFocus, updateSelectionHighlights, updatePoolFocusFrame,
@@ -22,6 +22,7 @@ import {
   _maybeAutoRifeAll, setSeqTokenSize, applySeqTokenSize,
 } from '/js/pool/sequence.js';
 import { openTagPicker } from '/js/pool/sequence-tag.js';
+import { bindSeqRangeInputs, syncSeqRangeInputs, updateSeqRangeUI } from '/js/pool/sequence-range-ui.js';
 import {
   selectPoolItem, removePoolItem, clearPool,
   addPathsToPool, importPoolFiles, importPoolFolder,
@@ -33,7 +34,7 @@ import {
   logConsole, formatBytes, showPreview,
   setPoolZoom, applyPoolZoom,
   setupTileInfoMenu, showPoolContextMenu,
-} from '/app.js?v=2';
+} from '/app.js?v=4';
 import { clearPending as lazyClearPending } from '/js/lazy-loader.js';
 import { metaRetryHtml } from '/js/pool/freshness.js';
 import { globalMediaIndex } from '/js/media-index.js';
@@ -628,6 +629,8 @@ function zoomBindings(root) {
 
 function _bindSequencePanel() {
   document.getElementById('btnPoolStitch')?.addEventListener('click', stitchPoolSequence);
+  // Render range (clip N → M): scopes the Sequence render only.
+  bindSeqRangeInputs();
   import('/js/pool/sequence-erase.js?v=2').then((m) => {
     try { m.initSequenceErase(); } catch (_) { /* erase panel optional */ }
   }).catch(() => {});
@@ -715,7 +718,7 @@ function _bindSequencePanel() {
     }
     scheduleSavePoolState();
     renderSequenceBox({ skipInstantKick: true });
-    import('/js/pool/sequence-conform.js').then((m) => {
+    import('/js/pool/sequence-conform.js?v=1').then((m) => {
       try { m.updateStitchButton(); } catch (_) {}
     }).catch(() => {});
   });
@@ -723,7 +726,7 @@ function _bindSequencePanel() {
     state.pool.conformMode = e.target.value || 'pad';
     if (isApplyingFormState()) return;
     scheduleSavePoolState();
-    import('/js/pool/sequence-conform.js').then((m) => {
+    import('/js/pool/sequence-conform.js?v=1').then((m) => {
       try { m.invalidateConforms('mode changed'); } catch (_) {}
       try { m.updateStitchButton(); } catch (_) {}
     }).catch(() => {});
@@ -733,7 +736,7 @@ function _bindSequencePanel() {
     state.pool.conformPreset = e.target.value || 'h264_avc_hq';
     if (isApplyingFormState()) return;
     scheduleSavePoolState();
-    import('/js/pool/sequence-conform.js').then((m) => {
+    import('/js/pool/sequence-conform.js?v=1').then((m) => {
       try { m.invalidateConforms('preset changed'); } catch (_) {}
       try { m.updateStitchButton(); } catch (_) {}
     }).catch(() => {});
@@ -744,7 +747,7 @@ function _bindSequencePanel() {
     state.pool.conformTargetFps = (v > 0) ? v : null;
     if (isApplyingFormState()) return;
     scheduleSavePoolState();
-    import('/js/pool/sequence-conform.js').then((m) => {
+    import('/js/pool/sequence-conform.js?v=1').then((m) => {
       try { m.invalidateConforms('target fps changed'); } catch (_) {}
       try { m.updateStitchButton(); } catch (_) {}
     }).catch(() => {});
@@ -753,6 +756,30 @@ function _bindSequencePanel() {
   document.getElementById('poolAutoConform')?.addEventListener('change', (e) => {
     state.pool.autoConformAfterRife = e.target.checked;
     scheduleSavePoolState();
+  });
+  document.getElementById('poolExportFps')?.addEventListener('change', (e) => {
+    const v = parseFloat(e.target.value);
+    state.pool.exportFps = (v > 0) ? v : 30.0;
+    if (isApplyingFormState()) return;
+    scheduleSavePoolState();
+  });
+  document.getElementById('poolExportResolveOnly')?.addEventListener('change', (e) => {
+    state.pool.exportResolveOnly = e.target.checked;
+    const presetEl = document.getElementById('poolExportResolvePreset');
+    if (presetEl) presetEl.disabled = !e.target.checked;
+    if (isApplyingFormState()) return;
+    scheduleSavePoolState();
+  });
+  document.getElementById('poolExportResolvePreset')?.addEventListener('change', (e) => {
+    state.pool.exportResolvePreset = e.target.value || 'dnxhr_hq';
+    if (isApplyingFormState()) return;
+    scheduleSavePoolState();
+  });
+  document.getElementById('btnExportEdl')?.addEventListener('click', () => {
+    import('/js/pool/sequence-export.js?v=3').then((m) => m.exportSequenceTimeline('edl'));
+  });
+  document.getElementById('btnExportFcpxml')?.addEventListener('click', () => {
+    import('/js/pool/sequence-export.js?v=3').then((m) => m.exportSequenceTimeline('fcpxml'));
   });
 
   document.getElementById('matchDistance')?.addEventListener('input', (e) => {
@@ -902,7 +929,7 @@ function _bindSequencePanel() {
   if (conformFpsEl) conformFpsEl.value = state.pool.conformTargetFps || '';
   if (autoConformEl) autoConformEl.checked = state.pool.autoConformAfterRife !== false;
   fillJoinTargetOptions();
-  import('/js/pool/sequence-conform.js').then((m) => {
+  import('/js/pool/sequence-conform.js?v=1').then((m) => {
     try { m.updateStitchButton(); } catch (_) {}
   }).catch(() => {});
 }
@@ -969,6 +996,17 @@ function _composeHtml() {
             <div class="seq-erase-box" id="seqEraseBox" hidden></div>
           </div>
           <div class="pool-sequence-bar">
+            <div class="seq-range-group">
+              <label class="pool-opt-label seq-range-label" data-help-title="Render only a clip range from the Sequence (1-based, inclusive). Blank = every clip. The project keeps all clips.">
+                Clips
+                <input type="number" id="seqRangeFrom" min="1" step="1" placeholder="1" class="seq-range-input"
+                  data-help-title="First clip of the render range (1-based). Leave blank to start at clip 1.">
+                <span class="seq-range-dash" aria-hidden="true">–</span>
+                <input type="number" id="seqRangeTo" min="1" step="1" placeholder="${seqCount || 'N'}" class="seq-range-input"
+                  data-help-title="Last clip of the render range (inclusive). Leave blank to end at the last clip.">
+              </label>
+              <span class="seq-range-hint" id="seqRangeHint" role="status"></span>
+            </div>
             <div class="pool-sequence-opts">
               <label class="pool-opt-label" data-help-title="How clips are scaled onto the canvas">Fit
                 <select id="poolReconcile">
@@ -1054,6 +1092,27 @@ function _composeHtml() {
             </button>
             <button class="btn seq-ctrl" id="btnEraseRunAll" type="button" data-help-title="Erase → RIFE → Conform every masked Sequence lineage (deduped, originals untouched)">Erase▸Run</button>
             <button class="btn seq-ctrl" id="btnEraseClear" type="button" data-help-title="Clear erase pipeline progress/status states">Erase▸Clear</button>
+            <div class="seq-export-group">
+              <span class="seq-export-label" data-help-title="Export sequence as DaVinci Resolve timeline (EDL / FCPXML)">Timeline:</span>
+              <label class="pool-opt-label" data-help-title="Timeline export timecode frame rate (default 30 fps; matches project timebase in DaVinci Resolve)">FPS
+                <input type="number" id="poolExportFps" min="1" max="240" step="0.001" placeholder="30" class="seq-clip-dur-input" value="${state.pool.exportFps || 30}" data-help-title="Timeline export timecode frame rate (default 30 fps; matches project timebase in DaVinci Resolve)">
+              </label>
+              <label class="checkbox-label" data-help-title="Tie export to DaVinci Resolve-compatible media only (.mov DNxHR / ProRes with PCM audio). Generates intermediate files if missing.">
+                <input type="checkbox" id="poolExportResolveOnly" ${state.pool.exportResolveOnly ? 'checked' : ''} data-help-title="Tie export to DaVinci Resolve-compatible media only (.mov DNxHR / ProRes with PCM audio). Generates intermediate files if missing."> DaVinci media
+              </label>
+              <label class="pool-opt-label" data-help-title="Intermediate codec preset for DaVinci Resolve compatibility">Preset
+                <select id="poolExportResolvePreset" ${state.pool.exportResolveOnly ? '' : 'disabled'} data-help-title="Intermediate codec preset for DaVinci Resolve compatibility">
+                  <option value="dnxhr_hq" ${(state.pool.exportResolvePreset || 'dnxhr_hq') === 'dnxhr_hq' ? 'selected' : ''}>DNxHR HQ</option>
+                  <option value="dnxhr_sq" ${state.pool.exportResolvePreset === 'dnxhr_sq' ? 'selected' : ''}>DNxHR SQ</option>
+                  <option value="dnxhr_lb" ${state.pool.exportResolvePreset === 'dnxhr_lb' ? 'selected' : ''}>DNxHR LB</option>
+                  <option value="prores_hq" ${state.pool.exportResolvePreset === 'prores_hq' ? 'selected' : ''}>ProRes HQ</option>
+                  <option value="prores_proxy" ${state.pool.exportResolvePreset === 'prores_proxy' ? 'selected' : ''}>ProRes Proxy</option>
+                </select>
+              </label>
+              <button class="btn seq-export-btn" id="btnExportEdl" type="button" data-help-title="Export CMX 3600 EDL timeline for DaVinci Resolve (File → Import → Timeline…)" ${seqCount === 0 ? 'disabled' : ''}>Export EDL</button>
+              <button class="btn seq-export-btn" id="btnExportFcpxml" type="button" data-help-title="Export Final Cut Pro XML (FCPXML 1.10) timeline for DaVinci Resolve (File → Import → Timeline…)" ${seqCount === 0 ? 'disabled' : ''}>Export FCPXML</button>
+              <span class="seq-export-hint" id="seqExportHint" data-help-title="Timeline import tip">Import via File → Import Timeline in DaVinci Resolve.</span>
+            </div>
           </div>
         </div>
       </div>
@@ -1119,6 +1178,8 @@ function renderSequenceForm() {
   if (root.querySelector('#poolCompose')) {
     applyPoolZoom();
     renderPoolGrid();
+    syncSeqRangeInputs();
+    updateSeqRangeUI();
     updateSelectionHighlights();
     updateCatalogStatus();
     return;
@@ -1146,6 +1207,8 @@ function renderSequenceForm() {
   applyPoolZoom();
   renderPoolGrid();
   renderSequenceBox();
+  syncSeqRangeInputs();
+  updateSeqRangeUI();
   updatePoolFocusFrame(displayFocusPath());
   updateSelectionHighlights();
   updateSeqTransportUI();

@@ -1,7 +1,7 @@
 // Trackers Updater tab — ngosang/trackerslist fetch → verify → qBittorrent push.
 // Server surface: /api/trackers/* (routes/trackers.py). Pure fetch() client:
 // the verification toolkit (UDP handshake / HTTP announce) lives server-side.
-import { logConsole, elements } from '/app.js?v=2';
+import { logConsole, elements } from '/app.js?v=4';
 
 let _poll = null;
 let _lastBusy = { refresh: false, verify: false };

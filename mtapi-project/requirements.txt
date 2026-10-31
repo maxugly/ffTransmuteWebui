@@ -19,6 +19,8 @@ tensorflow-hub>=0.16
 # TF-hub still does `from pkg_resources import parse_version` (gone in setuptools 81+)
 setuptools<81
 openvino
+openvino-genai
+openvino-tokenizers
 ultralytics
 # Demucs stem separation (Stems tab: host STFT/ISTFT + torch; neural core via OpenVINO)
 demucs>=4.1
@@ -39,3 +41,6 @@ essentia>=2.1b6
 # numpy<2 pin) and basic-pitch (would downgrade tensorflow 2.21 -> 2.15 and break the
 # styletransfer Magenta path) are deliberately NOT installed.
 mido>=1.3
+
+# Native Playground OVMS facade (already present through the test/runtime stack).
+httpx>=0.27,<1

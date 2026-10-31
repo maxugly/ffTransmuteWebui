@@ -1,4 +1,4 @@
-import { state } from '/app.js?v=2';
+import { state } from '/app.js?v=4';
 import { knobUnitHtml } from '/js/ui/knobs.js?v=6';
 import { setupContinuousKnob, setupBinaryKnob } from '/js/ui/knobs.js?v=6';
 import { runOpWithCancel } from '/js/job-control.js';

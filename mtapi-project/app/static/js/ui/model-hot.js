@@ -1,4 +1,4 @@
-import { state } from '/app.js?v=2';
+import { state } from '/app.js?v=4';
 
 let hotStatus=null, changing=false, activity=null, lastPoll=0, selectedSignature='', inFlight=false, pendingChange=null;
 const duration=value=>{const s=Math.max(0,Math.round(value));return s>=60?`${Math.floor(s/60)}m ${s%60}s`:`${s}s`;};
@@ -58,7 +58,7 @@ function paintHot(){
  setText(document.getElementById('modelLocalText'),color==='loading'?(tool==='facemorph'?'Loading / detecting landmarks…':'Loading model…'):color==='loaded'?'Loaded for this tab':color==='elsewhere'?'Not loaded here · models loaded elsewhere':'No models loaded');
  setText(document.getElementById('modelDiskSize'),current?`Selected: ${current.label} · ${size(current.disk_bytes)} on disk`:'Checking selected model size…');
  const supported=tab.retention_supported;
- document.getElementById('modelKeepLabel').dataset.helpText=supported?'Retain this tool’s model after use. Off releases only this tool’s model after active jobs finish. Navigation never loads or releases models.':'This engine currently exits after each run, so retention is unavailable. Its actual loading status and model files are shown here.';
+ document.getElementById('modelKeepLabel').dataset.helpText=tool==='openvino'?'Keep the API model loaded between replies. Off unloads after the active request finishes; it does not cancel that request. Use Stop & release GPU to stop work now.':supported?'Retain this tool’s model after use. Off releases only this tool’s model after active jobs finish. Navigation never loads or releases models.':'This engine currently exits after each run, so retention is unavailable. Its actual loading status and model files are shown here.';
  const checkbox=document.getElementById('modelKeepLoaded');
  checkbox.checked=pendingChange?.tool===tool?pendingChange.enabled:!!hotStatus.policies[tool];checkbox.disabled=changing||!supported;
  document.getElementById('modelKeepLabel').hidden=false;

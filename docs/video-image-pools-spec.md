@@ -147,6 +147,47 @@ window.globalInputs = {
 `TAB_ACCEPTS.cut = 'video'`.  
 `FRAME_RANGE_TABS` includes `'cut'`.
 
+### 2.5 Sequence render range (clip N → M)
+
+The Sequence can render a **sub-range** of its clips — "render clip 34 → clip
+56" — without deleting the other clips or making a second project.
+
+```js
+state.pool.renderRange = { from: null, to: null };  // 1-based, inclusive
+```
+
+| Concern | Rule |
+|---------|------|
+| Bounds | 1-based, inclusive. `null`/blank = unset (whole sequence renders) |
+| Scope | The **render** (Stitch) only. Instant RIFE, Erase▸Run and the conform cache still cover the whole sequence |
+| Mutation | Never. The sequence, the project file and every clip stay as they are — the range only chooses what the render consumes |
+| Validation | `resolveRange(range, clipCount)` — `From > To`, `From` past the last clip, non-integer or `< 1` bounds → the Stitch is disabled and the hint names the reason |
+| Clamping | `To` past the last clip is clamped to the last clip (hint says so); `From` past the last clip is an error |
+| Persistence | `render_range` in the pool payload (`{from, to}`, `null` = unset) — session autosave + named project |
+
+**UI** (`Sequence` tab, composer row above the options):
+
+- Two number inputs (`#seqRangeFrom`, `#seqRangeTo`) labelled `Clips`.
+- A hint line (`#seqRangeHint`): `All 60 clips` → `Clips 34–56 of 60 · 23 clips`,
+  or the error reason.
+- Chips outside the window get `.is-out-of-range` (dimmed, still visible).
+- The Stitch button names the window: `Stitch 34–56` (`(copy)` / `(re-encode)`
+  suffixes still come from the conform prediction).
+
+**Modules:**
+
+| File | Role |
+|------|------|
+| `app/static/js/pool/sequence-range.js` | Pure range math (no imports, no DOM) — `resolveRange`, `sliceRange`, `rangeLabel`, `rangeHint`, `rangeIncludes` |
+| `app/static/js/pool/sequence-range-ui.js` | Inputs, hint line, chip dimming, Stitch button state |
+| `app/media/pool.py` | `_normalize_render_range` — known-key payload entry, bad bounds → unset |
+
+**Proof:** `node mtapi-project/tests/test_sequence_range.mjs` (pure math) ·
+`mtapi-project/tests/test_sequence_render_range.py` (payload round trip) ·
+`mtapi-project/junk/prove_sequence_range.mjs` (Playwright: real typing, real
+Stitch click, output probed on disk — a 2–5 window of 1 s…6 s clips renders a
+14 s file, not the 21 s sequence).
+
 ---
 
 ## 3. Persistence (session + project)
@@ -168,6 +209,7 @@ window.globalInputs = {
   "tile_zoom": 200,
   "tile_info": {},
   "layout": {},
+  "render_range": { "from": null, "to": null },
   "project_name": null,
   "project_path": null
 }
@@ -180,6 +222,7 @@ window.globalInputs = {
 | `sequence` | `state.pool.sequence` |
 | `selected_path` | `state.pool.selectedPath` |
 | `selected_image_path` | `state.imagePool.selectedPath` |
+| `render_range` | `state.pool.renderRange` — Sequence render window (§2.5) |
 
 Missing `images` on load → `[]` (old projects).
 
@@ -305,6 +348,8 @@ When implementing encode later: dump with `start_frame`/`end_frame` via existing
 | `app/static/js/pool/image-pool.js` | **Image Pool** UI + import |
 | `app/static/js/pool/persistence.js` | Payload v2, project save/load, dual save |
 | `app/static/js/pool/sequence.js` | Sequence composer |
+| `app/static/js/pool/sequence-range.js` | Sequence render range — pure math (§2.5) |
+| `app/static/js/pool/sequence-range-ui.js` | Sequence render range — inputs, hint, chip dimming (§2.5) |
 | `app/static/js/tabs/cut.js` | **Cut** workspace (host; no dual-layer logic) |
 | `app/static/js/ui/image-compare.js` | Shared separate/overlay/A/B compare control |
 | `app/static/css/image-compare.css` | Shared compare styles |
@@ -333,7 +378,9 @@ When implementing encode later: dump with `start_frame`/`end_frame` via existing
 5. **Always** dual-save session + open project when pool state changes.  
 6. Sequence / stitch / match stay **video-only**.  
 7. New still-only features → Image Pool (or global Image bar), not Video Pool.  
-8. Vanilla JS only; no new frontend frameworks.
+8. Vanilla JS only; no new frontend frameworks.  
+9. The Sequence **render range** scopes the Stitch only — never the sequence
+   content, the project file, Instant RIFE or Erase▸Run (§2.5).
 
 ---
 

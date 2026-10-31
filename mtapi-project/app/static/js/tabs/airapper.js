@@ -17,7 +17,7 @@
  * Help law: every hover hint is data-help-title / data-help-text. No title=
  * anywhere in this file.
  */
-import { elements, logConsole, addPathsToPool } from '/app.js?v=2';
+import { elements, logConsole, addPathsToPool } from '/app.js?v=4';
 import { runOpWithCancel } from '/js/job-control.js';
 import { escapeHtml } from '/js/utils.js';
 import { setupContinuousKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';

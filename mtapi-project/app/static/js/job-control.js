@@ -5,7 +5,7 @@ import {
   probeGlobalVideo, updateGlobalInputs, updateStatusIndicators,
   showPreview,
   showQrScannability,
-} from '/app.js?v=2';
+} from '/app.js?v=4';
 import { basename, escapeHtml } from '/js/utils.js';
 import { setPreviewAspect } from '/js/preview.js?v=2';
 import { collectFaceMorphBody } from '/js/tabs/facemorph.js';
@@ -22,6 +22,7 @@ import { collectZoompanBody } from '/js/tabs/zoompan.js';
 import { collectImageSortBody } from '/js/tabs/imagesort.js';
 import { collectCutBody } from '/js/tabs/cut.js';
 import { collectFastSAMBody } from '/js/tabs/fastsam.js';
+import { collectDepthmapBody } from '/js/tabs/depthmap.js';
 import { collectImageEditBody } from '/js/tabs/imageedit.js';
 import { activeTransmuteOp, transmuteOpsDetails, activeMultiMode } from '/js/tabs/transmute.js';
 import { collectDeepDreamBody } from '/js/tabs/deepdream.js?v=4';
@@ -841,6 +842,11 @@ function resolveActiveOpAndBody() {
     const bb = collectFastSAMBody();
     if (!bb) { error = "Please provide valid input for FastSAM."; return { opId: '', body: null, error }; }
     opId = 'fastsam';
+    body = bb;
+  } else if (tab === 'depthmap') {
+    const bb = collectDepthmapBody();
+    if (!bb) { error = "Please provide valid input for Depth Map."; return { opId: '', body: null, error }; }
+    opId = 'depthmap';
     body = bb;
   } else if (tab === 'styletransfer') {
     const bb = collectStyleTransferBody();

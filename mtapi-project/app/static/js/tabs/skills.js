@@ -1,4 +1,4 @@
-import { elements, state, logConsole } from '/app.js?v=2';
+import { elements, state, logConsole } from '/app.js?v=4';
 import { escapeHtml } from '/js/utils.js';
 
 /**

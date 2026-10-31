@@ -6,7 +6,7 @@
  *
  * Help law: All hover hints use data-help-title and data-help-text. Zero title= attributes.
  */
-import { elements, bestInput } from '/app.js?v=2';
+import { elements, bestInput } from '/app.js?v=4';
 import { escapeHtml as esc } from '/js/utils.js';
 import { openAudioExportDialog } from '/js/ui/audio-export.js';
 

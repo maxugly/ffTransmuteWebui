@@ -1,12 +1,12 @@
 // Extracted from pool/sequence.js — see sequence.js barrel. Vanilla ES6, no framework.
-import { state, logConsole } from '/app.js?v=2';
+import { state, logConsole } from '/app.js?v=4';
 import { basename } from '/js/utils.js';
-import { scheduleSavePoolState } from '/js/pool/persistence.js?v=2';
+import { scheduleSavePoolState } from '/js/pool/persistence.js?v=3';
 import { runOpWithCancel, onStopRequest, isMainJobBusy, setClientBusy, clearClientBusy, abortMainJob } from '/js/job-control.js';
 import { recordVariantBatch, enqueueSignature } from '/js/lazy-loader.js';
 import { findPoolItem, _getNativeMeta } from '/js/pool/sequence-model.js';
 import { peekVariants, _fetchVariants, _fetchVariantsBatch, _normVariantKey, _invalidateVariantsCache } from '/js/pool/sequence-variants.js';
-import { renderSequenceBox } from '/js/pool/sequence-composer.js?v=2';
+import { renderSequenceBox } from '/js/pool/sequence-composer.js?v=3';
 
 function _timeFactor(targetDuration, nativeDuration) {
   if (!targetDuration || nativeDuration <= 0.001) return 1.0;
@@ -1103,7 +1103,7 @@ async function _drainInstantRifeQueue() {
           // Auto-conform follows the same armed gate (spec §2/§10): only when
           // Conform is enabled and this batch was explicitly started.
           try {
-            const st = (await import('/js/pool/sequence-conform.js').catch(() => null));
+            const st = (await import('/js/pool/sequence-conform.js?v=1').catch(() => null));
             if (st && entry) st.maybeAutoConformEntry(entry);
           } catch (_) { /* conform hook must not break RIFE */ }
         } else {

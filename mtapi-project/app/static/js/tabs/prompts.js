@@ -4,7 +4,7 @@
  * Save, edit, tag, search, delete, and 1-click send prompts directly to target AI tabs.
  * Storage: localStorage key mtapi_prompt_library + mtapi_prompt_categories.
  */
-import { state, elements, switchTab } from '/app.js?v=2';
+import { state, elements, switchTab } from '/app.js?v=4';
 import { escapeHtml } from '/js/utils.js';
 
 const STORAGE_KEY = 'mtapi_prompt_library';

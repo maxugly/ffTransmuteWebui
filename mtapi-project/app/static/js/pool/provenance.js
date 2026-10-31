@@ -6,7 +6,7 @@
  * precedence, audit log) lives in exactly one place, then mirrors the returned
  * row back onto the pool item so badges and filters never lag the database.
  */
-import { state } from '/app.js?v=2';
+import { state } from '/app.js?v=4';
 import { basename, escapeHtml, shortKey } from '/js/utils.js';
 
 function _log(msg, kind) {
@@ -15,7 +15,7 @@ function _log(msg, kind) {
     if (fn) fn(msg, kind);
   } catch (_) { /* ignore */ }
   try {
-    import('/app.js?v=2').then((m) => m.logConsole(msg, kind)).catch(() => {});
+    import('/app.js?v=4').then((m) => m.logConsole(msg, kind)).catch(() => {});
   } catch (_) { /* ignore */ }
 }
 

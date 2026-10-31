@@ -36,6 +36,7 @@ CACHES = {
     'app.operations.demucs_ov_engine': ('unload_all', '_compiled'),
     'app.filters.erase': ('clear_compiled_cache', '_COMPILED'),
     'app.filters.fastsam': (None, '_runtime_model_cache'),
+    'app.filters.depthmap': (None, '_runtime_model_cache'),
     'app.operations.deepdream.models': (None, '_base_model_cache'),
     'app.operations.styletransfer_engine': (None, '_model'),
 }
@@ -48,7 +49,7 @@ CACHE_OWNERS = {
     'app.operations.styletransfer_ov_engine': 'styletransfer',
     'app.operations.styletransfer_engine': 'styletransfer',
     'app.operations.demucs_ov_engine': 'demucs',
-    'app.filters.erase': 'erase', 'app.filters.fastsam': 'fastsam',
+    'app.filters.erase': 'erase', 'app.filters.fastsam': 'fastsam', 'app.filters.depthmap': 'depthmap',
     'app.operations.withoutbg_engine': 'withoutbg',
 }
 CACHES.update({
@@ -117,7 +118,7 @@ def status(tab='', **selected):
     for name, (_, attr) in CACHES.items():
         module = sys.modules.get(name)
         cache = getattr(module, attr, None)
-        if name == 'app.filters.fastsam' and isinstance(cache, dict):
+        if name in ('app.filters.fastsam', 'app.filters.depthmap') and isinstance(cache, dict):
             cache = {key: value for key, value in list(cache.items()) if getattr(value, 'predictor', True) is not None and getattr(getattr(value, 'predictor', True), 'model', True) is not None}
         if cache is not None and (not isinstance(cache, dict) or len(cache)):
             tool = CACHE_OWNERS.get(name)
@@ -237,7 +238,14 @@ async def configure(tool, value):
     async with _CONFIG_LOCK:
         settings = load_settings()
         await save_settings({**settings, 'warm_models': {**settings.get('warm_models', {}), tool: value}})
-    if not value: await release(tool)
+    if not value:
+        if tool == 'openvino':
+            from .openvino_llm.supervisor import get_supervisor
+            result = await get_supervisor().release_if_idle()
+            if not result.get('ok'):
+                raise RuntimeError(result.get('error', 'Cannot release OpenVINO model'))
+        else:
+            await release(tool)
     return status()
 
 

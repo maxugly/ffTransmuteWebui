@@ -9,12 +9,12 @@
  */
 import {
   state, bestInput, resolveGlobalImages, resolveGlobalImage, showPreview,
-} from '/app.js?v=2';
+} from '/app.js?v=4';
 import { basename, escapeHtml, isVideoPath, isImagePath } from '/js/utils.js';
 
 const HIDE_TABS = new Set([
-  'tts', 'decbars', 'pool', 'sequence', 'images', 'jobs', 'notes', 'settings', 'watcher', 'txt2img', 'dart',
-  'mediacatalog', 'cdp', 'deepdive', 'prompts', 'refs-audio', 'refs-tts', 'refs-voicemod', 'refs-listening',
+  'tts', 'decbars', 'openvino', 'pool', 'sequence', 'images', 'jobs', 'notes', 'settings', 'watcher', 'txt2img', 'dart',
+  'mediacatalog', 'cdp', 'deepdive', 'prompts', 'refs-audio', 'refs-tts', 'refs-voicemod', 'refs-listening', 'refs-speech',
 ]);
 
 /** @typedef {{ label: string, path: string|null }} InputSlot */

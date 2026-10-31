@@ -43,4 +43,6 @@ from . import (  # noqa: F401
     music_ops,
     ytdlp_ops,
     media_catalog_ops,
+    timeline_export_ops,
+    depthmap_ops,
 )

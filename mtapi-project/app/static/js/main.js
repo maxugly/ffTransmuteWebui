@@ -1,7 +1,7 @@
 // ES module entry — imports the monolithic app.js and boots it.
 // Future module splits will import individual pieces from here.
 
-import '/app.js?v=2';
+import '/app.js?v=10';
 import { HelpStrip } from '/js/ui/help-strip.js';
 
 // Boot: ES modules are deferred, so DOM is already parsed.
@@ -14,5 +14,5 @@ window.addEventListener('DOMContentLoaded', () => {
 // Fails silently if the #help-strip element is absent.
 HelpStrip.init();
 
-import { initModelHot } from '/js/ui/model-hot.js';
+import { initModelHot } from '/js/ui/model-hot.js?v=2';
 initModelHot();

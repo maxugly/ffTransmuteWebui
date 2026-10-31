@@ -16,7 +16,7 @@ import {
   captureCurrentFormState, captureAllMountedFormState, applySavedFormState,
   isApplyingFormState,
   _poolSeqId, _poolSaveTimer, _poolPersistReady,
-} from '/js/pool/persistence.js?v=2';
+} from '/js/pool/persistence.js?v=3';
 import {
   runOpWithCancel, runActiveOperation, stopActiveOperation,
   displayOpResult, setRunUiBusy,
@@ -29,6 +29,7 @@ import { renderTransmuteForm, renderMultiForm, renderAdvancedForm, addMultiClipP
 import { renderFaceMorphForm, collectFaceMorphBody } from '/js/tabs/facemorph.js';
 import { renderWithoutBgForm, collectWithoutBgBody } from '/js/tabs/withoutbg.js';
 import { renderFastSAMForm, collectFastSAMBody } from '/js/tabs/fastsam.js';
+import { renderDepthmapForm, collectDepthmapBody } from '/js/tabs/depthmap.js';
 import { renderStyleTransferForm, collectStyleTransferBody } from '/js/tabs/styletransfer.js?v=2';
 import { renderRifeForm, collectRifeBody } from '/js/tabs/rife.js';
 import { renderImg2ImgForm, collectImg2ImgBody } from '/js/tabs/img2img.js';
@@ -54,6 +55,7 @@ import { renderSkillsForm } from '/js/tabs/skills.js';
 import { renderScriptsForm } from '/js/tabs/scripts.js';
 import { renderWatermarkForm } from '/js/tabs/watermark.js';
 import { renderDemucsForm } from '/js/tabs/demucs.js';
+import { renderVoiceExtractForm } from '/js/tabs/voiceextract.js';
 import { renderMediaCatalogForm } from '/js/tabs/mediacatalog.js';
 import { renderCdpForm } from '/js/tabs/cdp.js';
 import { renderTrackersForm } from '/js/tabs/trackers.js?v=1';
@@ -61,16 +63,17 @@ import { renderDeepDiveForm } from '/js/tabs/deepdive.js';
 import { renderMusicForm } from '/js/tabs/music.js';
 import { renderAirapperForm } from '/js/tabs/airapper.js?v=1';
 import { renderDecbarsForm } from '/js/tabs/decbars.js?v=1';
+import { renderOpenVinoForm, initOpenVinoCatalogRefresh } from '/js/tabs/openvino.js?v=16';
 import { renderEraseForm } from '/js/tabs/erase.js';
 import { renderStableFluidsForm } from '/js/tabs/stablefluids.js';
 import { renderSettingsForm, applyUiTweaks, readStoredScrollbarWidth } from '/js/tabs/settings.js?v=5';
 import { renderJobsForm, stopJobsPoll } from '/js/tabs/jobs.js';
-import { renderReferencesForm } from '/js/tabs/references.js?v=7';
+import { renderReferencesForm } from '/js/tabs/references.js?v=8';
 import { renderPromptsForm } from '/js/tabs/prompts.js';
 import { renderImageEditForm, collectImageEditBody } from '/js/tabs/imageedit.js';
 import { refreshInputPreview, bindInputPreviewListeners } from '/js/ui/input-preview.js';
 import { makeClearable, bindClearables } from '/js/ui/clearable.js';
-import { setupNavSectionCollapse, ensureNavSectionForTab, setupNavFilter } from '/js/ui/nav-sections.js';
+import { setupNavSectionCollapse, ensureNavSectionForTab, setupNavFilter, focusNavFilter } from '/js/ui/nav-sections.js?v=2';
 import { saveTabScroll, restoreTabScroll, initTabScroll } from '/js/ui/tab-scroll.js';
 import { updateTabGithubHeader } from '/js/ui/tab-github-repos.js';
 import {
@@ -132,6 +135,8 @@ let state = {
   },
   // fastsam
   fastsam: {},
+  // depthmap
+  depthmap: {},
   // Neural style transfer (content list + one style image)
   styleTransfer: {
     contents: [], // {path, name}[]
@@ -204,6 +209,10 @@ let state = {
     // Sequence token chip size (0–5 levels; see SEQ_TOKEN_SIZE)
     seqTokenW: 2,
     seqTokenH: 2,
+    // Render range over the Sequence (1-based, inclusive; null = whole
+    // sequence). Scopes the Sequence render only — the sequence itself and
+    // the project file keep every clip (spec §2.5).
+    renderRange: { from: null, to: null },
     // Frame match (pHash next-clip finder)
     matchMaxDistance: 10,
     matchMode: 'next', // next | prev | both
@@ -302,7 +311,7 @@ let state = {
     muteVideos: true,
     globalFramePeek: true,
     framePeekSize: 'M',
-    warmModels: { deepdream: false, styletransfer: false, fastsam: false },
+    warmModels: { deepdream: false, styletransfer: false, fastsam: false, depthmap: false },
   },
   formState: {},
 };
@@ -332,7 +341,7 @@ const SETTINGS_DEFAULTS = {
   muteVideos: true,
   globalFramePeek: true,
   framePeekSize: 'M',
-  warmModels: { deepdream: false, styletransfer: false, fastsam: false },
+  warmModels: { deepdream: false, styletransfer: false, fastsam: false, depthmap: false },
   ownedDirs: [],
   catalogAutoIndex: true,
 };
@@ -495,12 +504,14 @@ const TAB_ACCEPTS = {
   facemorph:   'image',
   withoutbg:   'image',
   fastsam:     'any',
+  depthmap:    'any',
   styletransfer:'any',
   rife:        'video',
   img2img:     'any',
   txt2img:     'none',
   qr_art:      'none',
   agent:       'none',
+  openvino:    'none',
   upscale:     'any',
   riferecohere:'image',
   speedchange: 'video',
@@ -524,6 +535,7 @@ const TAB_ACCEPTS = {
   watermark:   'any',
   erase:       'any',
   demucs:      'any',
+  voiceextract: 'any',
   music:        'any',
   decbars:      'any',
   tts:          'none',
@@ -536,6 +548,7 @@ const TAB_ACCEPTS = {
   'refs-tts': 'none',
   'refs-voicemod': 'none',
   'refs-listening': 'none',
+  'refs-speech': 'none',
   'refs-apis': 'none',
   'refs-keys': 'none',
 };
@@ -543,7 +556,7 @@ const TAB_ACCEPTS = {
 /** Tabs that show the global frame-range row (video pipeline / mosh / convert). */
 const FRAME_RANGE_TABS = new Set([
   'mosh', 'deepdream', 'rife', 'img2img', 'speedchange', 'convert', 'transmute',
-  'styletransfer', 'withoutbg', 'fastsam', 'facemorph', 'multi', 'advanced',
+  'styletransfer', 'withoutbg', 'fastsam', 'depthmap', 'facemorph', 'multi', 'advanced',
   'cut', // cut workspace shows global range next to first/last
   'imagesort',
 ]);
@@ -816,6 +829,7 @@ function resolveGlobalImages() {
 }
 
 async function init() {
+  initOpenVinoCatalogRefresh();
   loadQuickSettings();
   bindClearables();
   setupGlobalTimeline();
@@ -832,7 +846,7 @@ async function init() {
   await fetchOperations();
   await restorePoolState();
   syncGlobalPanelVisibility();
-  switchTab(state.activeTab || 'mosh');
+  switchTab(state.activeTab || 'mosh', { focusFilter: document.activeElement !== document.getElementById('navFilterInput') });
   // Fit empty viewer once layout settles
   requestAnimationFrame(() => fitPreviewViewer());
 }
@@ -1038,7 +1052,7 @@ async function fetchOperations() {
 }
 
 // Tab Switching
-function switchTab(tab) {
+function switchTab(tab, { focusFilter = true } = {}) {
   if (tab === 'refs-audio') tab = 'refs-tts';
   // Same-tab remount must not wipe a stable pool wall. Init calls switchTab
   // after restore; a prior click can already have built #poolGrid.
@@ -1052,10 +1066,11 @@ function switchTab(tab) {
         item.classList.toggle('active', item.getAttribute('data-tab') === tab);
       });
       if (tab === 'pool') {
-        import('/js/pool/grid.js?v=2').then((m) => m.renderPoolGrid()).catch(() => {});
+        import('/js/pool/grid.js?v=3').then((m) => m.renderPoolGrid()).catch(() => {});
       } else if (tab === 'images') {
         import('/js/pool/image-pool.js').then((m) => m.renderImagePoolGrid()).catch(() => {});
       }
+      if (focusFilter) focusNavFilter();
       return;
     }
   }
@@ -1086,6 +1101,7 @@ function switchTab(tab) {
   if (tab === 'facemorph') title = 'Face Morph';
   if (tab === 'withoutbg') title = 'withoutBG · Remove Background';
   if (tab === 'fastsam') title = 'Vision · Asset Extraction';
+  if (tab === 'depthmap') title = 'Depth Map · Depth Anything V2';
   if (tab === 'styletransfer') title = 'Style Transfer · CPU/GPU';
   if (tab === 'rife') title = 'RIFE · AI Frame Interpolation';
   if (tab === 'img2img') title = 'Img2Img · OpenVINO GPU';
@@ -1113,6 +1129,7 @@ function switchTab(tab) {
   if (tab === 'scripts') title = 'Script Runner';
   if (tab === 'watermark') title = 'Watermark · Clean';
   if (tab === 'demucs') title = 'Stems · Demucs separation';
+  if (tab === 'voiceextract') title = 'Voice Extract · Speaker isolation';
   if (tab === 'mediacatalog') title = 'Media Catalog';
   if (tab === 'cdp') title = 'CDP Sound Tools';
   if (tab === 'trackers') title = 'Trackers · qBittorrent tracker updater';
@@ -1121,6 +1138,7 @@ function switchTab(tab) {
   if (tab === 'music') title = 'Music · ACE-Step text-to-music';
   if (tab === 'airapper') title = 'AI Rapper · write bars, direct the session, make it hot';
   if (tab === 'decbars') title = 'DECbars · Robotic Rap Step Sequencer';
+  if (tab === 'openvino') title = 'OpenVINO · Local GenAI Server';
   if (tab === 'erase') title = 'Erase · Clean';
   if (tab === 'settings') title = 'Settings';
   if (tab === 'stablefluids') title = 'Stable Fluids · Sim';
@@ -1128,7 +1146,7 @@ function switchTab(tab) {
   if (tab === 'prompts') title = 'Prompt Library';
   if (tab === 'comments') title = 'Comments · Reddit-Style Thread Viewer';
   // References tab: no big header (sidebar already shows active item)
-  if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-keys' || tab === 'refs-music' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening') title = '';
+  if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-keys' || tab === 'refs-music' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening' || tab === 'refs-speech') title = '';
   // Library tabs: drop the big header title (sidebar already shows active item)
   if (tab === 'pool' || tab === 'sequence' || tab === 'images') title = '';
   if (elements.tabTitle) elements.tabTitle.textContent = title;
@@ -1152,7 +1170,8 @@ function switchTab(tab) {
     || tab === 'tts'
     || tab === 'airapper'
     || tab === 'decbars'
-    || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-keys' || tab === 'refs-music' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening'
+    || tab === 'openvino'
+    || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-keys' || tab === 'refs-music' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening' || tab === 'refs-speech'
   );
   if (elements.btnRun) {
     elements.btnRun.style.display = hideRun ? 'none' : '';
@@ -1215,8 +1234,9 @@ function switchTab(tab) {
     || tab === 'imgcompare'
     || tab === 'tts'
     || tab === 'airapper'
+    || tab === 'openvino'
     || tab === 'prompts'
-    || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-keys' || tab === 'refs-music' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening'
+    || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-keys' || tab === 'refs-music' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening' || tab === 'refs-speech'
   );
   document.body.classList.toggle('no-global-inputs', noGlobalInputs);
   document.body.classList.toggle('sf-sim-tab-active', tab === 'stablefluids');
@@ -1228,6 +1248,7 @@ function switchTab(tab) {
   // AI Rapper: bare workspace — the tab renders its own chat sidebar + tiles.
   document.body.classList.toggle('airapper-tab-active', tab === 'airapper');
   document.body.classList.toggle('decbars-tab-active', tab === 'decbars');
+  document.body.classList.toggle('openvino-tab-active', tab === 'openvino');
   document.body.classList.toggle('cdp-tab-active', tab === 'cdp');
   document.body.classList.toggle('trackers-tab-active', tab === 'trackers');
   document.body.classList.toggle('deepdive-tab-active', tab === 'deepdive');
@@ -1235,7 +1256,7 @@ function switchTab(tab) {
   document.body.classList.toggle('prompts-tab-active', tab === 'prompts');
   // References: bare workspace (sidebar + reference card only)
   document.body.classList.toggle('tts-tab-active', tab === 'tts');
-  document.body.classList.toggle('references-tab-active', tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-keys' || tab === 'refs-music' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening');
+  document.body.classList.toggle('references-tab-active', tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-keys' || tab === 'refs-music' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening' || tab === 'refs-speech');
 
   // Render Form for the Tab
   renderTabForm(tab);
@@ -1248,6 +1269,7 @@ function switchTab(tab) {
   _syncTabInputFromGlobal();
   // Per-tab scroll memory (localStorage-backed): jump back to where this tab was left.
   try { restoreTabScroll(tab); } catch (_) { /* best effort */ }
+  if (focusFilter) focusNavFilter();
 }
 
 // Stateful cached tabs (Phase 1: pool, sequence, images). Each tab mounts
@@ -1333,6 +1355,8 @@ function renderTabForm(tab) {
     renderWithoutBgForm();
   } else if (tab === 'fastsam') {
     renderFastSAMForm();
+  } else if (tab === 'depthmap') {
+    renderDepthmapForm();
   } else if (tab === 'styletransfer') {
     renderStyleTransferForm();
   } else if (tab === 'rife') {
@@ -1399,6 +1423,8 @@ function renderTabForm(tab) {
     renderWatermarkForm();
   } else if (tab === 'demucs') {
     renderDemucsForm();
+  } else if (tab === 'voiceextract') {
+    renderVoiceExtractForm();
   } else if (tab === 'mediacatalog') {
     renderMediaCatalogForm();
   } else if (tab === 'cdp') {
@@ -1415,6 +1441,8 @@ function renderTabForm(tab) {
     renderAirapperForm();
   } else if (tab === 'decbars') {
     renderDecbarsForm();
+  } else if (tab === 'openvino') {
+    renderOpenVinoForm();
   } else if (tab === 'erase') {
     renderEraseForm();
   } else if (tab === 'stablefluids') {
@@ -1423,7 +1451,7 @@ function renderTabForm(tab) {
     renderSettingsForm();
   } else if (tab === 'prompts') {
     renderPromptsForm();
-  } else if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-keys' || tab === 'refs-music' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening') {
+  } else if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-keys' || tab === 'refs-music' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening' || tab === 'refs-speech') {
     renderReferencesForm();
   }
 
@@ -1436,7 +1464,7 @@ import { setupFramePeek, resetFramePeek } from '/js/frame-peek.js?v=5';
 import { setupListKeys } from '/js/ui/list-keys.js';
 import {
   renderPoolForm, renderSequenceForm, renderPoolGrid, sequencePositions,
-} from '/js/pool/grid.js?v=2';
+} from '/js/pool/grid.js?v=3';
 import {
   setPoolZoom, applyPoolZoom, setupTileInfoMenu, refreshPoolTileOverlays,
   hidePoolContextMenu, showPoolContextMenu,

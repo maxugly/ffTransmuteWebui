@@ -1,6 +1,6 @@
-import { state } from '/app.js?v=2';
+import { state } from '/app.js?v=4';
 import { POOL_LAYOUT_DEFAULTS } from '/js/pool/constants.js';
-import { scheduleSavePoolState } from '/js/pool/persistence.js?v=2';
+import { scheduleSavePoolState } from '/js/pool/persistence.js?v=3';
 import { getTabRoot } from '/js/pool/tab-roots.js';
 
 // ── Pool layout / dock resize helpers ─────────────────────────────────────

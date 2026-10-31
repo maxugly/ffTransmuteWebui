@@ -3,7 +3,7 @@
  * Proportional 50/50 layout (flex); browser zoom keeps relative sizes.
  * Content persisted in localStorage.
  */
-import { state, elements } from '/app.js?v=2';
+import { state, elements } from '/app.js?v=4';
 
 const STORAGE_KEY = 'mtapi.notes.v1';
 let _saveTimer = null;

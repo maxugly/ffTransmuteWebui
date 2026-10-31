@@ -7,6 +7,23 @@ below. Add a new tool by writing a new *_ops.py; this file never changes.
 Run with:  uvicorn app.main:app --reload --port 24590
 Then see:  http://localhost:24590/docs
 """
+# Global monkey-patches for PyTorch 2.6 / huggingface_hub compatibility
+import torch
+_orig_torch_load = torch.load
+def _patched_torch_load(f, map_location=None, **kwargs):
+    kwargs.setdefault("weights_only", False)
+    return _orig_torch_load(f, map_location=map_location, **kwargs)
+torch.load = _patched_torch_load
+try:
+    import huggingface_hub
+    _orig_hf_download = huggingface_hub.hf_hub_download
+    def _patched_hf_download(*args, use_auth_token=None, **kwargs):
+        if use_auth_token is not None:
+            kwargs["token"] = use_auth_token
+        return _orig_hf_download(*args, **kwargs)
+    huggingface_hub.hf_hub_download = _patched_hf_download
+except Exception:
+    pass
 import asyncio
 import json
 import logging
@@ -29,6 +46,8 @@ from . import watcher as folder_watcher
 from . import operations  # noqa: F401  (side effect: populates REGISTRY)
 
 log = logging.getLogger("mtapi")
+from .openvino_llm.activity import QuietPolls
+logging.getLogger("uvicorn.access").addFilter(QuietPolls())
 
 # Ensure progress output is visible during development.
 # ffmpeg stderr is streamed line-by-line via shell.run_command.
@@ -79,6 +98,11 @@ async def _startup_body() -> None:
 
 
 async def _shutdown_body() -> None:
+    try:
+        from .openvino_llm.supervisor import get_supervisor
+        await get_supervisor().stop()
+    except Exception as e:
+        log.warning("mtapi shutdown: openvino supervisor stop failed: %s", e)
     from . import model_hot
     await model_hot.release()
     from .media.catalog import get_catalog
@@ -294,6 +318,9 @@ deepdream.register(app)
 from .routes import demucs
 demucs.register(app)
 
+from .routes import voiceextract
+voiceextract.register(app)
+
 from .routes import music
 music.register(app)
 
@@ -325,6 +352,9 @@ airapper.register(app)
 
 from .routes import decbars
 decbars.register(app)
+
+from .routes import openvino_llm
+openvino_llm.register(app)
 
 def _make_endpoint(spec):
     async def endpoint(

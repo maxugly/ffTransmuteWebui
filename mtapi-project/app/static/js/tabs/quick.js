@@ -1,7 +1,7 @@
-import { state, elements, logConsole, switchTab, checkHealth, addPathsToPool, renderPoolGrid } from '/app.js?v=2';
+import { state, elements, logConsole, switchTab, checkHealth, addPathsToPool, renderPoolGrid } from '/app.js?v=4';
 import { escapeHtml } from '/js/utils.js';
 import { displayOpResult } from '/js/job-control.js';
-import { refreshPoolToolbarCounts } from '/js/pool/persistence.js?v=2';
+import { refreshPoolToolbarCounts } from '/js/pool/persistence.js?v=3';
 
 // ── Quick Transmute settings tab ──────────────────────────────────────────
 

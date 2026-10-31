@@ -261,6 +261,23 @@ def is_conform_preset(preset_id: str) -> bool:
     return preset_id in CONFORM_PRESETS
 
 
+# ── DaVinci Resolve intermediate presets (sequence-timeline-export-spec §4.1) ─
+DAVINCI_PRESETS: tuple[str, ...] = (
+    "dnxhr_hq",
+    "dnxhr_sq",
+    "dnxhr_lb",
+    "prores_hq",
+    "prores_proxy",
+)
+
+DAVINCI_PRESET_DEFAULT = "dnxhr_hq"
+
+
+def is_davinci_preset(preset_id: str) -> bool:
+    """True when preset_id is in the DaVinci Resolve intermediate allow-list."""
+    return preset_id in DAVINCI_PRESETS
+
+
 # ── Video/image extensions ──────────────────────────────────────────────────
 
 VIDEO_EXTS = frozenset({".mp4", ".m4v", ".mov", ".mkv", ".webm", ".avi",

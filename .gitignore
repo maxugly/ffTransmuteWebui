@@ -22,6 +22,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+voice-venv/
 
 # runtime output / data stores
 mtapi-project/data/trackers/

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Resolve the checkout even when invoked through ~/.local/bin/vinoapi.
+script_path="$(readlink -f -- "${BASH_SOURCE[0]}")"
+project_path="$(dirname -- "$(dirname -- "$script_path")")/mtapi-project"
+cd -- "$project_path" || exit 1
+exec "$project_path/.venv/bin/python" -m app.openvino_llm.cli "$@"

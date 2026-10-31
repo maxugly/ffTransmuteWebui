@@ -1,5 +1,5 @@
 // Global video probe + timeline slider controls
-import { state } from '/app.js?v=2';
+import { state } from '/app.js?v=4';
 
 // ── Global video probe → populates global frame range ─────────────────────
 

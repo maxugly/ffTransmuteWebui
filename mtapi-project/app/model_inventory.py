@@ -9,13 +9,13 @@ TABS = {
     'tts': ('TTS', True), 'deepdream': ('DeepDream', True),
     'styletransfer': ('Style Transfer', True), 'fastsam': ('Vision / FastSAM', True),
     'demucs': ('Stems / Demucs', True), 'erase': ('Erase / LaMa', True),
-    'withoutbg': ('WithoutBG', True), 'music': ('Music / ACE-Step', False),
+    'withoutbg': ('WithoutBG', True), 'depthmap': ('Depth Map', True), 'music': ('Music / ACE-Step', False),
     'txt2img': ('Txt2Img', False), 'img2img': ('Img2Img', False),
     'qr_art': ('QR Art', False), 'rife': ('RIFE', False),
     'riferecohere': ('RIFE Recohere', False), 'upscale': ('Upscale', False),
     'facemorph': ('Face Morph', False), 'speedchange': ('Speed / RIFE', False),
     'sequence': ('Sequence / RIFE', False), 'airapper': ('AI Rapper / ACE-Step', False),
-    'imagesort': ('Image Sort / RIFE', False),
+    'imagesort': ('Image Sort / RIFE', False), 'openvino': ('OpenVINO GenAI LLM', True),
 }
 _SIZE_CACHE = {}
 WEIGHT_SUFFIXES = {'.onnx', '.bin', '.xml', '.pt', '.pth', '.h5', '.pb', '.index', '.safetensors', '.dat', '.param', '.npy'}
@@ -162,6 +162,12 @@ def selection(tab, model='', engine='', voice='', quality='', auxiliary='', lora
     elif tab == 'facemorph':
         paths = [Path(os.environ.get('FACEMORPH_ROOT', HOME/'snc/cod/facemorph'))/'code/utils/shape_predictor_68_face_landmarks.dat']
         label = 'dlib · 68 face landmarks'
+    elif tab == 'openvino':
+        from .openvino_llm.config import load_config
+        cfg = load_config()
+        entry = cfg.find_model(model or None)
+        label = entry.id
+        paths = [Path(entry.model_path or cfg.runtime.model_path)]
     if tab == 'riferecohere' and auxiliary:
         paths += hf_snapshot(auxiliary)
         label += ' + '+auxiliary

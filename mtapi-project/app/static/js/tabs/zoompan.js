@@ -14,7 +14,7 @@
  */
 import {
   state, elements, logConsole, switchTab, resolveGlobalImage,
-} from '/app.js?v=2';
+} from '/app.js?v=4';
 import { escapeHtml, basename, isImagePath } from '/js/utils.js';
 import {
   defaultCompareState,

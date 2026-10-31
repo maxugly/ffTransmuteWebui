@@ -9,7 +9,7 @@
  * analysis toggle off still indexes the directory, which is the honest default
  * for a huge library you just want browsable.
  */
-import { state, elements, switchTab, logConsole } from '/app.js?v=2';
+import { state, elements, switchTab, logConsole } from '/app.js?v=4';
 import { runOpWithCancel } from '/js/job-control.js';
 import { catalogReferencesHtml, mountCatalogReferences, openCatalogReferences } from '/js/tabs/catalog-references.js';
 import { escapeHtml, shortKey } from '/js/utils.js';

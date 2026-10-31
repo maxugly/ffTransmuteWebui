@@ -1,4 +1,4 @@
-import { elements, state, logConsole, switchTab } from '/app.js?v=2';
+import { elements, state, logConsole, switchTab } from '/app.js?v=4';
 
 /**
  * Agent tab — chat + images via grok/agy CLI backends.

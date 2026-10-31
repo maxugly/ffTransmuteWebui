@@ -236,6 +236,27 @@ per entry. This is also the brief for handing a new tool to another
 coding agent: "here's an OperationSpec, here's three examples, make one
 for X" is close to unambiguous.
 
+---
+
+## 🧱 Placeholder Tiles — fill in later
+
+> Flag: `[TODO: fill]` = needs content. Remove flag when tile is done.
+
+| Tile | Area / File | Status |
+|------|-------------|--------|
+| [TODO: fill] Operations registry | `app/operations/__init__.py` — add new ops | placeholder |
+| [TODO: fill] Watcher / DNxHR ingest | `app/watcher*` + this README section | placeholder |
+| [TODO: fill] Pool import | `items[]` / `sequence[]` writes | placeholder |
+| [TODO: fill] Job cancel / progress | `GET /api/job/{token}`, `POST /api/cancel` | placeholder |
+| [TODO: fill] Batch / folder mode | `transmute_raw` only for now | placeholder |
+| [TODO: fill] Upload endpoint | Not wired — paths must exist locally | placeholder |
+| [TODO: fill] Auth / sandboxing | Not wired — localhost only warning | placeholder |
+| [TODO: fill] App filters (per_frame / directory) | `app/filters/*` — stage list | placeholder |
+| [TODO: fill] Video pipeline | `video_pipeline.py` — dump / process / encode | placeholder |
+| [TODO: fill] Design bugs + fixes | This README — testing-caught bugs section | placeholder |
+
+---
+
 ## Design decisions, and the bugs testing actually caught
 
 - **Operations shell out to the existing scripts** rather than

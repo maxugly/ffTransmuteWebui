@@ -1,9 +1,9 @@
 // yt-dlp Media Downloader Tab
-import { state, elements, logConsole, formatBytes } from '/app.js?v=2';
+import { state, elements, logConsole, formatBytes } from '/app.js?v=4';
 import { escapeHtml, basename, formatDurationExact } from '/js/utils.js';
 import { addPathsToPool } from '/js/pool/items.js';
 import { addPathToSequence } from '/js/pool/sequence.js';
-import { scheduleSavePoolState } from '/js/pool/persistence.js?v=2';
+import { scheduleSavePoolState } from '/js/pool/persistence.js?v=3';
 import { openCommentsForPath } from '/js/tabs/comments.js';
 
 let _activeProbeData = null;

@@ -102,7 +102,39 @@ export const TAB_GITHUB_REPOS = {
       desc: 'Background removal via locally accelerated open weights or cloud API',
     },
   ],
+  depthmap: [
+    {
+      name: 'Depth-Anything-V2 (TikTok)',
+      url: 'https://github.com/DepthAnything/Depth-Anything-V2',
+      desc: 'State-of-the-art monocular depth estimation foundation model',
+    },
+    {
+      name: 'onnx-community',
+      url: 'https://huggingface.co/onnx-community/depth-anything-v2-small',
+      desc: 'INT8 quantized Depth Anything V2 Small ONNX model',
+    },
+    {
+      name: 'OpenVINO Notebooks',
+      url: 'https://github.com/openvinotoolkit/openvino_notebooks',
+      desc: 'OpenVINO monocular depth estimation tutorials and quantization',
+    },
+  ],
   fastsam: [
+    {
+      name: 'YOLOE (Ultralytics / Real-Time Seeing Anything)',
+      url: 'https://github.com/ultralytics/ultralytics',
+      desc: 'Real-time open-vocabulary object detection and instance segmentation',
+    },
+    {
+      name: 'EfficientSAM (Meta FAIR)',
+      url: 'https://github.com/yformer/EfficientSAM',
+      desc: 'Lightweight Segment Anything Model with OpenVINO acceleration',
+    },
+    {
+      name: 'openvino_notebooks',
+      url: 'https://github.com/openvinotoolkit/openvino_notebooks',
+      desc: 'OpenVINO notebooks including EfficientSAM deployment tutorials',
+    },
     {
       name: 'FastSAM (CASIA-IVA-Lab)',
       url: 'https://github.com/CASIA-IVA-Lab/FastSAM',
@@ -228,6 +260,18 @@ export const TAB_GITHUB_REPOS = {
       name: 'ffTransmuteWebui (maxugly)',
       url: 'https://github.com/maxugly/ffTransmuteWebui',
       desc: 'Calendar Dart historical events and creative research tool',
+    },
+  ],
+  openvino: [
+    {
+      name: 'openvino.genai (openvinotoolkit)',
+      url: 'https://github.com/openvinotoolkit/openvino.genai',
+      desc: 'OpenVINO GenAI runtime for LLMs, VLMs, and generative pipelines on Intel GPU/CPU/NPU',
+    },
+    {
+      name: 'openvino (openvinotoolkit)',
+      url: 'https://github.com/openvinotoolkit/openvino',
+      desc: 'Open-source toolkit for optimizing and deploying deep learning models',
     },
   ],
 };

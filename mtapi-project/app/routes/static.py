@@ -47,6 +47,11 @@ def register(app: FastAPI) -> None:
             return PlainTextResponse("", status_code=404)
         return PlainTextResponse(content=resolved.read_text(encoding="utf-8"), media_type="application/javascript")
 
+    # Reference imagery and other static media (binary-safe).
+    img_dir = STATIC_DIR / "img"
+    if img_dir.is_dir():
+        app.mount("/img", StaticFiles(directory=str(img_dir)), name="img")
+
     stablefluids_dir = STATIC_DIR / "stablefluids"
     if stablefluids_dir.is_dir():
         app.mount("/stablefluids", StaticFiles(directory=str(stablefluids_dir), html=True), name="stablefluids")

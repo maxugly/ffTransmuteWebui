@@ -5,7 +5,7 @@
  * `auto-firstlast.js`. The server owns provenance resolution (owned-dir rules,
  * origin='import'), so this module only ships the new paths.
  */
-import { state } from '/app.js?v=2';
+import { state } from '/app.js?v=4';
 
 const _done = new Set(); // paths already offered to the catalog this session
 
@@ -19,7 +19,7 @@ function _log(msg, kind) {
     if (fn) fn(msg, kind);
   } catch (_) { /* ignore */ }
   try {
-    import('/app.js?v=2').then((m) => m.logConsole(msg, kind)).catch(() => {});
+    import('/app.js?v=4').then((m) => m.logConsole(msg, kind)).catch(() => {});
   } catch (_) { /* ignore */ }
 }
 

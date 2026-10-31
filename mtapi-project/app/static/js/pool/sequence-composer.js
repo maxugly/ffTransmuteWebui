@@ -1,17 +1,19 @@
 // Extracted from pool/sequence.js — see sequence.js barrel. Vanilla ES6, no framework.
-import { state, elements, logConsole, renderPoolGrid, sequencePositions } from '/app.js?v=2';
+import { state, elements, logConsole, renderPoolGrid, sequencePositions } from '/app.js?v=4';
 import { selectPoolItem } from '/js/pool/items.js';
 import { isVideoPath, basename, escapeHtml, formatDurationExact } from '/js/utils.js';
-import { poolThumbUrl, itemShowsThumb, shortHash, nextSeqId, scheduleSavePoolState, savePoolStateNow, refreshPoolToolbarCounts } from '/js/pool/persistence.js?v=2';
+import { poolThumbUrl, itemShowsThumb, shortHash, nextSeqId, scheduleSavePoolState, savePoolStateNow, refreshPoolToolbarCounts } from '/js/pool/persistence.js?v=3';
 import { installPoolScrollPaint } from '/js/pool/layout.js';
 import { findPoolItem, seqEntryPlayDuration, updateSeqTotalTime } from '/js/pool/sequence-model.js';
 import { setPoolHover, applyPoolHoverAtPoint, clearPoolHover, displayFocusPath, updateSelectionHighlights, updatePoolFocusFrame } from '/js/pool/sequence-select.js?v=2';
 import { refreshRifeNeed, _resolvedTargetFps, _rifeBadgeForEntry, _scheduleInstantRifeKick, _entrySatisfiesNeed, _updateInstantRifeStrip, _findQueuedRife, _maybeAutoRifeEntry, isHydrationComplete, isInstantArmed } from '/js/pool/sequence-rife.js';
 import { peekVariants, _fetchVariants, _fetchVariantsBatch, _normVariantKey, _showSeqVariantMenu } from '/js/pool/sequence-variants.js';
 import { updateSeqTransportUI, updateSeqClipSettings, seqClipSpeedInfo, seqClipTokenTitle, seqStop } from '/js/pool/sequence-transport.js?v=2';
-import { conformBadgeForEntry, updateStitchButton, maybeAutoConformEntry } from '/js/pool/sequence-conform.js';
+import { conformBadgeForEntry, updateStitchButton, maybeAutoConformEntry } from '/js/pool/sequence-conform.js?v=1';
+import { updateExportButtons } from '/js/pool/sequence-export.js?v=3';
 import { eraseBadgeForEntry, ensureSequenceLineages } from '/js/pool/sequence-erase.js?v=2';
 import { normTagColor, sequenceUseCounts, openTagPicker } from '/js/pool/sequence-tag.js';
+import { resolveRange, rangeIncludes } from '/js/pool/sequence-range.js';
 
 function setupSequenceDropZone() {
   installPoolScrollPaint(applyPoolHoverAtPoint);
@@ -247,8 +249,12 @@ function renderSequenceBox(opts) {
   if (!box) return;
   applySeqTokenSize();
 
+  // Render range (clip N → M): chips outside the window are dimmed and the
+  // Stitch button follows the range, not the whole sequence.
+  const _range = resolveRange(state.pool.renderRange, state.pool.sequence.length);
+
   const stitchBtn = document.getElementById('btnPoolStitch');
-  if (stitchBtn) stitchBtn.disabled = state.pool.sequence.length < 2;
+  if (stitchBtn) stitchBtn.disabled = (_range.error ? 0 : _range.count) < 2;
 
   if (state.pool.sequence.length === 0) {
     box.innerHTML = `<div class="seq-placeholder">Drop videos here to build a stitch sequence…</div>`;
@@ -256,6 +262,7 @@ function renderSequenceBox(opts) {
     _updateInstantRifeStrip();
     updateSeqTransportUI();
     try { updateStitchButton(); } catch (_) { /* prediction only */ }
+    try { updateExportButtons(); } catch (_) { /* export buttons */ }
     return;
   }
 
@@ -283,7 +290,8 @@ function renderSequenceBox(opts) {
     const isSelected = state.pool.selectedPath === entry.path;
     const isHovered = state.pool.hoverPath === entry.path;
     const speedInfo = seqClipSpeedInfo(entry);
-    tok.className = `seq-token${isSelected ? ' selected' : ''}${isHovered ? ' hovered' : ''}${isSelected && !isHovered ? ' focused' : ''}${isPlaying ? ' playing' : ''}${speedInfo.stretched ? ' time-stretched' : ''}`;
+    const outOfRange = !rangeIncludes(_range, idx + 1);
+    tok.className = `seq-token${isSelected ? ' selected' : ''}${isHovered ? ' hovered' : ''}${isSelected && !isHovered ? ' focused' : ''}${isPlaying ? ' playing' : ''}${speedInfo.stretched ? ' time-stretched' : ''}${outOfRange ? ' is-out-of-range' : ''}`;
     tok.draggable = true;
     tok.dataset.id = String(entry.id);
     tok.dataset.path = entry.path;
@@ -482,6 +490,14 @@ function renderSequenceBox(opts) {
   _updateSeqVariantBadges();
 
   try { updateStitchButton(); } catch (_) { /* prediction only */ }
+  try { updateExportButtons(); } catch (_) { /* export buttons */ }
+  // The render range may have gone stale (clips added/removed) — refresh the
+  // hint line and the chip dimming against the live clip count.
+  try {
+    import('/js/pool/sequence-range-ui.js')
+      .then((m) => m.updateSeqRangeUI())
+      .catch(() => {});
+  } catch (_) { /* range hint is optional */ }
   _updateInstantRifeStrip();
   updateSeqTransportUI();
   updateSeqTotalTime();
