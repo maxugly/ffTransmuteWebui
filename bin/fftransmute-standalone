@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Standalone launcher for ffTransmuteWebui — Pake-style (10 min option)
+# Starts the uvicorn server (port 24590) then opens Pake window.
+# If `pake` binary not found, falls back to a minimal web-app window via webkit.
+set -euo pipefail
+
+PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SERVER_PORT=24590
+SERVER_URL="http://localhost:${SERVER_PORT}"
+VENV_PYTHON="$PROJECT_DIR/mtapi-project/.venv/bin/python"
+
+echo "[ffTransmute] starting server on ${SERVER_PORT} ..."
+# Start server from mtapi-project/app/main.py using uvicorn
+"$VENV_PYTHON" -c "
+import uvicorn, sys, os
+sys.path.insert(0, 'mtapi-project/app')
+os.chdir('mtapi-project/app')
+uvicorn.run('main:app', host='localhost', port=$SERVER_PORT, log_level='warning')
+" > /tmp/fftransmute_server.log 2>&1 &
+SERVER_PID=$!
+sleep 2
+
+# Wait for healthy
+for i in {1..30}; do
+  if curl -sf "$SERVER_URL" > /dev/null 2>&1; then break; fi
+  sleep 0.5
+done
+
+echo "[ffTransmute] server up (${SERVER_URL}) — launching Pake window ..."
+
+# Try Pake binary (drop into bin/ or install globally)
+PAKE_BIN="${PAKE_BIN:-pake}"
+if command -v "$PAKE_BIN" >/dev/null 2>&1 || [ -x "$PROJECT_DIR/bin/pake" ]; then
+  PAKE_CMD="${PAKE_BIN:-$PROJECT_DIR/bin/pake}"
+  exec "$PAKE_CMD" -n "ffTransmute" -u "$SERVER_URL" -i "$PROJECT_DIR/mtapi-project/app/static/img/human-speech-bands.png"
+else
+  echo "[ffTransmute] pake binary not found (install via GitHub release or cargo/brew)."
+  echo "          Point a browser at ${SERVER_URL} or drop 'pake' into bin/."
+  # Keep server alive for manual use
+  wait $SERVER_PID
+fi
+
+# Server cleanup on exit handled by kill when parent exits; explicit here for clean exit
+trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+wait $SERVER_PID

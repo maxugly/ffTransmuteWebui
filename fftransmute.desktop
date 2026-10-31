@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=ffTransmute
+Comment=Fast video/tool web UI — standalone desktop window
+Exec=bash -c 'cd /home/m/snc/cod/ffTransmuteWebui-wip && ./bin/fftransmute-standalone'
+Type=Application
+Terminal=false
+Icon=/home/m/snc/cod/ffTransmuteWebui-wip/mtapi-project/app/static/img/human-speech-bands.png
+Categories=Graphics;Video;AudioVideo;
