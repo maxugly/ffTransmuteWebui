@@ -2,9 +2,15 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            use tauri_plugin_shell::process::Command;
-            let cmd = Command::new(app.app_handle(), "fftransmute-server");
-            let _ = cmd.spawn();
+            use std::process::{Command, Stdio};
+            let venv_py = "/home/m/snc/cod/ffTransmuteWebui-wip/mtapi-project/.venv/bin/python";
+            let app_dir = "/home/m/snc/cod/ffTransmuteWebui-wip/mtapi-project/app";
+            let _child = Command::new(venv_py)
+                .args(["-m","uvicorn","main:app","--host","127.0.0.1","--port","24590","--log-level","warning"])
+                .current_dir(app_dir)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .spawn();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![greet])
