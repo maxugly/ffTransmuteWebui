@@ -309,6 +309,8 @@ watermark.register(app)
 from .routes import erase
 erase.register(app)
 
+from .routes import vectorize
+app.include_router(vectorize.router)
 from .routes import styletransfer
 styletransfer.register(app)
 
