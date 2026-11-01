@@ -28,6 +28,18 @@ def status():
         engines.append({"id":e,"available":available,"reason":reason})
     return {"ok": True, "engines": engines, "openvino_device":"CPU"}
 
+def load_manifests():
+    import json
+    d = {}
+    p = Path(__file__).with_suffix('').parent.parent / "filters/vectorize_engines"
+    for f in p.glob("*.json"):
+        d[f.stem] = json.loads(f.read_text())
+    return d
+
+@router.get("/manifest")
+def manifest():
+    return {"ok": True, "manifests": load_manifests()}
+
 @router.post("/run")
 def run(req: RunRequest):
     from app.operations import vectorize_ops
