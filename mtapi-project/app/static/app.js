@@ -1,4 +1,5 @@
 import { renderTtsForm } from '/js/tabs/tts.js';
+import { renderVectorizeForm } from '/js/tabs/vectorize.js';
 // State
 import { isVideoPath, basename, formatDurationExact, escapeHtml } from '/js/utils.js';
 import { setupContinuousKnob, setupBinaryKnob, knobUnitHtml } from '/js/ui/knobs.js?v=6';
@@ -521,6 +522,7 @@ const TAB_ACCEPTS = {
   cut:         'video',
   imagesort:   'image',
   imageedit:   'image',
+  vectorize:   'image',
   imgcompare:  'image',
   zoompan:     'image',
   notes:       'none',
@@ -1139,6 +1141,7 @@ function switchTab(tab, { focusFilter = true } = {}) {
   if (tab === 'airapper') title = 'AI Rapper · write bars, direct the session, make it hot';
   if (tab === 'decbars') title = 'DECbars · Robotic Rap Step Sequencer';
   if (tab === 'openvino') title = 'OpenVINO · Local GenAI Server';
+  if (tab === 'vectorize') title = 'Vectorize · Raster → SVG';
   if (tab === 'erase') title = 'Erase · Clean';
   if (tab === 'settings') title = 'Settings';
   if (tab === 'stablefluids') title = 'Stable Fluids · Sim';
@@ -1171,6 +1174,7 @@ function switchTab(tab, { focusFilter = true } = {}) {
     || tab === 'airapper'
     || tab === 'decbars'
     || tab === 'openvino'
+    || tab === 'vectorize'
     || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-keys' || tab === 'refs-music' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening' || tab === 'refs-speech'
   );
   if (elements.btnRun) {
@@ -1451,6 +1455,8 @@ function renderTabForm(tab) {
     renderSettingsForm();
   } else if (tab === 'prompts') {
     renderPromptsForm();
+  } else if (tab === 'vectorize') {
+    renderVectorizeForm();
   } else if (tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-keys' || tab === 'refs-music' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening' || tab === 'refs-speech') {
     renderReferencesForm();
   }

@@ -1,144 +1,192 @@
-// Vectorize tab — complete vanilla ES6 (spec: vectorize-tab-spec.md)
-(function () {
-  const API = '/vectorize';
-  let currentJob = null;
+// Vectorize tab — vanilla ES6 (spec: docs/vectorize-tab-spec.md)
+// Mounts into #actionPanelForm via renderVectorizeForm() (wired in app.js).
+// Uses the global in/out system: input from bestInput() (top input bar),
+// output dir via X-MTAPI-Output-Dir (window.globalInputs.pathOut).
+import { logConsole } from '/js/preview.js?v=2';
+import { bestInput } from '/app.js?v=4';
 
-  function id(n){ return document.getElementById(n); }
-  function fmtTime(s){ return (s||0).toFixed(1)+'s'; }
+const API = '/vectorize';
+let _state = { manifest: {}, engines: [], results: [] };
 
-  async function fetchJSON(url, opts){
-    const r = await fetch(url, opts||{});
-    return r.json();
+function el(id) { return document.getElementById(id); }
+function fmtTime(s) { return (s || 0).toFixed(1) + 's'; }
+
+async function fetchJSON(url, opts) {
+  const r = await fetch(url, opts || {});
+  return r.json();
+}
+
+function renderEnginePanels() {
+  const box = el('v-engines');
+  if (!box) return;
+  box.innerHTML = _state.engines.map((e) => {
+    const m = _state.manifest[e.id] || {};
+    const opts = m.options || [];
+    const disabled = !e.available;
+    const optsHtml = opts.length ? `<details class="v-opts"><summary>Options</summary>` +
+      opts.map((o) => {
+        if (o.type === 'bool') {
+          return `<label class="v-opt"><input type="checkbox" id="v-opt-${e.id}-${o.key}" ${o.default ? 'checked' : ''}/> ${o.key}</label>`;
+        }
+        if (o.type === 'select') {
+          return `<label class="v-opt">${o.key}<select id="v-opt-${e.id}-${o.key}">` +
+            (o.choices || []).map((c) => `<option ${c === o.default ? 'selected' : ''}>${c}</option>`).join('') +
+            `</select></label>`;
+        }
+        return `<label class="v-opt">${o.key}<input type="number" id="v-opt-${e.id}-${o.key}" value="${o.default}" min="${o.min ?? ''}" max="${o.max ?? ''}" step="${o.step ?? (o.type === 'float' ? 0.01 : 1)}"/></label>`;
+      }).join('') + `</details>` : '';
+    return `<div class="v-engine-row">
+      <label class="v-engine"><input type="checkbox" id="v-en-${e.id}" ${e.available ? 'checked' : ''} ${disabled ? 'disabled' : ''}/>
+        <b>${e.name || e.id}</b>${disabled ? `<span class="v-bad">(${e.reason || 'unavailable'})</span>` : ''}</label>
+      ${optsHtml}
+    </div>`;
+  }).join('');
+}
+
+function collectOptions() {
+  const out = {};
+  for (const [eid, m] of Object.entries(_state.manifest)) {
+    const o = {};
+    for (const opt of (m.options || [])) {
+      const node = el(`v-opt-${eid}-${opt.key}`);
+      if (!node) continue;
+      if (opt.type === 'bool') o[opt.key] = node.checked;
+      else if (opt.type === 'select') o[opt.key] = node.value;
+      else o[opt.key] = Number(node.value);
+    }
+    out[eid] = o;
   }
+  return out;
+}
 
-  function renderEngines(d){
-    const box = id('v-engines');
-    if(!box||!d.engines) return;
-    box.innerHTML = d.engines.map(e=>{
-      const opts = (window.VECTORIZE_MANIFEST||{})[e.id];
-      const optsHtml = opts ? '<details><summary>Options</summary><div class="v-opts">'+
-        opts.options.map(o=>{
-          if(o.type==='bool') return `<label><input type="checkbox" id="v-opt-${e.id}-${o.key}" ${o.default?'checked':''}/> ${o.key}</label>`;
-          if(o.type==='select') return `<label>${o.key}<select id="v-opt-${e.id}-${o.key}">${o.choices.map(c=>`<option ${c===o.default?'selected':''}>${c}</option>`).join('')}</select></label>`;
-          return `<label>${o.key}<input type="number" id="v-opt-${e.id}-${o.key}" value="${o.default}" min="${o.min||''}" max="${o.max||''}" step="${o.step||1}"/></label>`;
-        }).join('')+'</div></details>' : '';
-      return `<label class="v-engine"><input type="checkbox" id="v-en-${e.id}" ${e.available?'checked':''} ${!e.available?'disabled':''}/><b>${e.id}</b> ${!e.available?'<span class="v-bad">('+ (e.reason||'unavailable') +')</span>':''}</label>${optsHtml}`;
-    }).join('');
-  }
+function collectEnabled() {
+  return _state.engines
+    .filter((e) => e.available)
+    .map((e) => e.id)
+    .filter((id) => { const n = el(`v-en-${id}`); return n && n.checked; });
+}
 
-  async function loadStatus(){
-    try{
-      const d = await fetchJSON(API+'/status');
-      renderEngines(d);
-    }catch(e){ console.error('status',e); }
-  }
+function renderResults() {
+  const out = el('v-results');
+  if (!out) return;
+  const rs = _state.results;
+  if (!rs.length) { out.innerHTML = '<p class="v-empty">No results yet.</p>'; return; }
+  out.innerHTML = `<div class="v-grid">` + rs.map((r) => {
+    if (!r.ok) {
+      return `<article class="v-card v-card-err"><h4>${r.engine_id}</h4>
+        <p class="v-err">${r.error || 'failed'}</p></article>`;
+    }
+    const url = r.svg_url;
+    return `<article class="v-card">
+      <h4>${r.engine_id}</h4>
+      <div class="v-preview" id="v-preview-${r.engine_id}">loading…</div>
+      <div class="v-meta">${fmtTime(r.elapsed_s)} · ${r.bytes || 0} B</div>
+      <a href="${url}" download="${r.engine_id}.svg">Download SVG</a>
+    </article>`;
+  }).join('') + `</div>`;
 
-  function getOptions(){
-    const opts = {};
-    ['vtracer','inkscape','neural'].forEach(eid=>{
-      const m = (window.VECTORIZE_MANIFEST||{})[eid];
-      if(!m) return;
-      const o = {};
-      m.options.forEach(opt=>{
-        const el = id('v-opt-'+eid+'-'+opt.key);
-        if(!el) return;
-        if(opt.type==='bool') o[opt.key]=el.checked;
-        else if(opt.type==='select') o[opt.key]=el.value;
-        else o[opt.key]=Number(el.value);
-      });
-      opts[eid]=o;
+  // Inline-render each SVG (DOMParser + inject, per spec §4 results.js).
+  rs.filter((r) => r.ok).forEach((r) => {
+    const url = r.svg_url;
+    fetch(url).then((resp) => resp.text()).then((txt) => {
+      const host = el(`v-preview-${r.engine_id}`);
+      if (host) host.innerHTML = txt;
+    }).catch((e) => {
+      const host = el(`v-preview-${r.engine_id}`);
+      if (host) host.textContent = 'render failed: ' + e.message;
     });
-    return opts;
+  });
+}
+
+async function doRun() {
+  const enabled = collectEnabled();
+  if (!enabled.length) { logConsole('[vectorize] no engines enabled'); return null; }
+  const headers = { 'Content-Type': 'application/json' };
+  // Global output bar — same header every op sends (job-control.js).
+  const out = (window.globalInputs && window.globalInputs.pathOut || '').trim();
+  if (out) headers['X-MTAPI-Output-Dir'] = out;
+  // Global input bar is the only input channel (repo standard).
+  let inputPath = '';
+  try { inputPath = (bestInput() || '').trim(); } catch (_) { inputPath = ''; }
+  return fetchJSON(API + '/run', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ input_path: inputPath, enabled, options: collectOptions() }),
+  });
+}
+
+async function init() {
+  try {
+    const m = await fetchJSON(API + '/manifest');
+    _state.manifest = m.manifests || {};
+  } catch (e) {
+    logConsole(`[vectorize] manifest failed: ${e.message}`);
   }
-
-  async function doUpload(file){
-    const fd = new FormData();
-    fd.append('file', file);
-    const d = await fetchJSON(API+'/upload', {method:'POST', body:fd});
-    return d;
+  try {
+    const s = await fetchJSON(API + '/status');
+    _state.engines = s.engines || [];
+    renderEnginePanels();
+  } catch (e) {
+    const host = el('v-engines');
+    if (host) host.innerHTML = `<p class="v-err">Cannot reach server — ${e.message}</p>`;
+    logConsole(`[vectorize] status failed: ${e.message}`);
   }
+}
 
-  async function doRun(jobId){
-    const enabled = ['vtracer','inkscape','neural'].filter(eid=>{
-      const el = id('v-en-'+eid);
-      return el && el.checked && !el.disabled;
-    });
-    const payload = {enabled, options:getOptions()};
-    return fetchJSON(API+'/run', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
-  }
+/** Mirror the global in/out bar into the tab (same UX as erase.js). */
+function refreshGlobalIO() {
+  const box = el('v-global-io');
+  if (!box) return;
+  let input = '';
+  try { input = (bestInput() || '').trim(); } catch (_) { input = ''; }
+  const out = ((window.globalInputs && window.globalInputs.pathOut) || '').trim();
+  box.textContent =
+    'Input: ' + (input || '(none — set a global input above)') +
+    '  ·  Output: ' + (out || '(same folder as source)');
+}
 
-  function renderResults(d){
-    const out = id('v-results');
-    if(!out) return;
-    if(!d.results||!d.results.length){ out.innerHTML='<p>No results.</p>'; return; }
-    out.innerHTML = `
-      <div class="v-compare"><label>Compare <input type="range" id="v-blend" min="0" max="100" value="50" oninput="blendResults(this.value)"/></label></div>
-      <div class="v-grid">${d.results.map(r=>`<article class="v-card" id="v-card-${r.engine_id}">
-        <h4>${r.engine_id}</h4>
-        <div class="v-preview" id="v-preview-${r.engine_id}">
-          <svg viewBox="0 0 200 200" style="width:100%;height:auto;border:1px solid #ccc;" data-src="${r.svg_path||''}">
-            <text x="10" y="20">Loading SVG...</text>
-          </svg>
-        </div>
-        <div class="v-meta">time:${fmtTime(r.elapsed_s)} | size:${r.bytes||'?'}B</div>
-        <a href="${r.svg_path||'#'}" download="${r.engine_id}.svg">Download SVG</a>
-      </article>`).join('')}</div>`;
-    // load SVG content inline (fetch text and inject)
-    d.results.forEach(r=>{
-      if(r.svg_path){
-        fetch(r.svg_path).then(resp=>resp.text()).then(txt=>{
-          const container = id('v-preview-'+r.engine_id);
-          if(container) container.innerHTML = txt;
-        }).catch(()=>{});
-      }
-    });
-  }
+export function renderVectorizeForm() {
+  const panel = document.getElementById('actionPanelForm') || document.getElementById('actionPanel');
+  if (!panel) return;
+  panel.innerHTML = `
+    <div class="vectorize-tab">
+      <h2>Vectorize · Raster → SVG</h2>
+      <section class="v-io">
+        <div id="v-global-io" class="v-status"></div>
+      </section>
+      <section class="v-engines">
+        <h3>Engines</h3>
+        <div id="v-engines"></div>
+      </section>
+      <section class="v-run">
+        <button id="v-run-btn">Run enabled engines</button>
+        <div id="v-run-status" class="v-status"></div>
+      </section>
+      <section id="v-results" class="v-results"></section>
+    </div>`;
 
-  window.blendResults = function(v){
-    // overlay blend: two visible cards can be blended via CSS opacity on second
-    const cards = document.querySelectorAll('.v-card');
-    if(cards.length>=2){ cards[1].style.opacity = (v/100).toFixed(2); }
-  };
+  refreshGlobalIO();
+  el('v-run-btn').addEventListener('click', async () => {
+    let input = '';
+    try { input = (bestInput() || '').trim(); } catch (_) { input = ''; }
+    if (!input) {
+      el('v-run-status').textContent = 'Set a global input above.';
+      return;
+    }
+    el('v-run-status').textContent = 'Running…';
+    try {
+      const res = await doRun();
+      if (!res) { el('v-run-status').textContent = 'Nothing to run.'; return; }
+      if (!res.ok) throw new Error(res.error || 'run failed');
+      _state.results = res.results || [];
+      const outNote = res.output_dir ? ` → ${res.output_dir}` : '';
+      el('v-run-status').textContent = `Done — ${_state.results.length} engine(s).${outNote}`;
+      renderResults();
+    } catch (err) {
+      el('v-run-status').textContent = 'Run error: ' + err.message;
+      logConsole(`[vectorize] run error: ${err.message}`);
+    }
+  });
 
-  async function initUI(){
-    try{
-      const m = await fetchJSON(API+'/manifest');
-      window.VECTORIZE_MANIFEST = (m.manifests||{});
-      renderEngines({engines:Object.values(window.VECTORIZE_MANIFEST||{}).map(x=>({id:x.id,available:true}))});
-    }catch(e){ console.error('manifest',e); }
-    const main = id('v-main');
-    if(!main) return;
-    main.innerHTML = `
-      <section class="v-upload"><label>Drop PNG/JPG or <input type="file" accept="image/*" id="v-file"/></label></section>
-      <section class="v-run"><button id="v-run-btn">Run all enabled</button></section>
-      <section class="v-progress" id="v-progress" style="display:none"><pre id="v-log"></pre></section>
-      <section id="v-results"></section>`;
-    id('v-file').addEventListener('change', async (e)=>{
-      const f = e.target.files[0]; if(!f) return;
-      id('v-log').textContent = 'Uploading...';
-      id('v-progress').style.display='block';
-      try{
-        const up = await doUpload(f);
-        id('v-log').textContent = 'Uploaded '+(up.job_id||'?');
-        window.currentJob = up.job_id;
-        // demo run trigger
-        const res = await doRun((up.job_id||'demo'));
-        id('v-log').textContent += '\nDone '+(res.results||[]).length+' engines';
-        renderResults(res);
-      }catch(err){ id('v-log').textContent = 'Error: '+err; }
-    });
-    id('v-run-btn').addEventListener('click', async ()=>{
-      id('v-progress').style.display='block';
-      id('v-log').textContent = 'Running...';
-      try{
-        const res = await doRun('manual');
-        id('v-log').textContent = 'Finished '+(res.results||[]).length+' results';
-        renderResults(res);
-      }catch(err){ id('v-log').textContent='Error: '+err; }
-    });
-    loadStatus();
-  }
-
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', async()=>await initUI());
-  else (async()=>await initUI())();
-})();
+  init();
+}

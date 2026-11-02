@@ -138,14 +138,36 @@ app = FastAPI(
     lifespan=_lifespan,
 )
 
-# Allow CORS for ease of local testing
+# CORS: explicit origins (wildcard + credentials is spec-invalid and some
+# WebKit/Tauri builds reject it). Include the Tauri webview origins so the
+# desktop app's fetches are never blocked.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "*",
+        "tauri://localhost",
+        "http://tauri.localhost",
+        "http://localhost:24590",
+        "http://127.0.0.1:24590",
+        "http://localhost:1420",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def log_request_origin(request, call_next):
+    """Log every request's Origin/Referer so we can verify the webview is
+    actually talking to us — without needing devtools."""
+    origin = request.headers.get("origin") or request.headers.get("referer") or "-"
+    try:
+        with open("/tmp/ff_webui_origin.log", "a") as f:
+            f.write(f"{request.method} {request.url.path} origin={origin}\n")
+    except Exception:
+        pass
+    return await call_next(request)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 WORKSPACE_PATH = str(Path(__file__).resolve().parent.parent.parent)

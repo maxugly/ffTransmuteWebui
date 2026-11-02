@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=ffTransmute
 Comment=Embedded-server video/tool desktop app (Tauri v2)
-Exec=/home/m/snc/cod/ffTransmuteWebui-wip/fftransmute-tauri/src-tauri/target/release/bundle/app/app
+Exec=/home/m/bin/fftransmute
 Type=Application
 Terminal=false
 Icon=/home/m/snc/cod/ffTransmuteWebui-wip/fftransmute-icon.svg

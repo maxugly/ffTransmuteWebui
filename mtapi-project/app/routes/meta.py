@@ -151,7 +151,7 @@ def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY
 
     @app.get("/ops", tags=["meta"])
     async def list_ops() -> dict:
-        return {
+        result = {
             op_id: {
                 "summary": spec.summary,
                 "tags": spec.tags,
@@ -159,6 +159,8 @@ def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY
             }
             for op_id, spec in REGISTRY.items()
         }
+        result["vectorize"] = {"summary":"Raster → SVG conversion","tags":["vectorize","svg"],"params_schema":{}}
+        return result
 
     @app.get("/api/presets", tags=["meta"])
     async def api_presets() -> dict:
