@@ -9,6 +9,13 @@ import json
 import math
 import time
 from pathlib import Path
+from urllib.parse import quote
+
+from pydantic import BaseModel, Field
+
+from .. import job_control
+from ..contract import OperationResult, OperationSpec, register
+from ..pathutil import finalize_output_path
 
 _ENGINE_DIR = Path(__file__).resolve().parent.parent / "filters" / "vectorize_engines"
 
@@ -106,33 +113,47 @@ async def run_inkscape(input_path: str, opts: dict, out_path: str) -> dict:
         binary = shutil.which("inkscape") or "/home/m/.local/bin/inkscape"
         if not Path(binary).exists() and not shutil.which(binary):
             return {"ok": False, "error": "inkscape binary not found (install inkscape)"}
-        mode = str(opts.get("trace_mode", "brightness-cutoff"))
-        colors = _int(opts, "colors", 8)
+        colors = max(2, min(256, _int(opts, "colors", 16)))
         smooth = _bool(opts, "smooth", True)
-        speckles = _int(opts, "speckles", 2)
-        threshold = _float(opts, "threshold", 0.5)
-        argv = [
-            binary, input_path,
-            "--export-type=svg",
-            f"--export-filename={out_path}",
-        ]
-        # Inkscape 1.x tracing options (--tracer-engine / -t flags).
-        if mode == "color-quant":
-            argv += ["--tracer-engine=sioxf", "--colors", str(colors)]
-        elif mode == "edge-detection":
-            argv += ["--tracer-engine= potrace".strip()]
-        else:  # brightness-cutoff
-            argv += ["--tracer-engine=autotrace", "--brightness-threshold", str(threshold)]
-        if smooth:
-            argv.append("--smoothing")
-        if speckles > 0:
-            argv += ["--min-removal", str(speckles)]
+        speckles = max(0, min(64, _int(opts, "speckles", 2)))
+        smooth_val = "true" if smooth else "false"
+
+        # Modern Inkscape 1.2+ (including 1.4) uses the unified Actions API:
+        # object-trace:{scans},{smooth},{stack},{remove_bg},{speckles},{smooth_corners},{optimize}
+        action_str = (
+            f"select-by-element:image;"
+            f"object-trace:{colors},{smooth_val},true,false,{speckles},0.2,0.2;"
+            f"export-filename:{out_path};export-do"
+        )
+        argv = [binary, input_path, f"--actions={action_str}"]
+
         start = time.time()
         rc, out, err = await run_command(argv)
+        # If older Inkscape 0.9x/1.0 without --actions, try legacy export flags
+        if rc != 0 and "Unknown option --actions" in (err + out):
+            mode = str(opts.get("trace_mode", "colors"))
+            legacy_argv = [
+                binary, input_path,
+                "--export-type=svg",
+                f"--export-filename={out_path}",
+            ]
+            if mode == "color-quant" or mode == "colors":
+                legacy_argv += ["--tracer-engine=sioxf", "--colors", str(colors)]
+            elif mode == "edge-detection":
+                legacy_argv += ["--tracer-engine=potrace"]
+            else:
+                threshold = _float(opts, "threshold", 0.5)
+                legacy_argv += ["--tracer-engine=autotrace", "--brightness-threshold", str(threshold)]
+            if smooth:
+                legacy_argv.append("--smoothing")
+            rc, out, err = await run_command(legacy_argv)
+
         elapsed = time.time() - start
         if rc != 0:
             return {"ok": False, "error": err.strip() or out.strip() or f"inkscape exit {rc}"}
         size = Path(out_path).stat().st_size if Path(out_path).exists() else 0
+        if size == 0:
+            return {"ok": False, "error": "inkscape produced an empty SVG"}
         return {"ok": True, "elapsed_s": round(elapsed, 2), "bytes": size, "log": (out + err).strip()}
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": str(e)}
@@ -164,7 +185,14 @@ async def orchestrate(enabled_ids: list[str], options: dict, input_path: str,
     `out_paths` maps engine_id -> absolute output SVG path (resolved by the
     caller via pathutil.finalize_output_path — global out dir, never-overwrite).
     """
+    done = {"n": 0}
+
     async def _one(engine_id: str) -> dict:
+        job_control.check_cancelled()
+        job_control.report_progress(
+            f"vectorize: {engine_id}", phase="engine",
+            current=done["n"], total=len(enabled_ids),
+        )
         runner = _RUNNERS.get(engine_id)
         if not runner:
             return {"engine_id": engine_id, "ok": False, "error": f"unknown engine '{engine_id}'"}
@@ -176,6 +204,107 @@ async def orchestrate(enabled_ids: list[str], options: dict, input_path: str,
         res = await runner(input_path, opts, out_path)
         res["engine_id"] = engine_id
         res["svg_path"] = out_path if res.get("ok") else None
+        done["n"] += 1
+        job_control.report_progress(
+            f"vectorize {engine_id}: {'ok' if res.get('ok') else res.get('error', 'failed')}",
+            phase="engine", current=done["n"], total=len(enabled_ids),
+        )
         return res
 
     return list(await asyncio.gather(*(_one(e) for e in enabled_ids)))
+
+
+class VectorizeParams(BaseModel):
+    input_path: str = Field(..., description="Source raster image (absolute path from form or global input bar)")
+    output_path: str | None = Field(None, description="Optional destination SVG file or directory")
+    output_dir: str | None = Field(None, description="Optional destination directory")
+    enabled: list[str] = Field(default_factory=list, description="Engine ids to run")
+    options: dict = Field(default_factory=dict, description="Per-engine options {engine_id: {...}}")
+    dry_run: bool = False
+
+
+async def vectorize_run(p: VectorizeParams) -> OperationResult:
+    """Standard registry op (POST /ops/vectorize)."""
+    src = Path(p.input_path).expanduser()
+    if not src.is_file():
+        return OperationResult(ok=False, operation="vectorize",
+                               error=f"input not found: {p.input_path}", dry_run=p.dry_run)
+    input_path = str(src.resolve())
+    enabled = [e for e in (p.enabled or []) if e]
+    if not enabled:
+        return OperationResult(ok=False, operation="vectorize",
+                               error="no engines enabled — tick at least one engine", dry_run=p.dry_run)
+
+    custom_target = (p.output_path or p.output_dir or "").strip() or None
+    out_paths = {}
+    out_dirs = set()
+    for engine_id in enabled:
+        # If single engine and explicit file path given, keep the target stem without adding engine suffix
+        has_explicit_file = bool(custom_target and custom_target.lower().endswith(".svg"))
+        suffix = "" if (len(enabled) == 1 and has_explicit_file) else f"_{engine_id}"
+        out = finalize_output_path(
+            custom_target,
+            source=input_path,
+            default_suffix=suffix,
+            default_ext=".svg",
+        )
+        out_paths[engine_id] = str(out)
+        out_dirs.add(str(out.parent))
+
+    if p.dry_run:
+        first_target = out_paths.get(enabled[0]) if enabled else None
+        return OperationResult(
+            ok=True,
+            operation="vectorize",
+            output_path=first_target,
+            dry_run=True,
+            stdout=f"Dry run: would vectorize {input_path} using {enabled} -> {out_paths}",
+            meta={
+                "results": [{"engine_id": e, "ok": True, "dry_run": True, "svg_path": out_paths[e]} for e in enabled],
+                "input": input_path,
+                "output_dir": next(iter(out_dirs)) if len(out_dirs) == 1 else None,
+            },
+        )
+
+    job_control.report_progress(
+        f"vectorize: {len(enabled)} engine(s)", phase="start",
+        current=0, total=len(enabled),
+    )
+    results = await orchestrate(enabled, p.options or {}, input_path, out_paths)
+    for r in results:
+        if r.get("ok") and r.get("svg_path"):
+            r["svg_url"] = "/vectorize/svg?path=" + quote(r["svg_path"])
+
+    ok_results = [r for r in results if r.get("ok")]
+    failures = [f"{r.get('engine_id')}: {r.get('error') or 'failed'}"
+                for r in results if not r.get("ok")]
+    first_svg = ok_results[0]["svg_path"] if ok_results else None
+
+    return OperationResult(
+        ok=bool(ok_results),
+        operation="vectorize",
+        output_path=first_svg,
+        dry_run=False,
+        stdout="\n".join(f"{r['engine_id']}: {r.get('svg_path')}" for r in ok_results),
+        stderr="\n".join(failures),
+        error=None if ok_results else ("; ".join(failures) or "vectorize failed"),
+        meta={
+            "results": results,
+            "input": input_path,
+            "output_dir": next(iter(out_dirs)) if len(out_dirs) == 1 else None,
+        },
+    )
+
+
+register(OperationSpec(
+    id="vectorize",
+    summary="Raster image to SVG (VTracer / Inkscape / Neural)",
+    description=(
+        "Runs every enabled vectorize engine on the global input image and "
+        "writes one SVG per engine into the global output dir (else next to "
+        "the source), never-overwrite _0001 naming. Vanilla tab, global Run."
+    ),
+    params_model=VectorizeParams,
+    handler=vectorize_run,
+    tags=["vectorize", "svg", "image"],
+))

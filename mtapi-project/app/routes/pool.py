@@ -10,7 +10,7 @@ from ..media.config import _thumb_path
 
 # Still-image extensions for Image Pool folder scan (mirrors frontend IMAGE_EXTS).
 IMAGE_EXTENSIONS = {
-    ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff", ".ppm", ".pgm",
+    ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff", ".ppm", ".pgm", ".svg",
 }
 
 

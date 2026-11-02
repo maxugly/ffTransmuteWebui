@@ -32,6 +32,7 @@ import { collectWatermarkBody } from '/js/tabs/watermark.js';
 import { collectDemucsBody } from '/js/tabs/demucs.js';
 import { collectMusicBody } from '/js/tabs/music.js';
 import { collectEraseBody } from '/js/tabs/erase.js';
+import { collectVectorizeBody } from '/js/tabs/vectorize.js';
 // ── Job run / cooperative stop ────────────────────────────────────────────
 // Stop is cooperative: we abort the fetch + POST /api/cancel so DeepDream
 // loops exit soon. ffmpeg/transmute mid-process may still finish the current
@@ -932,6 +933,14 @@ function resolveActiveOpAndBody() {
     const bb = collectEraseBody();
     if (!bb || !bb.input_path) { error = "Please provide an Input path."; return { opId: '', body: null, error }; }
     opId = 'erase_remove';
+    body = bb;
+  } else if (tab === 'vectorize') {
+    const bb = collectVectorizeBody();
+    if (!bb || !bb.input_path) {
+      error = "Please provide an Input image for Vectorize.";
+      return { opId: '', body: null, error };
+    }
+    opId = 'vectorize';
     body = bb;
   } else if (tab === 'demucs') {
     const bb = collectDemucsBody();

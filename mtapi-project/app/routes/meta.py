@@ -86,7 +86,7 @@ def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY
         # Keep in sync with frontend IMAGE_EXTS / pool scan.
         image_exts = {
             ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif",
-            ".tif", ".tiff", ".ppm", ".pgm",
+            ".tif", ".tiff", ".ppm", ".pgm", ".svg",
         }
         p = Path(path).expanduser().resolve()
         if not p.is_dir():
@@ -159,7 +159,6 @@ def register(app: FastAPI, *, folder_watcher, job_control, check_tools, REGISTRY
             }
             for op_id, spec in REGISTRY.items()
         }
-        result["vectorize"] = {"summary":"Raster → SVG conversion","tags":["vectorize","svg"],"params_schema":{}}
         return result
 
     @app.get("/api/presets", tags=["meta"])

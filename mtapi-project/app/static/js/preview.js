@@ -166,7 +166,7 @@ function showPreview(filePath) {
     if (item?.meta?.width && item?.meta?.height) {
       setPreviewAspect(item.meta.width, item.meta.height);
     }
-  } else if (['.png', '.jpg', '.jpeg', '.gif', '.webp'].includes(ext)) {
+  } else if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'].includes(ext)) {
     const img = document.createElement('img');
     img.src = `/api/image?path=${encodeURIComponent(filePath)}&t=${Date.now()}`;
     img.onload = () => {

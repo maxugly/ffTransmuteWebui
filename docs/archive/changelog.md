@@ -1,6 +1,52 @@
 > **Archive — not law. STATUS.md is where we are now.**
 
-### 000.000.8.192 — YOLOE-26n-seg Open-Vocabulary Segmentation
+### 000.000.8.194 — Vectorize Tab Global In/Out Only, Inkscape 1.4 Tracing & Tauri Desktop App Rebuild
+- User requests:
+  - "now get rid of the local input and output that somehow came back, once that is done commit, push and rebuild the tauri app again pelase"
+  - "please rebuild the installed tauri app for my usage, thanks!"
+  - "we need to change the ui and run functionality on the vectorize tab to match most of the others, using the gloabal run button instead of having it's own"
+  - "now, I have installed inkscape but it still shows up as missing for the model that uses it, can you find out what is going on there and let me know what i need to do to install it? if it just needs something pulled down from github, please do so"
+- Vectorize Tab Global In/Out Exclusively (`js/tabs/vectorize.js`):
+  - Removed local input and output form rows (`#vectorizeInput`, `#btnVectorizeBrowseIn`, `#vectorizeOutput`, `#btnVectorizeBrowseOut`).
+  - Input path resolves via standard `bestInput()` from top image bar; output destination resolves via `window.globalInputs.pathOut` (or defaults next to source).
+  - Maintained engine selection (`#vectorizeEngine`), presets (Photo, Poster, B&W), color counts, layering, advanced VTracer options, and Inkscape options under the global Run button (`#btnRun`).
+- Tauri Desktop Application Rebuild (`fftransmute-tauri/`, `/home/m/bin/fftransmute`):
+  - Rebuilt desktop Tauri application via `npx @tauri-apps/cli build`, bundling updated frontend static assets.
+  - Installed freshly built AppImage to `/home/m/bin/fftransmute` for `fftransmute.desktop`.
+- Verification:
+  - `./check-gate.sh` 5/5 pass (113 ESM modules clean).
+  - `pytest mtapi-project/tests/test_vectorize.py` 6/6 pass.
+  - `FF_UI_PROOF=1 pytest mtapi-project/tests/test_vectorize_playwright.py` 4/4 pass.
+
+- User requests:
+  - "we need to change the ui and run functionality on the vectorize tab to match most of the others, using the gloabal run button instead of having it's own"
+  - "now, I have installed inkscape but it still shows up as missing for the model that uses it, can you find out what is going on there and let me know what i need to do to install it? if it just needs something pulled down from github, please do so"
+- Inkscape 1.4 Detection & Actions API Integration (`filters/vectorize_engines/inkscape.json`, `routes/vectorize.py`, `operations/vectorize_ops.py`):
+  - User's installation of Inkscape 1.4.4 was already present at `/usr/bin/inkscape`.
+  - Discovered that previous draft code had hardcoded `"headless_trace": false` and an artificial unavailability check in `routes/vectorize.py` based on the assumption that headless tracing was removed when legacy `--tracer-engine` options were phased out.
+  - Implemented modern Inkscape 1.4 headless Actions API in `run_inkscape()`: `select-by-element:image;object-trace:{scans},{smooth},{stack},{remove_bg},{speckles},{smooth_corners},{optimize};export-filename:{out_path};export-do` with legacy flag fallback.
+  - Set `"headless_trace": true`, removed false unavailability logic, and refreshed server worker so `GET /vectorize/status` reports `available: true`.
+- UI Standard Redesign (`js/tabs/vectorize.js`, `css/vectorize.css`):
+  - Replaced non-standard layout with standard WebUI `.panel-title-desc`, `.form-row`, and `.input-row` controls.
+  - Added `#vectorizeInput` with auto-fill from `bestInput('vectorizeInput')` and `#btnVectorizeBrowseIn` modal file browser.
+  - Added `#vectorizeOutput` with `#btnVectorizeBrowseOut` Save As modal browser.
+  - Added `#vectorizeEngine` selector supporting `vtracer` (VTracer Fast Rust Tracing), `inkscape` (Inkscape Trace), and `all` (All Available Engines).
+  - Dynamic options: VTracer panel with presets (Photo, Poster, B&W), color count, layering (stacked vs cutout), and collapsible advanced details (speckle filter, corner threshold, path precision, max iterations); Inkscape panel with trace mode, colors, and smooth toggle; dry run option.
+  - Full HelpStrip integration (`data-help-title`, `data-help-text`) with zero native `title` tooltips.
+- Global Run & Job Control (`js/job-control.js`, `operations/vectorize_ops.py`):
+  - Wired into `runActiveOperation()` triggered by global `#btnRun` button.
+  - Updated `resolveActiveOpAndBody()` for `vectorize` to validate input and return standard error dialogs when empty.
+  - Removed outdated snowflake hook `showVectorizeResult` and private status block; standard `displayOpResult` handles progress, logging, and completion.
+  - Updated `VectorizeParams` with `output_path`, `output_dir`, and `dry_run` support.
+- Media Preview & Pool Integration (`js/preview.js`, `js/pool/constants.js`, `routes/pool.py`, `routes/meta.py`):
+  - Added `.svg` to image preview types in `preview.js`, rendering resulting vector graphics natively in the right-hand media viewer upon job completion.
+  - Added `.svg` to `IMAGE_EXTS` in frontend constants and backend routes so vector outputs integrate into the Image Pool.
+- Upstream GitHub Dropdown (`js/ui/tab-github-repos.js`):
+  - Added entries for `vtracer`, `Vectra`, and `Inkscape`.
+- Verification:
+  - `./check-gate.sh` 5/5 pass (113 ESM modules clean).
+  - 6/6 pytest unit tests pass in `tests/test_vectorize.py` (including real vtracer and inkscape trace tests).
+  - 4/4 Playwright browser tests pass in `tests/test_vectorize_playwright.py` asserting standard form controls, dynamic engine switching, global Run button execution creating SVG outputs with both VTracer and Inkscape, SVG preview rendering in media viewer, and standard validation refusal.
 - User request: Core pipeline tool `YOLOE-26n-seg` open-vocabulary detect + mask with text prompts for game assets.
 - Architecture & Weight Management (`app/filters/fastsam.py`):
   - Model weights stored in `mtapi-project/junk/models/yoloe/` (`yoloe-26n-seg.pt` and `mobileclip2_b.ts`, 255 MB total) adhering to Invariant 8.

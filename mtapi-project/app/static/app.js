@@ -1174,7 +1174,6 @@ function switchTab(tab, { focusFilter = true } = {}) {
     || tab === 'airapper'
     || tab === 'decbars'
     || tab === 'openvino'
-    || tab === 'vectorize'
     || tab === 'refs' || tab === 'refs-models' || tab === 'refs-images' || tab === 'refs-code' || tab === 'refs-apis' || tab === 'refs-keys' || tab === 'refs-music' || tab === 'refs-audio' || tab === 'refs-tts' || tab === 'refs-voicemod' || tab === 'refs-listening' || tab === 'refs-speech'
   );
   if (elements.btnRun) {

@@ -119,6 +119,23 @@ export const TAB_GITHUB_REPOS = {
       desc: 'OpenVINO monocular depth estimation tutorials and quantization',
     },
   ],
+  vectorize: [
+    {
+      name: 'vtracer (visioncortex)',
+      url: 'https://github.com/visioncortex/vtracer',
+      desc: 'Fast raster to vector graphics (SVG) converter in Rust',
+    },
+    {
+      name: 'Vectra (akovall)',
+      url: 'https://github.com/akovall/Vectra',
+      desc: 'Rust CLI and WebAssembly vectorizer interface',
+    },
+    {
+      name: 'Inkscape',
+      url: 'https://gitlab.com/inkscape/inkscape',
+      desc: 'Professional Vector Graphics Editor with autotrace/potrace engine',
+    },
+  ],
   fastsam: [
     {
       name: 'YOLOE (Ultralytics / Real-Time Seeing Anything)',

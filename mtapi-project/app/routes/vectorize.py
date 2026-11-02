@@ -1,21 +1,18 @@
-"""Vectorize routes — status, manifest, run, svg.
+"""Vectorize routes — status, manifest, svg.
 
 Global in/out only (repo standard): input arrives as an absolute path from the
-top input bar (bestInput), output honors X-MTAPI-Output-Dir via
-pathutil.finalize_output_path — never-overwrite, falling back next to the
-source. There is deliberately no private upload/job path.
+top input bar (bestInput) and runs through the standard /ops/vectorize chain;
+output honors X-MTAPI-Output-Dir via pathutil.finalize_output_path —
+never-overwrite, falling back next to the source. There is deliberately no
+private upload/job path.
 """
 import importlib
 import json
 import shutil
 from pathlib import Path
-from urllib.parse import quote
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
-
-from app.pathutil import finalize_output_path
 
 router = APIRouter(prefix="/vectorize")
 
@@ -45,11 +42,6 @@ def _engine_availability(engine_id: str) -> tuple[bool, str | None]:
                                                  if Path("/home/m/.local/bin/inkscape").exists() else None)
         if not found:
             return False, f"{binary} binary not found"
-    # Inkscape 1.4 removed the headless tracing CLI (--tracer-engine); tracing
-    # only runs in the GUI/Action dialogs. Report it honestly as unavailable
-    # rather than failing a run with a confusing error (spec §8).
-    if deps.get("headless_trace") is False:
-        return False, f"{engine_id} 1.4 has no headless trace CLI (GUI only)"
     py_mod = deps.get("python_module")
     if py_mod:
         try:
@@ -83,55 +75,6 @@ def status():
 @router.get("/manifest")
 def manifest():
     return {"ok": True, "manifests": load_manifests()}
-
-
-class RunRequest(BaseModel):
-    enabled: list[str]
-    options: dict = {}
-    # Absolute path from the global input bar — the only input channel.
-    input_path: str
-
-
-@router.post("/run")
-async def run(
-    req: RunRequest,
-    x_mtapi_output_dir: str | None = Header(None, alias="X-MTAPI-Output-Dir"),
-):
-    from app.operations import vectorize_ops
-
-    p = Path(req.input_path).expanduser()
-    if not p.is_file():
-        return {"ok": False, "error": f"input not found: {req.input_path}"}
-    input_path = str(p.resolve())
-
-    # Per-engine output paths via the repo standard: global output dir when
-    # set (X-MTAPI-Output-Dir), else next to source; never overwrites
-    # (_0001 numbering). SVG vectors — no scaling involved (spec §9).
-    out_paths = {}
-    out_dirs = set()
-    for engine_id in req.enabled:
-        out = finalize_output_path(
-            None,
-            source=input_path,
-            default_suffix=f"_{engine_id}",
-            default_ext=".svg",
-            output_dir=x_mtapi_output_dir,
-        )
-        out_paths[engine_id] = str(out)
-        out_dirs.add(str(out.parent))
-
-    results = await vectorize_ops.orchestrate(
-        req.enabled, req.options, input_path, out_paths
-    )
-    for r in results:
-        if r.get("ok") and r.get("svg_path"):
-            r["svg_url"] = "/vectorize/svg?path=" + quote(r["svg_path"])
-    return {
-        "ok": True,
-        "input": input_path,
-        "output_dir": next(iter(out_dirs)) if len(out_dirs) == 1 else None,
-        "results": results,
-    }
 
 
 @router.get("/svg")

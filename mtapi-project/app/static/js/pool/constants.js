@@ -9,7 +9,7 @@ const POOL_LAYOUT_DEFAULTS = {
 const VIDEO_EXTS = ['.mp4', '.m4v', '.mov', '.avi', '.mkv', '.webm', '.mpeg', '.mpg', '.wmv', '.flv', '.ts', '.mts', '.m2ts'];
 
 /** Still-image extensions for Image Pool (not video containers). */
-const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif', '.tif', '.tiff', '.ppm', '.pgm'];
+const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif', '.tif', '.tiff', '.ppm', '.pgm', '.svg'];
 
 /** Tile overlay fields (checkbox menu). order = menu + render order. */
 const TILE_INFO_FIELDS = [

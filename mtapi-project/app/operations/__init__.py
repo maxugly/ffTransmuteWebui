@@ -45,4 +45,5 @@ from . import (  # noqa: F401
     media_catalog_ops,
     timeline_export_ops,
     depthmap_ops,
+    vectorize_ops,
 )

@@ -1,52 +1,18 @@
-/* Vectorize tab — raster → SVG (spec: docs/vectorize-tab-spec.md) */
-.vectorize-tab { padding: 12px 16px; max-width: 960px; }
-.vectorize-tab h2 { margin: 0 0 12px; font-size: 18px; }
-.vectorize-tab h3 { margin: 16px 0 8px; font-size: 15px; }
-
-.vectorize-tab .v-io { margin: 12px 0; }
-
-.vectorize-tab .v-engine-row {
-  border: 1px solid rgba(128,128,128,.35);
-  border-radius: 6px;
-  padding: 8px 10px;
-  margin: 8px 0;
+/* Vectorize tab — raster → SVG */
+.vectorize-advanced-options {
+  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.25));
+  border-radius: var(--radius-sm, 4px);
+  padding: 8px 12px;
+  background: var(--bg-surface, rgba(255, 255, 255, 0.02));
 }
-.vectorize-tab .v-engine { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-.vectorize-tab .v-engine input { margin: 0; }
-.vectorize-tab .v-bad { color: #d33; font-size: 12px; margin-left: 6px; }
 
-.vectorize-tab .v-opts { margin-top: 6px; }
-.vectorize-tab .v-opts > summary { cursor: pointer; font-size: 13px; opacity: .85; }
-.vectorize-tab .v-opt {
-  display: flex; align-items: center; gap: 8px;
-  margin: 4px 0 4px 12px; font-size: 13px;
+.vectorize-advanced-options summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text-dim, rgba(255, 255, 255, 0.7));
+  user-select: none;
 }
-.vectorize-tab .v-opt input[type="number"] { width: 90px; }
-.vectorize-tab .v-opt select { min-width: 120px; }
 
-.vectorize-tab .v-run { margin: 16px 0; }
-.vectorize-tab .v-run button {
-  padding: 6px 16px; cursor: pointer;
+.vectorize-advanced-options summary:hover {
+  color: var(--text-color, #fff);
 }
-.vectorize-tab .v-status { margin-top: 6px; font-size: 13px; opacity: .9; }
-.vectorize-tab .v-empty { opacity: .6; font-size: 13px; }
-.vectorize-tab .v-err { color: #d66; font-size: 13px; }
-
-.vectorize-tab .v-results { margin-top: 16px; }
-.vectorize-tab .v-grid {
-  display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
-}
-@media (max-width: 720px) { .vectorize-tab .v-grid { grid-template-columns: 1fr; } }
-
-.vectorize-tab .v-card {
-  border: 1px solid rgba(128,128,128,.35);
-  border-radius: 6px; padding: 10px;
-}
-.vectorize-tab .v-card h4 { margin: 0 0 8px; font-size: 14px; }
-.vectorize-tab .v-card-err { border-color: rgba(210,50,50,.6); }
-.vectorize-tab .v-preview {
-  min-height: 120px; background: #fff; border-radius: 4px;
-  display: flex; align-items: center; justify-content: center; overflow: hidden;
-}
-.vectorize-tab .v-preview svg { max-width: 100%; max-height: 260px; height: auto; }
-.vectorize-tab .v-meta { margin: 8px 0 4px; font-size: 12px; opacity: .8; }
