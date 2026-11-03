@@ -1,4 +1,5 @@
 use std::net::TcpStream;
+use std::os::unix::process::CommandExt;
 use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -58,8 +59,8 @@ fn main() {
                     "FFM_PROJECT_DIR",
                     "/home/m/snc/cod/ffTransmuteWebui-wip/mtapi-project",
                 );
-                let spawned = Command::new(&venv_py)
-                    .arg("-m")
+                let mut cmd = Command::new(&venv_py);
+                cmd.arg("-m")
                     .arg("uvicorn")
                     .arg("app.main:app")
                     .arg("--host")
@@ -74,8 +75,22 @@ fn main() {
                     .env_remove("PYTHONHOME")
                     .env("PYTHONPATH", &project_dir)
                     .stdout(std::fs::File::create("/tmp/app_server.log").expect("log"))
-                    .stderr(std::fs::File::create("/tmp/app_server.err").expect("err"))
-                    .spawn();
+                    .stderr(std::fs::File::create("/tmp/app_server.err").expect("err"));
+                // Die with the launcher even when it is SIGKILLed or crashes:
+                // the kernel delivers SIGTERM to the server once our process
+                // vanishes. Closing the app must never leave an orphan.
+                unsafe {
+                    cmd.pre_exec(|| {
+                        libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM);
+                        // Fork/parent-death race: if the parent already died
+                        // before prctl armed, refuse to start at all.
+                        if libc::getppid() == 1 {
+                            libc::_exit(1);
+                        }
+                        Ok(())
+                    });
+                }
+                let spawned = cmd.spawn();
                 match spawned {
                     Ok(c) => {
                         if let Ok(mut guard) = child.lock() {
