@@ -300,6 +300,31 @@
   color: var(--text-secondary, #cbd5e1);
 }
 
+.img-compare-scale-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+  user-select: none;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.img-compare-scale-toggle input[type="checkbox"] {
+  accent-color: #60a5fa;
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}
+
+.img-compare-scale-toggle:hover {
+  color: #e2e8f0;
+}
+
 /* Viewport: host sets size/aspect (e.g. cut-frame-preview). Layers fill the box. */
 .img-compare-viewport.img-compare,
 .img-compare.img-compare-viewport {
@@ -331,6 +356,14 @@
 
 .img-compare .img-layer-ref {
   z-index: 2;
+}
+
+/* Scale to match: images stretch/scale to fill the viewport matching each other */
+.ic-scale-match .img-compare .img-layer-base,
+.ic-scale-match .img-compare .img-layer-ref,
+.ic-scale-match .ic-sep-viewport > img.img-layer-base,
+.ic-scale-match .ic-main-viewport img {
+  object-fit: fill !important;
 }
 
 /* Simple (non-compare) base image inside a sized host box */

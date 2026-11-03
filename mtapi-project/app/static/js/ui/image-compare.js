@@ -78,6 +78,10 @@ export function normalizeCompareState(raw) {
   if (!Number.isFinite(ab)) ab = 50;
   out.abPosition = Math.min(100, Math.max(0, ab));
 
+  if (out.scaleToMatch !== undefined) {
+    out.scaleToMatch = out.scaleToMatch !== false;
+  }
+
   return out;
 }
 
@@ -111,6 +115,13 @@ export function compareToolbarHtml(opts) {
   const sliderVal = mode === 'ab' ? state.abPosition : state.overlayOpacity;
   const sliderLabel = mode === 'ab' ? 'A/B wipe' : 'Ref opacity';
 
+  const scaleToggleHtml = opts.showScaleToggle ? `
+    <label class="img-compare-scale-toggle" data-help-title="Scale to match — match smaller image to dimensions" data-help-text="When checked (default), scales smaller images so both images match size and align for direct comparison. When unchecked, preserves raw letterboxed aspect ratios.">
+      <input type="checkbox" id="${escapeHtml(idPrefix)}ScaleToMatch" ${opts.scaleToMatch !== false ? 'checked' : ''} data-cmp-prefix="${escapeHtml(idPrefix)}">
+      <span>Scale to match</span>
+    </label>
+  ` : (opts.extraHtml || '');
+
   return `
     <div class="${barClass}" data-cmp-bar="${escapeHtml(idPrefix)}">
       <label class="img-compare-bar-label">${escapeHtml(label)}</label>
@@ -127,6 +138,7 @@ export function compareToolbarHtml(opts) {
           data-cmp-prefix="${escapeHtml(idPrefix)}">
         <span class="img-compare-slider-val" id="${escapeHtml(idPrefix)}CompareSliderVal">${sliderVal}%</span>
       </div>
+      ${scaleToggleHtml}
     </div>
   `;
 }
@@ -193,6 +205,11 @@ export function syncCompareToolbar(idPrefix, state, root) {
     slider.value = String(s.abPosition);
     if (sliderVal) sliderVal.textContent = `${s.abPosition}%`;
     slider.setAttribute('data-help-title', 'Wipe handle: left of line = base, right = reference');
+  }
+
+  const scaleCb = doc.getElementById(`${idPrefix}ScaleToMatch`);
+  if (scaleCb && s.scaleToMatch !== undefined) {
+    scaleCb.checked = s.scaleToMatch !== false;
   }
 }
 
@@ -434,6 +451,18 @@ export function bindCompareControls(opts) {
           applyCompareVars(box, s2.mode, s2.overlayOpacity, s2.abPosition);
         }
       });
+    });
+  }
+
+  const scaleCb = root.getElementById
+    ? root.getElementById(`${idPrefix}ScaleToMatch`)
+    : document.getElementById(`${idPrefix}ScaleToMatch`);
+  if (scaleCb) {
+    on(scaleCb, 'change', () => {
+      write({ scaleToMatch: scaleCb.checked });
+      if (typeof opts.onScaleToggle === 'function') {
+        opts.onScaleToggle(scaleCb.checked);
+      }
     });
   }
 

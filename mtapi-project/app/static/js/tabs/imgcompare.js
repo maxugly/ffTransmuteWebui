@@ -42,7 +42,11 @@ function ensureIc() {
       rating: null, // 'scoring' | null
       ...defaultCompareState(),
       compareMode: 'separate',
+      scaleToMatch: true,
     };
+  }
+  if (state.imgCompare.scaleToMatch === undefined) {
+    state.imgCompare.scaleToMatch = true;
   }
   normalizeCompareState(state.imgCompare);
   return state.imgCompare;
@@ -239,48 +243,84 @@ function _paintScoreUi() {
 }
 
 /**
- * Size the main compare host to source AR (letterbox inside available space).
- * Uses the larger of the two image aspect ratios' bounding box idea:
- * prefer base A dims; if only B, use B; if both, use max width/height box AR.
+ * Size the compare viewports.
+ * When scaleToMatch is enabled (default), viewports pin to Image A's aspect ratio
+ * (so Image A is undistorted and Image B scales to match it), and .ic-scale-match
+ * is toggled on stage so images use object-fit: fill.
+ * When disabled, uses max AR span for composites and natural AR per viewport.
  */
 function applyViewportAr() {
   const host = document.getElementById('icMainViewport');
   const stage = document.getElementById('icStage');
-  if (!host || !stage) return;
+  if (!host && !stage) return;
+
+  const ic = ensureIc();
+  const scaleToMatch = ic.scaleToMatch !== false;
+
+  if (stage) {
+    stage.classList.toggle('ic-scale-match', scaleToMatch);
+  }
 
   let w = 0;
   let h = 0;
-  if (_dims.a && _dims.b) {
-    // Fit both without crop: take max AR span
-    w = Math.max(_dims.a.w, _dims.b.w);
-    h = Math.max(_dims.a.h, _dims.b.h);
-  } else if (_dims.a) {
-    w = _dims.a.w;
-    h = _dims.a.h;
-  } else if (_dims.b) {
-    w = _dims.b.w;
-    h = _dims.b.h;
+
+  if (scaleToMatch) {
+    if (_dims.a) {
+      w = _dims.a.w;
+      h = _dims.a.h;
+    } else if (_dims.b) {
+      w = _dims.b.w;
+      h = _dims.b.h;
+    }
+  } else {
+    if (_dims.a && _dims.b) {
+      w = Math.max(_dims.a.w, _dims.b.w);
+      h = Math.max(_dims.a.h, _dims.b.h);
+    } else if (_dims.a) {
+      w = _dims.a.w;
+      h = _dims.a.h;
+    } else if (_dims.b) {
+      w = _dims.b.w;
+      h = _dims.b.h;
+    }
   }
-  if (!w || !h) {
-    host.style.removeProperty('--ic-ar');
-    host.classList.remove('has-ar');
-    return;
+
+  if (host) {
+    if (!w || !h) {
+      host.style.removeProperty('--ic-ar');
+      host.classList.remove('has-ar');
+    } else {
+      host.style.setProperty('--ic-ar', `${w} / ${h}`);
+      host.classList.add('has-ar');
+    }
   }
-  host.style.setProperty('--ic-ar', `${w} / ${h}`);
-  host.classList.add('has-ar');
 
   // Also size separate-mode mini viewports
-  document.querySelectorAll('.ic-sep-viewport').forEach((el) => {
-    el.style.setProperty('--ic-ar', el.dataset.ar || `${w} / ${h}`);
-  });
+  const va = document.getElementById('icSepA');
+  const vb = document.getElementById('icSepB');
+  if (scaleToMatch) {
+    if (w && h) {
+      if (va) va.style.setProperty('--ic-ar', `${w} / ${h}`);
+      if (vb) vb.style.setProperty('--ic-ar', `${w} / ${h}`);
+    }
+  } else {
+    if (va && _dims.a) va.style.setProperty('--ic-ar', `${_dims.a.w} / ${_dims.a.h}`);
+    if (vb && _dims.b) vb.style.setProperty('--ic-ar', `${_dims.b.w} / ${_dims.b.h}`);
+  }
 }
 
 function _probeDims(which, path) {
   if (!path) return;
+  const key = which === 'A' ? 'a' : 'b';
+  if (_dims[key] && _dims[key].path === path) {
+    applyViewportAr();
+    _updateDimLabels();
+    return;
+  }
   const img = new Image();
   img.onload = () => {
     if (img.naturalWidth && img.naturalHeight) {
-      _dims[which === 'A' ? 'a' : 'b'] = { w: img.naturalWidth, h: img.naturalHeight };
+      _dims[key] = { w: img.naturalWidth, h: img.naturalHeight, path };
       applyViewportAr();
       _updateDimLabels();
     }
@@ -324,8 +364,6 @@ function _paintViews() {
       emptyMsg: 'Image B',
       emptyClass: 'ic-empty',
     });
-    if (va && _dims.a) va.style.setProperty('--ic-ar', `${_dims.a.w} / ${_dims.a.h}`);
-    if (vb && _dims.b) vb.style.setProperty('--ic-ar', `${_dims.b.w} / ${_dims.b.h}`);
   } else {
     const box = document.getElementById('icMainViewport');
     paintCompareView(box, {
@@ -361,6 +399,8 @@ function renderImgCompareForm() {
     idPrefix: ID_PREFIX,
     state: cmp,
     label: 'View',
+    showScaleToggle: true,
+    scaleToMatch: ic.scaleToMatch !== false,
     modeTitles: {
       separate: 'Side-by-side A and B (each keeps its AR)',
       overlay: 'Stack B on A; opacity slider',
@@ -382,7 +422,7 @@ function renderImgCompareForm() {
         <p class="dream-hint">
           Two stills · <strong>Separate</strong> / <strong>Overlay</strong> / <strong>A/B wipe</strong>
           (same control as Cut &amp; Zoompan) · rate with Image Sort metrics.
-          Viewports <strong>letterbox to source AR</strong> — no stretch.
+          Viewports <strong>scale to match</strong> by default (or toggle for raw letterbox).
         </p>
       </div>
 
@@ -444,9 +484,10 @@ function renderImgCompareForm() {
       <section class="tool-docs" aria-label="About Image Compare">
         <h4 class="tool-docs-title">About · Image Compare</h4>
         <p class="tool-docs-lede">
-          Side-by-side and wipe/overlay comparison for two stills. Display uses
-          <strong>object-fit: contain</strong> inside an AR-aware stage so nothing
-          is stretched — same philosophy as the main media preview.
+          Side-by-side and wipe/overlay comparison for two stills. With
+          <strong>Scale to match</strong> enabled (default), smaller images scale up
+          to match dimensions and alignment for seamless comparison. When unchecked,
+          displays use native <strong>object-fit: contain</strong> letterboxing without scaling.
           Distance scores reuse Image Sort metrics via <code>imagesort_rank</code>
           (lower = more similar for every mode).
         </p>
@@ -573,6 +614,14 @@ function renderImgCompareForm() {
       // separate vs composite needs layout rebuild
       renderImgCompareForm();
     },
+    onScaleToggle: () => {
+      applyViewportAr();
+    },
+  });
+
+  document.getElementById(`${ID_PREFIX}ScaleToMatch`)?.addEventListener('change', (e) => {
+    ensureIc().scaleToMatch = e.target.checked;
+    applyViewportAr();
   });
 
   _probeDims('A', ic.pathA);
