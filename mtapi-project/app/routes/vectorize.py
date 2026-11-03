@@ -8,13 +8,19 @@ private upload/job path.
 """
 import importlib
 import json
-import shutil
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
+from ..shell import find_binary
+
 router = APIRouter(prefix="/vectorize")
+
+# Host allowlist for /vectorize/svg: this endpoint serves local files and must
+# not answer cross-origin requests (DNS-rebinding sends an attacker Host).
+_LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+
 
 _ENGINE_DIR = Path(__file__).resolve().parent.parent / "filters" / "vectorize_engines"
 
@@ -36,10 +42,7 @@ def _engine_availability(engine_id: str) -> tuple[bool, str | None]:
     deps = manifest.get("dependencies", {})
     binary = deps.get("binary")
     if binary:
-        found = shutil.which(binary)
-        if not found and binary == "inkscape":
-            found = shutil.which("inkscape") or ("/home/m/.local/bin/inkscape"
-                                                 if Path("/home/m/.local/bin/inkscape").exists() else None)
+        found = find_binary(binary, f"~/.local/bin/{binary}")
         if not found:
             return False, f"{binary} binary not found"
     py_mod = deps.get("python_module")
@@ -78,8 +81,11 @@ def manifest():
 
 
 @router.get("/svg")
-def serve_svg(path: str):
-    """Serve a produced SVG by absolute path."""
+def serve_svg(request: Request, path: str):
+    """Serve a produced SVG by absolute path (localhost requests only)."""
+    host = (request.headers.get("host") or "").rsplit(":", 1)[0].strip("[]").lower()
+    if host not in _LOCAL_HOSTS:
+        raise HTTPException(status_code=403, detail="forbidden")
     target = Path(path).expanduser().resolve()
     if target.suffix.lower() != ".svg" or not target.is_file():
         raise HTTPException(status_code=404, detail="not found")

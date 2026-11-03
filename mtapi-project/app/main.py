@@ -306,10 +306,6 @@ def _params_input_path(params) -> str | None:
 from .routes import static
 static.register(app)
 
-from .routes import browse
-browse.register(app)
-
-
 from .routes import media as media_routes
 media_routes.register(app, probe_fn=_probe_media_full)
 

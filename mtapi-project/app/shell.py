@@ -14,6 +14,24 @@ from pathlib import Path
 
 BIN_DIR = Path(os.environ.get("MTAPI_BIN_DIR", Path(__file__).resolve().parent.parent / "bin"))
 
+
+def find_binary(name: str, *fallbacks: str) -> str | None:
+    """Locate a binary: PATH first, then fallback paths (expanded).
+
+    Fallbacks are convenience hints for developer machines where a tool is
+    installed outside PATH (e.g. ~/.local/bin). Prefer PATH everywhere else.
+    """
+    import shutil
+
+    found = shutil.which(name)
+    if found:
+        return found
+    for fb in fallbacks:
+        p = Path(fb).expanduser()
+        if p.is_file() and os.access(p, os.X_OK):
+            return str(p)
+    return None
+
 TRANSMUTE = str(BIN_DIR / "transmute")
 DATAMOSH = str(Path(__file__).resolve().parents[2] / "datamosh.sh")  # root copy
 

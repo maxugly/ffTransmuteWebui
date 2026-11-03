@@ -157,19 +157,6 @@ function _bindEvents() {
     });
   }
 
-  const browseBtn = document.getElementById('btnCommentsBrowse');
-  if (browseBtn) {
-    browseBtn.addEventListener('click', () => {
-      if (typeof window.openFileBrowserModal === 'function') {
-        window.openFileBrowserModal((chosenPath) => {
-          if (chosenPath && (chosenPath.endsWith('.json') || chosenPath.endsWith('.info.json'))) {
-            loadCommentsData(chosenPath);
-          }
-        }, { resolveMode: 'file', filterExts: ['.json'] });
-      }
-    });
-  }
-
   const searchInput = document.getElementById('commentsSearchInput');
   if (searchInput) {
     searchInput.addEventListener('input', () => {

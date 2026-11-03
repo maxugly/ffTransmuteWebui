@@ -283,7 +283,7 @@ function showPoolContextMenu(x, y, path) {
           if (act === 'prov_clear') await prov.clearProvenance(path);
           else if (act === 'prov_undo') await prov.undoLastProvenance(path);
           else await prov.setProvenance(path, { [bit]: !sm[bit] });
-          try { await import('/js/pool/grid.js?v=1').then((m) => m.renderPoolGrid?.()); } catch (_) { /* ignore */ }
+          try { await import('/js/pool/grid.js?v=3').then((m) => m.renderPoolGrid?.()); } catch (_) { /* ignore */ }
           break;
         }
         default:
@@ -360,157 +360,6 @@ window.openFileBrowser = async function(targetInputId, selectDirOnly = false, mo
   }
 };
 
-function closeFbModal() {
-  elements.fbModal.classList.remove('active');
-}
-
-async function browsePath(path = '') {
-  try {
-    const response = await fetch(`/api/browse?path=${encodeURIComponent(path)}`);
-    if (!response.ok) throw new Error(await response.text());
-    
-    const data = await response.json();
-    state.fb.currentPath = data.current_path;
-    elements.fbPathInput.value = data.current_path;
-    
-    // Render Shortcuts
-    elements.fbShortcuts.innerHTML = '';
-    data.shortcuts.forEach(shortcut => {
-      const btn = document.createElement('button');
-      btn.className = 'fb-shortcut-btn';
-      btn.textContent = shortcut.name;
-      btn.addEventListener('click', () => browsePath(shortcut.path));
-      elements.fbShortcuts.appendChild(btn);
-    });
-
-    // Render List
-    elements.fbList.innerHTML = '';
-    
-    // Parent Directory ".."
-    if (data.parent_path) {
-      const parentItem = document.createElement('li');
-      parentItem.className = 'fb-item fb-up-btn';
-      parentItem.innerHTML = `
-        <span class="fb-item-icon">📁</span>
-        <span class="fb-item-name">.. (Go Up)</span>
-      `;
-      parentItem.addEventListener('click', () => browsePath(data.parent_path));
-      elements.fbList.appendChild(parentItem);
-    }
-
-    if (data.entries.length === 0) {
-      elements.fbList.innerHTML += `<li class="fb-empty">Folder is empty</li>`;
-      return;
-    }
-
-    data.entries.forEach(entry => {
-      // If selectDirOnly is true, we still list files but make them unselectable
-      const isDir = entry.is_dir;
-      const isSelected = state.fb.selectedPath === entry.path;
-      
-      const li = document.createElement('li');
-      li.className = `fb-item ${isSelected ? 'selected' : ''}`;
-      
-      let icon = isDir ? '📁' : '📄';
-      if (!isDir) {
-        const ext = entry.name.substring(entry.name.lastIndexOf('.')).toLowerCase();
-        if (['.mp4', '.m4v', '.mov', '.avi', '.mkv'].includes(ext)) icon = '🎬';
-        else if (['.png', '.jpg', '.jpeg', '.gif'].includes(ext)) icon = '🖼️';
-        else if (['.m4a', '.mp3', '.wav'].includes(ext)) icon = '🎵';
-      }
-
-      const sizeText = entry.size !== null ? formatBytes(entry.size) : '';
-
-      li.innerHTML = `
-        <span class="fb-item-icon ${isDir ? 'dir' : 'file'}">${icon}</span>
-        <span class="fb-item-name">${entry.name}</span>
-        <span class="fb-item-size">${sizeText}</span>
-      `;
-      
-      // Double click navigates into directory
-      li.addEventListener('dblclick', () => {
-        if (isDir) {
-          browsePath(entry.path);
-        }
-      });
-      
-      // Single click selects
-      li.addEventListener('click', () => {
-        // Toggle selected state
-        document.querySelectorAll('.fb-item').forEach(el => el.classList.remove('selected'));
-        
-        if (state.fb.selectDirOnly && !isDir) {
-          // Can't select file in directory-only mode
-          state.fb.selectedPath = '';
-          state.fb.selectedName = '';
-          state.fb.selectedIsDir = false;
-          return;
-        }
-
-        li.classList.add('selected');
-        state.fb.selectedPath = entry.path;
-        state.fb.selectedName = entry.name;
-        state.fb.selectedIsDir = isDir;
-      });
-
-      elements.fbList.appendChild(li);
-    });
-
-  } catch (err) {
-    logConsole(`[BROWSE ERROR]: ${err.message}`);
-  }
-}
-
-function navigateUpFb() {
-  // Simple extraction of parent path
-  const current = state.fb.currentPath;
-  if (!current) return;
-  const lastIndex = current.lastIndexOf('/');
-  if (lastIndex > 0) {
-    const parent = current.substring(0, lastIndex);
-    browsePath(parent);
-  } else if (lastIndex === 0) {
-    browsePath('/');
-  }
-}
-
-function confirmFbSelection() {
-  let finalPath = '';
-  
-  if (state.fb.resolveMode === 'file_save') {
-    if (state.fb.selectedPath && !state.fb.selectedIsDir) {
-      finalPath = state.fb.selectedPath;
-    } else {
-      const filename = prompt("Enter output filename (e.g. output.mp4):", "output.mp4");
-      if (!filename) return; // cancel
-      finalPath = state.fb.currentPath + '/' + filename;
-    }
-  } else {
-    if (!state.fb.selectedPath) {
-      if (state.fb.selectDirOnly) {
-        finalPath = state.fb.currentPath;
-      } else {
-        alert("Please select a file.");
-        return;
-      }
-    } else {
-      finalPath = state.fb.selectedPath;
-    }
-  }
-  
-  if (state.fb.targetInputId === 'addMultiClip') {
-    addMultiClipPath(finalPath);
-  } else {
-    const input = document.getElementById(state.fb.targetInputId);
-    if (input) {
-      input.value = finalPath;
-      input.dispatchEvent(new Event('input'));
-    }
-  }
-  
-  closeFbModal();
-}
-
 function formatBytes(bytes, decimals = 2) {
   if (bytes === 0) return '0 Bytes';
   const k = 1024;
@@ -524,6 +373,5 @@ export {
   setPoolZoom, applyPoolZoom,
   setupTileInfoMenu, refreshPoolTileOverlays,
   hidePoolContextMenu, showPoolContextMenu,
-  closeFbModal, browsePath, navigateUpFb, confirmFbSelection,
   formatBytes,
 };

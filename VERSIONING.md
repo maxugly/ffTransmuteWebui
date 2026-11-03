@@ -18,4 +18,5 @@ Source of truth: root `VERSION` (single line). FastAPI `app.version` reads it at
 | Version | Notes |
 |---------|--------|
 | `000.000.2.00` | Folder Watcher tab + API; stop relying on systemd transcode daemon for UI control. |
+| `000.000.8.195` | Vectorize in-app polish; single-app lifecycle hardening (reuse-or-reap embedded server, kill on exit, single instance); deduplicated ES module URLs (fixed double file picker); removed dead in-app file-browser modal and /api/browse; /vectorize/svg localhost-only. |
 | *(pre-version)* | Unnumbered mainline until this scheme. |

@@ -2,7 +2,7 @@
 import { state, logConsole } from '/app.js?v=4';
 import { runOpWithCancel, isMainJobBusy } from '/js/job-control.js';
 import { resolveRange, sliceRange } from '/js/pool/sequence-range.js';
-import { scheduleSavePoolState } from '/js/pool/persistence.js';
+import { scheduleSavePoolState } from '/js/pool/persistence.js?v=3';
 import { basename } from '/js/utils.js';
 
 function triggerDownload(content, filename, mimeType) {

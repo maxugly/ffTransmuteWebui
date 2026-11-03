@@ -1725,16 +1725,6 @@ export function renderOpenVinoForm() {
     _copyText(_el('ov-model-source-url')?.value || '', e.currentTarget);
   });
 
-  _el('ov-browse-model-path')?.addEventListener('click', () => {
-    if (typeof window.browsePath === 'function') window.browsePath('ov-model-path', true);
-  });
-  _el('ov-browse-cache-dir')?.addEventListener('click', () => {
-    if (typeof window.browsePath === 'function') window.browsePath('ov-cache-dir', true);
-  });
-  _el('ov-browse-overlay-path')?.addEventListener('click', () => {
-    if (typeof window.browsePath === 'function') window.browsePath('ov-overlay-path', true);
-  });
-
   _el('ov-btn-server-toggle')?.addEventListener('click', () => _toggleServer());
   _el('ov-btn-kill-stray')?.addEventListener('click', () => _killStray());
   _el('ov-btn-model-toggle')?.addEventListener('click', () => _toggleModel());

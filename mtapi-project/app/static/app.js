@@ -105,15 +105,6 @@ let state = {
   previewLive: false,
   operations: {},
   health: { ok: true, warnings: [] },
-  fb: {
-    currentPath: '',
-    selectedPath: '',
-    selectedName: '',
-    selectedIsDir: false,
-    targetInputId: '',
-    selectDirOnly: false,
-    resolveMode: 'file' // 'file' or 'dir'
-  },
   multiClips: [],
   selectedMoshMode: 'melt', // 'melt' or 'classic'
   moshVideoFrames: 100,
@@ -279,6 +270,7 @@ let state = {
     compareMode: 'separate',
     overlayOpacity: 50,
     abPosition: 50,
+    scaleToMatch: true,
   },
   imageEdit: {
     engine: 'ffmpeg', // 'ffmpeg', 'imagemagick', 'pillow'
@@ -470,17 +462,7 @@ const elements = {
   consoleBody: document.getElementById('consoleBody'),
   btnClearConsole: document.getElementById('btnClearConsole'),
   btnOpenFolder: document.getElementById('btnOpenFolder'),
-  btnPreviewToInput: document.getElementById('btnPreviewToInput'),
-  
-  // Modal File Browser
-  fbModal: document.getElementById('fbModal'),
-  fbUpBtn: document.getElementById('fbUpBtn'),
-  fbPathInput: document.getElementById('fbPathInput'),
-  fbShortcuts: document.getElementById('fbShortcuts'),
-  fbList: document.getElementById('fbList'),
-  btnCloseFb: document.getElementById('btnCloseFb'),
-  btnCancelFb: document.getElementById('btnCancelFb'),
-  btnConfirmFb: document.getElementById('btnConfirmFb')
+  btnPreviewToInput: document.getElementById('btnPreviewToInput')
 };
 
 // ── Global shared inputs — persist across all tabs ──────────────────────
@@ -928,11 +910,6 @@ function setupEventListeners() {
   }
   elements.btnPreviewToInput?.addEventListener('click', sendPreviewToGlobal);
 
-  // File Browser Modal Buttons
-  elements.btnCloseFb.addEventListener('click', closeFbModal);
-  elements.btnCancelFb.addEventListener('click', closeFbModal);
-  elements.fbUpBtn.addEventListener('click', navigateUpFb);
-  elements.btnConfirmFb.addEventListener('click', confirmFbSelection);
   // Global inputs
   var giIds = ['giVideo', 'giImage', 'giPathIn', 'giPathOut'];
   giIds.forEach(function(id) {
@@ -1473,7 +1450,6 @@ import {
 import {
   setPoolZoom, applyPoolZoom, setupTileInfoMenu, refreshPoolTileOverlays,
   hidePoolContextMenu, showPoolContextMenu,
-  closeFbModal, browsePath, navigateUpFb, confirmFbSelection,
   formatBytes,
 } from '/js/pool/chrome.js';
 import {

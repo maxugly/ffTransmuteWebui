@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-# Sidecar: embedded server launcher for Tauri (one process feel)
-# Starts uvicorn on port 24590 from the project venv.
-set -euo pipefail
-DIR="$(dirname "$0")/../../.."
-VENV="$DIR/mtapi-project/.venv/bin/python"
-cd "$DIR/mtapi-project/app"
-exec "$VENV" -m uvicorn main:app --host 127.0.0.1 --port 24590 --log-level warning

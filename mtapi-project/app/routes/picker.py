@@ -1,11 +1,17 @@
 """Native file picker route — kdialog on KDE, zenity on GNOME, tkinter fallback."""
 import asyncio
+import os
 import shutil
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 
-WORKSPACE_PATH = "/home/m/snc/cod/ffTransmuteWebui"
+# Default picker start location: the checked-out project root. Override with
+# FFM_WORKSPACE (e.g. for a packaged install where the source tree differs).
+WORKSPACE_PATH = os.environ.get(
+    "FFM_WORKSPACE",
+    str(Path(__file__).resolve().parents[3]),
+)
 
 
 def register(app: FastAPI) -> None:

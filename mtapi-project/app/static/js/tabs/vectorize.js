@@ -165,8 +165,3 @@ export function collectVectorizeBody() {
     },
   };
 }
-
-/**
- * Backward compatibility hook — harmless no-op for any stale callers.
- */
-export function showVectorizeResult() {}

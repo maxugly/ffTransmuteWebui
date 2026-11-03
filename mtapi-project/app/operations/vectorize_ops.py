@@ -107,11 +107,10 @@ async def run_vtracer(input_path: str, opts: dict, out_path: str) -> dict:
 
 async def run_inkscape(input_path: str, opts: dict, out_path: str) -> dict:
     """Raster -> SVG via Inkscape's tracing CLI."""
-    from app.shell import run_command
+    from app.shell import find_binary, run_command
     try:
-        import shutil
-        binary = shutil.which("inkscape") or "/home/m/.local/bin/inkscape"
-        if not Path(binary).exists() and not shutil.which(binary):
+        binary = find_binary("inkscape", "~/.local/bin/inkscape")
+        if not binary:
             return {"ok": False, "error": "inkscape binary not found (install inkscape)"}
         colors = max(2, min(256, _int(opts, "colors", 16)))
         smooth = _bool(opts, "smooth", True)

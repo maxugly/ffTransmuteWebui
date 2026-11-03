@@ -55,6 +55,7 @@ const DESK_TAB_DEFAULTS = {
     pathA: null, pathB: null, sortMode: 'phash',
     lastScore: null, lastScoreMode: null, lastError: null, rating: null,
     mode: 'separate', compareMode: 'separate', overlayOpacity: 50, abPosition: 50,
+    scaleToMatch: true,
   },
   imageEdit: { engine: 'ffmpeg', outputFormat: 'png', stack: [] },
   airapper: {

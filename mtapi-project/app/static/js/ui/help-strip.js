@@ -178,8 +178,7 @@ const HelpStrip = {
 
     const main = document.querySelector('main');
     const sidebar = document.querySelector('.app-sidebar');
-    const fbModal = document.getElementById('fbModal');
-    for (const r of [main, sidebar, fbModal]) if (r) roots.push(r);
+    for (const r of [main, sidebar]) if (r) roots.push(r);
 
     for (const r of roots) {
       r.addEventListener('mouseover', onPointerOver);
