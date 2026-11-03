@@ -5,7 +5,7 @@
   "identifier": "com.fftransmute.app",
   "build": {
     "frontendDist": "../../mtapi-project/app/static",
-    "devUrl": "http://localhost:24590",
+    "devUrl": "http://127.0.0.1:24590",
     "beforeDevCommand": "",
     "beforeBuildCommand": ""
   },
