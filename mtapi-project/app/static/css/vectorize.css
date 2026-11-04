@@ -147,6 +147,24 @@
   gap: 5px;
   font-family: var(--font-mono, monospace);
   font-size: 0.75rem;
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+}
+
+.sa-swatch:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-color, rgba(128, 128, 128, 0.4));
+}
+
+.sa-swatch:focus-visible {
+  outline: 1px solid var(--accent, #4a9eff);
+  outline-offset: 1px;
+}
+
+.sa-swatch.sa-copied .sa-swatch-count {
+  color: #7fd08a;
 }
 
 .sa-swatch-chip {

@@ -4,6 +4,7 @@
 // output dir via globalInputs.pathOut (or next to source).
 import { elements, bestInput } from '/app.js?v=4';
 import { escapeHtml } from '/js/utils.js';
+import { logConsole } from '/js/preview.js?v=2';
 
 export function renderVectorizeForm() {
   const panel = elements.actionPanel || document.getElementById('actionPanelForm') || document.getElementById('actionPanel');
@@ -198,6 +199,27 @@ function fmtBytes(n) {
   return (n / 1048576).toFixed(2) + ' MB';
 }
 
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (_) {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return ok;
+    } catch (_) {
+      return false;
+    }
+  }
+}
+
 async function analyzeSvgPath(path, engineLabel) {
   const out = document.getElementById('svgAnalyzerOut');
   if (!out) return;
@@ -252,7 +274,7 @@ function renderAnalyzer(out, a, path, engineLabel) {
     </div>`).join('');
 
   const colorChips = (a.colors || []).map((c) => `
-    <span class="sa-swatch" title="${escapeHtml(c.color)} × ${c.count}">
+    <span class="sa-swatch" data-color="${escapeHtml(c.color)}" role="button" tabindex="0" title="Click to copy ${escapeHtml(c.color)}">
       <span class="sa-swatch-chip" style="background:${escapeHtml(c.color)}"></span>
       <span class="sa-swatch-hex">${escapeHtml(c.color)}</span>
       <span class="sa-swatch-count">×${c.count}</span>
@@ -328,6 +350,26 @@ function bindSvgAnalyzer() {
   const pathInput = document.getElementById('vectorizeAnalyzePath');
   pathInput?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') btn?.click();
+  });
+
+  // Click a color swatch to copy its value (delegated; survives re-renders).
+  const out = document.getElementById('svgAnalyzerOut');
+  out?.addEventListener('click', async (e) => {
+    const sw = e.target.closest('.sa-swatch');
+    if (!sw || !sw.dataset.color) return;
+    if (await copyText(sw.dataset.color)) {
+      sw.classList.add('sa-copied');
+      logConsole(`[COPIED]: ${sw.dataset.color}`);
+      setTimeout(() => sw.classList.remove('sa-copied'), 900);
+    }
+  });
+  out?.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const sw = e.target.closest('.sa-swatch');
+    if (sw) {
+      e.preventDefault();
+      sw.click();
+    }
   });
 
   if (_analyzerBound) return;
