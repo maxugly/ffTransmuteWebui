@@ -1112,6 +1112,12 @@ function displayOpResult(res) {
   elements.statusDot.className = 'status-dot';
   elements.statusText.textContent = 'Success';
 
+  // Generic op-result bus: tabs listen for results (e.g. vectorize's SVG
+  // analyzer readout) without job-control needing to know about them.
+  try {
+    window.dispatchEvent(new CustomEvent('mtapi:op-result', { detail: res }));
+  } catch (_) { /* must never break results */ }
+
   // Preview the output if not a dry run and output path exists
   if (!res.dry_run && res.output_path) {
     showPreview(res.output_path);

@@ -90,3 +90,27 @@ def serve_svg(request: Request, path: str):
     if target.suffix.lower() != ".svg" or not target.is_file():
         raise HTTPException(status_code=404, detail="not found")
     return FileResponse(str(target), media_type="image/svg+xml")
+
+
+@router.get("/analyze")
+def analyze_svg(request: Request, path: str):
+    """Convertico-style structure readout for a produced SVG (localhost only).
+
+    Returns element-type counts, nesting-depth histogram, color inventory
+    (fill/stroke/stop-color/lighting-color/color + inline styles) and a
+    flag list for embedded images. Reads the file, returns derived stats only.
+    """
+    host = (request.headers.get("host") or "").rsplit(":", 1)[0].strip("[]").lower()
+    if host not in _LOCAL_HOSTS:
+        raise HTTPException(status_code=403, detail="forbidden")
+    from ..operations.svg_analyze import analyze_svg_file
+
+    target = Path(path).expanduser().resolve()
+    if target.suffix.lower() != ".svg":
+        raise HTTPException(status_code=404, detail="not an svg")
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="not found")
+    try:
+        return analyze_svg_file(target)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))

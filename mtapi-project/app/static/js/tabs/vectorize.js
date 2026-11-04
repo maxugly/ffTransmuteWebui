@@ -3,6 +3,7 @@
 // Uses the global in/out system: input from bestInput() (top bar),
 // output dir via globalInputs.pathOut (or next to source).
 import { elements, bestInput } from '/app.js?v=4';
+import { escapeHtml } from '/js/utils.js';
 
 export function renderVectorizeForm() {
   const panel = elements.actionPanel || document.getElementById('actionPanelForm') || document.getElementById('actionPanel');
@@ -98,6 +99,21 @@ export function renderVectorizeForm() {
         <input type="checkbox" id="vectorizeDryRun" data-help-title="Dry run — Validate Only" data-help-text="Validates parameters and engine availability without writing output files."> Dry run
       </label>
     </div>
+
+    <div class="svg-analyzer" id="svgAnalyzerBlock">
+      <div class="panel-title-desc dense">
+        <h3>SVG Analyzer</h3>
+        <p class="dream-hint">Structure readout of the generated SVG — counts every element type, shows nesting depth, lists colors, and flags embedded images.</p>
+      </div>
+      <div class="form-row">
+        <label for="vectorizeAnalyzePath">SVG path</label>
+        <input type="text" id="vectorizeAnalyzePath" placeholder="/absolute/path/out.svg" autocomplete="off" spellcheck="false" data-help-title="SVG path — Analyze any SVG" data-help-text="Analyzes the generated SVG automatically after a run; you can also paste any .svg path here and press Analyze.">
+        <button class="btn" type="button" id="btnVectorizeAnalyze">Analyze</button>
+      </div>
+      <div id="svgAnalyzerOut" class="svg-analyzer-out">
+        <p class="form-row-hint">Run Vectorize (or paste any .svg path) to see the readout.</p>
+      </div>
+    </div>
   `;
 
   panel.innerHTML = html;
@@ -114,6 +130,7 @@ export function renderVectorizeForm() {
 
   engineSelect?.addEventListener('change', updateEngineVisibility);
   updateEngineVisibility();
+  bindSvgAnalyzer();
 }
 
 /**
@@ -164,4 +181,166 @@ export function collectVectorizeBody() {
       inkscape: inkscapeOpts,
     },
   };
+}
+
+// ── SVG Analyzer (convertico-style readout) ────────────────────────────────
+
+let _analyzerBound = false;
+
+function basenameOf(p) {
+  return String(p || '').split('/').filter(Boolean).pop() || p || '';
+}
+
+function fmtBytes(n) {
+  if (typeof n !== 'number') return '?';
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1048576).toFixed(2) + ' MB';
+}
+
+async function analyzeSvgPath(path, engineLabel) {
+  const out = document.getElementById('svgAnalyzerOut');
+  if (!out) return;
+  const pathInput = document.getElementById('vectorizeAnalyzePath');
+  if (pathInput) pathInput.value = path;
+  out.innerHTML = `<p class="form-row-hint">Analyzing <code>${escapeHtml(path)}</code>…</p>`;
+  try {
+    const res = await fetch('/vectorize/analyze?path=' + encodeURIComponent(path));
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      out.innerHTML = `<p class="sa-warn">Analysis failed: ${escapeHtml(detail || res.statusText)}</p>`;
+      return;
+    }
+    renderAnalyzer(out, await res.json(), path, engineLabel || null);
+  } catch (err) {
+    out.innerHTML = `<p class="sa-warn">Analysis failed: ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function renderAnalyzer(out, a, path, engineLabel) {
+  if (!a || !a.ok) {
+    out.innerHTML = `<p class="sa-warn">Analysis failed.</p>`;
+    return;
+  }
+  const t = a.totals || {};
+  const doc = a.document || {};
+  const maxCount = Math.max(1, ...(a.element_counts || []).map((e) => e.count));
+  const maxDepth = Math.max(1, ...(a.depth_histogram || []).map((h) => h.count));
+
+  const chips = (a.flags || [])
+    .map((f) => `<span class="sa-chip sa-warn-chip">${escapeHtml(f)}</span>`)
+    .join(' ');
+  const dims = (doc.width && doc.height)
+    ? `${escapeHtml(doc.width)} × ${escapeHtml(doc.height)}`
+    : (doc.view_box ? `viewBox ${escapeHtml(doc.view_box)}` : 'no dimensions');
+  const engineLine = engineLabel
+    ? `<span class="sa-chip">engine: ${escapeHtml(engineLabel)}</span>`
+    : '';
+
+  const elRows = (a.element_counts || []).map((e) => `
+    <div class="sa-row">
+      <span class="sa-tag">&lt;${escapeHtml(e.tag)}&gt;</span>
+      <span class="sa-bar"><span class="sa-bar-fill" style="width:${((e.count / maxCount) * 100).toFixed(1)}%"></span></span>
+      <span class="sa-count">${e.count}</span>
+    </div>`).join('');
+
+  const depthRows = (a.depth_histogram || []).map((h) => `
+    <div class="sa-row">
+      <span class="sa-tag">depth ${h.depth}</span>
+      <span class="sa-bar"><span class="sa-bar-fill sa-bar-depth" style="width:${((h.count / maxDepth) * 100).toFixed(1)}%"></span></span>
+      <span class="sa-count">${h.count}</span>
+    </div>`).join('');
+
+  const colorChips = (a.colors || []).map((c) => `
+    <span class="sa-swatch" title="${escapeHtml(c.color)} × ${c.count}">
+      <span class="sa-swatch-chip" style="background:${escapeHtml(c.color)}"></span>
+      <span class="sa-swatch-hex">${escapeHtml(c.color)}</span>
+      <span class="sa-swatch-count">×${c.count}</span>
+    </span>`).join('');
+  const sources = Object.entries(a.color_sources || {})
+    .map(([k, v]) => `${escapeHtml(k)}: ${v}`)
+    .join(' · ');
+
+  let imageBlock = '';
+  const images = a.embedded_images || [];
+  if (images.length) {
+    const rows = images.slice(0, 12).map((i) => `<li>${escapeHtml(i.kind)}${i.href_preview ? ' — <code>' + escapeHtml(i.href_preview) + '</code>' : ''}</li>`).join('');
+    imageBlock = `<div class="sa-warn-box"><strong>⚠ ${images.length} embedded/referenced image(s)</strong><ul>${rows}</ul>${images.length > 12 ? `<p class="form-row-hint">…and ${images.length - 12} more</p>` : ''}</div>`;
+  } else {
+    imageBlock = `<p class="sa-ok">No embedded images — pure vector output.</p>`;
+  }
+
+  out.innerHTML = `
+    <div class="sa-head">
+      <span class="sa-title">${escapeHtml(basenameOf(path))}</span>
+      ${engineLine}
+      <span class="sa-meta">${fmtBytes(a.file_size_bytes)} · ${dims}</span>
+    </div>
+    ${chips ? `<div class="sa-chips">${chips}</div>` : ''}
+    <p class="sa-summary">${t.elements} elements · ${t.distinct_tags} tag types · max nesting depth ${t.max_depth} · ${t.groups} groups · ${t.paths} paths · ${t.shapes} shapes · ${t.text_elements} text · ${t.gradients} gradients</p>
+    <div class="sa-grid">
+      <div class="sa-col">
+        <h4 class="sa-h">Element counts</h4>
+        ${elRows}
+      </div>
+      <div class="sa-col">
+        <h4 class="sa-h">Nesting depth</h4>
+        ${depthRows}
+        <h4 class="sa-h">Colors (${a.colors ? a.colors.length : 0}${t.distinct_colors > (a.colors ? a.colors.length : 0) ? '+ shown' : ''})</h4>
+        <div class="sa-swatches">${colorChips || '<p class="form-row-hint">no colors</p>'}</div>
+        ${sources ? `<p class="form-row-hint">Sources: ${sources}</p>` : ''}
+      </div>
+    </div>
+    ${imageBlock}
+  `;
+}
+
+function renderEngineChoices(okResults) {
+  const out = document.getElementById('svgAnalyzerOut');
+  if (!out) return;
+  const buttons = okResults.map((r) =>
+    `<button class="btn sa-engine-btn" type="button" data-sa-path="${escapeHtml(r.svg_path)}" data-sa-engine="${escapeHtml(r.engine_id)}">${escapeHtml(r.engine_id)}</button>`
+  ).join(' ');
+  const holder = document.createElement('div');
+  holder.className = 'sa-engine-row';
+  holder.innerHTML = `<span class="form-row-hint">Generated by:</span> ${buttons}`;
+  out.prepend(holder);
+  holder.querySelectorAll('.sa-engine-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      holder.querySelectorAll('.sa-engine-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      analyzeSvgPath(btn.dataset.saPath, btn.dataset.saEngine);
+    });
+  });
+}
+
+function bindSvgAnalyzer() {
+  const btn = document.getElementById('btnVectorizeAnalyze');
+  btn?.addEventListener('click', () => {
+    const path = (document.getElementById('vectorizeAnalyzePath')?.value || '').trim();
+    if (!path) {
+      const out = document.getElementById('svgAnalyzerOut');
+      if (out) out.innerHTML = '<p class="sa-warn">Paste an .svg path first (or run Vectorize).</p>';
+      return;
+    }
+    analyzeSvgPath(path);
+  });
+  const pathInput = document.getElementById('vectorizeAnalyzePath');
+  pathInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') btn?.click();
+  });
+
+  if (_analyzerBound) return;
+  _analyzerBound = true;
+  // Auto-analyze after a successful vectorize run (Run path only; queued
+  // jobs report through the queue flow, manual Analyze covers those).
+  window.addEventListener('mtapi:op-result', (ev) => {
+    const res = ev.detail || {};
+    if (res.operation !== 'vectorize' || !res.ok || res.dry_run) return;
+    const okResults = ((res.meta && res.meta.results) || []).filter((r) => r.ok && r.svg_path);
+    if (!okResults.length) return;
+    const first = okResults[0];
+    if (okResults.length > 1) renderEngineChoices(okResults);
+    analyzeSvgPath(first.svg_path, first.engine_id);
+  });
 }
